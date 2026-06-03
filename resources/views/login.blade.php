@@ -207,9 +207,14 @@
                 <p class="text-gray-500 dark:text-gray-400 text-sm">Enter your credentials to access your sanctuary.</p>
             </header>
 
+            <!-- NEW (matches register view) -->
             @if($errors->any())
                 <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 text-sm rounded-r-lg error-animate">
-                    {{ $errors->first() }}
+                    <ul class="space-y-1">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
                 </div>
             @endif
 
