@@ -21,8 +21,8 @@ class RegisterController extends Controller
             'username' => [
                 'required', 'string', 'max:255', 'regex:/^\S+$/u',
                 function ($attribute, $value, $fail) {
-                    if (User::whereRaw('BINARY username = ?', [$value])->exists()) {
-                        $fail('The username has already been taken.');
+                    if (User::whereRaw('LOWER(username) = LOWER(?)', [$value])->exists()) {
+                    $fail('The username has already been taken.');
                     }
                 },
             ],
