@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/* Your custom theme */
+@theme {
+    --color-sage-50: #f8faf9;
+    --color-sage-100: #f0f4f1;
+    --color-sage-200: #e1e9e3;
+    --color-sage-600: #7c9684;
+    --color-sage-800: #4a5d50;
+}
