@@ -346,14 +346,30 @@ PROMPT;
         return array_slice($normalized, 0, 6);
     }
 
-        public function healthCheck(): bool
+    public function healthCheck(): bool
     {
         try {
-            $response = Http::timeout(3)
-                ->get("{$this->endpoint}/api/tags");
+            // Check if the current endpoint is running locally or through the cloud tunnel
+            $isLocal = str_contains($this->endpoint, '127.0.0.1') || str_contains($this->endpoint, 'localhost');
+            
+            // Give the cloud tunnel a wider timeout window (8s) compared to local (3s)
+            $timeout = $isLocal ? 3 : 8;
+
+            $request = Http::timeout($timeout);
+
+            // Dynamically inject the bypass header ONLY if we are routing through ngrok
+            if (!$isLocal) {
+                $request->withHeaders([
+                    'ngrok-skip-browser-warning' => 'true'
+                ]);
+            }
+
+            $response = $request->get("{$this->endpoint}/api/tags");
 
             return $response->successful() && str_contains($response->body(), $this->model);
         } catch (\Exception $e) {
+            // Logs the exact failure details to laravel.log so you can debug without breaking the UI
+            Log::info('Ollama connection check failed: ' . $e->getMessage());
             return false;
         }
     }
