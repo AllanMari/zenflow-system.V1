@@ -14,6 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // 🌟 Trust Render's load balancers to prevent page-refresh loops
+        $middleware->trustProxies(at: '*');
         // Aliases for route middleware
         $middleware->alias([
             'role' => RoleMiddleware::class,
