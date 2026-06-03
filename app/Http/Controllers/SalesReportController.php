@@ -989,11 +989,15 @@ class SalesReportController extends Controller
         $peakMonth = $months[$peakIndex] ?? 'N/A';
         $peakBookings = $bookings[$peakIndex] ?? 0;
 
-        $lowIndex = array_search(min(array_filter($bookings, fn($v) => $v > 0)), $bookings);
+        $positiveBookings = array_filter($bookings, fn($v) => $v > 0);
+        $lowIndex = !empty($positiveBookings) 
+            ? array_search(min($positiveBookings), $bookings) 
+            : 0;
         $lowMonth = $months[$lowIndex] ?? 'N/A';
 
         $recentAvg = array_sum(array_slice($bookings, -3)) / 3;
-        $previousAvg = array_sum(array_slice($bookings, -6, 3)) / 3;
+        $previousSlice = array_slice($bookings, -6, 3);
+        $previousAvg = !empty($previousSlice) ? array_sum($previousSlice) / count($previousSlice) : 0;
         $trend = $previousAvg > 0 ? round((($recentAvg - $previousAvg) / $previousAvg) * 100, 1) : 0;
 
         return [
