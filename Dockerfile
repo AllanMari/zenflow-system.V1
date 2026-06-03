@@ -1,35 +1,39 @@
 FROM php:8.2-apache
 
-# Install system dependencies & PHP extensions
+# 1. Install system dependencies and PHP MYSQL extensions
 RUN apt-get update && apt-get install -y \
-    libpq-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
     zip \
     unzip \
     git \
-    && docker-php-ext-install pdo pdo_pgsql
+    curl \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql gd bcmath
 
-# Enable Apache ModRewrite
+# 2. Enable Apache ModRewrite
 RUN a2enmod rewrite
 
-# Install Composer
+# 3. Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Set working directory
+# 4. Set working directory
 WORKDIR /var/www/html
 
-# Copy project files
+# 5. Copy project files
 COPY . .
 
-# Set document root to public
+# 6. Set document root to Laravel's public folder
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/nginx/sites-available/*.conf || true
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 
-# Install dependencies
-RUN composer install --no-dev --optimize-autoloader
+# 7. Install dependencies (with --no-scripts so it doesn't crash during build time)
+RUN composer install --no-dev --optimize-autoloader --no-scripts
 
-# Set permissions for Laravel
+# 8. Set permissions for Laravel
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
+# 9. Run migrations ONLY when the container is fully active and starting up
 CMD php artisan migrate --force && apache2-foreground
