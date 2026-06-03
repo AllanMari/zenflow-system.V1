@@ -37,8 +37,7 @@ class LoginController extends Controller
         $remember = $request->has('remember');
 
         // Case-sensitive lookup
-        $user = \App\Models\User::whereRaw('BINARY username = ?', [$credentials['username']])->first();
-
+        $user = \App\Models\User::whereRaw('LOWER(username) = LOWER(?)', [$credentials['username']])->first();
         // Timing-attack protection: run Hash::check even if user not found
         if (!$user) {
             Hash::check('dummy', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
