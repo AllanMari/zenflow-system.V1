@@ -3,15 +3,17 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        // Change status from ENUM to VARCHAR so we can add 'no_show', 'rescheduled'
-        DB::statement("ALTER TABLE appointments MODIFY status VARCHAR(20) NOT NULL DEFAULT 'pending'");
+        // 1. Change status from ENUM to VARCHAR using pure Laravel syntax
+        Schema::table('appointments', function (Blueprint $table) {
+            $table->string('status', 20)->default('pending')->change();
+        });
         
+        // 2. Add the rest of your business audit fields
         Schema::table('appointments', function (Blueprint $table) {
             $table->decimal('deposit_required', 10, 2)->nullable()->after('total_price');
             $table->string('no_show_reason')->nullable()->after('cancellation_reason');
@@ -33,8 +35,8 @@ return new class extends Migration
                 'rescheduled_from',
                 'rescheduled_at',
             ]);
+            
+            $table->string('status', 20)->default('pending')->change();
         });
-        
-        DB::statement("ALTER TABLE appointments MODIFY status ENUM('pending','confirmed','completed','cancelled') NOT NULL DEFAULT 'pending'");
     }
 };
