@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Receptionist') - Spa Alexandria</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
@@ -14,7 +14,7 @@
             const isDark = localStorage.getItem('darkMode') === 'enabled';
             if (isDark) document.documentElement.classList.add('dark');
         })();
-        
+
         tailwind.config = { 
             darkMode: 'class',
             theme: {
@@ -31,12 +31,13 @@
             }
         }
     </script>
-    
+
     @stack('styles')
-    
+
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 min-h-screen flex transition-colors duration-300">
-<!-- MOBILE HEADER — Add this right after <body> -->
+
+    <!-- MOBILE HEADER -->
     <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-teal-800 dark:bg-teal-950 text-white flex items-center justify-between px-4 z-40 shadow-lg transition-colors duration-300">
         <button onclick="toggleMobileSidebar()" class="p-2 rounded-lg hover:bg-teal-700 transition">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,32 +45,34 @@
             </svg>
         </button>
         <span class="font-bold text-lg">Spa Alexandria</span>
-        <div class="w-10"></div> <!-- spacer for balance -->
+        <div class="w-10"></div>
     </div>
-    <!-- Sidebar -->
-    <aside id="desktopSidebar" class="hidden md:flex w-64 bg-teal-800 dark:bg-teal-950 min-h-screen text-white flex-col transition-colors duration-300 shrink-0 print:hidden">
+
+    <!-- DESKTOP SIDEBAR -->
+    <aside id="desktopSidebar" class="hidden md:flex w-64 bg-teal-800 dark:bg-teal-950 h-screen text-white flex-col overflow-hidden transition-colors duration-300 shrink-0 print:hidden">
         @php
             $pendingCount = \App\Models\Appointment::where('status', 'pending')->count();
             $activeCount = \App\Models\Appointment::where('status', 'confirmed')->whereDate('appointment_date', '<=', \Carbon\Carbon::today())->count();
         @endphp
-        
-        <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center gap-2">
+
+        <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center gap-2 shrink-0">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
             </svg>
             Spa Reception
         </div>
-        
-        <nav class="mt-4 flex-1 space-y-1">
+
+        <nav class="mt-4 flex-1 space-y-1 overflow-y-auto">
             <a href="{{ route('receptionist.dashboard') }}" 
-            class="block px-4 py-3 {{ request()->routeIs('receptionist.dashboard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+               class="block px-4 py-3 {{ request()->routeIs('receptionist.dashboard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
                 </svg>
                 Dashboard
             </a>
+
             <a href="{{ route('receptionist.pending') }}" 
-            class="block px-4 py-3 {{ request()->routeIs('receptionist.pending') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 justify-between rounded-lg mx-2">
+               class="block px-4 py-3 {{ request()->routeIs('receptionist.pending') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 justify-between rounded-lg mx-2">
                 <span class="flex items-center gap-3">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -80,22 +83,25 @@
                 <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">{{ $pendingCount }}</span>
                 @endif
             </a>
+
             <a href="{{ route('receptionist.sales') }}" 
-            class="block px-4 py-3 {{ request()->routeIs('receptionist.sales') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+               class="block px-4 py-3 {{ request()->routeIs('receptionist.sales') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                 </svg>
                 Sales Report
             </a>
+
             <a href="{{ route('receptionist.schedules') }}" 
-            class="block px-4 py-3 {{ request()->routeIs('receptionist.schedules') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+               class="block px-4 py-3 {{ request()->routeIs('receptionist.schedules') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                 </svg>
                 Staff Schedules
             </a>
+
             <a href="{{ route('receptionist.quick-book') }}" 
-            class="block px-4 py-3 {{ request()->routeIs('receptionist.quick-book') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+               class="block px-4 py-3 {{ request()->routeIs('receptionist.quick-book') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                 </svg>
@@ -103,15 +109,16 @@
             </a>
             @if(auth()->user()->can_edit_landing)
             <a href="{{ route('admin.landing.editor') }}" 
-            class="block px-4 py-3 {{ request()->routeIs('admin.landing.*') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+               class="block px-4 py-3 {{ request()->routeIs('admin.landing.*') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                 </svg>
                 Landing Page Editor
             </a>
             @endif
+
             <a href="{{ route('receptionist.active') }}" 
-            class="block px-4 py-3 {{ request()->routeIs('receptionist.active') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 justify-between rounded-lg mx-2">
+               class="block px-4 py-3 {{ request()->routeIs('receptionist.active') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 justify-between rounded-lg mx-2">
                 <span class="flex items-center gap-3">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
@@ -124,9 +131,8 @@
             </a>
         </nav>
 
-        <!-- Bottom section: Settings + Logout -->
-        <div class="p-4 space-y-1 border-t border-teal-700">
-            <button onclick="openSettingsModal(); closeMobileSidebar();" 
+        <div class="p-4 space-y-1 border-t border-teal-700 shrink-0">
+            <button onclick="openSettingsModal()" 
                     class="w-full text-left px-4 py-3 hover:bg-teal-700 transition flex items-center gap-3 rounded-lg">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31-2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
@@ -134,6 +140,7 @@
                 </svg>
                 Settings
             </button>
+
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" class="w-full text-left hover:bg-teal-700 text-red-300 transition px-4 py-3 rounded-lg flex items-center gap-3">
@@ -145,19 +152,15 @@
             </form>
         </div>
     </aside>
-    <!-- MOBILE SIDEBAR OVERLAY — Add before <main> -->
+
+    <!-- MOBILE SIDEBAR OVERLAY -->
     <div id="mobileSidebar" class="fixed inset-0 z-50 transform -translate-x-full transition-transform duration-300 md:hidden print:hidden">
-        <!-- Backdrop -->
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeMobileSidebar()"></div>
-        
-        <!-- Mobile Menu Panel -->
-        <div class="absolute left-0 top-0 bottom-0 w-72 bg-teal-800 dark:bg-teal-950 text-white flex flex-col overflow-y-auto transition-colors duration-300">
-            <!-- Header -->
-            <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center justify-between">
+        <div class="absolute left-0 top-0 bottom-0 w-72 bg-teal-800 dark:bg-teal-950 text-white flex flex-col overflow-hidden transition-colors duration-300">
+            <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center justify-between shrink-0">
                 <span class="flex items-center gap-2">
-                    <!-- Use the SAME icon from your desktop sidebar header -->
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <!-- COPY the path from your existing sidebar header icon -->
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                     </svg>
                     Spa Alexandria
                 </span>
@@ -167,32 +170,113 @@
                     </svg>
                 </button>
             </div>
-            
-            <!-- Nav Links — COPY from your desktop sidebar <nav> -->
-            <nav class="mt-4 flex-1 space-y-1">
-                <!-- PASTE your desktop nav links here (the <a> tags) -->
+
+            <nav class="mt-4 flex-1 space-y-1 overflow-y-auto">
+                <a href="{{ route('receptionist.dashboard') }}" 
+                   class="block px-4 py-3 {{ request()->routeIs('receptionist.dashboard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                    </svg>
+                    Dashboard
+                </a>
+
+                <a href="{{ route('receptionist.pending') }}" 
+                   class="block px-4 py-3 {{ request()->routeIs('receptionist.pending') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 justify-between rounded-lg mx-2">
+                    <span class="flex items-center gap-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Pending Bookings
+                    </span>
+                    @if($pendingCount > 0)
+                    <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">{{ $pendingCount }}</span>
+                    @endif
+                </a>
+
+                <a href="{{ route('receptionist.sales') }}" 
+                   class="block px-4 py-3 {{ request()->routeIs('receptionist.sales') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    Sales Report
+                </a>
+
+                <a href="{{ route('receptionist.schedules') }}" 
+                   class="block px-4 py-3 {{ request()->routeIs('receptionist.schedules') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    Staff Schedules
+                </a>
+
+                <a href="{{ route('receptionist.quick-book') }}" 
+                   class="block px-4 py-3 {{ request()->routeIs('receptionist.quick-book') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    Quick Book
+                </a>
+                @if(auth()->user()->can_edit_landing)
+                <a href="{{ route('admin.landing.editor') }}" 
+                   class="block px-4 py-3 {{ request()->routeIs('admin.landing.*') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                    Landing Page Editor
+                </a>
+                @endif
+
+                <a href="{{ route('receptionist.active') }}" 
+                   class="block px-4 py-3 {{ request()->routeIs('receptionist.active') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 justify-between rounded-lg mx-2">
+                    <span class="flex items-center gap-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        Active Sessions
+                    </span>
+                    @if($activeCount > 0)
+                    <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">{{ $activeCount }}</span>
+                    @endif
+                </a>
             </nav>
-            
-            <!-- Bottom Section — COPY from your desktop sidebar bottom -->
-            <div class="p-4 space-y-1 border-t border-teal-700">
-                <!-- PASTE your Settings button and Logout form here -->
+
+            <div class="p-4 space-y-1 border-t border-teal-700 shrink-0">
+                <button onclick="openSettingsModal(); closeMobileSidebar();" 
+                        class="w-full text-left px-4 py-3 hover:bg-teal-700 transition flex items-center gap-3 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31-2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    Settings
+                </button>
+
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="w-full text-left hover:bg-teal-700 text-red-300 transition px-4 py-3 rounded-lg flex items-center gap-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                        Logout
+                    </button>
+                </form>
             </div>
         </div>
     </div>
+
     <!-- Main Content -->
     <main class="flex-1 p-6 pt-20 md:pt-6 overflow-y-auto">
         @yield('content')
     </main>
 
-    <!-- Settings Modal — FIXED: Same structure as admin -->
+    <!-- Settings Modal -->
     <div id="settingsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center print:hidden" aria-modal="true">
         <div id="settingsBackdrop" 
              class="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 opacity-0" 
              onclick="closeSettingsModal()"></div>
-        
+
         <div id="settingsPanel" 
              class="relative bg-white dark:bg-gray-800 dark:text-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-gray-100 dark:border-gray-700 transform transition-all duration-300 scale-95 opacity-0 mx-4">
-            
+
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-2xl font-bold">Settings</h2>
                 <button type="button" onclick="closeSettingsModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -201,8 +285,7 @@
                     </svg>
                 </button>
             </div>
-            
-            <!-- Animated Dark Mode Toggle -->
+
             <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl mb-6">
                 <div class="flex items-center gap-3">
                     <div class="p-2 bg-teal-100 dark:bg-teal-900/50 rounded-lg">
@@ -243,7 +326,7 @@
     </div>
 
     @stack('scripts')
-    
+
     <script>
         let snapshot = localStorage.getItem('darkMode') || 'disabled';
 
@@ -252,14 +335,14 @@
             const modal = document.getElementById('settingsModal');
             const backdrop = document.getElementById('settingsBackdrop');
             const panel = document.getElementById('settingsPanel');
-            
+
             modal.classList.remove('hidden');
             void modal.offsetWidth;
-            
+
             backdrop.classList.remove('opacity-0');
             panel.classList.remove('scale-95', 'opacity-0');
             panel.classList.add('scale-100', 'opacity-100');
-            
+
             updateToggleUI();
         }
 
@@ -269,19 +352,19 @@
             } else {
                 document.documentElement.classList.remove('dark');
             }
-            
+
             const modal = document.getElementById('settingsModal');
             const backdrop = document.getElementById('settingsBackdrop');
             const panel = document.getElementById('settingsPanel');
-            
+
             backdrop.classList.add('opacity-0');
             panel.classList.remove('scale-100', 'opacity-100');
             panel.classList.add('scale-95', 'opacity-0');
-            
+
             setTimeout(() => {
                 modal.classList.add('hidden');
             }, 300);
-            
+
             updateToggleUI();
         }
 
@@ -302,11 +385,11 @@
             const isDark = document.documentElement.classList.contains('dark');
             const circle = document.getElementById('toggleCircle');
             const toggleBtn = document.getElementById('darkToggle');
-            
+
             if (circle) {
                 circle.style.transform = isDark ? 'translateX(24px)' : 'translateX(0px)';
             }
-            
+
             if (toggleBtn) {
                 toggleBtn.classList.toggle('bg-teal-600', isDark);
                 toggleBtn.classList.toggle('bg-gray-300', !isDark);
@@ -329,7 +412,7 @@
                 color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151'
             });
         @endif
-        
+
         @if(session('error'))
             Swal.fire({
                 icon: 'error',
@@ -344,7 +427,8 @@
                 color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151'
             });
         @endif
-        // ===== MOBILE SIDEBAR FUNCTIONS — Add inside <script> =====
+
+        // MOBILE SIDEBAR FUNCTIONS
         function toggleMobileSidebar() {
             const sidebar = document.getElementById('mobileSidebar');
             sidebar.classList.toggle('-translate-x-full');
@@ -357,7 +441,6 @@
             document.body.style.overflow = '';
         }
 
-        // Close mobile sidebar on window resize to desktop
         window.addEventListener('resize', () => {
             if (window.innerWidth >= 768) {
                 closeMobileSidebar();

@@ -30,7 +30,8 @@
     @stack('styles')
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 min-h-screen flex transition-colors duration-300">
-    <!-- MOBILE HEADER — Add this right after <body> -->
+
+    <!-- MOBILE HEADER -->
     <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-teal-800 dark:bg-teal-950 text-white flex items-center justify-between px-4 z-40 shadow-lg transition-colors duration-300">
         <button onclick="toggleMobileSidebar()" class="p-2 rounded-lg hover:bg-teal-700 transition">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -38,34 +39,35 @@
             </svg>
         </button>
         <span class="font-bold text-lg">Spa Alexandria</span>
-        <div class="w-10"></div> <!-- spacer for balance -->
+        <div class="w-10"></div>
     </div>
-    <!-- Sidebar -->
-    <aside id="desktopSidebar" class="hidden md:flex w-64 bg-teal-800 dark:bg-teal-950 min-h-screen text-white flex-col transition-colors duration-300 shrink-0 print:hidden">
-        <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center gap-2">
+
+    <!-- DESKTOP SIDEBAR -->
+    <aside id="desktopSidebar" class="hidden md:flex w-64 bg-teal-800 dark:bg-teal-950 h-screen text-white flex-col overflow-hidden transition-colors duration-300 shrink-0">
+        <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center gap-2 shrink-0">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
             </svg>
             Spa Staff
         </div>
 
-        <nav class="mt-4 flex-1 space-y-1">
+        <nav class="mt-4 flex-1 space-y-1 overflow-y-auto">
             <a href="{{ route('staff.dashboard') }}"
-            class="block px-4 py-3 {{ request()->routeIs('staff.dashboard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+               class="block px-4 py-3 {{ request()->routeIs('staff.dashboard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
                 </svg>
                 Dashboard
             </a>
             <a href="{{ route('staff.appointments') }}"
-            class="block px-4 py-3 {{ request()->routeIs('staff.appointments') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+               class="block px-4 py-3 {{ request()->routeIs('staff.appointments') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                 </svg>
                 My Appointments
             </a>
             <a href="{{ route('staff.schedule') }}"
-            class="block px-4 py-3 {{ request()->routeIs('staff.schedule') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+               class="block px-4 py-3 {{ request()->routeIs('staff.schedule') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
@@ -73,8 +75,8 @@
             </a>
         </nav>
 
-        <div class="p-4 space-y-1 border-t border-teal-700">
-            <button onclick="openSettingsModal(); closeMobileSidebar();"
+        <div class="p-4 space-y-1 border-t border-teal-700 shrink-0">
+            <button onclick="openSettingsModal()"
                     class="w-full text-left px-4 py-3 hover:bg-teal-700 transition flex items-center gap-3 rounded-lg">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31-2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
@@ -82,6 +84,7 @@
                 </svg>
                 Settings
             </button>
+
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" class="w-full text-left hover:bg-teal-700 text-red-300 transition px-4 py-3 rounded-lg flex items-center gap-3">
@@ -93,19 +96,15 @@
             </form>
         </div>
     </aside>
-    <!-- MOBILE SIDEBAR OVERLAY — Add before <main> -->
+
+    <!-- MOBILE SIDEBAR OVERLAY -->
     <div id="mobileSidebar" class="fixed inset-0 z-50 transform -translate-x-full transition-transform duration-300 md:hidden print:hidden">
-        <!-- Backdrop -->
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeMobileSidebar()"></div>
-        
-        <!-- Mobile Menu Panel -->
-        <div class="absolute left-0 top-0 bottom-0 w-72 bg-teal-800 dark:bg-teal-950 text-white flex flex-col overflow-y-auto transition-colors duration-300">
-            <!-- Header -->
-            <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center justify-between">
+        <div class="absolute left-0 top-0 bottom-0 w-72 bg-teal-800 dark:bg-teal-950 text-white flex flex-col overflow-hidden transition-colors duration-300">
+            <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center justify-between shrink-0">
                 <span class="flex items-center gap-2">
-                    <!-- Use the SAME icon from your desktop sidebar header -->
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <!-- COPY the path from your existing sidebar header icon -->
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                     </svg>
                     Spa Alexandria
                 </span>
@@ -115,18 +114,54 @@
                     </svg>
                 </button>
             </div>
-            
-            <!-- Nav Links — COPY from your desktop sidebar <nav> -->
-            <nav class="mt-4 flex-1 space-y-1">
-                <!-- PASTE your desktop nav links here (the <a> tags) -->
+
+            <nav class="mt-4 flex-1 space-y-1 overflow-y-auto">
+                <a href="{{ route('staff.dashboard') }}"
+                   class="block px-4 py-3 {{ request()->routeIs('staff.dashboard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="{{ route('staff.appointments') }}"
+                   class="block px-4 py-3 {{ request()->routeIs('staff.appointments') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    My Appointments
+                </a>
+                <a href="{{ route('staff.schedule') }}"
+                   class="block px-4 py-3 {{ request()->routeIs('staff.schedule') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    My Schedule
+                </a>
             </nav>
-            
-            <!-- Bottom Section — COPY from your desktop sidebar bottom -->
-            <div class="p-4 space-y-1 border-t border-teal-700">
-                <!-- PASTE your Settings button and Logout form here -->
+
+            <div class="p-4 space-y-1 border-t border-teal-700 shrink-0">
+                <button onclick="openSettingsModal(); closeMobileSidebar();"
+                        class="w-full text-left px-4 py-3 hover:bg-teal-700 transition flex items-center gap-3 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31-2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    Settings
+                </button>
+
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="w-full text-left hover:bg-teal-700 text-red-300 transition px-4 py-3 rounded-lg flex items-center gap-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                        Logout
+                    </button>
+                </form>
             </div>
         </div>
     </div>
+
     <!-- Main -->
     <main class="flex-1 p-6 pt-20 md:pt-6 overflow-y-auto">
         @yield('content')
@@ -235,7 +270,8 @@
         @if(session('error'))
             Swal.fire({icon:'error',title:'Error',text:'{{ session('error') }}',timer:4000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1f2937':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
         @endif
-        // ===== MOBILE SIDEBAR FUNCTIONS — Add inside <script> =====
+
+        // MOBILE SIDEBAR FUNCTIONS
         function toggleMobileSidebar() {
             const sidebar = document.getElementById('mobileSidebar');
             sidebar.classList.toggle('-translate-x-full');
@@ -248,7 +284,6 @@
             document.body.style.overflow = '';
         }
 
-        // Close mobile sidebar on window resize to desktop
         window.addEventListener('resize', () => {
             if (window.innerWidth >= 768) {
                 closeMobileSidebar();
