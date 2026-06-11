@@ -29,7 +29,7 @@
     </script>
     @stack('styles')
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 min-h-screen flex transition-colors duration-300">
+<body class="bg-gray-100 dark:bg-gray-900 h-screen overflow-hidden flex transition-colors duration-300">
 
     <!-- MOBILE HEADER -->
     <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-teal-800 dark:bg-teal-950 text-white flex items-center justify-between px-4 z-40 shadow-lg transition-colors duration-300">
@@ -43,10 +43,8 @@
     </div>
 
     <!-- DESKTOP SIDEBAR -->
-    <aside id="desktopSidebar" class="hidden md:flex w-64 bg-teal-800 dark:bg-teal-950 h-screen text-white flex-col overflow-hidden transition-colors duration-300 shrink-0">
-        <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center gap-2 shrink-0">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            <aside id="desktopSidebar" class="hidden md:flex fixed left-0 top-0 h-full w-64 bg-teal-800 dark:bg-teal-950 text-white flex-col overflow-hidden transition-colors duration-300 shrink-0 print:hidden z-30">            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543 .94-3.31-.826-2.      
             </svg>
             Spa Member
         </div>
@@ -177,8 +175,8 @@
     </div>
 
     <!-- Main -->
-    <main class="flex-1 p-6 pt-20 md:pt-6 overflow-y-auto">
-        @yield('content')
+    <main class="flex-1 md:ml-64 h-full overflow-y-auto p-6 pt-20 md:pt-6">       
+         @yield('content')
     </main>
 
     <!-- Settings Modal -->

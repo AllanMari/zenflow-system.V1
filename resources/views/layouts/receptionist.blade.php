@@ -35,7 +35,7 @@
     @stack('styles')
 
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 min-h-screen flex transition-colors duration-300">
+<body class="bg-gray-100 dark:bg-gray-900 h-screen overflow-hidden flex transition-colors duration-300">
 
     <!-- MOBILE HEADER -->
     <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-teal-800 dark:bg-teal-950 text-white flex items-center justify-between px-4 z-40 shadow-lg transition-colors duration-300">
@@ -49,8 +49,7 @@
     </div>
 
     <!-- DESKTOP SIDEBAR -->
-    <aside id="desktopSidebar" class="hidden md:flex w-64 bg-teal-800 dark:bg-teal-950 h-screen text-white flex-col overflow-hidden transition-colors duration-300 shrink-0 print:hidden">
-        @php
+        <aside id="desktopSidebar" class="hidden md:flex fixed left-0 top-0 h-full w-64 bg-teal-800 dark:bg-teal-950 text-white flex-col overflow-hidden transition-colors duration-300 shrink-0 print:hidden z-30">        @php
             $pendingCount = \App\Models\Appointment::where('status', 'pending')->count();
             $activeCount = \App\Models\Appointment::where('status', 'confirmed')->whereDate('appointment_date', '<=', \Carbon\Carbon::today())->count();
         @endphp
@@ -264,7 +263,7 @@
     </div>
 
     <!-- Main Content -->
-    <main class="flex-1 p-6 pt-20 md:pt-6 overflow-y-auto">
+    <main class="flex-1 md:ml-64 h-full overflow-y-auto p-6 pt-20 md:pt-6">
         @yield('content')
     </main>
 
