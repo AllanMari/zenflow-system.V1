@@ -45,7 +45,15 @@
             </svg>
         </button>
         <span class="font-bold text-lg">Spa Alexandria</span>
-        <div class="w-10"></div>
+        <!-- Mobile notification bell -->
+        <div class="relative">
+            <button onclick="toggleNotifyDropdown()" class="relative p-2 rounded-lg hover:bg-teal-700 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+                <span id="mobileNotifyBadge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">0</span>
+            </button>
+        </div>
     </div>
 
     <!-- DESKTOP SIDEBAR -->
@@ -54,11 +62,39 @@
             $activeCount = \App\Models\Appointment::where('status', 'confirmed')->whereDate('appointment_date', '<=', \Carbon\Carbon::today())->count();
         @endphp
 
-        <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center gap-2 shrink-0">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-            </svg>
-            Spa Reception
+        <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center justify-between shrink-0">
+            <span class="flex items-center gap-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                </svg>
+                Spa Reception
+            </span>
+            <!-- Desktop notification bell -->
+            <div class="relative">
+                <button onclick="toggleNotifyDropdown()" class="relative p-2 rounded-lg hover:bg-teal-700 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                    </svg>
+                    <span id="desktopNotifyBadge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">0</span>
+                </button>
+                <!-- Notification Dropdown -->
+                <div id="notifyDropdown" class="hidden absolute right-0 top-10 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+                    <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                        <h3 class="font-semibold text-sm text-gray-800 dark:text-white">Notifications</h3>
+                        <button onclick="markAllRead()" class="text-xs text-teal-600 dark:text-teal-400 hover:underline">Mark all read</button>
+                    </div>
+                    <div id="notifyList" class="max-h-64 overflow-y-auto">
+                        <div class="p-4 text-center text-sm text-gray-400 dark:text-gray-500">No notifications</div>
+                    </div>
+                    <div class="p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
+                        <div id="notifyPagination" class="flex justify-between items-center text-xs">
+                            <button onclick="loadNotifications(currentPage - 1)" id="notifyPrev" class="text-gray-500 dark:text-gray-400 disabled:opacity-30" disabled>← Prev</button>
+                            <span id="notifyPageInfo" class="text-gray-500 dark:text-gray-400">Page 1</span>
+                            <button onclick="loadNotifications(currentPage + 1)" id="notifyNext" class="text-gray-500 dark:text-gray-400 disabled:opacity-30" disabled>Next →</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <nav class="mt-4 flex-1 space-y-1 overflow-y-auto">
@@ -127,6 +163,13 @@
                 @if($activeCount > 0)
                 <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">{{ $activeCount }}</span>
                 @endif
+            </a>
+            <a href="{{ route('attendance.today') }}" 
+            class="block px-4 py-3 {{ request()->routeIs('attendance.today') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                </svg>
+                Staff Attendance
             </a>
         </nav>
 
@@ -327,6 +370,133 @@
     @stack('scripts')
 
     <script>
+        // ==================== NOTIFICATION SYSTEM ====================
+        let currentPage = 1;
+        let notifyDropdownOpen = false;
+        const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+        function toggleNotifyDropdown() {
+            const dropdown = document.getElementById('notifyDropdown');
+            notifyDropdownOpen = !notifyDropdownOpen;
+            if (notifyDropdownOpen) {
+                dropdown.classList.remove('hidden');
+                loadNotifications(1);
+            } else {
+                dropdown.classList.add('hidden');
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            const bell = e.target.closest('[onclick="toggleNotifyDropdown()"]');
+            const dropdown = document.getElementById('notifyDropdown');
+            if (!bell && dropdown && !dropdown.contains(e.target)) {
+                dropdown.classList.add('hidden');
+                notifyDropdownOpen = false;
+            }
+        });
+
+        async function loadNotifications(page) {
+            try {
+                const res = await fetch(`/api/notifications?page=${page}`, {
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
+                });
+                const data = await res.json();
+
+                currentPage = data.pagination.current_page;
+                const list = document.getElementById('notifyList');
+
+                if (data.notifications.length === 0) {
+                    list.innerHTML = '<div class="p-4 text-center text-sm text-gray-400 dark:text-gray-500">No notifications</div>';
+                } else {
+                    list.innerHTML = data.notifications.map(n => `
+                        <div class="p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer" onclick="handleNotifyClick('${n.id}', '${n.action_url || ''}')">
+                            <div class="flex items-start gap-2">
+                                <div class="w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.severity === 'critical' ? 'bg-red-500' : (n.severity === 'warning' ? 'bg-orange-400' : 'bg-blue-400')}"></div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-gray-800 dark:text-white truncate">${n.title}</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">${n.message}</p>
+                                    <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">${n.time}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                document.getElementById('notifyPageInfo').textContent = `Page ${currentPage} of ${data.pagination.last_page || 1}`;
+                document.getElementById('notifyPrev').disabled = currentPage <= 1;
+                document.getElementById('notifyNext').disabled = !data.pagination.has_more;
+
+                updateNotifyBadges(data.unread_count);
+            } catch (err) {
+                console.error('Failed to load notifications:', err);
+            }
+        }
+
+        function updateNotifyBadges(count) {
+            const desktopBadge = document.getElementById('desktopNotifyBadge');
+            const mobileBadge = document.getElementById('mobileNotifyBadge');
+
+            [desktopBadge, mobileBadge].forEach(badge => {
+                if (badge) {
+                    if (count > 0) {
+                        badge.textContent = count > 99 ? '99+' : count;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            });
+        }
+
+        async function handleNotifyClick(id, url) {
+            try {
+                await fetch(`/api/notifications/${id}/read`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, 'Accept': 'application/json' }
+                });
+                if (url) window.location.href = url;
+                else loadNotifications(currentPage);
+            } catch (err) {
+                console.error('Failed to mark as read:', err);
+            }
+        }
+
+        async function markAllRead() {
+            try {
+                await fetch('/api/notifications/read-all', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, 'Accept': 'application/json' }
+                });
+                loadNotifications(1);
+                updateNotifyBadges(0);
+            } catch (err) {
+                console.error('Failed to mark all read:', err);
+            }
+        }
+
+        // Poll for new notifications every 30 seconds
+        setInterval(async () => {
+            try {
+                const res = await fetch('/api/notifications/count', {
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
+                });
+                const data = await res.json();
+                updateNotifyBadges(data.unread_count);
+            } catch (err) {}
+        }, 30000);
+
+        // Initial load
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/notifications/count', {
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
+                });
+                const data = await res.json();
+                updateNotifyBadges(data.unread_count);
+            } catch (err) {}
+        });
+
+        // ==================== EXISTING SETTINGS & SIDEBAR ====================
         let snapshot = localStorage.getItem('darkMode') || 'disabled';
 
         function openSettingsModal() {

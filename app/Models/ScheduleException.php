@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ScheduleException extends Model
 {
@@ -13,4 +14,10 @@ class ScheduleException extends Model
     protected $casts = [
         'exception_date' => 'date',
     ];
+
+    // FIX: Added user relationship
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

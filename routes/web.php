@@ -8,6 +8,7 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\SalesReportController;
+use App\Http\Controllers\AttendanceController;
 
 // ==================== PUBLIC ROUTES (NO LOGIN REQUIRED) ====================
 Route::middleware('web')->group(function () {
@@ -162,4 +163,30 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 Route::middleware(['auth'])->group(function () {
     Route::get('/landing-editor', [AdminController::class, 'landingEditor'])->name('admin.landing.editor');
     Route::put('/landing-editor', [AdminController::class, 'landingUpdate'])->name('admin.landing.update');
+});
+
+Route::middleware(['auth'])->group(function () {
+Route::get('/attendance/today', [AttendanceController::class, 'today'])
+    ->name('attendance.today')
+    ->middleware(['auth']);
+Route::post('/attendance/bulk-mark', [AttendanceController::class, 'bulkMark'])
+    ->name('attendance.bulk-mark')
+    ->middleware(['auth']);
+Route::get('/admin/attendance', [AttendanceController::class, 'report'])
+    ->name('attendance.report')
+    ->middleware(['auth']);
+Route::patch('/admin/attendance/toggle-permission/{user}', [AttendanceController::class, 'togglePermission'])
+    ->name('attendance.toggle-permission')
+    ->middleware(['auth']);
+Route::post('/api/attendance/quick-checkin/{staff}', [AttendanceController::class, 'quickCheckIn'])
+    ->name('attendance.quick-checkin');
+Route::post('/api/attendance/quick-checkout/{staff}', [AttendanceController::class, 'quickCheckOut'])
+    ->name('attendance.quick-checkout');
+    });
+
+Route::middleware(['auth'])->prefix('api/notifications')->group(function () {
+    Route::get('/', [App\Http\Controllers\NotificationController::class, 'index'])->name('api.notifications');
+    Route::get('/count', [App\Http\Controllers\NotificationController::class, 'count'])->name('api.notifications.count');
+    Route::post('/{id}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('api.notifications.read');
+    Route::post('/read-all', [App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('api.notifications.read-all');
 });

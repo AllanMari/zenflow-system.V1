@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class WorkSchedule extends Model
 {
@@ -19,9 +20,25 @@ class WorkSchedule extends Model
 
     protected $casts = [
         'is_day_off' => 'boolean',
-        'start_time' => 'datetime:H:i',
-        'end_time' => 'datetime:H:i',
+        // FIX: Removed broken 'datetime:H:i' casts — DB stores TIME, we handle in accessors
     ];
+
+    // FIX: Custom accessors to format TIME columns as H:i
+    protected function startTime(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value) => $value ? substr($value, 0, 5) : null,
+            set: fn ($value) => $value,
+        );
+    }
+
+    protected function endTime(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value) => $value ? substr($value, 0, 5) : null,
+            set: fn ($value) => $value,
+        );
+    }
 
     // Staff member
     public function staff()

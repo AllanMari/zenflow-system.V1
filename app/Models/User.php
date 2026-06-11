@@ -18,6 +18,7 @@ class User extends Authenticatable
         'can_manage_schedules',
         'can_edit_landing',
         'is_active',
+        'can_mark_attendance',
     ];
 
     protected $hidden = [
@@ -30,6 +31,7 @@ class User extends Authenticatable
         'can_manage_schedules' => 'boolean',
         'can_edit_landing' => 'boolean',
         'is_active', 'boolean',
+        'can_mark_attendance' => 'boolean',
     ];
 
     // ========== EXISTING ==========
@@ -99,5 +101,17 @@ class User extends Authenticatable
     public function scheduleExceptions()
     {
         return $this->hasMany(ScheduleException::class);
+    }
+
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    public function canMarkAttendance(): bool
+    {
+        if ($this->roles->contains('name', 'admin')) return true;
+        if ($this->roles->contains('name', 'receptionist') && $this->can_mark_attendance) return true;
+        return false;
     }
 }
