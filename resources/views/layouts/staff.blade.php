@@ -7,6 +7,30 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        @keyframes bell-ring {
+            0% { transform: rotate(0); }
+            15% { transform: rotate(18deg); }
+            30% { transform: rotate(-18deg); }
+            45% { transform: rotate(12deg); }
+            60% { transform: rotate(-12deg); }
+            75% { transform: rotate(6deg); }
+            85% { transform: rotate(-6deg); }
+            100% { transform: rotate(0); }
+        }
+        .bell-ring {
+            animation: bell-ring 2.5s ease-in-out infinite;
+            transform-origin: top center;
+        }
+        @keyframes badge-pop {
+            0% { transform: scale(0.5); opacity: 0; }
+            60% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .badge-pop {
+            animation: badge-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
     <script>
         (function() {
             const isDark = localStorage.getItem('darkMode') === 'enabled';
@@ -41,11 +65,14 @@
         </button>
         <span class="font-bold text-lg">Spa Alexandria</span>
         <!-- Mobile notification bell -->
-        <button onclick="toggleNotifyDropdown()" class="relative p-2 rounded-lg hover:bg-teal-700 transition">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button id="mobileNotifyBtn"
+                onclick="toggleNotifyDropdown('mobile')" 
+                class="relative p-2.5 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-200 group border border-white/10 hover:border-white/20 shadow-sm hover:shadow-md active:scale-95"
+                title="Notifications">
+            <svg id="mobileBellIcon" class="w-5 h-5 text-white group-hover:scale-110 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
             </svg>
-            <span id="mobileNotifyBadge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">0</span>
+            <span id="mobileNotifyBadge" class="hidden absolute -top-1.5 -right-1.5 min-w-[20px] h-5 bg-gradient-to-br from-red-500 to-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-lg ring-2 ring-teal-800 dark:ring-teal-950">0</span>
         </button>
     </div>
 
@@ -59,30 +86,16 @@
                 Spa Staff
             </span>
             <!-- Desktop notification bell -->
-            <div class="relative">
-                <button onclick="toggleNotifyDropdown()" class="relative p-2 rounded-lg hover:bg-teal-700 transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="relative" id="desktopNotifyContainer">
+                <button id="desktopNotifyBtn"
+                        onclick="toggleNotifyDropdown('desktop')" 
+                        class="relative p-2.5 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-200 group border border-white/10 hover:border-white/20 shadow-sm hover:shadow-md active:scale-95"
+                        title="Notifications">
+                    <svg id="desktopBellIcon" class="w-5 h-5 text-white group-hover:scale-110 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
                     </svg>
-                    <span id="desktopNotifyBadge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">0</span>
+                    <span id="desktopNotifyBadge" class="hidden absolute -top-1.5 -right-1.5 min-w-[20px] h-5 bg-gradient-to-br from-red-500 to-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-lg ring-2 ring-teal-800 dark:ring-teal-950">0</span>
                 </button>
-                <!-- Notification Dropdown -->
-                <div id="notifyDropdown" class="hidden absolute right-0 top-10 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
-                    <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                        <h3 class="font-semibold text-sm text-gray-800 dark:text-white">Notifications</h3>
-                        <button onclick="markAllRead()" class="text-xs text-teal-600 dark:text-teal-400 hover:underline">Mark all read</button>
-                    </div>
-                    <div id="notifyList" class="max-h-64 overflow-y-auto">
-                        <div class="p-4 text-center text-sm text-gray-400 dark:text-gray-500">No notifications</div>
-                    </div>
-                    <div class="p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
-                        <div id="notifyPagination" class="flex justify-between items-center text-xs">
-                            <button onclick="loadNotifications(currentPage - 1)" id="notifyPrev" class="text-gray-500 dark:text-gray-400 disabled:opacity-30" disabled>← Prev</button>
-                            <span id="notifyPageInfo" class="text-gray-500 dark:text-gray-400">Page 1</span>
-                            <button onclick="loadNotifications(currentPage + 1)" id="notifyNext" class="text-gray-500 dark:text-gray-400 disabled:opacity-30" disabled>Next →</button>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -202,6 +215,34 @@
          @yield('content')
     </main>
 
+    <!-- NOTIFICATION DROPDOWN -->
+    <div id="notifyDropdown" class="hidden fixed z-[60] w-[90vw] max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-200" style="top: 0; left: 0;">
+        <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-700/30">
+            <h3 class="font-semibold text-sm text-gray-800 dark:text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+                Notifications
+            </h3>
+            <button onclick="markAllRead()" class="text-xs text-teal-600 dark:text-teal-400 hover:underline font-medium">Mark all read</button>
+        </div>
+        <div id="notifyList" class="max-h-64 overflow-y-auto">
+            <div class="p-6 text-center text-sm text-gray-400 dark:text-gray-500 flex flex-col items-center gap-2">
+                <svg class="w-8 h-8 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                </svg>
+                No notifications
+            </div>
+        </div>
+        <div class="p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
+            <div id="notifyPagination" class="flex justify-between items-center text-xs">
+                <button onclick="loadNotifications(currentPage - 1)" id="notifyPrev" class="text-gray-500 dark:text-gray-400 disabled:opacity-30 hover:text-teal-600 dark:hover:text-teal-400 transition" disabled>← Prev</button>
+                <span id="notifyPageInfo" class="text-gray-500 dark:text-gray-400 font-medium">Page 1</span>
+                <button onclick="loadNotifications(currentPage + 1)" id="notifyNext" class="text-gray-500 dark:text-gray-400 disabled:opacity-30 hover:text-teal-600 dark:hover:text-teal-400 transition" disabled>Next →</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Settings Modal -->
     <div id="settingsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center">
         <div id="settingsBackdrop" class="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 opacity-0" onclick="closeSettingsModal()"></div>
@@ -258,22 +299,71 @@
         let notifyDropdownOpen = false;
         const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
-        function toggleNotifyDropdown() {
+        function toggleNotifyDropdown(source) {
             const dropdown = document.getElementById('notifyDropdown');
-            notifyDropdownOpen = !notifyDropdownOpen;
+
+            // If already open, close it (toggle behavior)
             if (notifyDropdownOpen) {
-                dropdown.classList.remove('hidden');
-                loadNotifications(1);
-            } else {
                 dropdown.classList.add('hidden');
+                notifyDropdownOpen = false;
+                return;
             }
+
+            notifyDropdownOpen = true;
+
+            const isMobile = !source || source === 'mobile' || window.innerWidth < 768;
+
+            if (isMobile) {
+                // Mobile: center below the mobile header
+                dropdown.style.top = '72px';
+                dropdown.style.left = '50%';
+                dropdown.style.right = 'auto';
+                dropdown.style.transform = 'translateX(-50%)';
+            } else {
+                // Desktop: position relative to the desktop bell button
+                const btn = document.getElementById('desktopNotifyBtn');
+                const rect = btn.getBoundingClientRect();
+                const dropdownWidth = 384; // max-w-sm
+                const viewportWidth = window.innerWidth;
+                const sidebarWidth = 256; // w-64
+
+                // Calculate right edge position from viewport left
+                // We want the dropdown's right edge to align with the button's right edge
+                let leftPos = rect.right - dropdownWidth;
+
+                // But ensure it doesn't go left of the sidebar
+                const minLeft = sidebarWidth + 8;
+                if (leftPos < minLeft) {
+                    leftPos = minLeft;
+                }
+
+                // And ensure it doesn't go off the right edge of viewport
+                if (leftPos + dropdownWidth > viewportWidth - 8) {
+                    leftPos = viewportWidth - dropdownWidth - 8;
+                }
+
+                dropdown.style.top = (rect.bottom + 8) + 'px';
+                dropdown.style.left = leftPos + 'px';
+                dropdown.style.right = 'auto';
+                dropdown.style.transform = 'none';
+            }
+
+            dropdown.classList.remove('hidden');
+            loadNotifications(1);
         }
 
         // Close dropdown when clicking outside
         document.addEventListener('click', function(e) {
-            const bell = e.target.closest('[onclick="toggleNotifyDropdown()"]');
             const dropdown = document.getElementById('notifyDropdown');
-            if (!bell && !dropdown.contains(e.target)) {
+            const mobileBtn = document.getElementById('mobileNotifyBtn');
+            const desktopBtn = document.getElementById('desktopNotifyBtn');
+
+            // Check if click is inside dropdown or on either bell button
+            const clickedDropdown = dropdown.contains(e.target);
+            const clickedMobileBtn = mobileBtn && mobileBtn.contains(e.target);
+            const clickedDesktopBtn = desktopBtn && desktopBtn.contains(e.target);
+
+            if (!clickedDropdown && !clickedMobileBtn && !clickedDesktopBtn) {
                 dropdown.classList.add('hidden');
                 notifyDropdownOpen = false;
             }
@@ -284,13 +374,34 @@
                 const res = await fetch(`/api/notifications?page=${page}`, {
                     headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
                 });
+
+                const contentType = res.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.error('Notification API returned non-JSON:', await res.text());
+                    document.getElementById('notifyList').innerHTML = 
+                        '<div class="p-4 text-center text-sm text-red-400 dark:text-red-400">Server error. Check console.</div>';
+                    return;
+                }
+
                 const data = await res.json();
+
+                if (!data.pagination) {
+                    console.error('Invalid notification response:', data);
+                    document.getElementById('notifyList').innerHTML = 
+                        '<div class="p-4 text-center text-sm text-red-400 dark:text-red-400">Invalid response format.</div>';
+                    return;
+                }
 
                 currentPage = data.pagination.current_page;
                 const list = document.getElementById('notifyList');
 
-                if (data.notifications.length === 0) {
-                    list.innerHTML = '<div class="p-4 text-center text-sm text-gray-400 dark:text-gray-500">No notifications</div>';
+                if (!data.notifications || data.notifications.length === 0) {
+                    list.innerHTML = `<div class="p-6 text-center text-sm text-gray-400 dark:text-gray-500 flex flex-col items-center gap-2">
+                        <svg class="w-8 h-8 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                        </svg>
+                        No notifications
+                    </div>`;
                 } else {
                     list.innerHTML = data.notifications.map(n => `
                         <div class="p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer" onclick="handleNotifyClick('${n.id}', '${n.action_url || ''}')">
@@ -306,30 +417,44 @@
                     `).join('');
                 }
 
-                // Update pagination
                 document.getElementById('notifyPageInfo').textContent = `Page ${currentPage} of ${data.pagination.last_page || 1}`;
                 document.getElementById('notifyPrev').disabled = currentPage <= 1;
                 document.getElementById('notifyNext').disabled = !data.pagination.has_more;
-
-                // Update badges
                 updateNotifyBadges(data.unread_count);
             } catch (err) {
                 console.error('Failed to load notifications:', err);
+                document.getElementById('notifyList').innerHTML = 
+                    '<div class="p-4 text-center text-sm text-red-400 dark:text-red-400">Failed to load. Check connection.</div>';
             }
         }
 
         function updateNotifyBadges(count) {
             const desktopBadge = document.getElementById('desktopNotifyBadge');
             const mobileBadge = document.getElementById('mobileNotifyBadge');
+            const desktopBell = document.getElementById('desktopBellIcon');
+            const mobileBell = document.getElementById('mobileBellIcon');
 
             [desktopBadge, mobileBadge].forEach(badge => {
                 if (badge) {
                     if (count > 0) {
+                        const oldText = badge.textContent;
                         badge.textContent = count > 99 ? '99+' : count;
                         badge.classList.remove('hidden');
+                        if (oldText !== badge.textContent && oldText === '0') {
+                            badge.classList.remove('badge-pop');
+                            void badge.offsetWidth;
+                            badge.classList.add('badge-pop');
+                        }
                     } else {
                         badge.classList.add('hidden');
                     }
+                }
+            });
+
+            [desktopBell, mobileBell].forEach(bell => {
+                if (bell) {
+                    if (count > 0) bell.classList.add('bell-ring');
+                    else bell.classList.remove('bell-ring');
                 }
             });
         }
@@ -454,6 +579,10 @@
         window.addEventListener('resize', () => {
             if (window.innerWidth >= 768) {
                 closeMobileSidebar();
+                // Also close notification dropdown on resize to desktop
+                const dropdown = document.getElementById('notifyDropdown');
+                dropdown.classList.add('hidden');
+                notifyDropdownOpen = false;
             }
         });
     </script>

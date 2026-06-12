@@ -184,7 +184,7 @@ Route::post('/api/attendance/quick-checkout/{staff}', [AttendanceController::cla
     ->name('attendance.quick-checkout');
     });
 
-Route::middleware(['auth'])->prefix('api/notifications')->group(function () {
+Route::middleware(['web', 'auth'])->prefix('api/notifications')->group(function (){
     Route::get('/', [App\Http\Controllers\NotificationController::class, 'index'])->name('api.notifications');
     Route::get('/count', [App\Http\Controllers\NotificationController::class, 'count'])->name('api.notifications.count');
     Route::post('/{id}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('api.notifications.read');
