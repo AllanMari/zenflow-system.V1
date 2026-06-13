@@ -87,8 +87,8 @@
                 </td>
                 <td class="tx-gross">{{ $row['grossAmount'] }}</td>
                 <td class="tx-discount" style="text-align:left; font-size:9px;">
-                    @if($row['discountAmount'])
-                        <span class="tx-discount-badge">DISCOUNT</span>
+                    @if($row['discountAmount'] && $row['discountPercent'])
+                        <span class="tx-discount-badge">{{ $row['discountPercent'] }}%</span>
                     @else
                         —
                     @endif

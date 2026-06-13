@@ -2,11 +2,19 @@
 
 @section('title', 'Sales Report')
 
-
-
 @push('styles')
 <style>
     .bar-transition { transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+
+    .kpi-section > div {
+        min-width: 0;
+        overflow: hidden;
+    }
+    .kpi-section p {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 
     /* Hover dropdown buttons */
     .report-btn-group { position: relative; display: inline-block; }
@@ -31,7 +39,8 @@
         visibility: visible;
         transform: translateY(0);
     }
-    .report-dropdown button {
+    .report-dropdown button,
+    .report-dropdown a {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -45,8 +54,10 @@
         cursor: pointer;
         transition: background 0.15s;
         text-align: left;
+        text-decoration: none;
     }
-    .report-dropdown button:hover { background: #f3f4f6; }
+    .report-dropdown button:hover,
+    .report-dropdown a:hover { background: #f3f4f6; }
     .dark .report-dropdown { background: #1f2937; border-color: #374151; }
     .dark .report-dropdown button { color: #e5e7eb; }
     .dark .report-dropdown button:hover { background: #374151; }
@@ -190,13 +201,12 @@
     }
     .d-bar-fill { height: 100%; border-radius: 4px; }
 
-    /* Appointment Health Fix */
+    /* Appointment Health - FIXED: removed custom border-radius/shadow to match other cards */
     .health-card {
         background: white;
-        border-radius: 10px;
+        border-radius: 8px;
         padding: 20px;
         border: 1px solid #e5e7eb;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .health-metric {
         display: flex;
@@ -320,8 +330,8 @@
 
     /* Transaction Log - Spa Alexandria Style */
     .tx-spa-table { width: 100%; border-collapse: collapse; font-size: 11px; font-family: 'Segoe UI', Arial, sans-serif; }
-    .tx-spa-table th { background: #c8e6c9; border: 1px solid #9e9e9e; padding: 4px 3px; text-align: center; font-size: 10px; font-weight: 700; color: #1b5e20; }
-    .tx-spa-table td { border: 1px solid #bdbdbd; padding: 3px 4px; text-align: center; vertical-align: middle; }
+    .tx-spa-table th { background: #c8e6c9; border: 1px solid #9e9e9e; padding: 6px 4px; text-align: center; font-size: 10px; font-weight: 700; color: #1b5e20; }
+    .tx-spa-table td { border: 1px solid #bdbdbd; padding: 5px 6px; text-align: center; vertical-align: middle; }
     .tx-spa-table .tx-num { text-align: center; font-weight: 700; width: 3%; }
     .tx-spa-table .tx-name { text-align: left; font-weight: 600; width: 10%; }
     .tx-spa-table .tx-room { width: 5%; }
@@ -376,7 +386,7 @@
     $safeTotalAppts      = max(intval($totalApptsInPeriod ?? 0), 1);
     $safeCompleted       = intval($completedApptsInPeriod ?? 0);
     $safeCancelled       = intval($cancelledApptsInPeriod ?? 0);
-    $safeNoShow          = intval($noShowData['count'] ?? 0);
+    $safeNoShow          = intval($noShowApptsInPeriod ?? 0);
     $safeTotalCount      = intval($totalCount ?? 0);
     $safeUniqueCustomers = intval($uniqueCustomers ?? 0);
     $safeDeposits        = floatval($deposits ?? 0);
@@ -389,11 +399,6 @@
     $safeCompletionRate   = min(100, round(($safeCompleted / $safeTotalAppts) * 100, 1));
     $safeCancellationRate = min(100, round(($safeCancelled / $safeTotalAppts) * 100, 1));
     $safeNoShowRate       = min(100, round(($safeNoShow / $safeTotalAppts) * 100, 1));
-
-    $diagramTotal = max($safeCompleted + $safeCancelled + $safeNoShow, 1);
-    $compPct = round(($safeCompleted / $diagramTotal) * 100, 1);
-    $canPct  = round(($safeCancelled / $diagramTotal) * 100, 1);
-    $nsPct   = round(($safeNoShow / $diagramTotal) * 100, 1);
 @endphp
 
 <!-- SCREEN HEADER -->
@@ -408,37 +413,57 @@
 
     <!-- HOVER DROPDOWN BUTTONS -->
     <div class="flex gap-3 no-print">
+        <!-- Daily Sales Report -->
         <div class="report-btn-group">
             <button type="button" class="bg-teal-600 text-white px-5 py-2.5 rounded-lg hover:bg-teal-700 transition text-sm font-medium shadow-sm flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
                 Generate Sales Report
             </button>
             <div class="report-dropdown">
-                <button onclick="printDailyReport()">
-                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                    🖨️ Print
-                </button>
-                <button onclick="saveDailyReportImage()">
-                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    🖼️ Save Image
-                </button>
+                <a href="{{ route($routeName . '.daily-report-pdf', array_merge(request()->only(['period','start_date','end_date','status']), ['action' => 'stream'])) }}" 
+                   class="flex items-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                    </svg>
+                    📄 Download PDF
+                </a>
+                <a href="{{ route($routeName . '.daily-report-pdf', array_merge(request()->only(['period','start_date','end_date','status']), ['action' => 'stream'])) }}" 
+                   target="_blank" 
+                   class="flex items-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                    </svg>
+                    🖨️ Print Preview
+                </a>
             </div>
         </div>
 
+        <!-- Business Report -->
         <div class="report-btn-group">
             <button type="button" class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 transition text-sm font-medium shadow-sm flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
                 Generate Business Report
             </button>
             <div class="report-dropdown">
-                <button onclick="printBusinessReport()">
-                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                    🖨️ Print
-                </button>
-                <button onclick="saveBusinessReportImage()">
-                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    🖼️ Save Image
-                </button>
+                <a href="{{ route($routeName . '.business-report-pdf', array_merge(request()->only(['period','start_date','end_date','status']), ['action' => 'stream'])) }}" 
+                   class="flex items-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                    </svg>
+                    📄 Download PDF
+                </a>
+                <a href="{{ route($routeName . '.business-report-pdf', array_merge(request()->only(['period','start_date','end_date','status']), ['action' => 'stream'])) }}" 
+                    target="_blank" 
+                    class="flex items-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                    </svg>
+                    🖨️ Print Preview
+                </a>
             </div>
         </div>
     </div>
@@ -529,7 +554,7 @@
         <p class="text-lg font-bold text-green-600 dark:text-green-400 mt-1">{{ $safeCompletionRate }}%</p>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3 border-t-4 border-cyan-500 text-center">
-        <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Conversion</p>
+        <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Deposit Conversion</p>
         <p class="text-lg font-bold text-cyan-600 dark:text-cyan-400 mt-1">{{ $safeConversionRate }}%</p>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3 border-t-4 border-rose-500 text-center">
@@ -544,12 +569,11 @@
     <div class="flex items-center gap-2 mb-3">
         <svg class="w-5 h-5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
         <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Smart Insights & Recommendations</h2>
-                <!-- AI STATUS INDICATOR -->
+        <!-- AI STATUS INDICATOR -->
         <span class="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full font-bold ml-auto {{ $aiOnline ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' }}">
             <span class="w-1.5 h-1.5 rounded-full {{ $aiOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500' }}"></span>
             {{ $aiOnline ? 'AI Online' : 'AI Offline — Fallback Active' }}
         </span>
-    </div>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         @foreach($suggestions as $s)
@@ -585,10 +609,10 @@
     </div>
 </div>
 
-<!-- FIXED APPOINTMENT HEALTH + ANALYTICS GRID -->
+<!-- FIXED ANALYTICS GRID: Consistent card styling -->
 <div class="analytics-section grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
     <!-- Revenue Growth -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 border dark:border-gray-700 border-t-4 {{ $safeRevenueChange >= 0 ? 'border-green-500' : 'border-red-500' }}">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 border dark:border-gray-700 border-t-4 {{ $safeRevenueChange >= 0 ? 'border-t-green-500' : 'border-t-red-500' }}">
         <p class="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider mb-1">Revenue Growth</p>
         <div class="flex items-baseline gap-2">
             <span class="text-3xl font-bold {{ $safeRevenueChange >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
@@ -601,8 +625,8 @@
         </div>
     </div>
 
-    <!-- FIXED: Appointment Health -->
-    <div class="health-card dark:bg-gray-800 dark:border-gray-700">
+    <!-- FIXED: Appointment Health — consistent card classes -->
+    <div class="health-card rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
         <div class="flex items-center justify-between mb-4">
             <p class="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Appointment Health</p>
             <span class="text-[10px] px-2 py-0.5 rounded-full {{ $safeCompletionRate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : ($safeCompletionRate >= 60 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300') }} font-bold">
@@ -640,7 +664,7 @@
             <div class="health-value text-rose-600 dark:text-rose-400">{{ $safeCancellationRate }}%</div>
         </div>
 
-        <div class="mini-stat-row">
+        <div class="mini-stat-row" style="grid-template-columns: repeat(4, 1fr);">
             <div class="mini-stat">
                 <div class="mini-stat-number text-gray-800 dark:text-gray-200">{{ $safeTotalAppts }}</div>
                 <div class="mini-stat-label">Total</div>
@@ -650,8 +674,12 @@
                 <div class="mini-stat-label">Completed</div>
             </div>
             <div class="mini-stat">
-                <div class="mini-stat-number text-red-600 dark:text-red-400">{{ $safeCancelled }}</div>
-                <div class="mini-stat-label">Lost</div>
+                <div class="mini-stat-number text-rose-600 dark:text-rose-400">{{ $safeCancelled }}</div>
+                <div class="mini-stat-label">Cancelled</div>
+            </div>
+            <div class="mini-stat">
+                <div class="mini-stat-number text-red-600 dark:text-red-400">{{ $safeNoShow }}</div>
+                <div class="mini-stat-label">No-Show</div>
             </div>
         </div>
     </div>
@@ -929,17 +957,23 @@
 </div>
 
 <!-- ========================================== -->
-<!-- TRANSACTION LOG - SPA ALEXANDRIA STYLE   -->
+<!-- TRANSACTION LOG - SPA ALEXANDRIA STYLE     -->
+<!-- FIXED: Added section header & top margin     -->
 <!-- ========================================== -->
-<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border dark:border-gray-700 mb-6" id="transactionLog">
-    @include('shared._transaction_log_table', [
-        'txLogData' => $txLogData,
-        'currentStatus' => $currentStatus,
-        'currency' => '₱',
-        'serviceCodeMap' => [],
-    ])
+<div class="mt-8 no-print">
+    <div class="flex items-center gap-2 mb-3">
+        <svg class="w-5 h-5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+        <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Transaction Log</h2>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border dark:border-gray-700 mb-6" id="transactionLog">
+        @include('shared._transaction_log_table', [
+            'txLogData' => $txLogData,
+            'currentStatus' => $currentStatus,
+            'currency' => '₱',
+            'serviceCodeMap' => $serviceCodeMap,
+        ])
+    </div>
 </div>
-
 
 <!-- Transaction Analytics Modal -->
 <div id="txModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center backdrop-blur-sm no-print" aria-hidden="true">
@@ -1063,7 +1097,6 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
     const isDark = document.documentElement.classList.contains('dark');
     const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
@@ -1165,7 +1198,6 @@
         }
     });
 
-
     /* ---------- STATUS FILTER ---------- */
     function updateStatusFilter() {
         const val = document.getElementById('statusFilter').value;
@@ -1173,14 +1205,12 @@
         url.searchParams.set('status', val);
         url.searchParams.delete('page');
 
-        // Determine the correct AJAX endpoint based on current URL path
         const isAdmin = window.location.pathname.includes('/admin/');
         const endpoint = isAdmin
             ? '{{ route("admin.sales.tx-log") }}'
             : '{{ route("receptionist.sales.tx-log") }}';
 
         const params = new URLSearchParams(url.search);
-        // Keep period, start_date, end_date, add new status
         const queryString = params.toString();
 
         const container = document.getElementById('transactionLog');
@@ -1199,14 +1229,11 @@
         .then(html => {
             container.innerHTML = html;
             container.style.opacity = '1';
-
-            // Update browser URL without reloading
             window.history.replaceState({}, '', url.toString());
         })
         .catch(err => {
             container.style.opacity = '1';
             console.error('TX log fetch failed:', err);
-            // Fallback: full reload
             window.location.href = url.toString();
         });
     }
@@ -1228,8 +1255,6 @@
         .then(html => {
             container.innerHTML = html;
             container.style.opacity = '1';
-
-            // Update browser URL
             const url = new URL(pageUrl);
             window.history.replaceState({}, '', url.toString());
         })
@@ -1277,97 +1302,7 @@
         }
     });
 
-    /* ---------- DAILY REPORT ---------- */
-    function printDailyReport() {
-        document.body.classList.add('printing-daily');
-        window.print();
-        document.body.classList.remove('printing-daily');
-    }
-
-    function saveDailyReportImage() {
-        if (typeof html2canvas === 'undefined') {
-            alert('Image library not loaded. Please check your connection.');
-            return;
-        }
-        const el = document.getElementById('dailyReportWrapper');
-        if (!el) return;
-
-        const clone = el.cloneNode(true);
-        clone.style.position = 'fixed';
-        clone.style.top = '0';
-        clone.style.left = '0';
-        clone.style.width = '1100px';
-        clone.style.zIndex = '-9999';
-        clone.classList.remove('print-only-daily');
-        clone.style.display = 'block';
-        clone.style.background = '#fff';
-        clone.style.padding = '40px';
-        document.body.appendChild(clone);
-
-        html2canvas(clone, {
-            scale: 2,
-            backgroundColor: '#ffffff',
-            useCORS: true,
-            logging: false
-        }).then(canvas => {
-            const link = document.createElement('a');
-            const period = '{{ strtolower($label) }}';
-            link.download = 'sales-report-' + period + '-' + new Date().toISOString().slice(0,10) + '.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        }).catch(err => {
-            console.error('html2canvas error:', err);
-        }).finally(() => {
-            document.body.removeChild(clone);
-        });
-    }
-
-    /* ---------- BUSINESS REPORT ---------- */
-    function printBusinessReport() {
-        document.body.classList.add('printing-business');
-        window.print();
-        document.body.classList.remove('printing-business');
-    }
-
-    function saveBusinessReportImage() {
-        if (typeof html2canvas === 'undefined') {
-            alert('Image library not loaded. Please check your connection.');
-            return;
-        }
-        const el = document.getElementById('businessReportWrapper');
-        if (!el) return;
-
-        const clone = el.cloneNode(true);
-        clone.style.position = 'fixed';
-        clone.style.top = '0';
-        clone.style.left = '0';
-        clone.style.width = '1100px';
-        clone.style.zIndex = '-9999';
-        clone.classList.remove('print-only-business');
-        clone.style.display = 'block';
-        clone.style.background = '#fff';
-        clone.style.padding = '40px';
-        document.body.appendChild(clone);
-
-        html2canvas(clone, {
-            scale: 2,
-            backgroundColor: '#ffffff',
-            useCORS: true,
-            logging: false
-        }).then(canvas => {
-            const link = document.createElement('a');
-            const period = '{{ strtolower($label) }}';
-            link.download = 'business-report-' + period + '-' + new Date().toISOString().slice(0,10) + '.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        }).catch(err => {
-            console.error('html2canvas error:', err);
-        }).finally(() => {
-            document.body.removeChild(clone);
-        });
-    }
-
-        /* ---------- MONTHLY SPIKE CHART ---------- */
+    /* ---------- MONTHLY SPIKE CHART ---------- */
     const ctx3 = document.getElementById('monthlySpikeChart');
     if (ctx3) {
         new Chart(ctx3.getContext('2d'), {
@@ -1390,6 +1325,16 @@
                         data: @json($monthlySpike['completionRates']),
                         borderColor: '#10b981',
                         borderDash: [5, 5],
+                        tension: 0.4,
+                        pointRadius: 3,
+                        yAxisID: 'y1'
+                    },
+                    // FIXED: Added no-show rate dataset
+                    {
+                        label: 'No-Show %',
+                        data: @json($monthlySpike['noShowRates']),
+                        borderColor: '#ef4444',
+                        borderDash: [2, 2],
                         tension: 0.4,
                         pointRadius: 3,
                         yAxisID: 'y1'
@@ -1447,14 +1392,11 @@
         const question = input.value.trim();
         if (!question) return;
 
-        // Add user message
         addAiMessage('user', question);
         input.value = '';
 
-        // Show typing
         const typingId = addAiMessage('typing', 'Analyzing your business data...');
 
-        // Determine endpoint
         const isAdmin = window.location.pathname.includes('/admin/');
         const endpoint = isAdmin
             ? '{{ route("admin.sales.ai-chat") }}'

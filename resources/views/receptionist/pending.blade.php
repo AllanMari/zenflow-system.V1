@@ -70,6 +70,10 @@
                 $min = $s->deposit_percentage_min ?? $s->category->deposit_percentage_min ?? 0;
                 return ($s->pivot->price_at_booking ?? $s->price) * ($min / 100);
             });
+
+            // Staff availability for this appointment
+            $apptStaffMap = $staffAvailability[$appointment->id] ?? collect();
+            $availableStaffIds = $apptStaffMap->where('available', true)->keys()->toArray();
         @endphp
 
         <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden" data-appointment-id="{{ $appointment->id }}">
@@ -188,12 +192,20 @@
                             <select name="staff_id" required 
                                     class="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 dark:bg-gray-700 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition">
                                 <option value="">Select staff...</option>
-                                @foreach(\App\Models\User::whereHas('roles', function($q) { $q->where('name', 'staff'); })->orderBy('last_name')->get() as $staff)
-                                    <option value="{{ $staff->id }}" {{ $appointment->user_id == $staff->id ? 'selected' : '' }}>
-                                        {{ $staff->full_name }}
+                                @foreach($allStaff as $staff)
+                                    @php
+                                        $staffInfo = $apptStaffMap->get($staff->id);
+                                        $isAvailable = $staffInfo && $staffInfo['available'];
+                                        $statusLabel = $staffInfo ? $staffInfo['status_label'] : 'Not Scheduled';
+                                    @endphp
+                                    <option value="{{ $staff->id }}" {{ $isAvailable ? '' : 'disabled' }}>
+                                        {{ $staff->full_name }} {{ $isAvailable ? '' : '(' . $statusLabel . ')' }}
                                     </option>
                                 @endforeach
                             </select>
+                            @if($apptStaffMap->where('available', true)->isEmpty())
+                            <p class="text-xs text-red-500 mt-1.5">No staff available for this time slot.</p>
+                            @endif
                         </div>
 
                         <!-- Payment Method -->
@@ -219,9 +231,13 @@
                             <select name="payment_type" id="paymentType_{{ $appointment->id }}" required
                                     onchange="updateAmount({{ $appointment->id }}, {{ $appointment->total_price }}, {{ $systemDepositRequired }})"
                                     class="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 dark:bg-gray-700 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition">
-                                <option value="full">Full Payment</option>
                                 @if($requiresDeposit)
-                                <option value="deposit">Deposit Only</option>
+                                    <option value="deposit">Deposit Only</option>
+                                    <option value="full">Full Payment</option>
+                                @else
+                                    <option value="cash_on_site">Cash on Site / Pay Later</option>
+                                    <option value="deposit">Deposit Only</option>
+                                    <option value="full">Full Payment</option>
                                 @endif
                             </select>
                         </div>
@@ -254,12 +270,16 @@
                                 <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">₱</span>
                                 <input type="number" name="amount" id="amount_{{ $appointment->id }}" 
                                     step="0.01" min="0" required
-                                    value="{{ $requiresDeposit ? $systemDepositRequired : $appointment->total_price }}"
+                                    value="{{ $requiresDeposit ? $systemDepositRequired : 0 }}"
                                     class="w-full pl-8 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white text-sm font-bold focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition">
                             </div>
                             @if($requiresDeposit)
                             <p class="text-xs text-amber-600 dark:text-amber-400 mt-1.5" id="amountHint_{{ $appointment->id }}">
                                 System minimum: ₱{{ number_format($systemDepositRequired, 2) }}
+                            </p>
+                            @else
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5" id="amountHint_{{ $appointment->id }}">
+                                Enter amount if paying now, or 0 for Cash on Site
                             </p>
                             @endif
                         </div>
@@ -327,10 +347,16 @@ function updateAmount(id, total, deposit) {
 
     if (type === 'deposit') {
         amountInput.value = deposit.toFixed(2);
+        amountInput.readOnly = false;
         if (hint) hint.textContent = 'Minimum deposit: ₱' + deposit.toFixed(2);
-    } else {
+    } else if (type === 'full') {
         amountInput.value = total.toFixed(2);
+        amountInput.readOnly = false;
         if (hint) hint.textContent = 'Full payment required';
+    } else if (type === 'cash_on_site') {
+        amountInput.value = '0.00';
+        amountInput.readOnly = true;
+        if (hint) hint.textContent = 'Customer will pay at the counter. No payment recorded now.';
     }
 }
 

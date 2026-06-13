@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Services\OllamaInsightService;
+use App\Services\ReportPdfService;
 
 class SalesReportController extends Controller
 {
@@ -45,6 +46,10 @@ class SalesReportController extends Controller
         'VIP Suite Package'         => 'VIP',
         'Home Service'              => 'HS',
     ];
+    private function finalizedAppointments($query)
+    {
+        return $query->whereIn('status', ['completed', 'cancelled']);
+    }
 
     public function index(Request $request)
     {
@@ -56,7 +61,7 @@ class SalesReportController extends Controller
         // Date range
         [$startDate, $endDate, $label] = $this->resolveDateRange($period, $request, $today);
 
-        // Base query
+        // Base query — includes ALL payments for appointments not confirmed
         $baseQuery = Payment::with([
             'appointment.customer',
             'appointment.services',
@@ -72,15 +77,59 @@ class SalesReportController extends Controller
         // All payments for analytics
         $allPayments = (clone $baseQuery)->orderBy('paid_at', 'desc')->get();
 
-        // Core metrics
-        $totalRevenue = $allPayments->whereIn('type', ['completion', 'additional', 'full'])->sum('amount');
-        $totalCount = $allPayments->count();
-        $avgSale = $totalCount > 0 ? $totalRevenue / $totalCount : 0;
-        $deposits = $allPayments->where('type', 'deposit')->sum('amount');
-        $refunds = abs($allPayments->where('type', 'refund')->sum('amount'));
+        // ============================================
+        // APPOINTMENT-BASED METRICS
+        // ============================================
 
-        // No-show analytics — FIXED: uses appointment_date not updated_at
-        $noShowData = $this->getNoShowData($startDate, $endDate);
+        $periodAppts = Appointment::whereBetween('appointment_date', [$startDate, $endDate])->get();
+        $totalApptsInPeriod = $periodAppts->count();
+        $completedApptsInPeriod = $periodAppts->where('status', 'completed')->count();
+        $cancelledApptsInPeriod = $periodAppts
+            ->where('status', 'cancelled')
+            ->where('cancellation_reason', '!=', 'customer_no_show')
+            ->count();
+        $noShowApptsInPeriod = $periodAppts
+            ->where('status', 'cancelled')
+            ->where('cancellation_reason', 'customer_no_show')
+            ->count();
+
+        // ============================================
+        // PAYMENT-BASED METRICS
+        // ============================================
+
+        // Gross = all positive payments from finalized appointments
+        // (completions, deposits, full, additional — everything that came in)
+        $grossSales = $allPayments->where('amount', '>', 0)->sum('amount');
+
+        // Refunds = negative payment rows
+        $refundTotal = abs($allPayments->where('amount', '<', 0)->sum('amount'));
+
+        // Net revenue = what actually stayed in the business after refunds
+        $totalRevenue = $grossSales - $refundTotal;
+
+        // Transaction counts
+        $totalCount = $allPayments->where('amount', '>', 0)->count();
+        $refundCount = $allPayments->where('amount', '<', 0)->count();
+
+        // Averages
+        $avgSale = $totalCount > 0 ? $grossSales / $totalCount : 0;
+
+        // Deposits held (positive deposit rows only)
+        $deposits = $allPayments->where('type', 'deposit')->where('amount', '>', 0)->sum('amount');
+        $refunds = $refundTotal;
+
+        // Pull no-show appointments from the SAME payments as the transaction log
+        // (guarantees analytics and table are always in sync)
+        $noShowAppointments = $allPayments
+            ->pluck('appointment')
+            ->filter(fn($a) => $a && $a->status === 'cancelled' && $a->cancellation_reason === 'customer_no_show')
+            ->unique('id')
+            ->values();
+
+        $noShowApptsInPeriod = $noShowAppointments->count();
+
+        // Pass the pre-loaded collection so getNoShowData doesn't query again
+        $noShowData = $this->getNoShowData($startDate, $endDate, $noShowAppointments);
 
         // Breakdowns
         $methodBreakdown = $this->getMethodBreakdown($allPayments);
@@ -89,7 +138,10 @@ class SalesReportController extends Controller
         // Charts
         [$chartLabels, $chartValues] = $this->getChartData($allPayments, $period, $startDate, $endDate);
 
-        // Business intelligence
+        // ============================================
+        // BUSINESS INTELLIGENCE
+        // ============================================
+
         $serviceRevenue = [];
         $staffRevenue = [];
         $hourlyRevenue = array_fill(10, 11, 0);
@@ -115,6 +167,23 @@ class SalesReportController extends Controller
             }
         }
 
+        // Add forfeited deposits to service/staff revenue
+        foreach ($noShowAppointments as $appt) {
+            $deposit = $appt->payments->where('type', 'deposit')->sum('amount');
+            $refund = abs($appt->payments->where('type', 'refund')->sum('amount'));
+            if ($deposit > 0 && $refund == 0) {
+                $svcCount = $appt->services->count();
+                if ($svcCount > 0) {
+                    $perService = $deposit / $svcCount;
+                    foreach ($appt->services as $svc) {
+                        $serviceRevenue[$svc->name] = ($serviceRevenue[$svc->name] ?? 0) + $perService;
+                    }
+                }
+                $staffName = $appt->staff->full_name ?? 'Unassigned';
+                $staffRevenue[$staffName] = ($staffRevenue[$staffName] ?? 0) + $deposit;
+            }
+        }
+
         arsort($serviceRevenue);
         arsort($staffRevenue);
         $topServices = array_slice($serviceRevenue, 0, 5, true);
@@ -124,42 +193,56 @@ class SalesReportController extends Controller
         $maxSvc    = !empty($topServices)    ? max($topServices)    : 1;
         $maxStaff  = !empty($topStaff)       ? max($topStaff)       : 1;
 
-        // Period-over-period comparison
+        // ============================================
+        // PERIOD-OVER-PERIOD COMPARISON
+        // ============================================
+
         $periodDays = max(1, $startDate->diffInDays($endDate) + 1);
         $prevStart = $startDate->copy()->subDays($periodDays);
         $prevEnd = $endDate->copy()->subDays($periodDays);
-        $prevRevenue = Payment::whereBetween('paid_at', [$prevStart, $prevEnd])
+
+        // Previous period revenue (including forfeited deposits)
+        $prevPayments = Payment::whereBetween('paid_at', [$prevStart, $prevEnd])
             ->whereIn('type', ['completion', 'additional', 'full'])
-            ->sum('amount');
+            ->get();
+        $prevRevenue = $prevPayments->sum('amount');
+
+        $prevAppts = Appointment::whereBetween('appointment_date', [$prevStart, $prevEnd])->get();
+        $prevNoShows = $prevAppts
+            ->where('status', 'cancelled')
+            ->where('cancellation_reason', 'customer_no_show');
+        foreach ($prevNoShows as $appt) {
+            $deposit = $appt->payments->where('type', 'deposit')->sum('amount');
+            $refund = abs($appt->payments->where('type', 'refund')->sum('amount'));
+            if ($deposit > 0 && $refund == 0) {
+                $prevRevenue += $deposit;
+            }
+        }
+
         $revenueChange = $prevRevenue > 0 ? (($totalRevenue - $prevRevenue) / $prevRevenue) * 100 : 0;
         $revenueChangeLabel = ($revenueChange >= 0 ? '+' : '') . number_format($revenueChange, 1);
 
-        // Appointment health
-        $periodAppts = Appointment::whereBetween('appointment_date', [$startDate, $endDate])->get();
-        $totalApptsInPeriod = $periodAppts->count();
-        $completedApptsInPeriod = $periodAppts->where('status', 'completed')->count();
-        $cancelledApptsInPeriod = $periodAppts->where('status', 'cancelled')->count();
-        $confirmedApptsInPeriod = $periodAppts->where('status', 'confirmed')->count();
-        $pendingApptsInPeriod = $periodAppts->where('status', 'pending')->count();
+        // ============================================
+        // RATE CALCULATIONS
+        // ============================================
 
         $completionRate = $totalApptsInPeriod > 0
             ? round(($completedApptsInPeriod / $totalApptsInPeriod) * 100, 1)
             : 0;
         $noShowRate = $totalApptsInPeriod > 0
-            ? round(($noShowData['count'] / $totalApptsInPeriod) * 100, 1)
+            ? round(($noShowApptsInPeriod / $totalApptsInPeriod) * 100, 1)
             : 0;
         $cancellationRate = $totalApptsInPeriod > 0
             ? round(($cancelledApptsInPeriod / $totalApptsInPeriod) * 100, 1)
             : 0;
 
+        // FIXED: Calculate conversion rate as deposit-to-completion ratio instead of hardcoded 0
+        $depositCount = $allPayments->where('type', 'deposit')->count();
+        $completionCount = $allPayments->whereIn('type', ['completion', 'full'])->count();
+        $conversionRate = $depositCount > 0 ? round(($completionCount / $depositCount) * 100, 1) : 0;
+
         $uniqueCustomers = $allPayments->pluck('appointment.customer_id')->filter()->unique()->count();
-        $revPerCompletedAppt = $completedApptsInPeriod > 0
-            ? $totalRevenue / $completedApptsInPeriod
-            : 0;
-        $totalDecidable = $pendingApptsInPeriod + $confirmedApptsInPeriod + $completedApptsInPeriod;
-        $conversionRate = $totalDecidable > 0
-            ? round((($confirmedApptsInPeriod + $completedApptsInPeriod) / $totalDecidable) * 100, 1)
-            : 0;
+        $revPerCompletedAppt = $completedApptsInPeriod > 0 ? $totalRevenue / $completedApptsInPeriod : 0;
 
         $routeName = $user->isAdmin() ? 'admin.sales' : 'receptionist.sales';
 
@@ -193,7 +276,7 @@ class SalesReportController extends Controller
         $history = $this->get90DayHistory($startDate, $endDate, $period);
 
         $ollama = new OllamaInsightService();
-        $aiOnline = $ollama->healthCheck(); // <-- ADD THIS LINE
+        $aiOnline = $ollama->healthCheck();
         $aiInsights = $ollama->getInsights([
             'period' => $period,
             'label' => $label,
@@ -226,31 +309,13 @@ class SalesReportController extends Controller
         // === MONTHLY CUSTOMER SPIKE ANALYTICS ===
         $monthlySpike = $this->getMonthlySpikeData();
 
-        // === AI CHAT METRICS FOR VIEW ===
-        $chatMetrics = [
-            'label' => $label,
-            'startDate' => $startDate->format('M d, Y'),
-            'endDate' => $endDate->format('M d, Y'),
-            'totalRevenue' => number_format($totalRevenue, 2),
-            'totalCount' => $totalCount,
-            'avgSale' => number_format($avgSale, 2),
-            'uniqueCustomers' => $uniqueCustomers,
-            'completionRate' => $completionRate,
-            'noShowRate' => $noShowRate,
-            'cancellationRate' => $cancellationRate,
-            'revenueChange' => $revenueChange,
-            'conversionRate' => $conversionRate,
-            'topService' => array_key_first($topServices) ?: 'None',
-            'topStaff' => array_key_first($topStaff) ?: 'None',
-        ];
+        $serviceCodeMap = self::SERVICE_CODE_MAP;
 
         return view('shared.sales', compact(
-            'payments',
             'totalRevenue',
             'totalCount',
             'avgSale',
             'deposits',
-            'refunds',
             'uniqueCustomers',
             'revPerCompletedAppt',
             'noShowData',
@@ -277,11 +342,8 @@ class SalesReportController extends Controller
             'totalApptsInPeriod',
             'completedApptsInPeriod',
             'cancelledApptsInPeriod',
-            'confirmedApptsInPeriod',
-            'pendingApptsInPeriod',
             'conversionRate',
             'routeName',
-            'dailyPayments',
             'printServiceSummary',
             'reportTitle',
             'dateLabel',
@@ -290,8 +352,10 @@ class SalesReportController extends Controller
             'currentStatus',
             'suggestions',
             'monthlySpike',
-            'chatMetrics',
             'aiOnline',
+            'serviceCodeMap',
+            'noShowApptsInPeriod',
+            'appointment.payments',
         ));
     }
 
@@ -340,20 +404,65 @@ class SalesReportController extends Controller
         $today = Carbon::today();
         [$startDate, $endDate, $label] = $this->resolveDateRange($period, $request, $today);
 
-        // Minimal metrics for chat context (fast query)
-        $baseQuery = Payment::with('appointment')
-            ->whereHas('appointment', fn ($q) => $q->where('status', '!=', 'confirmed'))
-            ->whereBetween('paid_at', [$startDate, $endDate]);
+        // Load payments WITH nested relations so we don't N+1 when computing top service/staff
+        $allPayments = Payment::with([
+            'appointment.customer',
+            'appointment.services',
+            'appointment.staff',
+        ])
+        ->whereHas('appointment', fn ($q) => $q->where('status', '!=', 'confirmed'))
+        ->whereBetween('paid_at', [$startDate, $endDate])
+        ->get();
 
-        $allPayments = (clone $baseQuery)->get();
         $totalRevenue = $allPayments->whereIn('type', ['completion', 'additional', 'full'])->sum('amount');
         $totalCount = $allPayments->count();
         $avgSale = $totalCount > 0 ? $totalRevenue / $totalCount : 0;
 
+        // Appointment stats (same logic as index)
         $periodAppts = Appointment::whereBetween('appointment_date', [$startDate, $endDate])->get();
         $totalAppts = $periodAppts->count();
         $completed = $periodAppts->where('status', 'completed')->count();
+        $noShows = $periodAppts->where('status', 'cancelled')->where('cancellation_reason', 'customer_no_show')->count();
+        $cancelled = $periodAppts->where('status', 'cancelled')->where('cancellation_reason', '!=', 'customer_no_show')->count();
+
         $completionRate = $totalAppts > 0 ? round(($completed / $totalAppts) * 100, 1) : 0;
+        $noShowRate = $totalAppts > 0 ? round(($noShows / $totalAppts) * 100, 1) : 0;
+        $cancellationRate = $totalAppts > 0 ? round(($cancelled / $totalAppts) * 100, 1) : 0;
+
+        // Conversion rate
+        $depositCount = $allPayments->where('type', 'deposit')->count();
+        $completionCount = $allPayments->whereIn('type', ['completion', 'full'])->count();
+        $conversionRate = $depositCount > 0 ? round(($completionCount / $depositCount) * 100, 1) : 0;
+
+        // Period-over-period revenue change
+        $periodDays = max(1, $startDate->diffInDays($endDate) + 1);
+        $prevStart = $startDate->copy()->subDays($periodDays);
+        $prevEnd = $endDate->copy()->subDays($periodDays);
+        $prevRevenue = Payment::whereBetween('paid_at', [$prevStart, $prevEnd])
+            ->whereIn('type', ['completion', 'additional', 'full'])
+            ->sum('amount');
+        $revenueChange = $prevRevenue > 0 ? (($totalRevenue - $prevRevenue) / $prevRevenue) * 100 : 0;
+
+        // Top service / staff (same logic as index)
+        $serviceRevenue = [];
+        $staffRevenue = [];
+        foreach ($allPayments as $payment) {
+            $appt = $payment->appointment;
+            if (!$appt) continue;
+
+            $staffName = $appt->staff->full_name ?? 'Unassigned';
+            $staffRevenue[$staffName] = ($staffRevenue[$staffName] ?? 0) + $payment->amount;
+
+            $svcCount = $appt->services->count();
+            if ($svcCount > 0 && $payment->amount > 0) {
+                $perService = $payment->amount / $svcCount;
+                foreach ($appt->services as $svc) {
+                    $serviceRevenue[$svc->name] = ($serviceRevenue[$svc->name] ?? 0) + $perService;
+                }
+            }
+        }
+        arsort($serviceRevenue);
+        arsort($staffRevenue);
 
         $metrics = [
             'label' => $label,
@@ -364,12 +473,12 @@ class SalesReportController extends Controller
             'avgSale' => number_format($avgSale, 2),
             'uniqueCustomers' => $allPayments->pluck('appointment.customer_id')->filter()->unique()->count(),
             'completionRate' => $completionRate,
-            'noShowRate' => 0,
-            'cancellationRate' => 0,
-            'revenueChange' => 0,
-            'conversionRate' => 0,
-            'topService' => 'N/A',
-            'topStaff' => 'N/A',
+            'noShowRate' => $noShowRate,
+            'cancellationRate' => $cancellationRate,
+            'revenueChange' => $revenueChange,
+            'conversionRate' => $conversionRate,
+            'topService' => array_key_first($serviceRevenue) ?: 'None',
+            'topStaff' => array_key_first($staffRevenue) ?: 'None',
         ];
 
         $ollama = new OllamaInsightService();
@@ -409,6 +518,12 @@ class SalesReportController extends Controller
                 if ($currentStatus === 'customer_no_show') {
                     $q->where('status', 'cancelled')
                       ->where('cancellation_reason', 'customer_no_show');
+                } elseif ($currentStatus === 'cancelled') {
+                    $q->where('status', 'cancelled')
+                      ->where(function ($sq) {
+                          $sq->where('cancellation_reason', '!=', 'customer_no_show')
+                             ->orWhereNull('cancellation_reason');
+                      });
                 } else {
                     $q->where('status', $currentStatus);
                 }
@@ -419,36 +534,22 @@ class SalesReportController extends Controller
     }
 
     /**
-     * FIXED: Uses appointment_date instead of updated_at for no-show detection.
+     * Get no-show data using only cancellation_reason = 'customer_no_show'.
+     * No-shows are identified exclusively by reason, not by refunds.
      */
-    private function getNoShowData(Carbon $startDate, Carbon $endDate): array
-    {
-        $markedNoShows = Appointment::whereBetween('appointment_date', [$startDate, $endDate])
-            ->where('status', 'cancelled')
-            ->where(function ($q) {
-                $q->where('cancellation_reason', 'customer_no_show')
-                  ->orWhereNull('cancellation_reason');
-            })
-            ->with(['payments', 'customer'])
-            ->get();
-
-        $refundedApptIds = Payment::whereBetween('paid_at', [$startDate, $endDate])
-            ->where('type', 'refund')
-            ->where('amount', '<', 0)
-            ->pluck('appointment_id');
-
-        $refundedNoShows = Appointment::whereIn('id', $refundedApptIds)
-            ->where('status', 'cancelled')
-            ->with(['payments', 'customer'])
-            ->get();
-
-        $periodNoShowAppointments = $markedNoShows->merge($refundedNoShows)->unique('id');
+        private function getNoShowData(Carbon $startDate, Carbon $endDate, $preloaded = null): array
+        {
+            $noShowAppointments = $preloaded ?? Appointment::whereBetween('appointment_date', [$startDate, $endDate])
+                ->where('status', 'cancelled')
+                ->where('cancellation_reason', 'customer_no_show')
+                ->with(['payments', 'customer'])
+                ->get();
 
         $noShowForfeited = 0;
         $noShowRefunded = 0;
         $noShowList = [];
 
-        foreach ($periodNoShowAppointments as $appt) {
+        foreach ($noShowAppointments as $appt) {
             $deposit = $appt->payments->where('type', 'deposit')->sum('amount');
             $refund = abs($appt->payments->where('type', 'refund')->sum('amount'));
             $wasRefunded = $refund > 0;
@@ -480,7 +581,7 @@ class SalesReportController extends Controller
         }
 
         return [
-            'count' => $periodNoShowAppointments->count(),
+            'count' => $noShowAppointments->count(),
             'forfeited' => $noShowForfeited,
             'refunded' => $noShowRefunded,
             'list' => $noShowList,
@@ -544,138 +645,6 @@ class SalesReportController extends Controller
         }
 
         return [$labels, $values];
-    }
-
-    private function buildPrintServiceSummary($dailyPayments): array
-    {
-        $summary = [];
-        foreach ($dailyPayments as $payment) {
-            $appt = $payment->appointment;
-            if (!$appt) continue;
-
-            foreach ($appt->services ?? [] as $svc) {
-                $name = $svc->name;
-                $code = self::SERVICE_CODE_MAP[$name] ?? strtoupper(substr($name, 0, 2));
-                $originalPrice = floatval($svc->price);
-                $bookingPrice = floatval($svc->pivot->price_at_booking ?? $originalPrice);
-
-                if (!isset($summary[$name])) {
-                    $summary[$name] = ['code' => $code, 'name' => $name, 'count' => 0, 'gross' => 0, 'discount' => 0, 'net' => 0];
-                }
-                $summary[$name]['count']++;
-                $summary[$name]['gross'] += $originalPrice;
-                $summary[$name]['net'] += $bookingPrice;
-            }
-        }
-
-        foreach ($summary as &$r) {
-            $r['discount'] = max(0, $r['gross'] - $r['net']);
-        }
-        unset($r);
-
-        uasort($summary, fn ($a, $b) => $a['code'] <=> $b['code']);
-
-        return $summary;
-    }
-
-    private function buildTransactionRows($payments, string $currentStatus): array
-    {
-        $rows = [];
-        $seenApptIds = [];
-        $rowNum = 0;
-        $grandGross = 0;
-        $grandNet = 0;
-        $grandCom = 0;
-
-        foreach ($payments->getCollection() as $payment) {
-            $appt = $payment->appointment;
-            if (!$appt) continue;
-
-            $status = $appt->status ?? 'unknown';
-            $reason = $appt->cancellation_reason ?? null;
-            $filterKey = ($status === 'cancelled' && $reason === 'customer_no_show') ? 'customer_no_show' : $status;
-
-            if ($currentStatus !== 'all' && $filterKey !== $currentStatus) continue;
-            if (in_array($appt->id, $seenApptIds)) continue;
-            $seenApptIds[] = $appt->id;
-            $rowNum++;
-
-            $customerName = $appt->customer->full_name ?? trim(($appt->guest_first_name ?? '') . ' ' . ($appt->guest_last_name ?? '')) ?: 'Walk-in';
-            $staffName = $appt->staff->full_name ?? $appt->staff->name ?? 'Unassigned';
-            $room = $appt->room->name ?? $appt->room_id ?? '-';
-
-            $startTime = $appt->start_time ?? $appt->appointment_time ?? null;
-            $endTime = $appt->end_time ?? null;
-            $durationHrs = 1.0;
-            if ($startTime && $endTime) {
-                try {
-                    $st = Carbon::parse($startTime);
-                    $et = Carbon::parse($endTime);
-                    $durationHrs = max(0.5, round($st->diffInMinutes($et) / 60, 2));
-                } catch (\Exception $e) {
-                    $durationHrs = 1.0;
-                }
-            }
-
-            $serviceList = [];
-            $grossAmount = 0;
-            $netServiceAmount = 0;
-            foreach ($appt->services ?? [] as $svc) {
-                $originalPrice = floatval($svc->price);
-                $bookingPrice = floatval($svc->pivot->price_at_booking ?? $originalPrice);
-                $grossAmount += $originalPrice;
-                $netServiceAmount += $bookingPrice;
-                $serviceList[] = [
-                    'name' => $svc->name,
-                    'code' => self::SERVICE_CODE_MAP[$svc->name] ?? strtoupper(substr($svc->name, 0, 2)),
-                ];
-            }
-
-            $netAmount = $appt->total_price > 0 ? floatval($appt->total_price) : $netServiceAmount;
-            if ($grossAmount == 0 && $netAmount > 0) {
-                $grossAmount = $netAmount;
-            }
-            $discountAmount = max(0, $grossAmount - $netAmount);
-
-            $comPct = 25;
-            if ($appt->staff && !empty($appt->staff->commission_rate)) {
-                $comPct = floatval($appt->staff->commission_rate);
-            }
-            $therapistCom = $grossAmount * ($comPct / 100);
-
-            $grandGross += $grossAmount;
-            $grandNet += $netAmount;
-            $grandCom += $therapistCom;
-
-            $noteText = $appt->notes ?: ($appt->customer->medical_notes ?? null);
-
-            $rows[] = [
-                'rowNum' => $rowNum,
-                'filterKey' => $filterKey,
-                'customerName' => $customerName,
-                'room' => $room,
-                'startTime' => $startTime ? Carbon::parse($startTime)->format('g:i A') : '-',
-                'endTime' => $endTime ? Carbon::parse($endTime)->format('g:i A') : '-',
-                'staffName' => $staffName,
-                'durationHrs' => number_format($durationHrs, 2),
-                'serviceList' => $serviceList,
-                'grossAmount' => number_format($grossAmount, 2),
-                'discountAmount' => $discountAmount > 0 ? number_format($discountAmount, 2) : null,
-                'netAmount' => number_format($netAmount, 2),
-                'noteText' => $noteText,
-                'comPct' => $comPct,
-                'therapistCom' => number_format($therapistCom, 2),
-            ];
-        }
-
-        return [
-            'rows' => $rows,
-            'grandGross' => $grandGross,
-            'grandNet' => $grandNet,
-            'grandCom' => $grandCom,
-            'totalFiltered' => count($rows),
-            'pagination' => $payments,
-        ];
     }
 
     private function generateFallbackInsights(
@@ -848,8 +817,8 @@ class SalesReportController extends Controller
 
         if ($conversionRate < 40) {
             $suggestions[] = [
-                'type' => 'warning', 'icon' => '🎣', 'title' => 'Low Inquiry Conversion',
-                'text' => "Only {$conversionRate}% of inquiries convert to bookings. Audit your booking funnel.",
+                'type' => 'warning', 'icon' => '🎣', 'title' => 'Low Deposit Conversion',
+                'text' => "Only {$conversionRate}% of deposits convert to full payments. Audit your deposit follow-up workflow.",
                 'meta' => 'Funnel Fix',
                 'bg' => 'bg-amber-50 border-amber-500 dark:bg-amber-900/20',
                 'iconBg' => 'bg-amber-100 text-amber-600 dark:bg-amber-800 dark:text-amber-200'
@@ -902,13 +871,10 @@ class SalesReportController extends Controller
             $prevCompleted = $prevAppts->where('status', 'completed')->count();
             $prevCancelled = $prevAppts->where('status', 'cancelled')->count();
 
-            // FIXED: Uses appointment_date not updated_at
             $prevNoShows = Appointment::whereBetween('appointment_date', [$prevStart, $prevEnd])
                 ->where('status', 'cancelled')
-                ->where(function ($q) {
-                    $q->where('cancellation_reason', 'customer_no_show')
-                    ->orWhereNull('cancellation_reason');
-                })->count();
+                ->where('cancellation_reason', 'customer_no_show')
+                ->count();
 
             $prevCompletion = $prevTotal > 0 ? round(($prevCompleted / $prevTotal) * 100, 1) : 0;
             $prevNoShowRate = $prevTotal > 0 ? round(($prevNoShows / $prevTotal) * 100, 1) : 0;
@@ -973,10 +939,8 @@ class SalesReportController extends Controller
             $total = $monthAppts->count();
             $completed = $monthAppts->where('status', 'completed')->count();
             $ns = $monthAppts->where('status', 'cancelled')
-                ->where(function ($q) {
-                    $q->where('cancellation_reason', 'customer_no_show')
-                      ->orWhereNull('cancellation_reason');
-                })->count();
+                ->where('cancellation_reason', 'customer_no_show')
+                ->count();
 
             $months[] = $label;
             $bookings[] = $total;
@@ -1012,5 +976,373 @@ class SalesReportController extends Controller
             'trendPercent' => $trend,
             'trendDirection' => $trend >= 0 ? 'up' : 'down',
         ];
+    }
+
+    public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
+    {
+        $period = $request->get('period', 'daily');
+        $today = Carbon::today();
+        [$startDate, $endDate, $label] = $this->resolveDateRange($period, $request, $today);
+
+        $baseQuery = Payment::with(['appointment.services'])
+            ->whereHas('appointment', fn ($q) => $q->where('status', '!=', 'confirmed'))
+            ->whereBetween('paid_at', [$startDate, $endDate]);
+
+        $allPayments = (clone $baseQuery)->get();
+
+        $printServiceSummary = $this->buildPrintServiceSummary($allPayments);
+        $pTotalGross = collect($printServiceSummary)->sum('gross');
+        $pTotalNet = collect($printServiceSummary)->sum('net');
+        $pTotalDiscount = collect($printServiceSummary)->sum('discount');
+        $pTotalCount = collect($printServiceSummary)->sum('count');
+
+        $reportTitle = match($period) {
+            'daily' => 'SUMMARY OF DAILY SALES REPORT',
+            'weekly' => 'SUMMARY OF WEEKLY SALES REPORT',
+            'monthly' => 'SUMMARY OF MONTHLY SALES REPORT',
+            'yearly' => 'SUMMARY OF YEARLY SALES REPORT',
+            'custom' => 'SUMMARY OF CUSTOM SALES REPORT',
+            default => 'SUMMARY OF SALES REPORT',
+        };
+
+        $dateLabel = $period === 'daily' ? 'DATE:' : 'PERIOD:';
+        $dateDisplay = match($period) {
+            'daily' => $startDate->format('n/j/Y'),
+            'weekly' => $startDate->format('M j') . ' — ' . $endDate->format('M j, Y'),
+            'monthly' => $startDate->format('F Y'),
+            'yearly' => $startDate->format('Y'),
+            'custom' => $startDate->format('M j') . ' — ' . $endDate->format('M j, Y'),
+            default => $startDate->format('n/j/Y') . ' — ' . $endDate->format('n/j/Y'),
+        };
+
+        $filename = 'daily-sales-report-' . strtolower($label) . '-' . now()->format('Y-m-d') . '.pdf';
+
+        $data = [
+            'printServiceSummary' => $printServiceSummary,
+            'pTotalGross' => $pTotalGross,
+            'pTotalNet' => $pTotalNet,
+            'pTotalDiscount' => $pTotalDiscount,
+            'pTotalCount' => $pTotalCount,
+            'reportTitle' => $reportTitle,
+            'dateLabel' => $dateLabel,
+            'dateDisplay' => $dateDisplay,
+            'preparedBy' => auth()->user()->full_name ?? auth()->user()->name,
+            'generatedAt' => now()->format('F d, Y g:i A'),
+        ];
+
+        if ($request->get('action') === 'stream') {
+            return $pdfService->streamPdf('reports.daily_sales_pdf', $data, $filename);
+        }
+
+        return $pdfService->generatePdf('reports.daily_sales_pdf', $data, $filename);
+    }
+
+    /**
+     * Download Business Report as PDF
+     */
+    public function businessReportPdf(Request $request, ReportPdfService $pdfService)
+    {
+        $period = $request->get('period', 'daily');
+        $today = Carbon::today();
+        [$startDate, $endDate, $label] = $this->resolveDateRange($period, $request, $today);
+
+        $baseQuery = Payment::with(['appointment.customer', 'appointment.services', 'appointment.staff'])
+            ->whereHas('appointment', fn ($q) => $q->where('status', '!=', 'confirmed'))
+            ->whereBetween('paid_at', [$startDate, $endDate]);
+
+        $allPayments = (clone $baseQuery)->get();
+
+        $totalRevenue = $allPayments->whereIn('type', ['completion', 'additional', 'full'])->sum('amount');
+        $totalCount = $allPayments->count();
+        $avgSale = $totalCount > 0 ? $totalRevenue / $totalCount : 0;
+        $deposits = $allPayments->where('type', 'deposit')->sum('amount');
+
+        $noShowData = $this->getNoShowData($startDate, $endDate);
+        $methodBreakdown = $this->getMethodBreakdown($allPayments);
+
+        $serviceRevenue = [];
+        $staffRevenue = [];
+        foreach ($allPayments as $payment) {
+            $appt = $payment->appointment;
+            if (!$appt) continue;
+
+            $staffName = $appt->staff->full_name ?? 'Unassigned';
+            $staffRevenue[$staffName] = ($staffRevenue[$staffName] ?? 0) + $payment->amount;
+
+            $svcCount = $appt->services->count();
+            if ($svcCount > 0 && $payment->amount > 0) {
+                $perService = $payment->amount / $svcCount;
+                foreach ($appt->services as $svc) {
+                    $serviceRevenue[$svc->name] = ($serviceRevenue[$svc->name] ?? 0) + $perService;
+                }
+            }
+        }
+        arsort($serviceRevenue);
+        arsort($staffRevenue);
+        $topServices = array_slice($serviceRevenue, 0, 5, true);
+        $topStaff = array_slice($staffRevenue, 0, 5, true);
+
+        $periodAppts = Appointment::whereBetween('appointment_date', [$startDate, $endDate])->get();
+        $totalApptsInPeriod = $periodAppts->count();
+        $completedApptsInPeriod = $periodAppts->where('status', 'completed')->count();
+        $cancelledApptsInPeriod = $periodAppts
+            ->where('status', 'cancelled')
+            ->where('cancellation_reason', '!=', 'customer_no_show')
+            ->count();
+        $noShowApptsInPeriod = $periodAppts
+            ->where('status', 'cancelled')
+            ->where('cancellation_reason', 'customer_no_show')
+            ->count();
+
+        $safeCompletionRate = $totalApptsInPeriod > 0 ? round(($completedApptsInPeriod / $totalApptsInPeriod) * 100, 1) : 0;
+        $safeNoShowRate = $totalApptsInPeriod > 0 ? round(($noShowApptsInPeriod / $totalApptsInPeriod) * 100, 1) : 0;
+        $safeCancellationRate = $totalApptsInPeriod > 0 ? round(($cancelledApptsInPeriod / $totalApptsInPeriod) * 100, 1) : 0;
+
+        $periodDays = max(1, $startDate->diffInDays($endDate) + 1);
+        $prevStart = $startDate->copy()->subDays($periodDays);
+        $prevEnd = $endDate->copy()->subDays($periodDays);
+        $prevRevenue = Payment::whereBetween('paid_at', [$prevStart, $prevEnd])
+            ->whereIn('type', ['completion', 'additional', 'full'])
+            ->sum('amount');
+        $revenueChange = $prevRevenue > 0 ? (($totalRevenue - $prevRevenue) / $prevRevenue) * 100 : 0;
+        $revenueChangeLabel = ($revenueChange >= 0 ? '+' : '') . number_format($revenueChange, 1);
+
+        $uniqueCustomers = $allPayments->pluck('appointment.customer_id')->filter()->unique()->count();
+
+        $filename = 'business-report-' . strtolower($label) . '-' . now()->format('Y-m-d') . '.pdf';
+
+        $data = [
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'safeTotalRevenue' => $totalRevenue,
+            'safeTotalCount' => $totalCount,
+            'safeAvgSale' => $avgSale,
+            'safeUniqueCustomers' => $uniqueCustomers,
+            'safeCompletionRate' => $safeCompletionRate,
+            'safeNoShowRate' => $safeNoShowRate,
+            'safeCancellationRate' => $safeCancellationRate,
+            'safeTotalAppts' => $totalApptsInPeriod,
+            'safeCompleted' => $completedApptsInPeriod,
+            'safeCancelled' => $cancelledApptsInPeriod,
+            'revenueChangeLabel' => $revenueChangeLabel,
+            'safeRevenueChange' => $revenueChange,
+            'topServices' => $topServices,
+            'topStaff' => $topStaff,
+            'methodBreakdown' => $methodBreakdown,
+            'preparedBy' => auth()->user()->full_name ?? auth()->user()->name,
+            'generatedAt' => now()->format('F d, Y g:i A'),
+            'safeNoShow' => $noShowData['count'],
+        ];
+
+        if ($request->get('action') === 'stream') {
+            return $pdfService->streamPdf('reports.business_report_pdf', $data, $filename);
+        }
+
+        return $pdfService->generatePdf('reports.business_report_pdf', $data, $filename);
+    }
+
+    private function buildPrintServiceSummary($payments): array
+    {
+        $summary = [];
+        $codeMap = self::SERVICE_CODE_MAP;
+
+        foreach ($payments as $payment) {
+            $appt = $payment->appointment;
+            if (!$appt) continue;
+
+            $services = $appt->services;
+            if ($services->isEmpty()) continue;
+
+            $svcCount = $services->count();
+            $grossAmount = $payment->amount;
+
+            // Calculate discount from appointment record (pivot or appointment level)
+            $discount = 0;
+            if ($appt->discount_amount > 0) {
+                $discount = $appt->discount_amount / $svcCount;
+            } elseif ($appt->discount_percent > 0) {
+                $discount = ($grossAmount * ($appt->discount_percent / 100)) / $svcCount;
+            }
+
+            $perServiceGross = $grossAmount / $svcCount;
+            $perServiceNet = $perServiceGross - $discount;
+
+            foreach ($services as $svc) {
+                $name = $svc->pivot->service_name ?? $svc->name;
+                $code = $svc->code;
+
+                if (empty($code)) {
+                    $code = $codeMap[$name] ?? null;
+                }
+
+                if (empty($code)) {
+                    $cleanName = preg_replace('/[^a-z0-9 ]/i', '', $name);
+                    $words = array_filter(explode(' ', $cleanName));
+                    $initials = '';
+                    foreach ($words as $word) {
+                        $initials .= strtoupper(substr($word, 0, 1));
+                    }
+                    $code = substr($initials, 0, 3) ?: 'SVC';
+                }
+
+                if (!isset($summary[$name])) {
+                    $summary[$name] = [
+                        'code' => $code,
+                        'name' => $name,
+                        'count' => 0,
+                        'gross' => 0,
+                        'discount' => 0,
+                        'net' => 0,
+                    ];
+                }
+
+                $summary[$name]['count'] += 1;
+                $summary[$name]['gross'] += $perServiceGross;
+                $summary[$name]['discount'] += $discount;
+                $summary[$name]['net'] += max(0, $perServiceNet);
+            }
+        }
+
+        uasort($summary, fn($a, $b) => $a['code'] <=> $b['code']);
+
+        return array_values($summary);
+    }
+
+    /**
+     * Build transaction log rows for the shared table view.
+     */
+    private function buildTransactionRows($payments, string $status): array
+    {
+        $rows = [];
+        $codeMap = self::SERVICE_CODE_MAP;
+        $grandGross = 0;
+        $grandNet = 0;
+        $grandCom = 0;
+        $rowNum = 1;
+
+        foreach ($payments as $payment) {
+            $appt = $payment->appointment;
+            if (!$appt) continue;
+
+            $customer = $appt->customer;
+            $staff = $appt->staff;
+            $room = $appt->room;
+            $services = $appt->services;
+
+            // --- SRVCS: Build service list with codes ---
+            $serviceList = [];
+            foreach ($services as $svc) {
+                $name = $svc->pivot->service_name ?? $svc->name;
+                $code = $svc->code;
+
+                if (empty($code)) {
+                    $code = $codeMap[$name] ?? null;
+                }
+                if (empty($code)) {
+                    $cleanName = preg_replace('/[^a-z0-9 ]/i', '', $name);
+                    $words = array_filter(explode(' ', $cleanName));
+                    if (count($words) >= 2) {
+                        $code = strtoupper(substr($words[0], 0, 1) . substr($words[1], 0, 1));
+                    } elseif (count($words) === 1) {
+                        $code = strtoupper(substr($words[0], 0, 2));
+                    } else {
+                        $code = 'SV';
+                    }
+                }
+
+                $serviceList[] = [
+                    'code' => $code,
+                    'name' => $name,
+                ];
+            }
+
+            // --- GROSS: Original service prices (use pivot price if available) ---
+            $gross = $services->sum(function ($svc) {
+                return $svc->pivot->price ?? $svc->price ?? 0;
+            });
+
+            // --- DISCOUNT: pivot discount_price + appointment-level discounts ---
+            $discount = 0;
+            foreach ($services as $svc) {
+                $price = $svc->pivot->price ?? $svc->price ?? 0;
+                $discPrice = $svc->pivot->discount_price ?? $svc->discount_price ?? 0;
+                if ($discPrice > 0 && $discPrice < $price) {
+                    $discount += ($price - $discPrice);
+                }
+            }
+            // Add appointment-level discount distributed per service
+            if ($appt->discount_amount > 0 && $services->count() > 0) {
+                $discount += $appt->discount_amount / $services->count();
+            } elseif ($appt->discount_percent > 0 && $gross > 0) {
+                $discount += ($gross * ($appt->discount_percent / 100)) / $services->count();
+            }
+
+            $discountPercent = 0;
+            if ($gross > 0 && $discount > 0) {
+                $discountPercent = round(($discount / $gross) * 100, 1);
+            }
+
+            // --- NET: Gross minus discount ---
+            $net = $gross - $discount;
+
+            // Commission: 30% of net for staff
+            $commission = 0;
+            if ($staff && $net > 0) {
+                $commission = $net * 0.30;
+            }
+
+            $grandGross += $gross;
+            $grandNet += $net;
+            $grandCom += $commission;
+
+            // --- HRS: Use booked service durations (source of truth) ---
+            $durationMinutes = $services->sum(function ($s) {
+                return $s->pivot->service_duration ?? $s->duration_minutes ?? 0;
+            });
+            if ($durationMinutes <= 0) {
+                $startTimeObj = \Carbon\Carbon::parse($appt->start_time);
+                $endTimeObj   = \Carbon\Carbon::parse($appt->end_time);
+                $durationMinutes = abs($endTimeObj->diffInMinutes($startTimeObj));
+            }
+
+            // --- TIME DISPLAY ---
+            $startTimeFormatted = \Carbon\Carbon::parse($appt->start_time)->format('g:i A');
+            $endTimeFormatted   = \Carbon\Carbon::parse($appt->end_time)->format('g:i A');
+
+            $rows[] = [
+                'rowNum' => $rowNum++,
+                'customerName' => $customer->full_name ?? trim(($appt->guest_first_name ?? '') . ' ' . ($appt->guest_last_name ?? '')) ?: 'Walk-in',
+                'room' => $room->name ?? 'N/A',
+                'startTime' => $startTimeFormatted,
+                'endTime' => $endTimeFormatted,
+                'staffName' => $staff->full_name ?? 'Unassigned',
+                'durationHrs' => round($durationMinutes / 60, 1),
+                'serviceList' => $serviceList,
+                'grossAmount' => number_format($gross, 2),
+                'discountAmount' => $discount > 0 ? number_format($discount, 2) : null,
+                'discountPercent' => $discountPercent > 0 ? $discountPercent : null,
+                'netAmount' => number_format($net, 2),
+                'noteText' => $appt->notes ?? '',
+                'comPct' => 30,
+                'therapistCom' => number_format($commission, 2),
+                'filterKey' => $status, // FIXED: was $appt->status (always 'cancelled' for no-shows)
+            ];
+        }
+
+        return [
+            'rows' => $rows,
+            'grandGross' => $grandGross,
+            'grandNet' => $grandNet,
+            'grandCom' => $grandCom,
+            'totalFiltered' => count($rows),
+            'pagination' => $payments,
+        ];
+    }
+        /**
+     * Net sales = all payment amounts (positive + negative refunds)
+     */
+    private function netSales($query)
+    {
+        return $query->sum('amount');
     }
 }

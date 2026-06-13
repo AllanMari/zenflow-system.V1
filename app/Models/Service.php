@@ -26,6 +26,7 @@ class Service extends Model
         'deposit_percentage_max',
         'requires_room',
         'room_category_id',
+        'code',
     ];
 
     protected $casts = [

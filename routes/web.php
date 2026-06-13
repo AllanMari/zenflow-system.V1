@@ -88,7 +88,10 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     Route::get('/active', [ReceptionistController::class, 'active'])->name('receptionist.active');
 
     Route::get('/sales', [SalesReportController::class, 'index'])->name('receptionist.sales');
-    Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('receptionist.sales.tx-log');    
+    Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('receptionist.sales.tx-log');  
+    
+    Route::get('/sales/daily-report-pdf', [SalesReportController::class, 'dailyReportPdf'])->name('receptionist.sales.daily-report-pdf');
+    Route::get('/sales/business-report-pdf', [SalesReportController::class, 'businessReportPdf'])->name('receptionist.sales.business-report-pdf');
 
     Route::get('/booking/{appointment}/rooms', [ReceptionistController::class, 'availableRooms'])->name('receptionist.rooms.available');
 
@@ -97,7 +100,11 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
 
     Route::get('/api/booking/next-slots', [BookingController::class, 'nextSlots'])->name('api.next-slots');
 
-        Route::post('/sales/ai-chat', [SalesReportController::class, 'aiChat'])->name('receptionist.sales.ai-chat');
+    Route::post('/sales/ai-chat', [SalesReportController::class, 'aiChat'])->name('receptionist.sales.ai-chat');
+
+        // Staff reassignment for active appointments
+    Route::post('/appointments/{appointmentId}/reassign', [ReceptionistController::class, 'reassignStaff'])->name('receptionist.reassign')->whereNumber('appointmentId');
+    Route::post('/appointments/{appointmentId}/reschedule', [ReceptionistController::class, 'reschedule'])->name('receptionist.reschedule')->whereNumber('appointmentId');
 });
 
 // ==================== ADMIN ====================
@@ -144,8 +151,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
     // Landing permissions
     Route::put('/receptionists/{user}/toggle-landing', [AdminController::class, 'toggleLandingPermission'])->name('admin.receptionist.toggle-landing');
+
     Route::get('/sales', [SalesReportController::class, 'index'])->name('admin.sales');
     Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('admin.sales.tx-log');
+    Route::get('/sales/daily-report-pdf', [SalesReportController::class, 'dailyReportPdf'])->name('admin.sales.daily-report-pdf');
+    Route::get('/sales/business-report-pdf', [SalesReportController::class, 'businessReportPdf'])->name('admin.sales.business-report-pdf');
+
 
     // Rooms
     Route::get('/rooms', [AdminController::class, 'roomsIndex'])->name('admin.rooms.index');
