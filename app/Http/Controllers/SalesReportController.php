@@ -355,7 +355,7 @@ class SalesReportController extends Controller
             'aiOnline',
             'serviceCodeMap',
             'noShowApptsInPeriod',
-            'appointment.payments',
+            
         ));
     }
 
