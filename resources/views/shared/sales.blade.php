@@ -1058,7 +1058,7 @@
     <!-- Toggle Button -->
     <button onclick="toggleAiChat()" class="bg-teal-600 hover:bg-teal-700 text-white rounded-full p-4 shadow-lg transition-all hover:scale-110 flex items-center gap-2" aria-label="Open AI Assistant">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-        <span class="text-sm font-bold">Ask Alex</span>
+        <span class="text-sm font-bold">Ask Mari</span>
     </button>
 
     <!-- Chat Panel -->
@@ -1066,7 +1066,7 @@
         <div class="bg-teal-600 p-3 flex justify-between items-center">
             <div class="flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full {{ $aiOnline ? 'bg-green-400 animate-pulse' : 'bg-red-400' }}"></span>
-                <span class="text-white text-sm font-bold">Alex — AI Advisor</span>
+                <span class="text-white text-sm font-bold">Mari — AI Advisor</span>
                 <span class="text-[10px] text-teal-200">{{ $aiOnline ? 'Online' : 'Offline' }}</span>
             </div>
             <div class="flex items-center gap-1">
@@ -1081,14 +1081,14 @@
 
         <div id="aiChatMessages" class="p-4 h-80 overflow-y-auto space-y-3">
             <div class="bg-teal-50 dark:bg-teal-900/20 p-3 rounded-lg text-xs text-gray-600 dark:text-gray-300">
-                <p class="font-bold text-teal-700 dark:text-teal-300 mb-1">👋 Hey there! I'm Alex, your spa business advisor.</p>
+                <p class="font-bold text-teal-700 dark:text-teal-300 mb-1">👋 Hey there! I'm Mari, your spa business advisor.</p>
                 <p>Ask me anything about your sales, appointments, or business strategy. I'm here to help! ✨</p>
             </div>
         </div>
 
         <div class="p-3 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
             <form onsubmit="sendAiQuestion(event)" class="flex gap-2">
-                <input type="text" id="aiQuestionInput" placeholder="Ask Alex about sales, pricing, trends..." 
+                <input type="text" id="aiQuestionInput" placeholder="Ask Mari about sales, pricing, trends..." 
                     class="flex-1 text-sm border rounded-lg px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                     maxlength="200" autocomplete="off">
                 <button type="submit" class="bg-teal-600 text-white p-2 rounded-lg hover:bg-teal-700 transition">
@@ -1400,7 +1400,7 @@
         const container = document.getElementById('aiChatMessages');
         container.innerHTML = `
             <div class="bg-teal-50 dark:bg-teal-900/20 p-3 rounded-lg text-xs text-gray-600 dark:text-gray-300">
-                <p class="font-bold text-teal-700 dark:text-teal-300 mb-1">👋 Hey there! I'm Alex, your spa business advisor.</p>
+                <p class="font-bold text-teal-700 dark:text-teal-300 mb-1">👋 Hey there! I'm Mari, your spa business advisor.</p>
                 <p>Ask me anything about your sales, appointments, or business strategy. I'm here to help! ✨</p>
             </div>
         `;
@@ -1420,9 +1420,9 @@
         aiIsTyping = true;
 
         // 2. Add typing indicator
-        const typingId = addAiMessage('typing', 'Alex is thinking...');
+        const typingId = addAiMessage('typing', 'Mari is thinking...');
 
-        // 3. Read current period from URL so Alex analyzes the right range
+        // 3. Read current period from URL so Mari analyzes the right range
         const params = new URLSearchParams(window.location.search);
         const period = params.get('period') || 'daily';
         const startDate = params.get('start_date') || '';
@@ -1519,7 +1519,7 @@
             div.innerHTML = `<div class="bg-white dark:bg-gray-700 p-3 rounded-lg mr-8 border-l-4 ${borderColor} shadow-sm">
                 <div class="flex items-center gap-1.5 mb-1.5">
                     <span class="text-sm">${moodIcon}</span>
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Alex</span>
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Mari</span>
                 </div>
                 <div class="text-gray-700 dark:text-gray-200 whitespace-pre-line leading-relaxed">${escapeHtml(text)}</div>
                 ${actionHtml}
