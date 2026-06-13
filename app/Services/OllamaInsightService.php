@@ -39,28 +39,26 @@ class OllamaInsightService
 
     /**
      * Chat-based decision support with current metrics context.
+     * Now supports conversation history for natural back-and-forth.
      */
-    public function chat(string $question, array $currentMetrics): array
+    public function chat(string $question, array $currentMetrics, array $history = []): array
     {
         if (empty($this->endpoint)) {
             return ['type' => 'error', 'text' => 'AI assistant is offline. Check Ollama connection.'];
         }
 
-        // SECURITY: Block prompt injection attempts
-        $blocked = ['ignore previous', 'forget instructions', 'system prompt', 'you are now', 'act as', 'pretend to', 'override', 'disregard'];
+        // SECURITY: Narrowed to only exact system-override attempts
+        $blocked = ['ignore previous instructions', 'forget your instructions', 'system prompt override', 'override your instructions', 'disregard all prior'];
         $lowerQ = strtolower($question);
         foreach ($blocked as $bad) {
             if (str_contains($lowerQ, $bad)) {
                 Log::warning('Prompt injection blocked', ['question' => $question]);
-                return ['type' => 'error', 'text' => 'Invalid question format. Please ask about spa business topics.'];
+                return ['type' => 'error', 'text' => 'Hmm, I can\'t process that request. Let\'s stick to spa business topics! 😊'];
             }
         }
 
-        $cacheKey = 'ollama_chat_' . md5($question . serialize($currentMetrics));
-
-        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($question, $currentMetrics) {
-            return $this->fetchChatFromOllama($question, $currentMetrics);
-        });
+        // No heavy caching for chat — we want real conversation
+        return $this->fetchChatFromOllama($question, $currentMetrics, $history);
     }
 
     private function fetchFromOllama(array $metrics, array $history): array
@@ -97,8 +95,8 @@ class OllamaInsightService
                 return [];
             }
 
-            $text = preg_replace('/^```json\s*/', '', $text);
-            $text = preg_replace('/\s*```$/', '', $text);
+            $text = preg_replace('/^```json\s*/i', '', $text);
+            $text = preg_replace('/\s*```\s*$/i', '', $text);
 
             $insights = json_decode(trim($text), true);
 
@@ -131,7 +129,7 @@ class OllamaInsightService
         }
     }
 
-    private function fetchChatFromOllama(string $question, array $m): array
+    private function fetchChatFromOllama(string $question, array $m, array $history): array
     {
         $currency = '₱';
 
@@ -140,8 +138,18 @@ class OllamaInsightService
             $safeQuestion = substr($safeQuestion, 0, 200);
         }
 
+        // Build conversation history for context
+        $conversationHistory = '';
+        if (!empty($history)) {
+            $conversationHistory = "\n\nCONVERSATION SO FAR:\n";
+            foreach (array_slice($history, -10) as $msg) {
+                $role = $msg['role'] === 'user' ? 'Owner' : 'Mari';
+                $conversationHistory .= "{$role}: {$msg['content']}\n";
+            }
+        }
+
         $previousInsights = AiInsight::orderByDesc('created_at')
-            ->limit(5)
+            ->limit(3)
             ->get()
             ->pluck('insights_output')
             ->flatten(1)
@@ -150,32 +158,32 @@ class OllamaInsightService
             ->implode(', ');
 
         $prompt = <<<PROMPT
-You are Spa Alexandria's AI business advisor. Answer the owner's question using current sales data.
+You are "Mari" — the friendly, supportive AI business advisor for Spa Alexandria. You talk like a knowledgeable colleague who genuinely cares about the spa's success. You're warm, encouraging, and never robotic. Use a natural, conversational tone and occasional emojis when appropriate.
 
-CURRENT BUSINESS STATUS:
-- Period: {$m['label']} ({$m['startDate']} to {$m['endDate']})
+CURRENT BUSINESS STATUS ({$m['label']} — {$m['startDate']} to {$m['endDate']}):
 - Revenue: {$currency}{$m['totalRevenue']} | Transactions: {$m['totalCount']}
 - Avg Ticket: {$currency}{$m['avgSale']} | Unique Customers: {$m['uniqueCustomers']}
 - Completion: {$m['completionRate']}% | No-Show: {$m['noShowRate']}% | Cancel: {$m['cancellationRate']}%
-- Revenue Change: {$m['revenueChange']}% | Conversion: {$m['conversionRate']}%
+- Revenue Change: {$m['revenueChange']}% | Deposit Conversion: {$m['conversionRate']}%
 - Top Service: {$m['topService']} | Top Staff: {$m['topStaff']}
 
-PREVIOUS AI CONCERNS: {$previousInsights}
+PREVIOUS AI ANALYSES: {$previousInsights}
+{$conversationHistory}
 
-OWNER QUESTION: {$safeQuestion}
+OWNER: {$safeQuestion}
 
-RULES:
-1. Return ONLY a JSON object with keys: "answer" (string, max 300 chars), "confidence" (high|medium|low), "action" (string, one concrete step).
-2. Be specific. Use numbers from the metrics. Mention ₱ when discussing money.
-3. If the question is not business-related, politely redirect to business topics.
-4. Do not hallucinate data not in the metrics.
-5. If revenue is declining, suggest immediate actions. If healthy, suggest growth moves.
-
-EXAMPLE:
+HOW TO RESPOND:
+1. Be conversational and friendly. Greet them if they greeted you. Ask follow-up questions if it helps guide them.
+2. Use the numbers above naturally — don't dump all metrics, only what's relevant to their question.
+3. If they ask about non-business topics, gently redirect: "I'm best at spa business stuff, but let me know if you want to talk sales! 😊"
+4. Keep your main response to 2-3 short paragraphs. Be specific and actionable.
+5. If revenue is down, be empathetic but constructive. If it's up, celebrate with them!
+6. Return ONLY a JSON object with this exact structure:
 {
-  "answer": "Your completion rate dropped 12% this week. Peak cancellations happen at 2pm. I recommend SMS reminders 2 hours before appointments.",
-  "confidence": "high",
-  "action": "Enable automated SMS reminders for afternoon slots"
+  "response": "Your friendly conversational answer here",
+  "confidence": "high|medium|low",
+  "action": "One concrete next step they should take",
+  "mood": "encouraging|concerned|celebratory|neutral"
 }
 PROMPT;
 
@@ -187,7 +195,7 @@ PROMPT;
                     'prompt' => $prompt,
                     'stream' => false,
                     'format' => 'json',
-                    'options' => ['temperature' => 0.4],
+                    'options' => ['temperature' => 0.7], // Higher temp = more personality
                 ]);
 
             if (!$response->successful()) {
@@ -201,20 +209,21 @@ PROMPT;
                 return ['type' => 'error', 'text' => 'No response from AI.'];
             }
 
-            $text = preg_replace('/^```json\s*/', '', $text);
-            $text = preg_replace('/\s*```$/', '', $text);
+            $text = preg_replace('/^```json\s*/i', '', $text);
+            $text = preg_replace('/\s*```\s*$/i', '', $text);
 
             $result = json_decode(trim($text), true);
 
-            if (!is_array($result) || !isset($result['answer'])) {
+            if (!is_array($result) || !isset($result['response'])) {
                 return ['type' => 'error', 'text' => 'AI returned invalid format.'];
             }
 
             return [
                 'type' => 'success',
-                'answer' => $result['answer'],
+                'answer' => $result['response'],
                 'confidence' => $result['confidence'] ?? 'medium',
-                'action' => $result['action'] ?? 'Review metrics dashboard',
+                'action' => $result['action'] ?? 'Review your metrics dashboard',
+                'mood' => $result['mood'] ?? 'neutral',
             ];
 
         } catch (\Exception $e) {
@@ -274,7 +283,7 @@ CURRENT METRICS:
 - Top Staff: {$m['topStaff']}
 {$historyText}{$memoryText}
 
-STRICT RULES — VIOLATING ANY RULE WILL BREAK THE SYSTEM:
+RULES:
 1. Return ONLY a JSON array. No markdown, no explanations, no code blocks, no conversational text.
 2. Each object must have exactly these keys: type, icon, title, text, meta.
 3. type must be one of: danger, warning, success, info.
@@ -335,13 +344,9 @@ PROMPT;
             ];
         }
 
-        usort($normalized, fn ($a, $b) => match (true) {
-            $a['type'] === 'danger' && $b['type'] !== 'danger' => -1,
-            $a['type'] !== 'danger' && $b['type'] === 'danger' => 1,
-            $a['type'] === 'warning' && $b['type'] === 'success' => -1,
-            $a['type'] === 'warning' && $b['type'] === 'info' => -1,
-            default => 0,
-        });
+        // FIX: Proper priority sorting (was returning 0 for many pairs, causing random order)
+        $priority = ['danger' => 0, 'warning' => 1, 'success' => 2, 'info' => 3];
+        usort($normalized, fn ($a, $b) => $priority[$a['type']] <=> $priority[$b['type']]);
 
         return array_slice($normalized, 0, 6);
     }
@@ -349,15 +354,11 @@ PROMPT;
     public function healthCheck(): bool
     {
         try {
-            // Check if the current endpoint is running locally or through the cloud tunnel
             $isLocal = str_contains($this->endpoint, '127.0.0.1') || str_contains($this->endpoint, 'localhost');
-            
-            // Give the cloud tunnel a wider timeout window (8s) compared to local (3s)
             $timeout = $isLocal ? 3 : 8;
 
             $request = Http::timeout($timeout);
 
-            // Dynamically inject the bypass header ONLY if we are routing through ngrok
             if (!$isLocal) {
                 $request->withHeaders([
                     'ngrok-skip-browser-warning' => 'true'
@@ -368,7 +369,6 @@ PROMPT;
 
             return $response->successful() && str_contains($response->body(), $this->model);
         } catch (\Exception $e) {
-            // Logs the exact failure details to laravel.log so you can debug without breaking the UI
             Log::info('Ollama connection check failed: ' . $e->getMessage());
             return false;
         }

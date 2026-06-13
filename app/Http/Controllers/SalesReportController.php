@@ -393,18 +393,28 @@ class SalesReportController extends Controller
     /**
      * AJAX endpoint for AI chat assistant.
      */
+    /**
+     * AJAX endpoint for AI chat assistant.
+     * FIXED: Now passes conversation history, correct period, and accurate revenue metrics.
+     */
     public function aiChat(Request $request)
     {
         $request->validate([
             'question' => 'required|string|max:200',
+            'history' => 'nullable|array',
+            'history.*.role' => 'required|in:user,assistant',
+            'history.*.content' => 'required|string',
         ]);
 
         $question = $request->input('question');
+        $history = $request->input('history', []);
+
+        // FIX: Use the same period resolution as index() so AI analyzes the right date range
         $period = $request->get('period', 'daily');
         $today = Carbon::today();
         [$startDate, $endDate, $label] = $this->resolveDateRange($period, $request, $today);
 
-        // Load payments WITH nested relations so we don't N+1 when computing top service/staff
+        // Load payments WITH nested relations (same as index)
         $allPayments = Payment::with([
             'appointment.customer',
             'appointment.services',
@@ -414,8 +424,13 @@ class SalesReportController extends Controller
         ->whereBetween('paid_at', [$startDate, $endDate])
         ->get();
 
-        $totalRevenue = $allPayments->whereIn('type', ['completion', 'additional', 'full'])->sum('amount');
-        $totalCount = $allPayments->count();
+        // FIX: Match index() revenue calculation exactly (gross positive payments minus refunds)
+        $grossSales = $allPayments->where('amount', '>', 0)->sum('amount');
+        $refundTotal = abs($allPayments->where('amount', '<', 0)->sum('amount'));
+        $totalRevenue = $grossSales - $refundTotal;
+
+        // FIX: Match index() transaction count (only positive amounts, excluding refunds)
+        $totalCount = $allPayments->where('amount', '>', 0)->count();
         $avgSale = $totalCount > 0 ? $totalRevenue / $totalCount : 0;
 
         // Appointment stats (same logic as index)
@@ -438,9 +453,25 @@ class SalesReportController extends Controller
         $periodDays = max(1, $startDate->diffInDays($endDate) + 1);
         $prevStart = $startDate->copy()->subDays($periodDays);
         $prevEnd = $endDate->copy()->subDays($periodDays);
-        $prevRevenue = Payment::whereBetween('paid_at', [$prevStart, $prevEnd])
+
+        // FIX: Match index() prev revenue calculation (include forfeited no-show deposits)
+        $prevPayments = Payment::whereBetween('paid_at', [$prevStart, $prevEnd])
             ->whereIn('type', ['completion', 'additional', 'full'])
-            ->sum('amount');
+            ->get();
+        $prevRevenue = $prevPayments->sum('amount');
+
+        $prevAppts = Appointment::whereBetween('appointment_date', [$prevStart, $prevEnd])->get();
+        $prevNoShows = $prevAppts
+            ->where('status', 'cancelled')
+            ->where('cancellation_reason', 'customer_no_show');
+        foreach ($prevNoShows as $appt) {
+            $deposit = $appt->payments->where('type', 'deposit')->sum('amount');
+            $refund = abs($appt->payments->where('type', 'refund')->sum('amount'));
+            if ($deposit > 0 && $refund == 0) {
+                $prevRevenue += $deposit;
+            }
+        }
+
         $revenueChange = $prevRevenue > 0 ? (($totalRevenue - $prevRevenue) / $prevRevenue) * 100 : 0;
 
         // Top service / staff (same logic as index)
@@ -482,7 +513,7 @@ class SalesReportController extends Controller
         ];
 
         $ollama = new OllamaInsightService();
-        $response = $ollama->chat($question, $metrics);
+        $response = $ollama->chat($question, $metrics, $history);
 
         return response()->json($response);
     }

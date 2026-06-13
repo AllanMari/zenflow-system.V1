@@ -1058,7 +1058,7 @@
     <!-- Toggle Button -->
     <button onclick="toggleAiChat()" class="bg-teal-600 hover:bg-teal-700 text-white rounded-full p-4 shadow-lg transition-all hover:scale-110 flex items-center gap-2" aria-label="Open AI Assistant">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-        <span class="text-sm font-bold">AI Advisor</span>
+        <span class="text-sm font-bold">Ask Alex</span>
     </button>
 
     <!-- Chat Panel -->
@@ -1066,24 +1066,29 @@
         <div class="bg-teal-600 p-3 flex justify-between items-center">
             <div class="flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full {{ $aiOnline ? 'bg-green-400 animate-pulse' : 'bg-red-400' }}"></span>
-                <span class="text-white text-sm font-bold">Spa AI Advisor</span>
+                <span class="text-white text-sm font-bold">Alex — AI Advisor</span>
                 <span class="text-[10px] text-teal-200">{{ $aiOnline ? 'Online' : 'Offline' }}</span>
             </div>
-            <button onclick="toggleAiChat()" class="text-white hover:text-gray-200">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
+            <div class="flex items-center gap-1">
+                <button onclick="clearAiChat()" class="text-teal-200 hover:text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded hover:bg-teal-700 transition" title="Clear conversation">
+                    Clear
+                </button>
+                <button onclick="toggleAiChat()" class="text-white hover:text-gray-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
         </div>
 
         <div id="aiChatMessages" class="p-4 h-80 overflow-y-auto space-y-3">
             <div class="bg-teal-50 dark:bg-teal-900/20 p-3 rounded-lg text-xs text-gray-600 dark:text-gray-300">
-                <p class="font-bold text-teal-700 dark:text-teal-300 mb-1">👋 Hello! I'm your AI business advisor.</p>
-                <p>Ask me about pricing, staffing, or trends. Example: "Should I offer discounts today?"</p>
+                <p class="font-bold text-teal-700 dark:text-teal-300 mb-1">👋 Hey there! I'm Alex, your spa business advisor.</p>
+                <p>Ask me anything about your sales, appointments, or business strategy. I'm here to help! ✨</p>
             </div>
         </div>
 
         <div class="p-3 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
             <form onsubmit="sendAiQuestion(event)" class="flex gap-2">
-                <input type="text" id="aiQuestionInput" placeholder="Ask about sales, pricing, trends..." 
+                <input type="text" id="aiQuestionInput" placeholder="Ask Alex about sales, pricing, trends..." 
                     class="flex-1 text-sm border rounded-lg px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                     maxlength="200" autocomplete="off">
                 <button type="submit" class="bg-teal-600 text-white p-2 rounded-lg hover:bg-teal-700 transition">
@@ -1378,7 +1383,10 @@
     }
 
     /* ---------- AI CHAT ASSISTANT ---------- */
+    /* ---------- AI CHAT ASSISTANT (FIXED) ---------- */
+    let aiChatHistory = [];
     let aiChatOpen = false;
+    let aiIsTyping = false; // prevents double-send
 
     function toggleAiChat() {
         const panel = document.getElementById('aiChatPanel');
@@ -1386,16 +1394,39 @@
         panel.classList.toggle('hidden', !aiChatOpen);
     }
 
+    function clearAiChat() {
+        aiChatHistory = [];
+        aiIsTyping = false;
+        const container = document.getElementById('aiChatMessages');
+        container.innerHTML = `
+            <div class="bg-teal-50 dark:bg-teal-900/20 p-3 rounded-lg text-xs text-gray-600 dark:text-gray-300">
+                <p class="font-bold text-teal-700 dark:text-teal-300 mb-1">👋 Hey there! I'm Alex, your spa business advisor.</p>
+                <p>Ask me anything about your sales, appointments, or business strategy. I'm here to help! ✨</p>
+            </div>
+        `;
+    }
+
     function sendAiQuestion(e) {
         e.preventDefault();
+        if (aiIsTyping) return; // prevent double-send
+
         const input = document.getElementById('aiQuestionInput');
         const question = input.value.trim();
         if (!question) return;
 
+        // 1. Add user message immediately
         addAiMessage('user', question);
         input.value = '';
+        aiIsTyping = true;
 
-        const typingId = addAiMessage('typing', 'Analyzing your business data...');
+        // 2. Add typing indicator
+        const typingId = addAiMessage('typing', 'Alex is thinking...');
+
+        // 3. Read current period from URL so Alex analyzes the right range
+        const params = new URLSearchParams(window.location.search);
+        const period = params.get('period') || 'daily';
+        const startDate = params.get('start_date') || '';
+        const endDate = params.get('end_date') || '';
 
         const isAdmin = window.location.pathname.includes('/admin/');
         const endpoint = isAdmin
@@ -1409,29 +1440,56 @@
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',
                 'Accept': 'application/json'
             },
-            body: JSON.stringify({ question: question })
+            body: JSON.stringify({ 
+                question: question,
+                history: aiChatHistory,
+                period: period,
+                start_date: startDate,
+                end_date: endDate
+            })
         })
-        .then(r => r.json())
+        .then(async r => {
+            if (!r.ok) {
+                const text = await r.text();
+                throw new Error(`Server ${r.status}: ${text.substring(0, 100)}`);
+            }
+            return r.json();
+        })
         .then(data => {
-            removeAiMessage(typingId);
             if (data.type === 'error') {
-                addAiMessage('ai', '⚠️ ' + data.text, 'low');
+                addAiMessage('ai', data.text, 'low');
             } else {
+                const moodEmoji = data.mood === 'celebratory' ? '🎉' : 
+                                 (data.mood === 'concerned' ? '💡' : 
+                                 (data.mood === 'encouraging' ? '✨' : '🤖'));
                 const confidenceBadge = data.confidence === 'high' ? '✅ High confidence' : 
                                        (data.confidence === 'medium' ? '⚡ Medium confidence' : '❓ Low confidence');
-                addAiMessage('ai', data.answer + '\n\n🎯 ' + data.action, data.confidence, confidenceBadge);
+                addAiMessage('ai', data.answer, data.confidence, confidenceBadge, moodEmoji, data.action);
+                
+                // Store in history for conversation context
+                aiChatHistory.push({ role: 'user', content: question });
+                aiChatHistory.push({ role: 'assistant', content: data.answer });
+                
+                // Keep last 10 exchanges (20 messages)
+                if (aiChatHistory.length > 20) {
+                    aiChatHistory = aiChatHistory.slice(-20);
+                }
             }
         })
         .catch(err => {
-            removeAiMessage(typingId);
-            addAiMessage('ai', '⚠️ Connection error. Is Ollama running on your laptop?', 'low');
             console.error('AI chat error:', err);
+            addAiMessage('ai', 'Oops! I lost connection to my brain (Ollama). Can you check if it\'s running? 🔌', 'low');
+        })
+        .finally(() => {
+            // GUARANTEED: typing indicator always removed, success or fail
+            removeAiMessage(typingId);
+            aiIsTyping = false;
         });
     }
 
-    function addAiMessage(type, text, confidence = null, badge = null) {
+    function addAiMessage(type, text, confidence = null, badge = null, moodEmoji = null, action = null) {
         const container = document.getElementById('aiChatMessages');
-        const id = 'msg_' + Date.now();
+        const id = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
         const div = document.createElement('div');
         div.id = id;
         div.className = 'text-xs';
@@ -1448,8 +1506,23 @@
         } else {
             const borderColor = confidence === 'high' ? 'border-green-500' : 
                                (confidence === 'medium' ? 'border-amber-500' : 'border-red-500');
+            const moodIcon = moodEmoji || '🤖';
+            
+            let actionHtml = '';
+            if (action && action !== 'Review your metrics dashboard') {
+                actionHtml = `<div class="mt-2 p-2 bg-teal-50 dark:bg-teal-900/30 rounded border border-teal-200 dark:border-teal-800">
+                    <span class="text-[10px] font-bold text-teal-700 dark:text-teal-300 uppercase">💡 Suggested Action</span>
+                    <p class="text-xs text-teal-800 dark:text-teal-200 mt-0.5">${escapeHtml(action)}</p>
+                </div>`;
+            }
+            
             div.innerHTML = `<div class="bg-white dark:bg-gray-700 p-3 rounded-lg mr-8 border-l-4 ${borderColor} shadow-sm">
-                <div class="text-gray-700 dark:text-gray-200 whitespace-pre-line">${escapeHtml(text)}</div>
+                <div class="flex items-center gap-1.5 mb-1.5">
+                    <span class="text-sm">${moodIcon}</span>
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Alex</span>
+                </div>
+                <div class="text-gray-700 dark:text-gray-200 whitespace-pre-line leading-relaxed">${escapeHtml(text)}</div>
+                ${actionHtml}
                 ${badge ? `<div class="mt-2 text-[10px] font-bold text-gray-400">${badge}</div>` : ''}
             </div>`;
         }
