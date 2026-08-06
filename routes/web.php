@@ -20,6 +20,8 @@ Route::middleware('web')->group(function () {
     Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('customer.register');
     Route::post('/register', [RegisterController::class, 'register']);
     Route::get('/terms', fn() => view('terms'))->name('terms');
+    Route::get('/privacy', fn() => view('privacy'))->name('privacy');
+
 
     // Booking (guests can book without logging in)
     Route::get('/book', [BookingController::class, 'wizard'])->name('booking.wizard');
@@ -27,9 +29,6 @@ Route::middleware('web')->group(function () {
     Route::get('/api/occupied-slots', [BookingController::class, 'occupiedSlots'])->name('api.occupied-slots');
     Route::post('/book', [BookingController::class, 'store'])->name('booking.store');
     Route::get('/book/confirmation/{appointment}', [BookingController::class, 'confirmation'])->name('booking.confirmation');
-
-    // Customer lookup (minimal, opt-in)
-    Route::get('/api/customers/lookup', [BookingController::class, 'customerLookup'])->name('api.customers.lookup');
 
     // Staff gaps for continuous scheduling
     Route::get('/api/booking/staff-gaps', [BookingController::class, 'staffGaps'])->name('api.staff-gaps');
@@ -105,6 +104,9 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
         // Staff reassignment for active appointments
     Route::post('/appointments/{appointmentId}/reassign', [ReceptionistController::class, 'reassignStaff'])->name('receptionist.reassign')->whereNumber('appointmentId');
     Route::post('/appointments/{appointmentId}/reschedule', [ReceptionistController::class, 'reschedule'])->name('receptionist.reschedule')->whereNumber('appointmentId');
+
+    Route::get('/api/customers/lookup', [BookingController::class, 'customerLookup'])
+        ->name('api.customers.lookup');
 });
 
 // ==================== ADMIN ====================

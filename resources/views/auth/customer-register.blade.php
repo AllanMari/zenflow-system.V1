@@ -321,6 +321,20 @@
                     </label>
                 </div>
 
+                <!-- Privacy Consent -->
+                <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg terms-box form-enter form-enter-d6">
+                    <label class="flex items-start gap-3 cursor-pointer group">
+                        <input type="checkbox" name="privacy_consented" value="1" {{ old('privacy_consented') ? 'checked' : '' }}
+                            class="mt-0.5 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 checkbox-spa" required>
+                        <div class="text-sm text-gray-700 dark:text-gray-300 transition-colors duration-300 group-hover:text-gray-900 dark:group-hover:text-gray-100">
+                            I consent to the collection and processing of my personal information 
+                            (name, contact details, and booking history) for account management, 
+                            appointment scheduling, and service improvement, as described in the 
+                            <a href="{{ route('privacy') }}" target="_blank" class="text-blue-600 dark:text-blue-400 font-semibold link-spa">Privacy Policy</a>.
+                        </div>
+                    </label>
+                </div>
+
                 <button type="submit" 
                     class="w-full bg-teal-600 text-white py-3.5 rounded-lg hover:bg-teal-700 transition font-semibold shadow-lg shadow-teal-200 dark:shadow-none btn-spa form-enter form-enter-d7">
                     Create Account

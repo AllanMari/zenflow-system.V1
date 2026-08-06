@@ -363,13 +363,12 @@ class BookingController extends Controller
 
         $customers = Customer::where('phone_number', 'like', '%' . $request->phone . '%')
             ->limit(5)
-            ->get(['id', 'first_name', 'last_name', 'phone_number', 'medical_notes']);
+            ->get(['id', 'first_name', 'last_name', 'phone_number']);
 
         return response()->json($customers->map(fn($c) => [
             'id' => $c->id,
             'name' => $c->full_name,
             'phone' => $c->phone_number,
-            'medical_notes' => $c->medical_notes,
         ]));
     }
 

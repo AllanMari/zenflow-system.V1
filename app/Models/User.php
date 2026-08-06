@@ -30,7 +30,7 @@ class User extends Authenticatable
         'password' => 'hashed',
         'can_manage_schedules' => 'boolean',
         'can_edit_landing' => 'boolean',
-        'is_active', 'boolean',
+        'is_active' => 'boolean',
         'can_mark_attendance' => 'boolean',
     ];
 

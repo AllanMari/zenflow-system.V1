@@ -22,7 +22,7 @@ class RegisterController extends Controller
                 'required', 'string', 'max:255', 'regex:/^\S+$/u',
                 function ($attribute, $value, $fail) {
                     if (User::whereRaw('LOWER(username) = LOWER(?)', [$value])->exists()) {
-                    $fail('The username has already been taken.');
+                        $fail('The username has already been taken.');
                     }
                 },
             ],
@@ -30,10 +30,11 @@ class RegisterController extends Controller
             'last_name' => 'required|string|max:255',
             'password' => 'required|string|min:6|confirmed',
             'terms_accepted' => ['required', 'accepted'],
+            'privacy_consented' => ['required', 'accepted'], // ← ADDED
         ], [
             'username.regex' => 'The username must not contain spaces.',
-            'terms_accepted.required' => 'You must agree to the Terms of Service to create an account.',
-            'terms_accepted.accepted' => 'You must agree to the Terms of Service to create an account.',
+            'terms_accepted.required' => 'You must agree to the Terms of Service.',
+            'privacy_consented.required' => 'You must consent to the Privacy Policy.',
         ]);
 
         $user = User::create([
