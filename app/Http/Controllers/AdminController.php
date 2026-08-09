@@ -125,10 +125,19 @@ class AdminController extends Controller
             'username'   => ['required', 'string', 'max:255', 'unique:users,username', 'regex:/^\S+$/u'],
             'first_name' => 'required|string|max:255',
             'last_name'  => 'required|string|max:255',
-            'password'   => 'required|string|min:6|confirmed',
+            'password'   => [
+                'required', 'string', 'confirmed',
+                \Illuminate\Validation\Rules\Password::min(8)
+                    ->mixedCase()
+                    ->numbers()
+                    ->symbols(),
+            ],
             'role'       => 'required|in:admin,receptionist,staff,customer',
         ], [
             'username.regex' => 'The username must not contain spaces.',
+            'password.mixed' => 'The password must contain both uppercase and lowercase letters.',
+            'password.numbers' => 'The password must contain at least one number.',
+            'password.symbols' => 'The password must contain at least one symbol (e.g. !@#$%).',
         ]);
 
         $role = \App\Models\Role::where('name', $validated['role'])->first();
@@ -223,9 +232,13 @@ class AdminController extends Controller
 
                 if ($request->filled('password')) {
                     $updateData['password'] = Hash::make($validated['password']);
+                    $updateData['password_changed_at'] = now();
                 }
 
                 $user->update($updateData);
+                if ($request->filled('password')) {
+                    $user->increment('session_version');
+                }
                 $user->roles()->sync([$role->id]); // Single role only
 
                 if ($role->name === 'customer') {
@@ -406,7 +419,17 @@ class AdminController extends Controller
         }
 
         if ($request->boolean('remove_image')) {
+            if ($service->image) {
+                $path = str_replace(['/storage/', asset('storage/')], '', $service->image);
+                Storage::disk('public')->delete($path);
+            }
             $validated['image'] = null;
+        } elseif ($request->hasFile('image')) {
+            if ($service->image) {
+                $path = str_replace(['/storage/', asset('storage/')], '', $service->image);
+                Storage::disk('public')->delete($path);
+            }
+            $validated['image'] = '/storage/' . $request->file('image')->store('services', 'public');
         }
         if ($request->boolean('remove_image') && $service->image) {
             $path = str_replace(['/storage/', asset('storage/')], '', $service->image);
@@ -451,10 +474,10 @@ class AdminController extends Controller
 
         }
 
-        // BLOCK 3: Package inclusions (JSON column — no FK, but logical orphan)
+        // BLOCK 3: Package inclusions (JSON column — check both int and string forms)
         $packageCount = Service::whereRaw(
-            'JSON_CONTAINS(included_services, ?)', 
-            [json_encode((string) $service->id)]
+            'JSON_CONTAINS(included_services, ?) OR JSON_CONTAINS(included_services, ?)',
+            [json_encode((int) $service->id), json_encode((string) $service->id)]
         )->count();
 
         if ($packageCount > 0) {

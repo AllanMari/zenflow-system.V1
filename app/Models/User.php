@@ -19,6 +19,11 @@ class User extends Authenticatable
         'can_edit_landing',
         'is_active',
         'can_mark_attendance',
+        'session_version',
+        'password_changed_at',
+        'terms_accepted_at',
+        'privacy_consented_at',
+        'email_verified_at',
     ];
 
     protected $hidden = [

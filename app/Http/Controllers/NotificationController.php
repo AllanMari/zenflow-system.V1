@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\AbsenceMonitor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -20,7 +19,7 @@ class NotificationController extends Controller
             ->paginate(10);
 
         return response()->json([
-            'unread_count' => $user->unreadNotifications()->count(),
+            'unread_count' => $notifications->total(),
             'notifications' => $notifications->map(fn($n) => [
                 'id' => $n->id,
                 'title' => $n->data['title'] ?? 'Notification',
@@ -55,7 +54,7 @@ class NotificationController extends Controller
      */
     public function markAllAsRead()
     {
-        Auth::user()->unreadNotifications->markAsRead();
+        Auth::user()->unreadNotifications()->update(['read_at' => now()]);
 
         return response()->json(['success' => true, 'message' => 'All notifications marked as read.']);
     }

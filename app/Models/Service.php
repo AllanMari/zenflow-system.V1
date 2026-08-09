@@ -19,10 +19,11 @@ class Service extends Model
         'landing_description',
         'image',
         'is_package',
+        'included_services',        // ← ADD THIS
         'requires_prepayment',
         'is_active',
         'show_on_landing',
-        'deposit_percentage_min',   // <-- FIX
+        'deposit_percentage_min',
         'deposit_percentage_max',
         'requires_room',
         'room_category_id',
@@ -31,11 +32,12 @@ class Service extends Model
 
     protected $casts = [
         'is_package' => 'boolean',
+        'included_services' => 'array',     // ← ADD THIS
         'requires_prepayment' => 'boolean',
         'is_active' => 'boolean',
         'show_on_landing' => 'boolean',
         'price' => 'decimal:2',
-        'deposit_percentage_min' => 'integer',  // <-- FIX
+        'deposit_percentage_min' => 'integer',
         'deposit_percentage_max' => 'integer',
         'requires_room' => 'boolean',
     ];
