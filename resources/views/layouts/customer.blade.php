@@ -1,308 +1,69 @@
-<!DOCTYPE html>
-<html lang="en" class="{{ session('dark_mode') === 'enabled' ? 'dark' : '' }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'Member') - Spa Alexandria</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>
-        (function() {
-            const isDark = localStorage.getItem('darkMode') === 'enabled';
-            if (isDark) document.documentElement.classList.add('dark');
-        })();
-        tailwind.config = { 
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        teal: {
-                            50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4',
-                            300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6',
-                            600: '#0d9488', 700: '#0f766e', 800: '#115e59',
-                            900: '#134e4a', 950: '#042f2e',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-    @stack('styles')
-</head>
-<body class="bg-gray-100 dark:bg-gray-900 h-screen overflow-hidden flex transition-colors duration-300">
+@extends('layouts.master', [
+    'roleLabel' => 'Member',
+    'userRole' => 'Member',
+    'settingsRoute' => 'profile.update',
+])
 
-    <!-- MOBILE HEADER -->
-    <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-teal-800 dark:bg-teal-950 text-white flex items-center justify-between px-4 z-40 shadow-lg transition-colors duration-300">
-        <button onclick="toggleMobileSidebar()" class="p-2 rounded-lg hover:bg-teal-700 transition">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+@section('logo-icon')
+    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+@endsection
+
+@php
+$isActive = fn($p) => request()->routeIs($p);
+
+$navItems = [
+    ['r'=>'customer-dashboard','l'=>'Dashboard','p'=>'customer-dashboard','i'=>'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z'],
+    ['r'=>'booking.wizard','l'=>'Book Appointment','p'=>'booking.wizard','i'=>'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
+    ['r'=>'customer.profile','l'=>'My Profile','p'=>'customer.profile','i'=>'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
+];
+@endphp
+
+@section('sidebar-nav')
+    @foreach($navItems as $item)
+        <a href="{{ route($item['r']) }}"
+           data-label="{{ $item['l'] }}"
+           class="nav-item {{ $isActive($item['p']) ? 'active text-brand-600 dark:text-brand-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50' }} flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold">
+            <span class="relative shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['i'] }}"/>
+                </svg>
+            </span>
+            <span class="nav-text whitespace-nowrap">{{ $item['l'] }}</span>
+        </a>
+    @endforeach
+    <a href="{{ route('customer-dashboard') }}#history"
+       data-label="My Appointments"
+       class="nav-item text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold">
+        <span class="relative shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-        </button>
-        <span class="font-bold text-lg">Spa Alexandria</span>
-        <div class="w-10"></div>
-    </div>
+        </span>
+        <span class="nav-text whitespace-nowrap">My Appointments</span>
+    </a>
+@endsection
 
-    <!-- DESKTOP SIDEBAR -->
-    <aside id="desktopSidebar" class="hidden md:flex fixed left-0 top-0 h-full w-64 bg-teal-800 dark:bg-teal-950 text-white flex-col overflow-hidden transition-colors duration-300 shrink-0 print:hidden z-30">
-        <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center gap-2 shrink-0">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+@section('sidebar-nav-mobile')
+    @foreach($navItems as $item)
+        <a href="{{ route($item['r']) }}"
+           class="flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold {{ $isActive($item['p']) ? 'bg-brand-50 dark:bg-brand-900/10 text-brand-600 dark:text-brand-400' : 'text-gray-600 dark:text-gray-400' }}">
+            <span class="relative shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['i'] }}"/>
+                </svg>
+            </span>
+            <span>{{ $item['l'] }}</span>
+        </a>
+    @endforeach
+    <a href="{{ route('customer-dashboard') }}#history"
+       class="flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold text-gray-600 dark:text-gray-400">
+        <span class="relative shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            Spa Member
-        </div>
-
-        <nav class="mt-4 flex-1 space-y-1 overflow-y-auto">
-            <a href="{{ route('customer-dashboard') }}" 
-               class="block px-4 py-3 {{ request()->routeIs('customer-dashboard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
-                </svg>
-                Dashboard
-            </a>
-            <a href="{{ route('booking.wizard') }}" 
-               class="block px-4 py-3 {{ request()->routeIs('booking.wizard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                </svg>
-                Book Appointment
-            </a>
-            <a href="{{ route('customer-dashboard') }}#history" 
-               class="block px-4 py-3 hover:bg-teal-700 transition flex items-center gap-3 rounded-lg mx-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                My Appointments
-            </a>
-            <a href="{{ route('customer.profile') }}" 
-               class="block px-4 py-3 {{ request()->routeIs('customer.profile') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                </svg>
-                My Profile
-            </a>
-        </nav>
-
-        <div class="p-4 space-y-1 border-t border-teal-700 shrink-0">
-            <button onclick="openSettingsModal()" 
-                    class="w-full text-left px-4 py-3 hover:bg-teal-700 transition flex items-center gap-3 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-                Settings
-            </button>
-
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit" class="w-full text-left hover:bg-teal-700 text-red-300 transition px-4 py-3 rounded-lg flex items-center gap-3">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                    </svg>
-                    Logout
-                </button>
-            </form>
-        </div>
-    </aside>
-
-    <!-- MOBILE SIDEBAR OVERLAY -->
-    <div id="mobileSidebar" class="fixed inset-0 z-50 transform -translate-x-full transition-transform duration-300 md:hidden print:hidden">
-        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeMobileSidebar()"></div>
-        <div class="absolute left-0 top-0 bottom-0 w-72 bg-teal-800 dark:bg-teal-950 text-white flex flex-col overflow-hidden transition-colors duration-300">
-            <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center justify-between shrink-0">
-                <span class="flex items-center gap-2">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Spa Alexandria
-                </span>
-                <button onclick="closeMobileSidebar()" class="p-1 rounded-lg hover:bg-teal-700 transition">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            <nav class="mt-4 flex-1 space-y-1 overflow-y-auto">
-                <a href="{{ route('customer-dashboard') }}" 
-                   class="block px-4 py-3 {{ request()->routeIs('customer-dashboard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
-                    </svg>
-                    Dashboard
-                </a>
-                <a href="{{ route('booking.wizard') }}" 
-                   class="block px-4 py-3 {{ request()->routeIs('booking.wizard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                    </svg>
-                    Book Appointment
-                </a>
-                <a href="{{ route('customer-dashboard') }}#history" 
-                   class="block px-4 py-3 hover:bg-teal-700 transition flex items-center gap-3 rounded-lg mx-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    My Appointments
-                </a>
-                <a href="{{ route('customer.profile') }}" 
-                   class="block px-4 py-3 {{ request()->routeIs('customer.profile') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                    </svg>
-                    My Profile
-                </a>
-            </nav>
-
-            <div class="p-4 space-y-1 border-t border-teal-700 shrink-0">
-                <button onclick="openSettingsModal(); closeMobileSidebar();" 
-                        class="w-full text-left px-4 py-3 hover:bg-teal-700 transition flex items-center gap-3 rounded-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                    Settings
-                </button>
-
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit" class="w-full text-left hover:bg-teal-700 text-red-300 transition px-4 py-3 rounded-lg flex items-center gap-3">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                        </svg>
-                        Logout
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main -->
-    <main class="flex-1 md:ml-64 h-full overflow-y-auto p-6 pt-20 md:pt-6">       
-         @yield('content')
-    </main>
-
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center">
-        <div id="settingsBackdrop" class="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 opacity-0" onclick="closeSettingsModal()"></div>
-        <div id="settingsPanel" class="relative bg-white dark:bg-gray-800 dark:text-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-gray-100 dark:border-gray-700 transform transition-all duration-300 scale-95 opacity-0 mx-4">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-2xl font-bold">Settings</h2>
-                <button onclick="closeSettingsModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-
-            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl mb-6">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-teal-100 dark:bg-teal-900/50 rounded-lg">
-                        <svg class="w-5 h-5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <span class="font-semibold block">Night Mode</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400">Toggle dark theme</span>
-                    </div>
-                </div>
-                <button onclick="toggleDarkMode()" id="darkToggle" class="w-14 h-8 bg-gray-300 dark:bg-teal-600 rounded-full relative transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-teal-500">
-                    <div id="toggleCircle" class="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-300 ease-out"></div>
-                </button>
-            </div>
-
-            <hr class="mb-6 dark:border-gray-600">
-
-            <form action="{{ route('profile.update') }}" method="POST">
-                @csrf
-                @method('PUT')
-                <div class="mb-4">
-                    <label class="block mb-1.5 text-sm font-semibold dark:text-gray-200">First Name</label>
-                    <input type="text" name="first_name" value="{{ auth()->user()->first_name }}" class="w-full border rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none" required>
-                </div>
-                <div class="mb-6">
-                    <label class="block mb-1.5 text-sm font-semibold dark:text-gray-200">Last Name</label>
-                    <input type="text" name="last_name" value="{{ auth()->user()->last_name }}" class="w-full border rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none" required>
-                </div>
-                <div class="flex justify-end gap-3">
-                    <button type="button" onclick="closeSettingsModal()" class="px-5 py-2.5 border rounded-lg hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 dark:text-white font-medium">Cancel</button>
-                    <button type="submit" onclick="saveSettingsState()" class="px-5 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium shadow-lg shadow-teal-200 dark:shadow-none">Save Changes</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    @stack('scripts')
-    <script>
-        let snapshot = localStorage.getItem('darkMode') || 'disabled';
-        function openSettingsModal() {
-            snapshot = document.documentElement.classList.contains('dark') ? 'enabled' : 'disabled';
-            const modal = document.getElementById('settingsModal');
-            const backdrop = document.getElementById('settingsBackdrop');
-            const panel = document.getElementById('settingsPanel');
-            modal.classList.remove('hidden'); void modal.offsetWidth;
-            backdrop.classList.remove('opacity-0');
-            panel.classList.remove('scale-95','opacity-0');
-            panel.classList.add('scale-100','opacity-100');
-            updateToggleUI();
-        }
-        function closeSettingsModal() {
-            if (snapshot === 'enabled') document.documentElement.classList.add('dark');
-            else document.documentElement.classList.remove('dark');
-            const modal = document.getElementById('settingsModal');
-            const backdrop = document.getElementById('settingsBackdrop');
-            const panel = document.getElementById('settingsPanel');
-            backdrop.classList.add('opacity-0');
-            panel.classList.remove('scale-100','opacity-100');
-            panel.classList.add('scale-95','opacity-0');
-            setTimeout(() => modal.classList.add('hidden'), 300);
-            updateToggleUI();
-        }
-        function toggleDarkMode() {
-            const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
-            updateToggleUI();
-        }
-        function saveSettingsState() {
-            const isDarkNow = document.documentElement.classList.contains('dark');
-            localStorage.setItem('darkMode', isDarkNow ? 'enabled' : 'disabled');
-            snapshot = isDarkNow ? 'enabled' : 'disabled';
-        }
-        function updateToggleUI() {
-            const isDark = document.documentElement.classList.contains('dark');
-            const circle = document.getElementById('toggleCircle');
-            const toggleBtn = document.getElementById('darkToggle');
-            if (circle) circle.style.transform = isDark ? 'translateX(24px)' : 'translateX(0px)';
-            if (toggleBtn) {
-                toggleBtn.classList.toggle('bg-teal-600', isDark);
-                toggleBtn.classList.toggle('bg-gray-300', !isDark);
-            }
-        }
-        updateToggleUI();
-
-        @if(session('success'))
-            Swal.fire({icon:'success',title:'Success',text:'{{ session('success') }}',timer:3000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1f2937':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
-        @endif
-        @if(session('error'))
-            Swal.fire({icon:'error',title:'Error',text:'{{ session('error') }}',timer:4000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1f2937':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
-        @endif
-
-        // MOBILE SIDEBAR FUNCTIONS
-        function toggleMobileSidebar() {
-            const sidebar = document.getElementById('mobileSidebar');
-            sidebar.classList.toggle('-translate-x-full');
-            document.body.style.overflow = sidebar.classList.contains('-translate-x-full') ? '' : 'hidden';
-        }
-
-        function closeMobileSidebar() {
-            const sidebar = document.getElementById('mobileSidebar');
-            sidebar.classList.add('-translate-x-full');
-            document.body.style.overflow = '';
-        }
-
-        window.addEventListener('resize', () => {
-            if (window.innerWidth >= 768) {
-                closeMobileSidebar();
-            }
-        });
-    </script>
-</body>
-</html>
+        </span>
+        <span>My Appointments</span>
+    </a>
+@endsection

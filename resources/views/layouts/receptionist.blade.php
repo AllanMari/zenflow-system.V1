@@ -1,620 +1,81 @@
-<!DOCTYPE html>
-<html lang="en" class="{{ session('dark_mode') === 'enabled' ? 'dark' : '' }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Receptionist') - Spa Alexandria</title>
+@extends('layouts.master', [
+    'roleLabel' => 'Reception',
+    'userRole' => 'Receptionist',
+    'settingsRoute' => 'profile.update',
+    'extraHead' => '<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>',
+])
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
-    <script>
-        (function() {
-            const isDark = localStorage.getItem('darkMode') === 'enabled';
-            if (isDark) document.documentElement.classList.add('dark');
-        })();
+@section('logo-icon')
+    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+    </svg>
+@endsection
 
-        tailwind.config = { 
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        teal: {
-                            50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4',
-                            300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6',
-                            600: '#0d9488', 700: '#0f766e', 800: '#115e59',
-                            900: '#134e4a', 950: '#042f2e',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+@php
+$isActive = fn($p) => request()->routeIs($p);
+/*
+ * NOTE: Move these queries to a View Composer in a Service Provider
+ * to keep views free of database logic and enable caching.
+ * Example: View::composer('layouts.receptionist', ReceptionistNavComposer::class);
+ */
+$pendingCount = \App\Models\Appointment::where('status', 'pending')->count();
+$activeCount  = \App\Models\Appointment::where('status', 'confirmed')
+                    ->whereDate('appointment_date', '<=', \Carbon\Carbon::today())
+                    ->count();
 
-    @stack('styles')
+$navItems = [
+    ['r'=>'receptionist.dashboard','l'=>'Dashboard','p'=>'receptionist.dashboard','i'=>'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z'],
+    ['r'=>'receptionist.pending','l'=>'Pending Bookings','p'=>'receptionist.pending','i'=>'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z','badge'=>$pendingCount],
+    ['r'=>'receptionist.sales','l'=>'Sales Report','p'=>'receptionist.sales','i'=>'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z'],
+    ['r'=>'receptionist.schedules','l'=>'Staff Schedules','p'=>'receptionist.schedules','i'=>'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5'],
+    ['r'=>'receptionist.quick-book','l'=>'Quick Book','p'=>'receptionist.quick-book','i'=>'M12 4.5v15m7.5-7.5h-15'],
+];
 
-</head>
-<body class="bg-gray-100 dark:bg-gray-900 h-screen overflow-hidden flex transition-colors duration-300">
+if(auth()->user()->can_edit_landing ?? false) {
+    $navItems[] = ['r'=>'admin.landing.editor','l'=>'Landing Page','p'=>'admin.landing.*','i'=>'M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25'];
+}
 
-    <!-- MOBILE HEADER -->
-    <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-teal-800 dark:bg-teal-950 text-white flex items-center justify-between px-4 z-40 shadow-lg transition-colors duration-300">
-        <button onclick="toggleMobileSidebar()" class="p-2 rounded-lg hover:bg-teal-700 transition">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-            </svg>
-        </button>
-        <span class="font-bold text-lg">Spa Alexandria</span>
-        <!-- Mobile notification bell -->
-        <div class="relative">
-            <button onclick="toggleNotifyDropdown()" class="relative p-2 rounded-lg hover:bg-teal-700 transition">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+$navItems[] = ['r'=>'receptionist.active','l'=>'Active Sessions','p'=>'receptionist.active','i'=>'M13 10V3L4 14h7v7l9-11h-7z','badge'=>$activeCount];
+$navItems[] = ['r'=>'attendance.today','l'=>'Staff Attendance','p'=>'attendance.today','i'=>'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z'];
+@endphp
+
+@section('sidebar-nav')
+    @foreach($navItems as $item)
+        <a href="{{ route($item['r']) }}"
+           data-label="{{ $item['l'] }}"
+           class="nav-item {{ $isActive($item['p']) ? 'active text-brand-600 dark:text-brand-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50' }} flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold">
+            <span class="relative shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['i'] }}"/>
                 </svg>
-                <span id="mobileNotifyBadge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">0</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- DESKTOP SIDEBAR -->
-        <aside id="desktopSidebar" class="hidden md:flex fixed left-0 top-0 h-full w-64 bg-teal-800 dark:bg-teal-950 text-white flex-col overflow-hidden transition-colors duration-300 shrink-0 print:hidden z-30">        @php
-            $pendingCount = \App\Models\Appointment::where('status', 'pending')->count();
-            $activeCount = \App\Models\Appointment::where('status', 'confirmed')->whereDate('appointment_date', '<=', \Carbon\Carbon::today())->count();
-        @endphp
-
-        <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center justify-between shrink-0">
-            <span class="flex items-center gap-2">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                </svg>
-                Spa Reception
+                @if(($item['badge'] ?? 0) > 0)
+                    <span class="nav-badge-icon absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center leading-none border-2 border-white dark:border-[#0f172a]">{{ $item['badge'] }}</span>
+                @endif
             </span>
-            <!-- Desktop notification bell -->
-            <div class="relative">
-                <button onclick="toggleNotifyDropdown()" class="relative p-2 rounded-lg hover:bg-teal-700 transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                    </svg>
-                    <span id="desktopNotifyBadge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">0</span>
-                </button>
-                <!-- Notification Dropdown -->
-                <div id="notifyDropdown" class="hidden absolute right-0 top-10 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
-                    <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                        <h3 class="font-semibold text-sm text-gray-800 dark:text-white">Notifications</h3>
-                        <button onclick="markAllRead()" class="text-xs text-teal-600 dark:text-teal-400 hover:underline">Mark all read</button>
-                    </div>
-                    <div id="notifyList" class="max-h-64 overflow-y-auto">
-                        <div class="p-4 text-center text-sm text-gray-400 dark:text-gray-500">No notifications</div>
-                    </div>
-                    <div class="p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
-                        <div id="notifyPagination" class="flex justify-between items-center text-xs">
-                            <button onclick="loadNotifications(currentPage - 1)" id="notifyPrev" class="text-gray-500 dark:text-gray-400 disabled:opacity-30" disabled>← Prev</button>
-                            <span id="notifyPageInfo" class="text-gray-500 dark:text-gray-400">Page 1</span>
-                            <button onclick="loadNotifications(currentPage + 1)" id="notifyNext" class="text-gray-500 dark:text-gray-400 disabled:opacity-30" disabled>Next →</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <nav class="mt-4 flex-1 space-y-1 overflow-y-auto">
-            <a href="{{ route('receptionist.dashboard') }}" 
-               class="block px-4 py-3 {{ request()->routeIs('receptionist.dashboard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
-                </svg>
-                Dashboard
-            </a>
-
-            <a href="{{ route('receptionist.pending') }}" 
-               class="block px-4 py-3 {{ request()->routeIs('receptionist.pending') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 justify-between rounded-lg mx-2">
-                <span class="flex items-center gap-3">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Pending Bookings
-                </span>
-                @if($pendingCount > 0)
-                <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">{{ $pendingCount }}</span>
-                @endif
-            </a>
-
-            <a href="{{ route('receptionist.sales') }}" 
-               class="block px-4 py-3 {{ request()->routeIs('receptionist.sales') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                </svg>
-                Sales Report
-            </a>
-
-            <a href="{{ route('receptionist.schedules') }}" 
-               class="block px-4 py-3 {{ request()->routeIs('receptionist.schedules') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                </svg>
-                Staff Schedules
-            </a>
-
-            <a href="{{ route('receptionist.quick-book') }}" 
-               class="block px-4 py-3 {{ request()->routeIs('receptionist.quick-book') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                </svg>
-                Quick Book
-            </a>
-            @if(auth()->user()->can_edit_landing)
-            <a href="{{ route('admin.landing.editor') }}" 
-               class="block px-4 py-3 {{ request()->routeIs('admin.landing.*') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-                </svg>
-                Landing Page Editor
-            </a>
+            <span class="nav-text whitespace-nowrap">{{ $item['l'] }}</span>
+            @if(($item['badge'] ?? 0) > 0)
+                <span class="nav-text nav-badge-standalone ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{{ $item['badge'] }}</span>
             @endif
+        </a>
+    @endforeach
+@endsection
 
-            <a href="{{ route('receptionist.active') }}" 
-               class="block px-4 py-3 {{ request()->routeIs('receptionist.active') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 justify-between rounded-lg mx-2">
-                <span class="flex items-center gap-3">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                    </svg>
-                    Active Sessions
-                </span>
-                @if($activeCount > 0)
-                <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">{{ $activeCount }}</span>
-                @endif
-            </a>
-            <a href="{{ route('attendance.today') }}" 
-            class="block px-4 py-3 {{ request()->routeIs('attendance.today') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+@section('sidebar-nav-mobile')
+    @foreach($navItems as $item)
+        <a href="{{ route($item['r']) }}"
+           class="flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold {{ $isActive($item['p']) ? 'bg-brand-50 dark:bg-brand-900/10 text-brand-600 dark:text-brand-400' : 'text-gray-600 dark:text-gray-400' }}">
+            <span class="relative shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['i'] }}"/>
                 </svg>
-                Staff Attendance
-            </a>
-        </nav>
-
-        <div class="p-4 space-y-1 border-t border-teal-700 shrink-0">
-            <button onclick="openSettingsModal()" 
-                    class="w-full text-left px-4 py-3 hover:bg-teal-700 transition flex items-center gap-3 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31-2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-                Settings
-            </button>
-
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit" class="w-full text-left hover:bg-teal-700 text-red-300 transition px-4 py-3 rounded-lg flex items-center gap-3">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                    </svg>
-                    Logout
-                </button>
-            </form>
-        </div>
-    </aside>
-
-    <!-- MOBILE SIDEBAR OVERLAY -->
-    <div id="mobileSidebar" class="fixed inset-0 z-50 transform -translate-x-full transition-transform duration-300 md:hidden print:hidden">
-        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeMobileSidebar()"></div>
-        <div class="absolute left-0 top-0 bottom-0 w-72 bg-teal-800 dark:bg-teal-950 text-white flex flex-col overflow-hidden transition-colors duration-300">
-            <div class="p-4 font-bold text-xl border-b border-teal-700 flex items-center justify-between shrink-0">
-                <span class="flex items-center gap-2">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                    </svg>
-                    Spa Alexandria
-                </span>
-                <button onclick="closeMobileSidebar()" class="p-1 rounded-lg hover:bg-teal-700 transition">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            <nav class="mt-4 flex-1 space-y-1 overflow-y-auto">
-                <a href="{{ route('receptionist.dashboard') }}" 
-                   class="block px-4 py-3 {{ request()->routeIs('receptionist.dashboard') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
-                    </svg>
-                    Dashboard
-                </a>
-
-                <a href="{{ route('receptionist.pending') }}" 
-                   class="block px-4 py-3 {{ request()->routeIs('receptionist.pending') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 justify-between rounded-lg mx-2">
-                    <span class="flex items-center gap-3">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        Pending Bookings
-                    </span>
-                    @if($pendingCount > 0)
-                    <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">{{ $pendingCount }}</span>
-                    @endif
-                </a>
-
-                <a href="{{ route('receptionist.sales') }}" 
-                   class="block px-4 py-3 {{ request()->routeIs('receptionist.sales') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                    </svg>
-                    Sales Report
-                </a>
-
-                <a href="{{ route('receptionist.schedules') }}" 
-                   class="block px-4 py-3 {{ request()->routeIs('receptionist.schedules') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                    </svg>
-                    Staff Schedules
-                </a>
-
-                <a href="{{ route('receptionist.quick-book') }}" 
-                   class="block px-4 py-3 {{ request()->routeIs('receptionist.quick-book') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                    </svg>
-                    Quick Book
-                </a>
-                @if(auth()->user()->can_edit_landing)
-                <a href="{{ route('admin.landing.editor') }}" 
-                   class="block px-4 py-3 {{ request()->routeIs('admin.landing.*') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 rounded-lg mx-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-                    </svg>
-                    Landing Page Editor
-                </a>
+                @if(($item['badge'] ?? 0) > 0)
+                    <span class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center leading-none border-2 border-white dark:border-[#0f172a]">{{ $item['badge'] }}</span>
                 @endif
-
-                <a href="{{ route('receptionist.active') }}" 
-                   class="block px-4 py-3 {{ request()->routeIs('receptionist.active') ? 'bg-teal-700' : 'hover:bg-teal-700' }} transition flex items-center gap-3 justify-between rounded-lg mx-2">
-                    <span class="flex items-center gap-3">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                        </svg>
-                        Active Sessions
-                    </span>
-                    @if($activeCount > 0)
-                    <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">{{ $activeCount }}</span>
-                    @endif
-                </a>
-            </nav>
-
-            <div class="p-4 space-y-1 border-t border-teal-700 shrink-0">
-                <button onclick="openSettingsModal(); closeMobileSidebar();" 
-                        class="w-full text-left px-4 py-3 hover:bg-teal-700 transition flex items-center gap-3 rounded-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31-2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                    Settings
-                </button>
-
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit" class="w-full text-left hover:bg-teal-700 text-red-300 transition px-4 py-3 rounded-lg flex items-center gap-3">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                        </svg>
-                        Logout
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content -->
-    <main class="flex-1 md:ml-64 h-full overflow-y-auto p-6 pt-20 md:pt-6">
-        @yield('content')
-    </main>
-
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center print:hidden" aria-modal="true">
-        <div id="settingsBackdrop" 
-             class="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 opacity-0" 
-             onclick="closeSettingsModal()"></div>
-
-        <div id="settingsPanel" 
-             class="relative bg-white dark:bg-gray-800 dark:text-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-gray-100 dark:border-gray-700 transform transition-all duration-300 scale-95 opacity-0 mx-4">
-
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-2xl font-bold">Settings</h2>
-                <button type="button" onclick="closeSettingsModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl mb-6">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-teal-100 dark:bg-teal-900/50 rounded-lg">
-                        <svg class="w-5 h-5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <span class="font-semibold block dark:text-white">Night Mode</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400">Toggle dark theme</span>
-                    </div>
-                </div>
-                <button type="button" onclick="toggleDarkMode()" id="darkToggle" class="w-14 h-8 bg-gray-300 dark:bg-teal-600 rounded-full relative transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800">
-                    <div id="toggleCircle" class="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-300 ease-out"></div>
-                </button>
-            </div>
-
-            <hr class="mb-6 dark:border-gray-600">
-
-            <form action="{{ route('profile.update') }}" method="POST">
-                @csrf
-                @method('PUT')
-                <div class="mb-4">
-                    <label class="block mb-1.5 text-sm font-semibold dark:text-gray-200">First Name</label>
-                    <input type="text" name="first_name" value="{{ auth()->user()->first_name }}" class="w-full border rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" required>
-                </div>
-                <div class="mb-6">
-                    <label class="block mb-1.5 text-sm font-semibold dark:text-gray-200">Last Name</label>
-                    <input type="text" name="last_name" value="{{ auth()->user()->last_name }}" class="w-full border rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" required>
-                </div>
-
-                <div class="flex justify-end gap-3">
-                    <button type="button" onclick="closeSettingsModal()" class="px-5 py-2.5 border rounded-lg hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 dark:text-white transition font-medium">Cancel</button>
-                    <button type="submit" onclick="saveSettingsState()" class="px-5 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium shadow-lg shadow-teal-200 dark:shadow-none">Save Changes</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    @stack('scripts')
-
-    <script>
-        // ==================== NOTIFICATION SYSTEM ====================
-        let currentPage = 1;
-        let notifyDropdownOpen = false;
-        const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
-
-        function toggleNotifyDropdown() {
-            const dropdown = document.getElementById('notifyDropdown');
-            notifyDropdownOpen = !notifyDropdownOpen;
-            if (notifyDropdownOpen) {
-                dropdown.classList.remove('hidden');
-                loadNotifications(1);
-            } else {
-                dropdown.classList.add('hidden');
-            }
-        }
-
-        document.addEventListener('click', function(e) {
-            const bell = e.target.closest('[onclick="toggleNotifyDropdown()"]');
-            const dropdown = document.getElementById('notifyDropdown');
-            if (!bell && dropdown && !dropdown.contains(e.target)) {
-                dropdown.classList.add('hidden');
-                notifyDropdownOpen = false;
-            }
-        });
-
-        async function loadNotifications(page) {
-            try {
-                const res = await fetch(`/api/notifications?page=${page}`, {
-                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
-                });
-                const data = await res.json();
-
-                currentPage = data.pagination.current_page;
-                const list = document.getElementById('notifyList');
-
-                if (data.notifications.length === 0) {
-                    list.innerHTML = '<div class="p-4 text-center text-sm text-gray-400 dark:text-gray-500">No notifications</div>';
-                } else {
-                    list.innerHTML = data.notifications.map(n => `
-                        <div class="p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer" onclick="handleNotifyClick('${n.id}', '${n.action_url || ''}')">
-                            <div class="flex items-start gap-2">
-                                <div class="w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.severity === 'critical' ? 'bg-red-500' : (n.severity === 'warning' ? 'bg-orange-400' : 'bg-blue-400')}"></div>
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-sm font-medium text-gray-800 dark:text-white truncate">${n.title}</p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">${n.message}</p>
-                                    <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">${n.time}</p>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('');
-                }
-
-                document.getElementById('notifyPageInfo').textContent = `Page ${currentPage} of ${data.pagination.last_page || 1}`;
-                document.getElementById('notifyPrev').disabled = currentPage <= 1;
-                document.getElementById('notifyNext').disabled = !data.pagination.has_more;
-
-                updateNotifyBadges(data.unread_count);
-            } catch (err) {
-                console.error('Failed to load notifications:', err);
-            }
-        }
-
-        function updateNotifyBadges(count) {
-            const desktopBadge = document.getElementById('desktopNotifyBadge');
-            const mobileBadge = document.getElementById('mobileNotifyBadge');
-
-            [desktopBadge, mobileBadge].forEach(badge => {
-                if (badge) {
-                    if (count > 0) {
-                        badge.textContent = count > 99 ? '99+' : count;
-                        badge.classList.remove('hidden');
-                    } else {
-                        badge.classList.add('hidden');
-                    }
-                }
-            });
-        }
-
-        async function handleNotifyClick(id, url) {
-            try {
-                await fetch(`/api/notifications/${id}/read`, {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, 'Accept': 'application/json' }
-                });
-                if (url) window.location.href = url;
-                else loadNotifications(currentPage);
-            } catch (err) {
-                console.error('Failed to mark as read:', err);
-            }
-        }
-
-        async function markAllRead() {
-            try {
-                await fetch('/api/notifications/read-all', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, 'Accept': 'application/json' }
-                });
-                loadNotifications(1);
-                updateNotifyBadges(0);
-            } catch (err) {
-                console.error('Failed to mark all read:', err);
-            }
-        }
-
-        // Poll for new notifications every 30 seconds
-        setInterval(async () => {
-            try {
-                const res = await fetch('/api/notifications/count', {
-                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
-                });
-                const data = await res.json();
-                updateNotifyBadges(data.unread_count);
-            } catch (err) {}
-        }, 30000);
-
-        // Initial load
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const res = await fetch('/api/notifications/count', {
-                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
-                });
-                const data = await res.json();
-                updateNotifyBadges(data.unread_count);
-            } catch (err) {}
-        });
-
-        // ==================== EXISTING SETTINGS & SIDEBAR ====================
-        let snapshot = localStorage.getItem('darkMode') || 'disabled';
-
-        function openSettingsModal() {
-            snapshot = document.documentElement.classList.contains('dark') ? 'enabled' : 'disabled';
-            const modal = document.getElementById('settingsModal');
-            const backdrop = document.getElementById('settingsBackdrop');
-            const panel = document.getElementById('settingsPanel');
-
-            modal.classList.remove('hidden');
-            void modal.offsetWidth;
-
-            backdrop.classList.remove('opacity-0');
-            panel.classList.remove('scale-95', 'opacity-0');
-            panel.classList.add('scale-100', 'opacity-100');
-
-            updateToggleUI();
-        }
-
-        function closeSettingsModal() {
-            if (snapshot === 'enabled') {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
-
-            const modal = document.getElementById('settingsModal');
-            const backdrop = document.getElementById('settingsBackdrop');
-            const panel = document.getElementById('settingsPanel');
-
-            backdrop.classList.add('opacity-0');
-            panel.classList.remove('scale-100', 'opacity-100');
-            panel.classList.add('scale-95', 'opacity-0');
-
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 300);
-
-            updateToggleUI();
-        }
-
-        function toggleDarkMode() {
-            const html = document.documentElement;
-            const isDark = html.classList.toggle('dark');
-            localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
-            updateToggleUI();
-        }
-
-        function saveSettingsState() {
-            const isDarkNow = document.documentElement.classList.contains('dark');
-            localStorage.setItem('darkMode', isDarkNow ? 'enabled' : 'disabled');
-            snapshot = isDarkNow ? 'enabled' : 'disabled';
-        }
-
-        function updateToggleUI() {
-            const isDark = document.documentElement.classList.contains('dark');
-            const circle = document.getElementById('toggleCircle');
-            const toggleBtn = document.getElementById('darkToggle');
-
-            if (circle) {
-                circle.style.transform = isDark ? 'translateX(24px)' : 'translateX(0px)';
-            }
-
-            if (toggleBtn) {
-                toggleBtn.classList.toggle('bg-teal-600', isDark);
-                toggleBtn.classList.toggle('bg-gray-300', !isDark);
-            }
-        }
-
-        updateToggleUI();
-
-        @if(session('success'))
-            Swal.fire({
-                icon: 'success',
-                title: 'Success',
-                text: '{{ session('success') }}',
-                timer: 3000,
-                timerProgressBar: true,
-                showConfirmButton: false,
-                toast: true,
-                position: 'top-end',
-                background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
-                color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151'
-            });
-        @endif
-
-        @if(session('error'))
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: '{{ session('error') }}',
-                timer: 4000,
-                timerProgressBar: true,
-                showConfirmButton: false,
-                toast: true,
-                position: 'top-end',
-                background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
-                color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151'
-            });
-        @endif
-
-        // MOBILE SIDEBAR FUNCTIONS
-        function toggleMobileSidebar() {
-            const sidebar = document.getElementById('mobileSidebar');
-            sidebar.classList.toggle('-translate-x-full');
-            document.body.style.overflow = sidebar.classList.contains('-translate-x-full') ? '' : 'hidden';
-        }
-
-        function closeMobileSidebar() {
-            const sidebar = document.getElementById('mobileSidebar');
-            sidebar.classList.add('-translate-x-full');
-            document.body.style.overflow = '';
-        }
-
-        window.addEventListener('resize', () => {
-            if (window.innerWidth >= 768) {
-                closeMobileSidebar();
-            }
-        });
-    </script>
-</body>
-</html>
+            </span>
+            <span>{{ $item['l'] }}</span>
+            @if(($item['badge'] ?? 0) > 0)
+                <span class="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{{ $item['badge'] }}</span>
+            @endif
+        </a>
+    @endforeach
+@endsection
