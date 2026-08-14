@@ -184,6 +184,33 @@ class AttendanceController extends Controller
                     $status = 'on_leave';
                 }
 
+                                // Inside the loop, after $status is finalized:
+                if (in_array($status, ['absent', 'on_leave'])) {
+                    $staffMember = \App\Models\User::find($staffId);
+
+                    // Check if they have confirmed appointments today
+                    $hasAppointments = \App\Models\Appointment::where('user_id', $staffId)
+                        ->whereDate('appointment_date', $today)
+                        ->where('status', 'confirmed')
+                        ->exists();
+
+                    if ($hasAppointments && $staffMember) {
+                        $adminsAndReceptionists = \App\Models\User::whereHas('roles', fn($q) => 
+                            $q->whereIn('name', ['admin', 'receptionist'])
+                        )->get();
+
+                        \App\Http\Controllers\NotificationController::sendTo(
+                            $adminsAndReceptionists,
+                            'Staff Absent — Conflicts Detected',
+                            $staffMember->full_name . ' is ' . str_replace('_', ' ', $status) . ' today but has confirmed appointments.',
+                            'staff',
+                            'danger',
+                            route('receptionist.active'),
+                            'Active Bookings'
+                        );
+                    }
+                }
+
                 // Upsert attendance
                 $attendance = Attendance::updateOrCreate(
                     ['user_id' => $staffId, 'date' => $today],

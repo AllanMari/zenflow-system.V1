@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\NotificationController;
 
 // ==================== PUBLIC ROUTES (NO LOGIN REQUIRED) ====================
 Route::middleware('web')->group(function () {
@@ -170,6 +171,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::put('/admin/users/{user}/reactivate', [AdminController::class, 'reactivate'])->name('admin.users.reactivate');
 
     Route::post('/sales/ai-chat', [SalesReportController::class, 'aiChat'])->name('admin.sales.ai-chat');
+
+    Route::get('/admin/appointments', [AdminController::class, 'appointments'])->name('admin.appointments');
 });
 
 // ==================== LANDING EDITOR (Admin + Authorized Receptionists) ====================
@@ -202,4 +205,11 @@ Route::middleware(['web', 'auth'])->prefix('api/notifications')->group(function 
     Route::get('/count', [App\Http\Controllers\NotificationController::class, 'count'])->name('api.notifications.count');
     Route::post('/{id}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('api.notifications.read');
     Route::post('/read-all', [App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('api.notifications.read-all');
+});
+
+Route::middleware(['auth'])->prefix('api')->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/count', [NotificationController::class, 'count']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
 });

@@ -2,11 +2,36 @@
 
 namespace App\Http\Controllers;
 
+use App\Notifications\SystemNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 
 class NotificationController extends Controller
 {
+    /**
+     * Fire a database notification from anywhere.
+     */
+    public static function sendTo($recipients, string $title, string $message, string $type = 'general', string $severity = 'info', ?string $url = null, ?string $actionText = 'View'): void
+    {
+        $payload = [
+            'title'       => $title,
+            'message'     => $message,
+            'type'        => $type,
+            'severity'    => $severity,
+            'action_url'  => $url,
+            'action_text' => $actionText,
+        ];
+
+        $notification = new SystemNotification($payload);
+
+        if ($recipients instanceof \Illuminate\Database\Eloquent\Collection) {
+            Notification::send($recipients, $notification);
+        } elseif ($recipients) {
+            $recipients->notify($notification);
+        }
+    }
+
     /**
      * Get unread notifications for the authenticated user (JSON API).
      */

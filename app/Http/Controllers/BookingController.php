@@ -659,6 +659,29 @@ class BookingController extends Controller
                 Room::where('id', $request->room_id)->update(['status' => 'occupied']);
             }
         });
+        // Notify receptionists — they go to their own desk
+        $receptionists = \App\Models\User::whereHas('roles', fn($q) => $q->where('name', 'receptionist'))->get();
+        NotificationController::sendTo(
+            $receptionists,
+            'New Online Booking',
+            ($customer->first_name ?? 'A customer') . ' booked for ' . $appointment->appointment_date->format('M j') . ' at ' . \Carbon\Carbon::parse($appointment->start_time)->format('g:i A'),
+            'booking',
+            'info',
+            route('receptionist.pending'),
+            'View Pending'
+        );
+
+        // Notify admins — they go to the admin summary page
+        $admins = \App\Models\User::whereHas('roles', fn($q) => $q->where('name', 'admin'))->get();
+        NotificationController::sendTo(
+            $admins,
+            'New Online Booking',
+            ($customer->first_name ?? 'A customer') . ' booked for ' . $appointment->appointment_date->format('M j') . ' at ' . \Carbon\Carbon::parse($appointment->start_time)->format('g:i A'),
+            'booking',
+            'info',
+            route('admin.appointments', ['status' => 'pending']),
+            'Review'
+        );
 
         // JSON response for Quick Book / AJAX — goes straight to active sessions
         if ($request->ajax() || $request->wantsJson() || $request->get('source') === 'receptionist') {

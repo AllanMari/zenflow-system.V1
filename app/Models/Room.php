@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Carbon\Carbon;
 
 class Room extends Model
 {
@@ -43,23 +44,35 @@ class Room extends Model
 
     /**
      * Check if room is free for a given time slot.
+     *
+     * @param string|\Carbon\Carbon $date
+     * @param string|\Carbon\Carbon $startTime
+     * @param string|\Carbon\Carbon $endTime
      */
-    public function isAvailableFor(string $date, string $startTime, string $endTime, ?int $excludeAppointmentId = null): bool
+    public function isAvailableFor($date, $startTime, $endTime, ?int $excludeAppointmentId = null): bool
     {
         if ($this->status === 'maintenance' || !$this->is_active) {
             return false;
         }
 
+        // ── Normalize inputs (handles Carbon instances & bad casts) ──
+        $dateStr = $this->normalizeDate($date);
+        $startStr = $this->normalizeTime($startTime);
+        $endStr = $this->normalizeTime($endTime);
+
+        // Defensive: if we can't parse times, block the room
+        if (!$dateStr || !$startStr || !$endStr) {
+            return false;
+        }
+
         $query = $this->appointments()
-            ->where('appointment_date', $date)
+            ->whereDate('appointment_date', $dateStr)
             ->whereIn('status', ['confirmed', 'completed'])
-            ->where(function ($q) use ($startTime, $endTime) {
-                $q->whereBetween('start_time', [$startTime, $endTime])
-                  ->orWhereBetween('end_time', [$startTime, $endTime])
-                  ->orWhere(function ($sq) use ($startTime, $endTime) {
-                      $sq->where('start_time', '<=', $startTime)
-                         ->where('end_time', '>=', $endTime);
-                  });
+            // ── Correct overlap check (exclusive boundaries) ──
+            // Overlap exists if: existing_start < new_end AND existing_end > new_start
+            ->where(function ($q) use ($startStr, $endStr) {
+                $q->where('start_time', '<', $endStr)
+                  ->where('end_time', '>', $startStr);
             });
 
         if ($excludeAppointmentId) {
@@ -69,22 +82,62 @@ class Room extends Model
         return !$query->exists();
     }
 
-    public static function findAvailableFor(Service $service, string $date, string $startTime, string $endTime, ?int $excludeAppointmentId = null)
+    /**
+     * Extract Y-m-d from string or Carbon instance.
+     */
+    private function normalizeDate($value): ?string
+    {
+        if (empty($value)) return null;
+
+        if ($value instanceof Carbon) {
+            return $value->toDateString();
+        }
+
+        // If it's already a date string with time attached (e.g. "2026-06-15 00:00:00")
+        if (str_contains($value, ' ')) {
+            return substr($value, 0, 10);
+        }
+
+        // Assume it's a clean date string
+        return $value;
+    }
+
+    /**
+     * Extract H:i:s from string or Carbon instance.
+     */
+    private function normalizeTime($value): ?string
+    {
+        if (empty($value)) return null;
+
+        if ($value instanceof Carbon) {
+            return $value->format('H:i:s');
+        }
+
+        // If it contains a space, it's likely a datetime string — grab the time part
+        if (str_contains($value, ' ')) {
+            return substr($value, 11, 8);
+        }
+
+        // If it's already H:i or H:i:s, ensure H:i:s format
+        if (str_contains($value, ':')) {
+            $parts = explode(':', $value);
+            return sprintf('%02d:%02d:%02d', $parts[0], $parts[1] ?? 0, $parts[2] ?? 0);
+        }
+
+        return null;
+    }
+
+    public static function findAvailableFor(Service $service, $date, $startTime, $endTime, ?int $excludeAppointmentId = null)
     {
         $query = self::active()
             ->where('status', '!=', 'maintenance');
 
         if ($service->requires_room && $service->room_category_id) {
-            // Service requires specific category: match category OR general room
             $query->where(function ($q) use ($service) {
                 $q->where('category_id', $service->room_category_id)
                   ->orWhereNull('category_id');
             });
-        } elseif ($service->requires_room) {
-            // Service requires any room (no specific category)
-            // Can use any active room
-        } else {
-            // Service doesn't require room at all
+        } elseif (! $service->requires_room) {
             return collect();
         }
 

@@ -18,9 +18,9 @@ $isActive = fn($p) => request()->routeIs($p);
  * to keep views free of database logic and enable caching.
  * Example: View::composer('layouts.receptionist', ReceptionistNavComposer::class);
  */
-$pendingCount = \App\Models\Appointment::where('status', 'pending')->count();
+$pendingCount = \App\Models\Appointment::pendingValid()->count();
 $activeCount  = \App\Models\Appointment::where('status', 'confirmed')
-                    ->whereDate('appointment_date', '<=', \Carbon\Carbon::today())
+                    ->whereDate('appointment_date', '>=', \Carbon\Carbon::today())
                     ->count();
 
 $navItems = [

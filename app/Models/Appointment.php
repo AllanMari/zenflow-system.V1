@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
 
 class Appointment extends Model
@@ -47,102 +48,135 @@ class Appointment extends Model
         'reminder_sent_at' => 'datetime',
     ];
 
-    // Customer
+    /* ─── Relationships ─── */
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);
     }
 
-    // Assigned staff
     public function staff()
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    // Services booked
     public function services()
     {
         return $this->belongsToMany(Service::class, 'appointment_services')
                     ->withPivot('price_at_booking', 'service_name', 'service_duration', 'is_extra');
     }
 
-    // Payments made
     public function payments()
     {
         return $this->hasMany(Payment::class);
     }
 
-    // Who created this appointment
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    // Calculate total paid
+    public function room()
+    {
+        return $this->belongsTo(Room::class);
+    }
+
+    /* ─── Accessors ─── */
+
     public function getTotalPaidAttribute()
     {
         return $this->payments->sum('amount');
     }
 
-    // Calculate remaining balance
     public function getRemainingBalanceAttribute()
     {
         return max(0, $this->total_price - $this->total_paid);
     }
 
-    // Check if fully paid
     public function isFullyPaid()
     {
         return $this->remaining_balance <= 0;
     }
 
-    // Check if deposit paid
     public function isDepositPaid()
     {
-        $depositAmount = $this->total_price * 0.2; // 20% deposit
+        $depositAmount = $this->total_price * 0.2;
         return $this->total_paid >= $depositAmount;
     }
 
-    // Format time for display
     public function getTimeRangeAttribute()
     {
-        return Carbon::parse($this->start_time)->format('g:i A') . ' - ' . 
+        return Carbon::parse($this->start_time)->format('g:i A') . ' - ' .
                Carbon::parse($this->end_time)->format('g:i A');
     }
 
-    // Scope: Pending appointments
-    public function scopePending($query)
+    /* ─── Scopes ─── */
+
+    public function scopePending(Builder $query): Builder
     {
         return $query->where('status', 'pending');
     }
 
-    // Scope: Confirmed appointments
-    public function scopeConfirmed($query)
+    public function scopePendingValid(Builder $query): Builder
+    {
+        return $query->where('status', 'pending')
+                     ->whereDate('appointment_date', '>=', today());
+    }
+
+    public function scopePendingOverdue(Builder $query): Builder
+    {
+        return $query->where('status', 'pending')
+                     ->whereDate('appointment_date', '<', today());
+    }
+
+    public function scopeConfirmed(Builder $query): Builder
     {
         return $query->where('status', 'confirmed');
     }
 
-    // Scope: Today's appointments
-    public function scopeToday($query)
+    public function scopeActiveToday(Builder $query): Builder
+    {
+        return $query->where('status', 'confirmed')
+                     ->whereDate('appointment_date', today());
+    }
+
+    public function scopeActiveUpcoming(Builder $query): Builder
+    {
+        return $query->where('status', 'confirmed')
+                     ->whereDate('appointment_date', '>=', today());
+    }
+
+    public function scopeToday(Builder $query): Builder
     {
         return $query->whereDate('appointment_date', today());
     }
 
-    // Scope: Upcoming appointments
-    public function scopeUpcoming($query)
+    public function scopeUpcoming(Builder $query): Builder
     {
         return $query->where('appointment_date', '>=', today())
                      ->whereIn('status', ['pending', 'confirmed']);
     }
 
-    // Scope: For specific staff
-    public function scopeForStaff($query, $staffId)
+    public function scopeForStaff(Builder $query, int $staffId): Builder
     {
         return $query->where('user_id', $staffId);
     }
 
-    public function room()
+    /* ─── Actions ─── */
+
+    /**
+     * Mark a pending appointment as expired (cancelled).
+     * Idempotent — safe to call multiple times.
+     */
+    public function markAsExpired(): void
     {
-        return $this->belongsTo(Room::class);
+        if ($this->status !== 'pending') {
+            return;
+        }
+
+        $this->update([
+            'status' => 'cancelled',
+            'cancellation_reason' => 'expired',
+        ]);
     }
 }

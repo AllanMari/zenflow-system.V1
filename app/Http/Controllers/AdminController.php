@@ -830,6 +830,14 @@ class AdminController extends Controller
         // Roles are preserved so reactivation automatically restores their access.
 
         $this->logActivity('user_deactivated', $user, 'Deactivated by admin');
+                // NOTIFY: The user themselves
+        \App\Http\Controllers\NotificationController::sendTo(
+            $user,
+            'Account Deactivated',
+            'Your account has been deactivated by an administrator. Contact support if you believe this is an error.',
+            'account',
+            'danger'
+        );
 
         return redirect()->route('admin.users.index')
             ->with('success', 'User '.$user->username.' deactivated. Their history and role are preserved.');
@@ -848,5 +856,49 @@ class AdminController extends Controller
 
         return redirect()->route('admin.users.index')
             ->with('success', 'User '.$user->username.' reactivated successfully.');
+    }
+
+    public function appointments(Request $request)
+    {
+        $today = Carbon::today();
+
+        $baseQuery = Appointment::with(['customer', 'services', 'staff', 'room', 'payments'])
+            ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
+            ->when($request->filled('search'), function($q) use ($request) {
+                $search = $request->search;
+                $q->whereHas('customer', fn($sq) => 
+                    $sq->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('phone_number', 'like', "%{$search}%")
+                );
+            })
+            ->when($request->filled('staff_id'), fn($q) => $q->where('user_id', $request->staff_id))
+            ->when($request->filled('date_from'), fn($q) => $q->whereDate('appointment_date', '>=', Carbon::parse($request->date_from)))
+            ->when($request->filled('date_to'), fn($q) => $q->whereDate('appointment_date', '<=', Carbon::parse($request->date_to)));
+
+        $appointments = (clone $baseQuery)
+            ->orderBy('appointment_date', 'desc')
+            ->orderBy('start_time', 'desc')
+            ->paginate(20)
+            ->withQueryString();
+
+        $stats = [
+            'total'       => (clone $baseQuery)->count(),
+            'pending'     => (clone $baseQuery)->where('status', 'pending')->count(),
+            'confirmed'   => (clone $baseQuery)->where('status', 'confirmed')->count(),
+            'completed'   => (clone $baseQuery)->where('status', 'completed')->count(),
+            'cancelled'   => (clone $baseQuery)->where('status', 'cancelled')->count(),
+            'no_show'     => (clone $baseQuery)->where('status', 'cancelled')->where('cancellation_reason', 'customer_no_show')->count(),
+            'today'       => Appointment::whereDate('appointment_date', $today)->count(),
+            'today_revenue' => Payment::whereDate('paid_at', $today)
+                ->whereIn('type', ['completion', 'additional', 'full'])
+                ->sum('amount'),
+        ];
+
+        $staffList = User::whereHas('roles', fn($q) => $q->where('name', 'staff'))
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'last_name']);
+
+        return view('admin.appointments', compact('appointments', 'stats', 'staffList'));
     }
 }
