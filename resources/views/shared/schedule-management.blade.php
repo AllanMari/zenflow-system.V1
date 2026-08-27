@@ -1,1053 +1,925 @@
-@extends(auth()->user()->roles->contains('name', 'admin') ? 'layouts.admin' : 'layouts.receptionist')
+@php
+$colors = ['#0d9488','#0ea5e9','#8b5cf6','#f59e0b','#ec4899','#06b6d4','#84cc16','#f97316'];
+$bulkRoute = $isAdmin ? route('admin.schedules.bulk-update') : route('receptionist.schedules.bulk-update');
+$blockRoute = $isAdmin ? route('admin.schedules.block') : route('receptionist.schedules.block');
+$exceptionRoute = $isAdmin ? url('/admin/schedule-exception') : url('/receptionist/schedule-exception');
+$templateApplyBulkRoute = $isAdmin ? route('admin.schedules.template.bulk') : route('receptionist.schedules.template.bulk');
+$exceptionStoreRoute = $isAdmin ? route('admin.schedule-exception.store') : route('receptionist.schedule-exception.store');
+$exceptionBulkRoute = $isAdmin ? route('admin.schedule-exception.bulk-store') : route('receptionist.schedule-exception.bulk-store');
+
+$fmt = fn($t) => $t ? \Carbon\Carbon::createFromFormat('H:i', substr($t, 0, 5))->format('g:i A') : '—';
+
+$todayStr = now()->toDateString();
+@endphp
+
+@extends(auth()->user()->isAdmin() ? 'layouts.admin' : 'layouts.receptionist')
 
 @section('title', 'Staff Schedules')
 
 @push('styles')
-<link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css' rel='stylesheet' />
 <style>
-    /* ===== DARK MODE VARIABLES ===== */
-    :root {
-        --bg-primary: #ffffff;
-        --bg-secondary: #f8fafc;
-        --bg-card: #ffffff;
-        --bg-hover: #f1f5f9;
-        --border-color: #e2e8f0;
-        --text-primary: #0f172a;
-        --text-secondary: #64748b;
-        --text-muted: #94a3b8;
-        --accent-teal: #0d9488;
-        --accent-teal-light: #ccfbf1;
-        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-    }
+[x-cloak] { display: none !important; }
 
-    .dark {
-        --bg-primary: #0f172a;
-        --bg-secondary: #1e293b;
-        --bg-card: #1e293b;
-        --bg-hover: #334155;
-        --border-color: #334155;
-        --text-primary: #f1f5f9;
-        --text-secondary: #cbd5e1;
-        --text-muted: #64748b;
-        --accent-teal: #2dd4bf;
-        --accent-teal-light: #134e4a;
-        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
-        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
-    }
+@keyframes selectPulse {
+    0% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4); }
+    70% { box-shadow: 0 0 0 6px rgba(20, 184, 166, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
+}
+.cell-selected { animation: selectPulse 1s ease-out; }
 
-    /* ===== FULLCALENDAR MODERN STYLING ===== */
-    .fc {
-        --fc-border-color: var(--border-color);
-        --fc-page-bg-color: var(--bg-primary);
-        --fc-neutral-bg-color: var(--bg-secondary);
-        --fc-neutral-text-color: var(--text-secondary);
-        --fc-button-text-color: var(--text-primary);
-        --fc-button-bg-color: var(--bg-secondary);
-        --fc-button-border-color: var(--border-color);
-        --fc-button-hover-bg-color: var(--bg-hover);
-        --fc-button-hover-border-color: var(--border-color);
-        --fc-button-active-bg-color: var(--accent-teal-light);
-        --fc-button-active-border-color: var(--accent-teal);
-        --fc-today-bg-color: rgba(13, 148, 136, 0.08);
-        --fc-event-bg-color: var(--accent-teal);
-        --fc-event-border-color: var(--accent-teal);
-        --fc-event-text-color: #ffffff;
-        --fc-list-event-hover-bg-color: var(--bg-hover);
-    }
+.cell-past {
+    background-color: #f3f4f6 !important;
+    opacity: 0.6;
+    cursor: not-allowed !important;
+}
+.dark .cell-past {
+    background-color: #1e293b !important;
+    opacity: 0.5;
+}
+.cell-past .schedule-content { filter: grayscale(0.8); }
 
-    .fc .fc-toolbar-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
+.staff-sidebar::-webkit-scrollbar { width: 4px; }
+.staff-sidebar::-webkit-scrollbar-track { background: transparent; }
+.staff-sidebar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.dark .staff-sidebar::-webkit-scrollbar-thumb { background: #475569; }
 
-    .fc .fc-button {
-        padding: 6px 14px;
-        font-size: 13px;
-        font-weight: 500;
-        border-radius: 8px;
-        transition: all 0.2s;
-    }
+.schedule-cell {
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.schedule-cell:hover:not(.cell-past) { transform: translateY(-1px); }
 
-    .fc .fc-button-primary:not(:disabled).fc-button-active,
-    .fc .fc-button-primary:not(:disabled):active {
-        background-color: var(--accent-teal);
-        border-color: var(--accent-teal);
-        color: white;
-    }
+.sheet-backdrop {
+    background: rgba(0, 0, 0, 0);
+    transition: background 0.3s ease;
+    pointer-events: none;
+}
+.sheet-backdrop.open {
+    background: rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+}
+.dark .sheet-backdrop.open { background: rgba(0, 0, 0, 0.5); }
 
-    .fc .fc-col-header-cell-cushion {
-        font-size: 13px;
-        font-weight: 600;
-        padding: 10px 4px;
-        color: var(--text-secondary);
-    }
-
-    .fc-timegrid-slot-label-cushion {
-        font-size: 12px;
-        color: var(--text-muted);
-    }
-
-    .fc-timegrid-axis-cushion {
-        font-size: 12px;
-        color: var(--text-muted);
-    }
-
-    .fc-event {
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 600;
-        border: none;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-        padding: 2px 6px;
-        transition: transform 0.15s, box-shadow 0.15s;
-    }
-
-    .fc-event:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        z-index: 100 !important;
-    }
-
-    .fc-event.off-event {
-        background: repeating-linear-gradient(
-            45deg,
-            #ef4444,
-            #ef4444 10px,
-            #dc2626 10px,
-            #dc2626 20px
-        ) !important;
-        opacity: 0.85;
-    }
-
-    .fc-event.custom-event {
-        background: linear-gradient(135deg, #eab308, #ca8a04) !important;
-    }
-
-    /* ===== STAFF LANES (GANTT-STYLE) ===== */
-    .staff-lane {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 14px;
-        border-radius: 10px;
-        background: var(--bg-secondary);
-        border: 2px solid transparent;
-        cursor: pointer;
-        transition: all 0.2s;
-        user-select: none;
-    }
-
-    .staff-lane:hover {
-        background: var(--bg-hover);
-        transform: translateX(4px);
-    }
-
-    .staff-lane.active {
-        border-color: currentColor;
-        background: var(--bg-primary);
-        box-shadow: var(--shadow-md);
-    }
-
-    .staff-lane.inactive {
-        opacity: 0.4;
-        filter: grayscale(0.6);
-    }
-
-    .staff-lane-avatar {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        font-size: 14px;
-        color: white;
-        flex-shrink: 0;
-    }
-
-    .staff-lane-info {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .staff-lane-name {
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text-primary);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .staff-lane-hours {
-        font-size: 12px;
-        color: var(--text-muted);
-    }
-
-    /* ===== SCHEDULE CARDS ===== */
-    .schedule-card {
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 16px;
-        overflow: hidden;
-        transition: all 0.2s;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .schedule-card:hover {
-        box-shadow: var(--shadow-md);
-    }
-
-    .staff-header {
-        background: linear-gradient(135deg, var(--accent-teal-light), rgba(13, 148, 136, 0.05));
-        padding: 16px 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-    }
-
-    .dark .staff-header {
-        background: linear-gradient(135deg, rgba(45, 212, 191, 0.1), rgba(15, 23, 42, 0.5));
-    }
-
-    /* ===== DAY CELLS ===== */
-    .day-grid {
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        gap: 8px;
-        padding: 16px;
-    }
-
-    .day-cell {
-        border-radius: 12px;
-        padding: 12px 8px;
-        text-align: center;
-        transition: all 0.2s;
-        position: relative;
-        min-height: 120px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .day-cell.on {
-        background: #d1fae5;
-        border: 2px solid #6ee7b7;
-    }
-
-    .dark .day-cell.on {
-        background: rgba(16, 185, 129, 0.15);
-        border-color: #10b981;
-    }
-
-    .day-cell.off {
-        background: #fee2e2;
-        border: 2px solid #fca5a5;
-    }
-
-    .dark .day-cell.off {
-        background: rgba(239, 68, 68, 0.1);
-        border-color: #ef4444;
-    }
-
-    .day-cell:hover {
-        transform: scale(1.03);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-
-    .day-label {
-        font-size: 12px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 8px;
-    }
-
-    .day-cell.on .day-label {
-        color: #047857;
-    }
-
-    .dark .day-cell.on .day-label {
-        color: #34d399;
-    }
-
-    .day-cell.off .day-label {
-        color: #dc2626;
-    }
-
-    .dark .day-cell.off .day-label {
-        color: #f87171;
-    }
-
-    /* ===== TIME INPUTS ===== */
-    .time-input-group {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .time-input-label {
-        font-size: 10px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--text-muted);
-    }
-
-    .time-input {
-        width: 85px;
-        text-align: center;
-        font-size: 14px;
-        font-weight: 600;
-        padding: 6px;
-        border-radius: 8px;
-        border: 1px solid var(--border-color);
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        transition: all 0.2s;
-    }
-
-    .time-input:focus {
-        outline: none;
-        border-color: var(--accent-teal);
-        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
-    }
-
-    .time-controls {
-        display: flex;
-        gap: 4px;
-        justify-content: center;
-        margin-top: 4px;
-    }
-
-    .time-btn {
-        font-size: 11px;
-        font-weight: 600;
-        padding: 3px 10px;
-        border-radius: 6px;
-        border: 1px solid var(--border-color);
-        background: var(--bg-primary);
-        color: var(--text-secondary);
-        cursor: pointer;
-        transition: all 0.15s;
-    }
-
-    .time-btn:hover {
-        background: var(--accent-teal);
-        color: white;
-        border-color: var(--accent-teal);
-    }
-
-    /* ===== OFF STATE ===== */
-    .off-icon {
-        width: 32px;
-        height: 32px;
-        margin: 0 auto 6px;
-        color: #ef4444;
-    }
-
-    .off-text {
-        font-size: 13px;
-        font-weight: 700;
-        color: #ef4444;
-    }
-
-    .off-hint {
-        font-size: 10px;
-        color: var(--text-muted);
-        margin-top: 4px;
-    }
-
-    /* ===== READ-ONLY TIME DISPLAY ===== */
-    .time-display {
-        font-size: 20px;
-        font-weight: 800;
-        color: var(--accent-teal);
-        line-height: 1;
-    }
-
-    .time-separator {
-        font-size: 11px;
-        color: var(--text-muted);
-        margin: 4px 0;
-        font-weight: 500;
-    }
-
-    /* ===== GLOBAL PRESETS ===== */
-    .preset-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 8px 16px;
-        border-radius: 10px;
-        font-size: 13px;
-        font-weight: 600;
-        border: 1px solid var(--border-color);
-        background: var(--bg-card);
-        color: var(--text-secondary);
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .preset-btn:hover {
-        background: var(--bg-hover);
-        border-color: var(--accent-teal);
-        color: var(--accent-teal);
-    }
-
-    .preset-btn.danger:hover {
-        border-color: #ef4444;
-        color: #ef4444;
-    }
-
-    /* ===== SAVE BAR ===== */
-    .save-bar {
-        position: sticky;
-        bottom: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 16px 24px;
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 16px;
-        box-shadow: var(--shadow-lg);
-        margin-top: 24px;
-    }
-
-    /* ===== EXCEPTIONS ===== */
-    .exception-card {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 14px 16px;
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        transition: all 0.2s;
-    }
-
-    .exception-card:hover {
-        background: var(--bg-hover);
-    }
-
-    .exception-avatar {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        font-size: 13px;
-        color: white;
-        flex-shrink: 0;
-    }
-
-    /* ===== ANIMATIONS ===== */
-    @keyframes pulse-dot {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.4; }
-    }
-
-    .animate-pulse-dot {
-        animation: pulse-dot 1.5s ease-in-out infinite;
-    }
-
-    /* ===== SCROLLBAR ===== */
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-        background: var(--bg-secondary);
-        border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: var(--border-color);
-        border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background: var(--text-muted);
-    }
+.time-picker-wrapper { position: relative; }
+.time-picker-dropdown {
+    position: absolute; top: 100%; left: 0; right: 0;
+    max-height: 200px; overflow-y: auto;
+    background: white; border: 1px solid #e5e7eb;
+    border-radius: 0.5rem; z-index: 50;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+}
+.dark .time-picker-dropdown { background: #1e293b; border-color: #475569; }
+.time-picker-option { padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.875rem; }
+.time-picker-option:hover { background: #f3f4f6; }
+.dark .time-picker-option:hover { background: #334155; }
+.time-picker-option.selected { background: #ccfbf1; color: #0f766e; font-weight: 600; }
+.dark .time-picker-option.selected { background: #134e4a; color: #5eead4; }
 </style>
 @endpush
 
 @section('content')
-<div class="max-w-7xl mx-auto space-y-8 pb-12">
+<div
+  x-data="schedApp()"
+  x-init="init()"
+  class="flex flex-col h-[calc(100dvh-72px-2rem)] md:h-[calc(100dvh-72px-4rem)] overflow-hidden"
+>
+  {{-- TOOLBAR --}}
+  <header class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shrink-0 z-30">
+    <div class="flex items-center gap-2">
+      <div class="inline-flex items-center bg-gray-100 dark:bg-slate-700 rounded-lg p-1 border border-gray-200 dark:border-slate-600">
+        @if($view === 'week')
+          <a href="?week_start={{ $prevWeek }}&view=week" class="p-1.5 rounded-md text-gray-500 hover:bg-white dark:hover:bg-slate-600 hover:text-gray-800 dark:hover:text-white transition-colors" title="Previous week">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+          </a>
+          <a href="?week_start={{ now()->startOfWeek()->toDateString() }}&view=week" class="px-3 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors">Today</a>
+          <span class="px-3 text-sm font-bold text-gray-800 dark:text-white min-w-[140px] text-center">{{ $weekLabel }}</span>
+          <a href="?week_start={{ $nextWeek }}&view=week" class="p-1.5 rounded-md text-gray-500 hover:bg-white dark:hover:bg-slate-600 hover:text-gray-800 dark:hover:text-white transition-colors" title="Next week">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
+          </a>
+        @else
+          <a href="?date={{ $prevDate }}&view=day" class="p-1.5 rounded-md text-gray-500 hover:bg-white dark:hover:bg-slate-600 hover:text-gray-800 dark:hover:text-white transition-colors" title="Previous day">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+          </a>
+          <a href="?date={{ now()->toDateString() }}&view=day" class="px-3 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors">Today</a>
+          <span class="px-3 text-sm font-bold text-gray-800 dark:text-white min-w-[180px] text-center">{{ $dateLabel }}</span>
+          <a href="?date={{ $nextDate }}&view=day" class="p-1.5 rounded-md text-gray-500 hover:bg-white dark:hover:bg-slate-600 hover:text-gray-800 dark:hover:text-white transition-colors" title="Next day">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
+          </a>
+        @endif
 
-    {{-- HEADER --}}
-    <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-        <div>
-            <h1 class="text-3xl font-extrabold tracking-tight" style="color: var(--text-primary);">
-                Staff Schedules
-            </h1>
-            <p class="mt-2 text-base" style="color: var(--text-secondary);">
-                @if($isAdmin)
-                    Manage weekly shifts and availability
+        <div class="flex items-center gap-1 pl-2 ml-2 border-l border-gray-300 dark:border-slate-500">
+          <a href="?week_start={{ $view === 'week' ? $weekStart : \Carbon\Carbon::parse($date)->startOfWeek()->toDateString() }}&view=week" class="px-3 py-1 text-xs font-semibold rounded-md {{ $view === 'week' ? 'bg-white dark:bg-slate-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200' }}">Week</a>
+          <a href="?date={{ $view === 'week' ? $weekStart : $date }}&view=day" class="px-3 py-1 text-xs font-semibold rounded-md {{ $view === 'day' ? 'bg-white dark:bg-slate-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200' }}">Day</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      @if($canEdit)
+      <div class="flex items-center gap-2">
+        <select x-model="activeTemplate" class="py-1.5 px-3 text-xs font-medium bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
+          <option value="">Select template…</option>
+          @foreach($templates as $t)
+            <option value="{{ $t->id }}">{{ $t->name }}</option>
+          @endforeach
+        </select>
+        <button type="button" @click="applyTemplateToAll()" :disabled="!activeTemplate" class="px-3 py-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm shadow-brand-500/20">Apply to All</button>
+        <button type="button" @click="applyTemplateToSelected()" :disabled="!activeTemplate || selectedStaffIds.length === 0" class="px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Apply to Selected</button>
+      </div>
+      @endif
+
+      @if(!$isAdmin && !$canEdit)
+      <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-700 dark:text-amber-400 text-xs font-semibold">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <span>View only mode</span>
+      </div>
+      @endif
+
+      @if($isAdmin)
+      <a href="{{ route('admin.shift-templates.index') }}" class="px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 rounded-lg transition-colors">Manage Templates</a>
+      @endif
+    </div>
+  </header>
+
+  {{-- WORKSPACE --}}
+  <div class="flex flex-1 overflow-hidden">
+
+    {{-- STAFF SIDEBAR --}}
+    <aside class="w-64 shrink-0 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 flex flex-col overflow-hidden z-20">
+      <div class="p-4 border-b border-gray-100 dark:border-slate-700">
+        <h2 class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">Staff Directory</h2>
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" x-model="staffFilter" placeholder="Search staff…" class="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto p-2 space-y-1 staff-sidebar">
+        @foreach($timeline as $row)
+          @php
+            $s = $row['user']; $si = $loop->index;
+            $stats = $staffStats[$s->id] ?? ['days' => [], 'hours' => 0, 'count' => 0];
+            $initials = substr($s->first_name,0,1).substr($s->last_name,0,1);
+          @endphp
+          <button
+            type="button"
+            @click="toggleStaffSelection({{ $s->id }})"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200"
+            :class="selectedStaffIds.includes({{ $s->id }}) ? 'bg-brand-50 dark:bg-brand-900/20 ring-1 ring-brand-200 dark:ring-brand-800' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'"
+            x-show="staffMatchesFilter('{{ addslashes($s->first_name.' '.$s->last_name) }}')"
+          >
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm" style="background: {{ $colors[$si % 8] }};">{{ $initials }}</div>
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{{ $s->first_name }} {{ $s->last_name }}</div>
+              <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                @if(count($stats['days']))
+                  <span class="font-medium text-brand-600 dark:text-brand-400">{{ implode(', ', $stats['days']) }}</span>
+                  <span class="mx-1">·</span>
+                  <span>{{ $stats['hours'] }}h</span>
                 @else
-                    View who's working and when
+                  <span class="text-gray-400">No scheduled hours</span>
                 @endif
-            </p>
-        </div>
-        
-        @if($canEdit)
-        <div class="flex flex-wrap gap-2">
-            <button type="button" onclick="applyGlobalPreset('standard')" class="preset-btn">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                Standard Week
-            </button>
-            <button type="button" onclick="applyGlobalPreset('weekdays')" class="preset-btn">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-8a2 2 0 012-2h14a2 2 0 012 2v8M9 10V7a3 3 0 013-3h0a3 3 0 013 3v3"/></svg>
-                Weekdays Only
-            </button>
-            <button type="button" onclick="applyGlobalPreset('alloff')" class="preset-btn danger">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                All Off
-            </button>
-        </div>
-        @endif
-    </div>
+              </div>
+            </div>
+            <div x-show="selectedStaffIds.includes({{ $s->id }})" class="w-4 h-4 rounded-full bg-brand-500 flex items-center justify-center">
+              <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            </div>
+          </button>
+        @endforeach
+      </div>
+    </aside>
 
-    {{-- WEEKLY CALENDAR OVERVIEW --}}
-    <div class="schedule-card">
-        <div class="p-5 border-b" style="border-color: var(--border-color);">
-            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div>
-                    <h2 class="text-lg font-bold flex items-center gap-2" style="color: var(--text-primary);">
-                        <svg class="w-5 h-5" style="color: var(--accent-teal);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </svg>
-                        Weekly Overview
-                    </h2>
-                    <p class="text-xs mt-1" style="color: var(--text-muted);">Click staff to filter • 30-min intervals</p>
-                </div>
-                
-                {{-- Staff Lanes --}}
-                <div class="flex flex-wrap gap-2" id="staffFilter">
-                    @foreach($staff as $idx => $s)
-                        @php 
-                            $colors = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#84cc16', '#f97316'];
-                            $c = $colors[$idx % count($colors)];
-                        @endphp
-                        <div class="staff-lane active" 
-                             data-staff="{{ $s->id }}"
-                             onclick="toggleStaff({{ $s->id }})"
-                             style="color: {{ $c }};">
-                            <div class="staff-lane-avatar" style="background-color: {{ $c }};">
-                                {{ substr($s->first_name, 0, 1) }}
-                            </div>
-                            <div class="staff-lane-info">
-                                <div class="staff-lane-name">{{ $s->first_name }}</div>
-                                <div class="staff-lane-hours">{{ $s->workSchedules->where('is_day_off', false)->count() }} days</div>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-        
-        <div id="scheduleCalendar" class="p-4 min-h-[480px]"></div>
-        
-        <div class="px-5 pb-4 flex gap-6 text-xs justify-center flex-wrap" style="color: var(--text-muted);">
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span> Working</span>
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span> Off / Holiday</span>
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span> Custom Hours</span>
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-gray-500"></span> No Schedule</span>
-        </div>
-    </div>
-
-    {{-- ADMIN: RECEPTIONIST PERMISSIONS --}}
-    @if($isAdmin)
-    <div class="schedule-card p-6">
-        <h2 class="text-lg font-bold mb-4 flex items-center gap-2" style="color: var(--text-primary);">
-            <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-            Receptionist Permissions
-        </h2>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            @forelse($receptionists as $rec)
-            <div class="flex items-center justify-between p-4 rounded-xl border" style="background: var(--bg-secondary); border-color: var(--border-color);">
-                <div>
-                    <div class="font-semibold text-sm" style="color: var(--text-primary);">{{ $rec->first_name }} {{ $rec->last_name }}</div>
-                    <div class="text-xs mt-0.5" style="color: var(--text-muted);">
-                        {{ $rec->can_manage_schedules ? 'Can edit schedules' : 'View only access' }}
-                    </div>
-                </div>
-                <form action="{{ route('admin.receptionist.toggle', $rec) }}" method="POST" class="inline">
-                    @csrf
-                    @method('PUT')
-                    <button type="submit" 
-                        class="text-xs px-4 py-2 rounded-lg transition font-semibold
-                        {{ $rec->can_manage_schedules 
-                            ? 'bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-300' 
-                            : 'bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-300' 
-                        }}">
-                        {{ $rec->can_manage_schedules ? 'Revoke' : 'Grant' }}
-                    </button>
-                </form>
-            </div>
-            @empty
-                <p class="text-sm col-span-full" style="color: var(--text-muted);">No receptionists found.</p>
-            @endforelse
-        </div>
-    </div>
-    @endif
-
-    {{-- VIEW-ONLY WARNING --}}
-    @if(!$isAdmin && !$canEdit)
-    <div class="p-4 rounded-xl border flex items-center gap-3" style="background: rgba(234, 179, 8, 0.08); border-color: rgba(234, 179, 8, 0.3);">
-        <svg class="w-6 h-6 text-yellow-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-        <p class="text-yellow-700 dark:text-yellow-300 text-sm font-medium">View only mode. Contact admin to modify schedules.</p>
-    </div>
-    @endif
-
-    {{-- EDIT SCHEDULES --}}
-    <div class="schedule-card">
-        <div class="staff-header">
-            <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-xl bg-teal-600 text-white flex items-center justify-center">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </div>
-                <div>
-                    <h2 class="text-lg font-bold" style="color: var(--text-primary);">Weekly Shift Editor</h2>
-                    <p class="text-xs" style="color: var(--text-muted);">Click days to toggle • +/- buttons adjust by 30 min</p>
-                </div>
-            </div>
-            @if($canEdit)
-            <span class="text-xs font-semibold px-3 py-1 rounded-full" style="background: var(--accent-teal-light); color: var(--accent-teal);">30-min intervals</span>
-            @endif
-        </div>
-
-        @if($canEdit)
-        <form id="scheduleForm" action="{{ $isAdmin ? route('admin.staff.schedule.bulk-update') : route('receptionist.schedules.bulk-update') }}" method="POST">
-            @csrf
-        @endif
-        
-        <div class="divide-y" style="border-color: var(--border-color);">
-            @foreach($staff as $s)
-            @php
-                $userSchedules = $s->workSchedules->keyBy('day_of_week');
-                $days = [
-                    1 => ['Mon', 'Monday'],
-                    2 => ['Tue', 'Tuesday'], 
-                    3 => ['Wed', 'Wednesday'],
-                    4 => ['Thu', 'Thursday'],
-                    5 => ['Fri', 'Friday'],
-                    6 => ['Sat', 'Saturday'],
-                    0 => ['Sun', 'Sunday']
-                ];
-                $staffColor = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#84cc16', '#f97316'][$loop->index % 8];
-            @endphp
-            
-            <div class="p-5" data-staff-id="{{ $s->id }}">
-                {{-- Staff Row Header --}}
-                <div class="flex items-center justify-between mb-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-sm" style="background-color: {{ $staffColor }};">
-                            {{ substr($s->first_name, 0, 1) }}{{ substr($s->last_name, 0, 1) }}
-                        </div>
-                        <div>
-                            <h3 class="font-bold text-base" style="color: var(--text-primary);">{{ $s->first_name }} {{ $s->last_name }}</h3>
-                            <p class="text-xs" style="color: var(--text-muted);">{{ $s->workSchedules->where('is_day_off', false)->count() }} working days</p>
-                        </div>
-                    </div>
-                    @if($canEdit)
-                    <div class="flex gap-2">
-                        <button type="button" onclick="applyStaffPreset({{ $s->id }}, 'standard')" class="preset-btn text-xs">
-                            Standard
-                        </button>
-                        <button type="button" onclick="applyStaffPreset({{ $s->id }}, 'weekdays')" class="preset-btn text-xs">
-                            Mon-Fri
-                        </button>
-                        <button type="button" onclick="applyStaffPreset({{ $s->id }}, 'alloff')" class="preset-btn danger text-xs">
-                            All Off
-                        </button>
-                    </div>
-                    @endif
-                </div>
-                
-                {{-- 7-Day Grid --}}
-                <div class="day-grid">
-                    @foreach($days as $num => $dayNames)
-                        @php
-                            $sch = $userSchedules[$num] ?? null;
-                            $isOff = $sch ? $sch->is_day_off : true;
-                            $startVal = $sch ? substr($sch->start_time, 11, 5) : '09:00';
-                            $endVal = $sch ? substr($sch->end_time, 11, 5) : '18:00';
-                        @endphp
-                        <div class="day-cell {{ $isOff ? 'off' : 'on' }}"
-                             id="day-cell-{{ $s->id }}-{{ $num }}"
-                             @if($canEdit) onclick="toggleDay({{ $s->id }}, {{ $num }})" style="cursor: pointer;" @endif>
-                            
-                            <input type="hidden" name="schedules[{{ $s->id }}][{{ $num }}][day_of_week]" value="{{ $num }}">
-                            <input type="hidden" name="schedules[{{ $s->id }}][{{ $num }}][is_day_off]" value="{{ $isOff ? '1' : '0' }}" id="input-off-{{ $s->id }}-{{ $num }}">
-                            
-                            <div class="day-label">{{ $dayNames[0] }}</div>
-                            
-                            @if($canEdit)
-                                <div class="time-edit {{ $isOff ? 'hidden' : '' }}" id="times-{{ $s->id }}-{{ $num }}">
-                                    <div class="time-input-group">
-                                        <span class="time-input-label">Start</span>
-                                        <input type="time" 
-                                               name="schedules[{{ $s->id }}][{{ $num }}][start_time]" 
-                                               value="{{ $startVal }}"
-                                               step="1800"
-                                               class="time-input"
-                                               onclick="event.stopPropagation()">
-                                        <div class="time-controls">
-                                            <button type="button" class="time-btn" onclick="event.stopPropagation(); adjustTime(this, -30)">-30</button>
-                                            <button type="button" class="time-btn" onclick="event.stopPropagation(); adjustTime(this, 30)">+30</button>
-                                        </div>
-                                    </div>
-                                    <div class="time-input-group mt-2">
-                                        <span class="time-input-label">End</span>
-                                        <input type="time" 
-                                               name="schedules[{{ $s->id }}][{{ $num }}][end_time]" 
-                                               value="{{ $endVal }}"
-                                               step="1800"
-                                               class="time-input"
-                                               onclick="event.stopPropagation()">
-                                        <div class="time-controls">
-                                            <button type="button" class="time-btn" onclick="event.stopPropagation(); adjustTime(this, -30)">-30</button>
-                                            <button type="button" class="time-btn" onclick="event.stopPropagation(); adjustTime(this, 30)">+30</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="day-off-label {{ $isOff ? '' : 'hidden' }}" id="off-label-{{ $s->id }}-{{ $num }}">
-                                    <svg class="off-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    <div class="off-text">OFF</div>
-                                    <div class="off-hint">Click to work</div>
-                                </div>
-                            @else
-                                @if($isOff)
-                                    <svg class="off-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    <div class="off-text">OFF</div>
-                                @else
-                                    <div class="time-display">{{ $startVal }}</div>
-                                    <div class="time-separator">to</div>
-                                    <div class="time-display">{{ $endVal }}</div>
-                                @endif
-                            @endif
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-            @endforeach
-        </div>
-        
-        @if($canEdit)
-        <div class="save-bar">
-            <div class="flex items-center gap-2 text-sm font-medium" style="color: var(--text-secondary);">
-                <span id="unsaved-indicator" class="hidden flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse-dot"></span>
-                    Unsaved changes
-                </span>
-            </div>
-            <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white px-8 py-3 rounded-xl text-sm font-bold transition shadow-lg flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Save All Changes
-            </button>
-        </div>
-        </form>
-        @endif
-    </div>
-
-    {{-- ADMIN: DATE EXCEPTIONS --}}
-    @if($isAdmin)
-    <div class="schedule-card p-6">
-        <h2 class="text-lg font-bold mb-1 flex items-center gap-2" style="color: var(--text-primary);">
-            <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            Date Exceptions
-        </h2>
-        <p class="text-xs mb-6" style="color: var(--text-muted);">Holidays, day-offs, and custom hours for specific dates</p>
-        
-        <form action="{{ route('admin.schedule.exception') }}" method="POST" class="flex flex-wrap gap-3 items-end mb-6 p-4 rounded-xl border" style="background: var(--bg-secondary); border-color: var(--border-color);">
-            @csrf
-            <div class="flex-1 min-w-[140px]">
-                <label class="block text-xs font-bold mb-1.5 uppercase tracking-wider" style="color: var(--text-muted);">Staff</label>
-                <select name="user_id" class="w-full border rounded-lg p-2.5 text-sm font-medium transition focus:ring-2 focus:ring-teal-500 focus:border-teal-500" style="background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                    @foreach($staff as $s)
-                        <option value="{{ $s->id }}">{{ $s->first_name }} {{ $s->last_name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="min-w-[140px]">
-                <label class="block text-xs font-bold mb-1.5 uppercase tracking-wider" style="color: var(--text-muted);">Date</label>
-                <input type="date" name="exception_date" required 
-                       class="w-full border rounded-lg p-2.5 text-sm transition focus:ring-2 focus:ring-teal-500 focus:border-teal-500" style="background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-            </div>
-            <div class="min-w-[140px]">
-                <label class="block text-xs font-bold mb-1.5 uppercase tracking-wider" style="color: var(--text-muted);">Type</label>
-                <select name="type" id="exceptionType" onchange="toggleExceptionTimes()" 
-                        class="w-full border rounded-lg p-2.5 text-sm transition focus:ring-2 focus:ring-teal-500 focus:border-teal-500" style="background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                    <option value="day_off">Day Off</option>
-                    <option value="holiday">Holiday</option>
-                    <option value="custom_hours">Custom Hours</option>
-                </select>
-            </div>
-            <div id="exceptionTimes" class="hidden flex gap-2">
-                <div>
-                    <label class="block text-xs font-bold mb-1.5 uppercase tracking-wider" style="color: var(--text-muted);">Start</label>
-                    <input type="time" name="start_time" value="09:00" step="1800"
-                           class="border rounded-lg p-2.5 text-sm transition focus:ring-2 focus:ring-teal-500" style="background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold mb-1.5 uppercase tracking-wider" style="color: var(--text-muted);">End</label>
-                    <input type="time" name="end_time" value="18:00" step="1800"
-                           class="border rounded-lg p-2.5 text-sm transition focus:ring-2 focus:ring-teal-500" style="background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                </div>
-            </div>
-            <div class="flex-[2] min-w-[200px]">
-                <label class="block text-xs font-bold mb-1.5 uppercase tracking-wider" style="color: var(--text-muted);">Reason</label>
-                <input type="text" name="reason" placeholder="Optional note..." 
-                       class="w-full border rounded-lg p-2.5 text-sm transition focus:ring-2 focus:ring-teal-500 focus:border-teal-500" style="background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-            </div>
-            <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-lg transition text-sm font-bold shadow-md">
-                + Add
-            </button>
-        </form>
-
-        <div class="space-y-2 max-h-80 overflow-y-auto pr-2">
-            @php
-                $exceptions = \App\Models\ScheduleException::with('user')
-                    ->whereDate('exception_date', '>=', today())
-                    ->orderBy('exception_date')
-                    ->get();
-            @endphp
-            
-            @forelse($exceptions as $ex)
-            <div class="exception-card">
-                <div class="exception-avatar" style="background-color: {{ ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#84cc16', '#f97316'][$loop->index % 8] }};">
-                    {{ substr($ex->user->first_name, 0, 1) }}
-                </div>
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span class="font-semibold text-sm" style="color: var(--text-primary);">{{ $ex->user->first_name }} {{ $ex->user->last_name }}</span>
-                        <span class="text-xs" style="color: var(--text-muted);">{{ $ex->exception_date->format('M d, Y') }}</span>
-                        <span class="px-2 py-0.5 rounded-md text-[11px] font-bold
-                            {{ $ex->type === 'day_off' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 
-                               ($ex->type === 'holiday' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300') }}">
-                            {{ ucfirst(str_replace('_', ' ', $ex->type)) }}
-                        </span>
-                        @if($ex->start_time && $ex->end_time)
-                            <span class="text-xs font-mono" style="color: var(--text-muted);">{{ substr($ex->start_time, 11, 5) }} - {{ substr($ex->end_time, 11, 5) }}</span>
+    {{-- SCHEDULE CANVAS --}}
+    <main class="flex-1 overflow-auto bg-gray-50 dark:bg-slate-900 p-4 md:p-6 min-w-0">
+      @if($view === 'week')
+        {{-- WEEK GRID --}}
+        <div class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse" style="min-width: 1036px;">
+              <thead>
+                <tr class="bg-gray-50 dark:bg-slate-800/80">
+                  <th class="w-14 p-3 border-b border-r border-gray-200 dark:border-slate-700 sticky left-0 bg-gray-50 dark:bg-slate-800 z-20"></th>
+                  @foreach($days as $day)
+                    <th class="w-[140px] p-3 text-center border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0 {{ $day['is_today'] ? 'bg-brand-50/50 dark:bg-brand-900/10' : '' }}">
+                      <div class="text-[10px] font-bold uppercase tracking-wider {{ $day['is_today'] ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400' }}">{{ $day['label'] }}</div>
+                      <div class="text-lg font-bold {{ $day['is_today'] ? 'text-brand-600 dark:text-brand-400' : 'text-gray-800 dark:text-gray-100' }}">{{ $day['day'] }}</div>
+                    </th>
+                  @endforeach
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($timeline as $row)
+                  @php
+                    $s = $row['user']; $si = $loop->index;
+                    $initials = substr($s->first_name,0,1).substr($s->last_name,0,1);
+                  @endphp
+                  <tr
+                    class="border-b border-gray-100 dark:border-slate-700 last:border-b-0"
+                    x-show="staffMatchesFilter('{{ addslashes($s->first_name.' '.$s->last_name) }}') && (selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))"
+                  >
+                    <td class="w-14 p-2 border-r border-gray-200 dark:border-slate-700 sticky left-0 bg-white dark:bg-slate-800 z-10 text-center align-middle">
+                      <div class="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold text-white mx-auto shadow-sm" style="background: {{ $colors[$si % 8] }};" title="{{ $s->first_name }} {{ $s->last_name }}">{{ $initials }}</div>
+                    </td>
+                    @foreach($row['days'] as $cell)
+                      @php
+                        $isWork = $cell['type'] === 'work';
+                        $isExc  = $cell['type'] === 'exception';
+                        $isCustom = ($cell['exception_type'] ?? '') === 'custom';
+                        $exId = $cell['exception']['id'] ?? null;
+                        $cellKey = $s->id . '|' . $cell['date'];
+                        $isPast = $cell['date'] < $todayStr;
+                      @endphp
+                      <td
+                        class="schedule-cell w-[140px] p-2 border-r border-gray-100 dark:border-slate-700 last:border-r-0 align-middle transition-all {{ $isPast ? 'cell-past' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/30' }}"
+                        :class="selectedCells['{{ $cellKey }}'] ? 'ring-2 ring-inset ring-brand-500 bg-brand-50/50 dark:bg-brand-900/10 cell-selected' : ''"
+                        @if($canEdit && !$isPast)
+                          @click="handleCellClick($event, {{ $s->id }}, '{{ $cell['date'] }}', {{ $cell['dow'] }}, '{{ $cell['start_time'] }}', '{{ $cell['end_time'] }}', '{{ $cell['type'] }}', '{{ $cell['exception_type'] ?? '' }}', {{ $exId ?? 'null' }} )"
                         @endif
-                    </div>
-                    @if($ex->reason)
-                        <div class="text-xs mt-1 italic" style="color: var(--text-muted);">{{ $ex->reason }}</div>
-                    @endif
-                </div>
-                <form action="{{ route('admin.schedule.exception.delete', $ex) }}" method="POST" class="inline">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition">Remove</button>
-                </form>
-            </div>
-            @empty
-                <div class="text-center py-10" style="color: var(--text-muted);">
-                    <svg class="w-12 h-12 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <p class="text-sm">No upcoming exceptions</p>
-                </div>
-            @endforelse
+                        data-key="{{ $cellKey }}"
+                      >
+                        <div class="schedule-content min-h-[64px] flex flex-col items-center justify-center gap-1">
+                          @if($isWork)
+                            <div class="text-center">
+                              <div class="text-xs font-bold text-brand-700 dark:text-brand-300">{{ $fmt($cell['start_time']) }}</div>
+                              <div class="text-xs font-bold text-brand-700 dark:text-brand-300">{{ $fmt($cell['end_time']) }}</div>
+                              @php $hrs = $cell['start_time'] && $cell['end_time'] ? round(\Carbon\Carbon::parse($cell['start_time'])->diffInMinutes(\Carbon\Carbon::parse($cell['end_time']))/60, 1) : 0; @endphp
+                              @if($hrs)
+                                <div class="text-[10px] font-semibold text-brand-600/70 dark:text-brand-400/70 mt-0.5">{{ $hrs }}h</div>
+                              @endif
+                            </div>
+                            @if(!empty($cell['attendance']))
+                              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide
+                                {{ $cell['attendance'] === 'present' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : '' }}
+                                {{ $cell['attendance'] === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : '' }}
+                                {{ $cell['attendance'] === 'absent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : '' }}
+                              ">{{ ucfirst($cell['attendance']) }}</span>
+                            @endif
+                          @elseif($isExc)
+                            <div class="text-center w-full px-1.5 py-1.5 rounded-md border
+                              {{ $isCustom ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800' : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800' }}">
+                              @if($isCustom)
+                                <div class="text-[11px] font-bold text-amber-800 dark:text-amber-300">Custom</div>
+                                <div class="text-[10px] font-semibold text-amber-700 dark:text-amber-400 opacity-80">{{ $fmt($cell['start_time']) }} – {{ $fmt($cell['end_time']) }}</div>
+                              @else
+                                <div class="text-[11px] font-bold text-red-800 dark:text-red-300 capitalize">{{ str_replace('_', ' ', $cell['exception_type'] ?? 'Blocked') }}</div>
+                              @endif
+                              @if(!empty($cell['exception']['reason']))
+                                <div class="text-[9px] text-gray-500 dark:text-gray-400 truncate max-w-full mt-0.5" title="{{ $cell['exception']['reason'] }}">{{ $cell['exception']['reason'] }}</div>
+                              @endif
+                            </div>
+                            @if(!empty($cell['attendance']))
+                              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide
+                                {{ $cell['attendance'] === 'present' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : '' }}
+                                {{ $cell['attendance'] === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : '' }}
+                                {{ $cell['attendance'] === 'absent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : '' }}
+                              ">{{ ucfirst($cell['attendance']) }}</span>
+                            @endif
+                          @else
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-300 dark:text-gray-600">Off</span>
+                            @if(!empty($cell['attendance']))
+                              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide
+                                {{ $cell['attendance'] === 'present' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : '' }}
+                                {{ $cell['attendance'] === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : '' }}
+                                {{ $cell['attendance'] === 'absent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : '' }}
+                              ">{{ ucfirst($cell['attendance']) }}</span>
+                            @endif
+                          @endif
+                        </div>
+                      </td>
+                    @endforeach
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        {{-- Legend --}}
+        <div class="flex flex-wrap items-center justify-center gap-6 mt-4">
+          <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span> Working</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span> Blocked / Day Off</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Custom Hours</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600"></span> Unscheduled</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-gray-200 dark:bg-gray-700 border border-gray-400"></span> Past</span>
+        </div>
+
+      @else
+        {{-- DAY VIEW --}}
+        <div class="max-w-3xl mx-auto">
+          <div class="text-center mb-6">
+            <h2 class="text-xl font-bold text-gray-800 dark:text-white">{{ $dateLabel }}</h2>
+          </div>
+          <div class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden">
+            @foreach($timeline as $row)
+              @php
+                $s = $row['user']; $block = $row['block'];
+                $initials = substr($s->first_name,0,1).substr($s->last_name,0,1);
+                $isPast = $date < $todayStr;
+              @endphp
+              <div class="flex items-stretch border-b border-gray-100 dark:border-slate-700 last:border-b-0 {{ $isPast ? 'cell-past' : '' }}" x-show="staffMatchesFilter('{{ addslashes($s->first_name.' '.$s->last_name) }}') && (selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))">
+                <div class="w-52 shrink-0 flex items-center gap-3 px-4 py-4 bg-gray-50 dark:bg-slate-800/50 border-r border-gray-200 dark:border-slate-700">
+                  <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm" style="background: {{ $colors[$loop->index % 8] }};">{{ $initials }}</div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{{ $s->first_name }} {{ $s->last_name }}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ $row['statusLabel'] }}</div>
+                  </div>
+                </div>
+                <div class="flex-1 p-4 flex items-center">
+                  @if($block && $block['type'] !== 'off')
+                    <div class="px-4 py-2.5 rounded-lg border text-sm
+                      {{ $block['type'] === 'custom' ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300' : 'bg-brand-50 dark:bg-brand-900/10 border-brand-200 dark:border-brand-800 text-brand-800 dark:text-brand-300' }}">
+                      <div class="font-bold">{{ $block['label'] }}</div>
+                      @if(!empty($block['reason']))
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $block['reason'] }}</div>
+                      @endif
+                      @if(!empty($row['attendance']))
+                        <span class="inline-flex items-center mt-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide
+                          {{ $row['attendance']->status === 'present' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : '' }}
+                          {{ $row['attendance']->status === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : '' }}
+                          {{ $row['attendance']->status === 'absent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : '' }}
+                        ">{{ ucfirst($row['attendance']->status) }}</span>
+                      @endif
+                    </div>
+                  @else
+                    <div class="w-full text-center text-xs font-bold uppercase tracking-wider text-gray-300 dark:text-gray-600 py-3">— Day Off —</div>
+                  @endif
+                </div>
+              </div>
+            @endforeach
+          </div>
+        </div>
+      @endif
+    </main>
+  </div>
+
+  {{-- BACKDROP for bottom sheet --}}
+  <div
+    class="sheet-backdrop fixed inset-0 z-40 md:hidden"
+    :class="popover.open ? 'open' : ''"
+    @click="closePopover()"
+    x-show="popover.open"
+    x-transition:enter="transition-opacity ease-out duration-300"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition-opacity ease-in duration-200"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+  ></div>
+
+  {{-- CONTEXT PANEL (Bottom Sheet) --}}
+  <div
+    class="fixed bottom-0 right-0 md:left-64 left-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.3)] z-50 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+    :class="popover.open ? 'translate-y-0' : 'translate-y-full'"
+    x-show="true"
+  >
+    <div class="max-w-5xl mx-auto px-6 py-5">
+      {{-- Single Edit --}}
+      <div x-show="popover.mode === 'edit'" x-cloak>
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm font-bold text-gray-800 dark:text-white">
+            <span x-text="staffNameById(popover.data.userId)"></span>
+            <span class="text-gray-400 font-normal ml-2" x-text="popover.data.date ? new Date(popover.data.date + 'T00:00:00').toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'}) : ''"></span>
+          </div>
+          <button @click="closePopover()" class="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-end gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Status</label>
+            <select x-model="popover.data.status" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 min-w-[140px] transition-shadow">
+              <option value="work">Working</option>
+              <option value="off">Day Off</option>
+              <option value="exception">Exception / Block</option>
+            </select>
+          </div>
+
+          <template x-if="popover.data.status === 'work'">
+            <div class="flex items-end gap-3">
+              <div class="flex flex-col gap-1.5">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Start</label>
+                <div class="time-picker-wrapper" @click.away="showStartPicker = false">
+                  <input type="text" readonly @click="showStartPicker = true" :value="popover.data.start" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
+                  <div x-show="showStartPicker" x-cloak class="time-picker-dropdown">
+                    <template x-for="t in timeOptions" :key="t">
+                      <div @click="popover.data.start = t; showStartPicker = false" class="time-picker-option" :class="t === popover.data.start ? 'selected' : ''" x-text="t"></div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">End</label>
+                <div class="time-picker-wrapper" @click.away="showEndPicker = false">
+                  <input type="text" readonly @click="showEndPicker = true" :value="popover.data.end" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
+                  <div x-show="showEndPicker" x-cloak class="time-picker-dropdown">
+                    <template x-for="t in timeOptions" :key="t">
+                      <div @click="popover.data.end = t; showEndPicker = false" class="time-picker-option" :class="t === popover.data.end ? 'selected' : ''" x-text="t"></div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="popover.data.status === 'exception'">
+            <div class="flex flex-wrap items-end gap-4">
+              <div class="flex flex-col gap-1.5">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Type</label>
+                <select x-model="popover.data.exceptionType" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 min-w-[160px] transition-shadow">
+                  <option value="day_off">Day Off</option>
+                  <option value="holiday">Holiday</option>
+                  <option value="sick_leave">Sick Leave</option>
+                  <option value="urgent_leave">Urgent Leave</option>
+                  <option value="custom_hours">Custom Hours</option>
+                </select>
+              </div>
+              <template x-if="popover.data.exceptionType === 'custom_hours'">
+                <div class="flex items-end gap-3">
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Start</label>
+                    <div class="time-picker-wrapper" @click.away="showExStartPicker = false">
+                      <input type="text" readonly @click="showExStartPicker = true" :value="popover.data.start" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
+                      <div x-show="showExStartPicker" x-cloak class="time-picker-dropdown">
+                        <template x-for="t in timeOptions" :key="t">
+                          <div @click="popover.data.start = t; showExStartPicker = false" class="time-picker-option" :class="t === popover.data.start ? 'selected' : ''" x-text="t"></div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">End</label>
+                    <div class="time-picker-wrapper" @click.away="showExEndPicker = false">
+                      <input type="text" readonly @click="showExEndPicker = true" :value="popover.data.end" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
+                      <div x-show="showExEndPicker" x-cloak class="time-picker-dropdown">
+                        <template x-for="t in timeOptions" :key="t">
+                          <div @click="popover.data.end = t; showExEndPicker = false" class="time-picker-option" :class="t === popover.data.end ? 'selected' : ''" x-text="t"></div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <div class="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Note</label>
+                <input type="text" x-model="popover.data.reason" placeholder="Optional reason…" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
+              </div>
+            </div>
+          </template>
+
+          <div class="flex items-center gap-2 ml-auto">
+            <button @click="closePopover()" class="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancel</button>
+            <button @click="saveCell()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20">
+              <span x-show="!saving">Save</span>
+              <span x-show="saving">Saving…</span>
+            </button>
+            <button x-show="popover.data.exceptionId" @click="removeException(popover.data.exceptionId)" class="px-4 py-2 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">Remove</button>
+          </div>
+        </div>
+      </div>
+
+      {{-- Bulk Edit --}}
+      <div x-show="popover.mode === 'bulk'" x-cloak>
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm font-bold text-gray-800 dark:text-white"><span x-text="Object.keys(selectedCells).length"></span> schedules selected</div>
+          <button @click="closePopover()" class="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-end gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Apply to selected</label>
+            <select x-model="popover.data.status" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 min-w-[160px] transition-shadow">
+              <option value="work">Set Working Hours</option>
+              <option value="off">Set Day Off</option>
+              <option value="exception">Add Exception</option>
+            </select>
+          </div>
+
+          <template x-if="popover.data.status === 'work'">
+            <div class="flex items-end gap-3">
+              <div class="flex flex-col gap-1.5">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Start</label>
+                <div class="time-picker-wrapper" @click.away="showBulkStartPicker = false">
+                  <input type="text" readonly @click="showBulkStartPicker = true" :value="popover.data.start" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
+                  <div x-show="showBulkStartPicker" x-cloak class="time-picker-dropdown">
+                    <template x-for="t in timeOptions" :key="t">
+                      <div @click="popover.data.start = t; showBulkStartPicker = false" class="time-picker-option" :class="t === popover.data.start ? 'selected' : ''" x-text="t"></div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">End</label>
+                <div class="time-picker-wrapper" @click.away="showBulkEndPicker = false">
+                  <input type="text" readonly @click="showBulkEndPicker = true" :value="popover.data.end" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
+                  <div x-show="showBulkEndPicker" x-cloak class="time-picker-dropdown">
+                    <template x-for="t in timeOptions" :key="t">
+                      <div @click="popover.data.end = t; showBulkEndPicker = false" class="time-picker-option" :class="t === popover.data.end ? 'selected' : ''" x-text="t"></div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="popover.data.status === 'exception'">
+            <div class="flex flex-wrap items-end gap-4">
+              <div class="flex flex-col gap-1.5">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Type</label>
+                <select x-model="popover.data.exceptionType" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 min-w-[160px] transition-shadow">
+                  <option value="day_off">Day Off</option>
+                  <option value="holiday">Holiday</option>
+                  <option value="custom_hours">Custom Hours</option>
+                </select>
+              </div>
+              <template x-if="popover.data.exceptionType === 'custom_hours'">
+                <div class="flex items-end gap-3">
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Start</label>
+                    <div class="time-picker-wrapper" @click.away="showBulkExStartPicker = false">
+                      <input type="text" readonly @click="showBulkExStartPicker = true" :value="popover.data.start" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
+                      <div x-show="showBulkExStartPicker" x-cloak class="time-picker-dropdown">
+                        <template x-for="t in timeOptions" :key="t">
+                          <div @click="popover.data.start = t; showBulkExStartPicker = false" class="time-picker-option" :class="t === popover.data.start ? 'selected' : ''" x-text="t"></div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">End</label>
+                    <div class="time-picker-wrapper" @click.away="showBulkExEndPicker = false">
+                      <input type="text" readonly @click="showBulkEndPicker = true" :value="popover.data.end" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
+                      <div x-show="showBulkExEndPicker" x-cloak class="time-picker-dropdown">
+                        <template x-for="t in timeOptions" :key="t">
+                          <div @click="popover.data.end = t; showBulkExEndPicker = false" class="time-picker-option" :class="t === popover.data.end ? 'selected' : ''" x-text="t"></div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <div class="flex items-center gap-2 ml-auto">
+            <button @click="selectedCells = {}; closePopover();" class="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Clear Selection</button>
+            <button @click="saveBulk()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20">
+              <span x-show="!saving">Apply to <span x-text="Object.keys(selectedCells).length"></span></span>
+              <span x-show="saving">Applying…</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
-    @endif
+  </div>
+
+  {{-- BULK ACTION BAR --}}
+  <div
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-lg px-5 py-3 flex items-center gap-4 z-40 transition-all duration-250"
+    :class="Object.keys(selectedCells).length > 0 && !popover.open ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'"
+    @click.stop
+  >
+    <span class="text-sm font-bold text-gray-800 dark:text-white"><span x-text="Object.keys(selectedCells).length"></span> selected</span>
+    <button @click="openBulkEdit()" class="px-3 py-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm shadow-brand-500/20">Edit Selected</button>
+    <button @click="selectedCells = {}" class="px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Clear</button>
+  </div>
 
 </div>
 @endsection
 
 @push('scripts')
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
 <script>
-    let calendar;
-    const allEvents = @json($calendarEvents ?? []);
-    let hiddenStaff = new Set();
-
-    document.addEventListener('DOMContentLoaded', function() {
-        const calendarEl = document.getElementById('scheduleCalendar');
-        if (!calendarEl) return;
-        
-        calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'timeGridWeek',
-            firstDay: 1,
-            slotMinTime: '06:00:00',
-            slotMaxTime: '22:00:00',
-            allDaySlot: true,
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: 'timeGridWeek,dayGridMonth'
-            },
-            buttonText: {
-                today: 'Today',
-                week: 'Week',
-                month: 'Month'
-            },
-            events: allEvents,
-            eventClick: function(info) {
-                info.jsEvent.preventDefault();
-            },
-            eventDidMount: function(info) {
-                if (info.event.extendedProps.staffId) {
-                    info.el.dataset.staffId = info.event.extendedProps.staffId;
-                }
-                
-                const type = info.event.extendedProps.type;
-                if (type === 'off') info.el.classList.add('off-event');
-                if (type === 'custom') info.el.classList.add('custom-event');
-                
-                // Add tooltip
-                const staffName = info.event.extendedProps.staffName || '';
-                info.el.title = staffName + ' | ' + info.event.title;
-            },
-            height: 'auto',
-            dayHeaderFormat: { weekday: 'short', month: 'numeric', day: 'numeric' },
-            slotDuration: '00:30:00',
-            snapDuration: '00:30:00',
-            slotLabelInterval: '01:00',
-            eventMinHeight: 24,
-            eventShortHeight: 24,
-        });
-        
-        calendar.render();
-    });
-
-    function toggleStaff(staffId) {
-        const btn = document.querySelector(`.staff-lane[data-staff="${staffId}"]`);
-        if (!btn) return;
-        
-        if (hiddenStaff.has(staffId)) {
-            hiddenStaff.delete(staffId);
-            btn.classList.remove('inactive');
-            btn.classList.add('active');
-        } else {
-            hiddenStaff.add(staffId);
-            btn.classList.remove('active');
-            btn.classList.add('inactive');
+function schedApp() {
+  return {
+    staffFilter: '',
+    selectedStaffIds: [],
+    activeTemplate: '',
+    selectedCells: {},
+    lastSelected: null,
+    saving: false,
+    showStartPicker: false,
+    showEndPicker: false,
+    showExStartPicker: false,
+    showExEndPicker: false,
+    showBulkStartPicker: false,
+    showBulkEndPicker: false,
+    showBulkExStartPicker: false,
+    showBulkExEndPicker: false,
+    timeOptions: (() => {
+      const opts = [];
+      for (let h = 0; h < 24; h++) {
+        for (let m = 0; m < 60; m += 30) {
+          opts.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
         }
-        
-        const visibleEvents = allEvents.filter(e => !hiddenStaff.has(e.staffId));
-        calendar.removeAllEvents();
-        calendar.addEventSource(visibleEvents);
-    }
+      }
+      return opts;
+    })(),
+    popover: {
+      open: false,
+      mode: 'edit',
+      data: { userId: '', date: '', dow: '', start: '09:00', end: '18:00', status: 'work', exceptionType: 'day_off', reason: '', exceptionId: null }
+    },
 
-    function toggleDay(staffId, dayNum) {
-        const cell = document.getElementById(`day-cell-${staffId}-${dayNum}`);
-        const offInput = document.getElementById(`input-off-${staffId}-${dayNum}`);
-        const timesDiv = document.getElementById(`times-${staffId}-${dayNum}`);
-        const offLabel = document.getElementById(`off-label-${staffId}-${dayNum}`);
-        const dayLabel = cell.querySelector('.day-label');
-        
-        const isOff = offInput.value === '1';
-        
-        if (isOff) {
-            // Turn ON
-            offInput.value = '0';
-            cell.classList.remove('off');
-            cell.classList.add('on');
-            timesDiv.classList.remove('hidden');
-            offLabel.classList.add('hidden');
-            dayLabel.style.color = '';
-        } else {
-            // Turn OFF
-            offInput.value = '1';
-            cell.classList.remove('on');
-            cell.classList.add('off');
-            timesDiv.classList.add('hidden');
-            offLabel.classList.remove('hidden');
+    staffNames: @json($timeline->mapWithKeys(function($row) {
+      $u = $row['user'];
+      return [$u->id => $u->first_name . ' ' . $u->last_name];
+    })),
+
+    staffNameById(id) {
+      return this.staffNames[id] || 'Staff Member';
+    },
+
+    staffMatchesFilter(name) {
+      if (!this.staffFilter) return true;
+      return name.toLowerCase().includes(this.staffFilter.toLowerCase());
+    },
+
+    init() {
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (this.popover.open) {
+            this.closePopover();
+            e.preventDefault();
+          }
+          return;
         }
-        
-        showUnsaved();
-    }
+        if ((e.key === 't' || e.key === 'T') && this.activeTemplate && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT' && document.activeElement.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          this.applyTemplateToSelected();
+        }
+      });
+    },
 
-    function adjustTime(btn, minutes) {
-        const input = btn.closest('.time-controls').previousElementSibling;
-        if (!input || input.type !== 'time') return;
-        
-        const [h, m] = input.value.split(':').map(Number);
-        const date = new Date();
-        date.setHours(h, m + minutes, 0);
-        
-        const newH = String(date.getHours()).padStart(2, '0');
-        const newM = String(date.getMinutes()).padStart(2, '0');
-        input.value = `${newH}:${newM}`;
-        
-        showUnsaved();
-    }
+    toggleStaffSelection(staffId) {
+      const idx = this.selectedStaffIds.indexOf(staffId);
+      if (idx === -1) {
+        this.selectedStaffIds.push(staffId);
+      } else {
+        this.selectedStaffIds.splice(idx, 1);
+      }
+    },
 
-    function applyStaffPreset(staffId, preset) {
-        const days = [1,2,3,4,5,6,0];
-        const configs = {
-            standard: { off: [], start: '09:00', end: '18:00' },
-            weekdays: { off: [6,0], start: '09:00', end: '18:00' },
-            alloff: { off: [1,2,3,4,5,6,0], start: '09:00', end: '18:00' }
-        };
-        
-        const config = configs[preset];
-        
-        days.forEach(dayNum => {
-            const cell = document.getElementById(`day-cell-${staffId}-${dayNum}`);
-            if (!cell) return;
-            
-            const offInput = document.getElementById(`input-off-${staffId}-${dayNum}`);
-            const timesDiv = document.getElementById(`times-${staffId}-${dayNum}`);
-            const offLabel = document.getElementById(`off-label-${staffId}-${dayNum}`);
-            const startInput = cell.querySelector('input[name*="[start_time]"]');
-            const endInput = cell.querySelector('input[name*="[end_time]"]');
-            
-            const isOff = config.off.includes(dayNum);
-            
-            offInput.value = isOff ? '1' : '0';
-            
-            if (isOff) {
-                cell.classList.remove('on');
-                cell.classList.add('off');
-                timesDiv?.classList.add('hidden');
-                offLabel?.classList.remove('hidden');
-            } else {
-                cell.classList.remove('off');
-                cell.classList.add('on');
-                timesDiv?.classList.remove('hidden');
-                offLabel?.classList.add('hidden');
-                if (startInput) startInput.value = config.start;
-                if (endInput) endInput.value = config.end;
+    handleCellClick(e, userId, date, dow, start, end, type, exType, exId) {
+      const today = new Date().toISOString().split('T')[0];
+      if (date < today) {
+        return; // Silently ignore past clicks — master layout handles flash messages server-side
+      }
+
+      const key = `${userId}|${date}`;
+
+      if (e.shiftKey && this.lastSelected && this.lastSelected !== key) {
+        const lastParts = this.lastSelected.split('|');
+        if (lastParts[0] == userId) {
+          const cells = Array.from(document.querySelectorAll(`[data-key^="${userId}|"]`));
+          const keys = cells.map(c => c.dataset.key);
+          const startIdx = keys.indexOf(this.lastSelected);
+          const endIdx = keys.indexOf(key);
+          if (startIdx !== -1 && endIdx !== -1) {
+            const [a, b] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+            const next = { ...this.selectedCells };
+            for (let i = a; i <= b; i++) {
+              const cellDate = keys[i].split('|')[1];
+              if (cellDate >= today) next[keys[i]] = true;
             }
-        });
-        
-        showUnsaved();
-    }
+            this.selectedCells = next;
+          }
+        }
+      } else if (e.ctrlKey || e.metaKey) {
+        this.toggleSelection(key);
+      } else {
+        this.selectedCells = { [key]: true };
+        this.openEdit(userId, date, dow, start, end, type, exType, exId);
+      }
+      this.lastSelected = key;
+    },
 
-    function applyGlobalPreset(preset) {
-        document.querySelectorAll('[data-staff-id]').forEach(card => {
-            const staffId = card.dataset.staffId;
-            applyStaffPreset(staffId, preset);
-        });
-    }
+    toggleSelection(key) {
+      const next = { ...this.selectedCells };
+      if (next[key]) delete next[key];
+      else next[key] = true;
+      this.selectedCells = next;
+    },
 
-    function showUnsaved() {
-        const indicator = document.getElementById('unsaved-indicator');
-        if (indicator) indicator.classList.remove('hidden');
-    }
+    openEdit(userId, date, dow, start, end, type, exType, exId) {
+      this.popover = {
+        open: true,
+        mode: 'edit',
+        data: {
+          userId, date, dow,
+          start: start || '09:00',
+          end: end || '18:00',
+          status: type === 'exception' ? 'exception' : (type === 'work' ? 'work' : 'off'),
+          exceptionType: exType || 'day_off',
+          reason: '',
+          exceptionId: exId
+        }
+      };
+      this.showStartPicker = false;
+      this.showEndPicker = false;
+      this.showExStartPicker = false;
+      this.showExEndPicker = false;
+    },
 
-    function toggleExceptionTimes() {
-        const type = document.getElementById('exceptionType').value;
-        const times = document.getElementById('exceptionTimes');
-        if (times) times.classList.toggle('hidden', type !== 'custom_hours');
+    openBulkEdit() {
+      if (Object.keys(this.selectedCells).length === 0) return;
+      this.popover = {
+        open: true,
+        mode: 'bulk',
+        data: { 
+          status: 'work', 
+          start: '09:00', 
+          end: '18:00', 
+          exceptionType: 'day_off', 
+          reason: '',
+          userId: '',
+          date: '',
+          dow: '',
+          exceptionId: null
+        }
+      };
+      this.showBulkStartPicker = false;
+      this.showBulkEndPicker = false;
+      this.showBulkExStartPicker = false;
+      this.showBulkExEndPicker = false;
+    },
+
+    closePopover() { 
+      this.popover.open = false; 
+      this.showStartPicker = false;
+      this.showEndPicker = false;
+      this.showExStartPicker = false;
+      this.showExEndPicker = false;
+      this.showBulkStartPicker = false;
+      this.showBulkEndPicker = false;
+      this.showBulkExStartPicker = false;
+      this.showBulkExEndPicker = false;
+    },
+
+    buildPayload(d, userId, date) {
+      let exceptionType, startTime, endTime;
+      if (d.status === 'work') {
+        exceptionType = 'custom_hours';
+        startTime = d.start;
+        endTime = d.end;
+      } else if (d.status === 'off') {
+        exceptionType = 'day_off';
+        startTime = null;
+        endTime = null;
+      } else {
+        exceptionType = d.exceptionType;
+        startTime = d.exceptionType === 'custom_hours' ? d.start : null;
+        endTime = d.exceptionType === 'custom_hours' ? d.end : null;
+      }
+      return {
+        user_id: userId,
+        exception_type: exceptionType,
+        date: date,
+        end_date: null,
+        start_time: startTime,
+        end_time: endTime,
+        reason: d.reason || null
+      };
+    },
+
+    saveCell() {
+      this.saving = true;
+      const payload = this.buildPayload(this.popover.data, this.popover.data.userId, this.popover.data.date);
+
+      fetch('{{ $exceptionStoreRoute }}', {
+        method: 'POST',
+        headers: {
+          'X-CSRF-TOKEN': '{{ csrf_token() }}',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.message || data.error || 'Save failed');
+        return data;
+      })
+      .then(d => {
+        if (d.success) {
+          setTimeout(() => location.reload(), 300);
+        } else {
+          alert(d.message || 'Save failed');
+        }
+      })
+      .catch(e => alert('Error: ' + e.message))
+      .finally(() => this.saving = false);
+    },
+
+    saveBulk() {
+      this.saving = true;
+      const d = this.popover.data;
+      const exceptions = [];
+
+      Object.keys(this.selectedCells).forEach(key => {
+        const [userId, date] = key.split('|');
+        exceptions.push(this.buildPayload(d, parseInt(userId), date));
+      });
+
+      fetch('{{ $exceptionBulkRoute }}', {
+        method: 'POST',
+        headers: {
+          'X-CSRF-TOKEN': '{{ csrf_token() }}',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ exceptions })
+      })
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.message || data.error || 'Bulk save failed');
+        return data;
+      })
+      .then(d => {
+        if (d.success) {
+          this.selectedCells = {};
+          this.closePopover();
+          setTimeout(() => location.reload(), 300);
+        } else {
+          alert(d.message || 'Bulk save failed');
+        }
+      })
+      .catch(e => alert('Error: ' + e.message))
+      .finally(() => this.saving = false);
+    },
+
+    applyTemplateToAll() {
+      if (!this.activeTemplate) return alert('Select a template first');
+      const userIds = @json($staff->pluck('id'));
+      this.applyTemplateToUsers(userIds);
+    },
+
+    applyTemplateToSelected() {
+      if (!this.activeTemplate) return alert('Select a template first');
+      if (this.selectedStaffIds.length === 0) return alert('Select at least one staff member from the sidebar');
+      this.applyTemplateToUsers(this.selectedStaffIds);
+    },
+
+    applyTemplateToUsers(userIds) {
+      if (!confirm(`Apply template to ${userIds.length} staff?`)) return;
+      this.saving = true;
+      fetch('{{ $templateApplyBulkRoute }}', {
+        method: 'POST',
+        headers: {
+          'X-CSRF-TOKEN': '{{ csrf_token() }}',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ 
+          template_id: parseInt(this.activeTemplate), 
+          user_ids: userIds, 
+          week_start: '{{ $weekStart }}' 
+        })
+      })
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) {
+          if (data.errors) {
+            const msgs = Object.values(data.errors).flat().join(', ');
+            throw new Error(msgs);
+          }
+          throw new Error(data.message || data.error || 'Request failed: ' + r.status);
+        }
+        return data;
+      })
+      .then(d => {
+        const applied = d.applied ?? (d.success ? 1 : 0);
+        const failed = d.failed ?? {};
+        const failedCount = Object.keys(failed).length;
+
+        if (applied && failedCount === 0) {
+          setTimeout(() => location.reload(), 300);
+        } else if (applied && failedCount > 0) {
+          console.error('Template apply failures:', failed);
+          alert(`Applied to ${applied}, failed for ${failedCount}`);
+        } else {
+          const failMsg = failedCount > 0 
+            ? 'Failed: ' + Object.entries(failed).map(([k,v]) => `${k}: ${v}`).join(', ')
+            : (d.message || 'Unknown error');
+          alert(failMsg);
+        }
+      })
+      .catch(e => {
+        console.error('Template apply error:', e);
+        alert('Error: ' + e.message);
+      })
+      .finally(() => this.saving = false);
+    },
+
+    removeException(id) {
+      if (!confirm('Remove this block?')) return;
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '{{ $exceptionRoute }}/' + id;
+      form.innerHTML = `<input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="_method" value="DELETE">`;
+      document.body.appendChild(form);
+      form.submit();
     }
+  }
+}
 </script>
 @endpush
