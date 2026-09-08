@@ -206,11 +206,12 @@ Route::middleware(['auth'])->group(function () {
 // ==================== ATTENDANCE ====================
 Route::middleware(['auth'])->group(function () {
     Route::get('/attendance/today', [AttendanceController::class, 'today'])->name('attendance.today');
-    Route::post('/attendance/bulk-mark', [AttendanceController::class, 'bulkMark'])->name('attendance.bulk-mark');
     Route::get('/admin/attendance', [AttendanceController::class, 'report'])->name('attendance.report');
     Route::patch('/admin/attendance/toggle-permission/{user}', [AttendanceController::class, 'togglePermission'])->name('attendance.toggle-permission');
+
     Route::post('/api/attendance/quick-checkin/{staff}', [AttendanceController::class, 'quickCheckIn'])->name('attendance.quick-checkin');
     Route::post('/api/attendance/quick-checkout/{staff}', [AttendanceController::class, 'quickCheckOut'])->name('attendance.quick-checkout');
+    Route::post('/api/attendance/correct/{staff}', [AttendanceController::class, 'correct'])->name('attendance.correct');
 });
 
 // ==================== NOTIFICATIONS (Single Definition) ====================

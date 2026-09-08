@@ -16,26 +16,85 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 <style>
 [x-cloak] { display: none !important; }
 
-/* ─── Shared Time Picker (DRY) ─── */
-.time-picker-wrapper { position: relative; }
+/* ─── Redesigned Time Picker ─── */
+.time-picker-wrapper { position: relative; isolation: isolate; }
+.time-picker-trigger {
+    width: 100%; padding: 0.5rem 0.75rem;
+    background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem;
+    font-size: 0.875rem; color: #374151; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    transition: all 0.15s ease;
+}
+.dark .time-picker-trigger { background: #1e293b; border-color: #475569; color: #e2e8f0; }
+.time-picker-trigger:hover { border-color: #9ca3af; }
+.time-picker-trigger:focus, .time-picker-trigger.open { border-color: #0d9488; box-shadow: 0 0 0 3px rgba(13,148,136,0.1); }
+.dark .time-picker-trigger:focus, .dark .time-picker-trigger.open { border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
+
 .time-picker-dropdown {
-    position: absolute; top: 100%; left: 0; right: 0;
-    max-height: 200px; overflow-y: auto;
+    position: fixed;
+    max-height: 320px; overflow: hidden;
     background: white; border: 1px solid #e5e7eb;
-    border-radius: 0.5rem; z-index: 50;
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+    border-radius: 0.75rem; z-index: 9999;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+    min-width: 180px;
+    display: flex; flex-direction: column;
 }
 .dark .time-picker-dropdown { background: #1e293b; border-color: #475569; }
-.time-picker-option { padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.875rem; }
+
+.time-picker-search {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+    background: #fafafa;
+    border-radius: 0.75rem 0.75rem 0 0;
+}
+.dark .time-picker-search { background: #0f172a; border-color: #334155; }
+.time-picker-search input {
+    width: 100%; padding: 0.375rem 0.5rem;
+    font-size: 0.75rem; background: white; border: 1px solid #e5e7eb;
+    border-radius: 0.375rem; color: #374151;
+    outline: none;
+}
+.dark .time-picker-search input { background: #1e293b; border-color: #475569; color: #e2e8f0; }
+.time-picker-search input:focus { border-color: #0d9488; box-shadow: 0 0 0 2px rgba(13,148,136,0.1); }
+
+.time-picker-scroll {
+    overflow-y: auto; padding: 4px;
+    max-height: 260px;
+}
+.time-picker-scroll::-webkit-scrollbar { width: 4px; }
+.time-picker-scroll::-webkit-scrollbar-track { background: transparent; }
+.time-picker-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.dark .time-picker-scroll::-webkit-scrollbar-thumb { background: #475569; }
+
+.time-picker-group-label {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: #9ca3af;
+    position: sticky; top: 0; background: inherit;
+    z-index: 1;
+}
+.dark .time-picker-group-label { color: #64748b; }
+
+.time-picker-option {
+    padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.875rem;
+    border-radius: 0.5rem; color: #374151;
+    transition: all 0.1s ease;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.dark .time-picker-option { color: #e2e8f0; }
 .time-picker-option:hover { background: #f3f4f6; }
 .dark .time-picker-option:hover { background: #334155; }
-.time-picker-option.selected { background: #ccfbf1; color: #0f766e; font-weight: 600; }
+.time-picker-option.selected {
+    background: #ccfbf1; color: #0f766e; font-weight: 600;
+}
 .dark .time-picker-option.selected { background: #134e4a; color: #5eead4; }
+.time-picker-option .check { width: 14px; height: 14px; opacity: 0; }
+.time-picker-option.selected .check { opacity: 1; }
 
 /* ─── Card hover ─── */
-.day-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-.day-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-.dark .day-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+.day-card { transition: box-shadow 0.2s ease; }
+.day-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.dark .day-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
 
 /* ─── Scrollbar ─── */
 .sidebar-scroll::-webkit-scrollbar { width: 4px; }
@@ -46,9 +105,7 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 /* ─── Mobile: left panel becomes horizontal scrollable tabs ─── */
 @media (max-width: 768px) {
     .mobile-panel-scroll {
-        display: flex;
-        overflow-x: auto;
-        gap: 0.5rem;
+        display: flex; overflow-x: auto; gap: 0.5rem;
         padding: 0.5rem;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
@@ -62,7 +119,7 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 @section('content')
 <div x-data="templateApp()" x-init="init()" class="flex flex-col h-[calc(100dvh-72px-2rem)] md:h-[calc(100dvh-72px-4rem)] overflow-hidden bg-gray-50 dark:bg-slate-900">
 
-  {{-- TOOLBAR (functional, not a page header) --}}
+  {{-- TOOLBAR --}}
   <div class="flex items-center justify-between gap-3 px-4 py-3 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shrink-0 z-30">
     <div class="flex items-center gap-2 min-w-0">
       <div class="w-8 h-8 rounded-lg bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center shrink-0">
@@ -113,7 +170,7 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
                   </div>
                 </div>
               </button>
-              <button type="button" @click.stop="templateManager.deleteTemplate(tpl.id)" class="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shrink-0" title="Delete template">
+              <button type="button" @click.stop="templateManager.deleteTemplate(tpl.id)" class="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shrink-0 opacity-0 group-hover:opacity-100" title="Delete template">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
               </button>
             </div>
@@ -141,7 +198,7 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
             <button type="button" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200"
               :class="selectedStaffId == {{ $s->id }} && templateManager.editing === null ? 'bg-brand-50 dark:bg-brand-900/20 ring-1 ring-brand-200 dark:ring-brand-800' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'"
               @click="selectedStaffId = {{ $s->id }}; templateManager.editing = null; loadStaffData()"
-              x-show="staffMatchesFilter({{ $s->id }}, '{{ strtolower($s->first_name.' '.$s->last_name) }}')">
+              x-show="staffMatchesFilter({{ json_encode(strtolower($s->first_name.' '.$s->last_name), JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) }})">
               <div class="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0" style="background: #78716c;">{{ substr($s->first_name,0,1) }}{{ substr($s->last_name,0,1) }}</div>
               <div class="min-w-0 flex-1">
                 <div class="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">{{ $s->first_name }} {{ $s->last_name }}</div>
@@ -240,7 +297,7 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
             <template x-for="(day, idx) in days" :key="idx">
               <div class="day-card bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-2 md:p-3 text-center" :class="templateManager.form.pattern[idx].is_day_off ? 'opacity-50' : ''">
                 <div class="text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1" x-text="day.substring(0,3).toUpperCase()"></div>
-                <div class="text-[11px] md:text-xs font-bold text-gray-800 dark:text-gray-100" x-text="templateManager.form.pattern[idx].is_day_off ? 'Off' : (templateManager.form.pattern[idx].start_time + '–' + templateManager.form.pattern[idx].end_time)"></div>
+                <div class="text-[11px] md:text-xs font-bold text-gray-800 dark:text-gray-100" x-text="templateManager.form.pattern[idx].is_day_off ? 'Off' : (formatTime(templateManager.form.pattern[idx].start_time) + ' – ' + formatTime(templateManager.form.pattern[idx].end_time))"></div>
               </div>
             </template>
           </div>
@@ -259,23 +316,75 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
                 <div x-show="!templateManager.form.pattern[index].is_day_off" x-transition class="grid grid-cols-2 gap-2">
                   <div>
                     <label class="block text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">Start</label>
-                    <div class="time-picker-wrapper" @click.away="templateManager.showPickers[index] = false">
-                      <input type="text" readonly @click="templateManager.showPickers[index] = true" :value="templateManager.form.pattern[index].start_time" class="w-full px-2 py-1.5 text-xs bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 cursor-pointer">
-                      <div x-show="templateManager.showPickers[index]" x-cloak class="time-picker-dropdown">
-                        <template x-for="t in timeOptions" :key="t">
-                          <div @click="templateManager.form.pattern[index].start_time = t; templateManager.showPickers[index] = false" class="time-picker-option" :class="t === templateManager.form.pattern[index].start_time ? 'selected' : ''" x-text="t"></div>
-                        </template>
+                    <div x-data="timePicker(templateManager.form.pattern[index], 'start_time')" class="time-picker-wrapper" @click.away="open = false">
+                      <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                        <span x-text="formatTime(model.start_time, '9:00 AM')"></span>
+                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                        <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                        <div class="time-picker-scroll">
+                          <template x-if="groupedOptions.am.length">
+                            <div>
+                              <div class="time-picker-group-label">Morning</div>
+                              <template x-for="opt in groupedOptions.am" :key="opt.value">
+                                <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start_time ? 'selected' : ''">
+                                  <span x-text="opt.label"></span>
+                                  <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                          <template x-if="groupedOptions.pm.length">
+                            <div>
+                              <div class="time-picker-group-label">Afternoon / Evening</div>
+                              <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                                <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start_time ? 'selected' : ''">
+                                  <span x-text="opt.label"></span>
+                                  <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                          <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
+                        </div>
                       </div>
                     </div>
                   </div>
                   <div>
                     <label class="block text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">End</label>
-                    <div class="time-picker-wrapper" @click.away="templateManager.showEndPickers[index] = false">
-                      <input type="text" readonly @click="templateManager.showEndPickers[index] = true" :value="templateManager.form.pattern[index].end_time" class="w-full px-2 py-1.5 text-xs bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 cursor-pointer">
-                      <div x-show="templateManager.showEndPickers[index]" x-cloak class="time-picker-dropdown">
-                        <template x-for="t in timeOptions" :key="t">
-                          <div @click="templateManager.form.pattern[index].end_time = t; templateManager.showEndPickers[index] = false" class="time-picker-option" :class="t === templateManager.form.pattern[index].end_time ? 'selected' : ''" x-text="t"></div>
-                        </template>
+                    <div x-data="timePicker(templateManager.form.pattern[index], 'end_time')" class="time-picker-wrapper" @click.away="open = false">
+                      <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                        <span x-text="formatTime(model.end_time, '6:00 PM')"></span>
+                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                        <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                        <div class="time-picker-scroll">
+                          <template x-if="groupedOptions.am.length">
+                            <div>
+                              <div class="time-picker-group-label">Morning</div>
+                              <template x-for="opt in groupedOptions.am" :key="opt.value">
+                                <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end_time ? 'selected' : ''">
+                                  <span x-text="opt.label"></span>
+                                  <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                          <template x-if="groupedOptions.pm.length">
+                            <div>
+                              <div class="time-picker-group-label">Afternoon / Evening</div>
+                              <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                                <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end_time ? 'selected' : ''">
+                                  <span x-text="opt.label"></span>
+                                  <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                          <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -294,7 +403,7 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
               <h2 class="text-lg font-bold text-gray-900 dark:text-white" x-text="staffNameById(selectedStaffId)"></h2>
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Weekly schedule template and upcoming exceptions</p>
             </div>
-            <button type="button" @click="saveTemplate()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20">
+            <button type="button" @click="saveStaffTemplate()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20">
               <span x-show="!saving">Save Weekly Template</span>
               <span x-show="saving">Saving…</span>
             </button>
@@ -305,7 +414,7 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
             <template x-for="(day, idx) in days" :key="idx">
               <div class="day-card bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-2 md:p-3 text-center" :class="template[idx].is_day_off ? 'opacity-50' : ''">
                 <div class="text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1" x-text="day.substring(0,3).toUpperCase()"></div>
-                <div class="text-[11px] md:text-xs font-bold text-gray-800 dark:text-gray-100" x-text="template[idx].is_day_off ? 'Off' : (template[idx].start_time + '–' + template[idx].end_time)"></div>
+                <div class="text-[11px] md:text-xs font-bold text-gray-800 dark:text-gray-100" x-text="template[idx].is_day_off ? 'Off' : (formatTime(template[idx].start_time) + ' – ' + formatTime(template[idx].end_time))"></div>
               </div>
             </template>
           </div>
@@ -324,23 +433,75 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
                 <div x-show="!template[index].is_day_off" x-transition class="grid grid-cols-2 gap-2">
                   <div>
                     <label class="block text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">Start</label>
-                    <div class="time-picker-wrapper" @click.away="showStaffPickers[index] = false">
-                      <input type="text" readonly @click="showStaffPickers[index] = true" :value="template[index].start_time" class="w-full px-2 py-1.5 text-xs bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 cursor-pointer">
-                      <div x-show="showStaffPickers[index]" x-cloak class="time-picker-dropdown">
-                        <template x-for="t in timeOptions" :key="t">
-                          <div @click="template[index].start_time = t; showStaffPickers[index] = false" class="time-picker-option" :class="t === template[index].start_time ? 'selected' : ''" x-text="t"></div>
-                        </template>
+                    <div x-data="timePicker(template[index], 'start_time')" class="time-picker-wrapper" @click.away="open = false">
+                      <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                        <span x-text="formatTime(model.start_time, '9:00 AM')"></span>
+                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                        <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                        <div class="time-picker-scroll">
+                          <template x-if="groupedOptions.am.length">
+                            <div>
+                              <div class="time-picker-group-label">Morning</div>
+                              <template x-for="opt in groupedOptions.am" :key="opt.value">
+                                <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start_time ? 'selected' : ''">
+                                  <span x-text="opt.label"></span>
+                                  <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                          <template x-if="groupedOptions.pm.length">
+                            <div>
+                              <div class="time-picker-group-label">Afternoon / Evening</div>
+                              <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                                <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start_time ? 'selected' : ''">
+                                  <span x-text="opt.label"></span>
+                                  <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                          <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
+                        </div>
                       </div>
                     </div>
                   </div>
                   <div>
                     <label class="block text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">End</label>
-                    <div class="time-picker-wrapper" @click.away="showStaffEndPickers[index] = false">
-                      <input type="text" readonly @click="showStaffEndPickers[index] = true" :value="template[index].end_time" class="w-full px-2 py-1.5 text-xs bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 cursor-pointer">
-                      <div x-show="showStaffEndPickers[index]" x-cloak class="time-picker-dropdown">
-                        <template x-for="t in timeOptions" :key="t">
-                          <div @click="template[index].end_time = t; showStaffEndPickers[index] = false" class="time-picker-option" :class="t === template[index].end_time ? 'selected' : ''" x-text="t"></div>
-                        </template>
+                    <div x-data="timePicker(template[index], 'end_time')" class="time-picker-wrapper" @click.away="open = false">
+                      <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                        <span x-text="formatTime(model.end_time, '6:00 PM')"></span>
+                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                        <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                        <div class="time-picker-scroll">
+                          <template x-if="groupedOptions.am.length">
+                            <div>
+                              <div class="time-picker-group-label">Morning</div>
+                              <template x-for="opt in groupedOptions.am" :key="opt.value">
+                                <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end_time ? 'selected' : ''">
+                                  <span x-text="opt.label"></span>
+                                  <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                          <template x-if="groupedOptions.pm.length">
+                            <div>
+                              <div class="time-picker-group-label">Afternoon / Evening</div>
+                              <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                                <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end_time ? 'selected' : ''">
+                                  <span x-text="opt.label"></span>
+                                  <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                          <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -384,23 +545,75 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
               <div x-show="newException.type === 'custom_hours'" class="grid grid-cols-2 gap-3 mb-3 max-w-xs">
                 <div>
                   <label class="block text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">Start Time</label>
-                  <div class="time-picker-wrapper" @click.away="showExStartPicker = false">
-                    <input type="text" readonly @click="showExStartPicker = true" :value="newException.start_time" class="w-full px-2 py-1.5 text-xs bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 cursor-pointer">
-                    <div x-show="showExStartPicker" x-cloak class="time-picker-dropdown">
-                      <template x-for="t in timeOptions" :key="t">
-                        <div @click="newException.start_time = t; showExStartPicker = false" class="time-picker-option" :class="t === newException.start_time ? 'selected' : ''" x-text="t"></div>
-                      </template>
+                  <div x-data="timePicker(newException, 'start_time')" class="time-picker-wrapper" @click.away="open = false">
+                    <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                      <span x-text="formatTime(model.start_time, '9:00 AM')"></span>
+                      <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                      <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                      <div class="time-picker-scroll">
+                        <template x-if="groupedOptions.am.length">
+                          <div>
+                            <div class="time-picker-group-label">Morning</div>
+                            <template x-for="opt in groupedOptions.am" :key="opt.value">
+                              <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start_time ? 'selected' : ''">
+                                <span x-text="opt.label"></span>
+                                <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                        <template x-if="groupedOptions.pm.length">
+                          <div>
+                            <div class="time-picker-group-label">Afternoon / Evening</div>
+                            <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                              <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start_time ? 'selected' : ''">
+                                <span x-text="opt.label"></span>
+                                <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                        <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
+                      </div>
                     </div>
                   </div>
                 </div>
                 <div>
                   <label class="block text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">End Time</label>
-                  <div class="time-picker-wrapper" @click.away="showExEndPicker = false">
-                    <input type="text" readonly @click="showExEndPicker = true" :value="newException.end_time" class="w-full px-2 py-1.5 text-xs bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 cursor-pointer">
-                    <div x-show="showExEndPicker" x-cloak class="time-picker-dropdown">
-                      <template x-for="t in timeOptions" :key="t">
-                        <div @click="newException.end_time = t; showExEndPicker = false" class="time-picker-option" :class="t === newException.end_time ? 'selected' : ''" x-text="t"></div>
-                      </template>
+                  <div x-data="timePicker(newException, 'end_time')" class="time-picker-wrapper" @click.away="open = false">
+                    <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                      <span x-text="formatTime(model.end_time, '6:00 PM')"></span>
+                      <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                      <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                      <div class="time-picker-scroll">
+                        <template x-if="groupedOptions.am.length">
+                          <div>
+                            <div class="time-picker-group-label">Morning</div>
+                            <template x-for="opt in groupedOptions.am" :key="opt.value">
+                              <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end_time ? 'selected' : ''">
+                                <span x-text="opt.label"></span>
+                                <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                        <template x-if="groupedOptions.pm.length">
+                          <div>
+                            <div class="time-picker-group-label">Afternoon / Evening</div>
+                            <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                              <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end_time ? 'selected' : ''">
+                                <span x-text="opt.label"></span>
+                                <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                        <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -444,7 +657,7 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
                           x-text="ex.type.replace('_', ' ')">
                         </span>
                       </td>
-                      <td class="px-3 py-2.5 text-gray-500 dark:text-gray-400" x-text="ex.start_time && ex.end_time ? ex.start_time + ' – ' + ex.end_time : '—'"></td>
+                      <td class="px-3 py-2.5 text-gray-500 dark:text-gray-400" x-text="ex.start_time && ex.end_time ? formatTime(ex.start_time) + ' – ' + formatTime(ex.end_time) : '—'"></td>
                       <td class="px-3 py-2.5 text-gray-500 dark:text-gray-400 max-w-[200px] truncate" x-text="ex.reason || '—'"></td>
                       <td class="px-3 py-2.5 text-right">
                         <button type="button" @click="deleteException(ex.id)" class="inline-flex items-center p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
@@ -474,6 +687,107 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 
 @push('scripts')
 <script>
+/* ═══════════════════════════════════════════════════════════════
+   SHARED HELPERS — Extract these to a global app.js in production
+   to keep things DRY across views.
+   ═══════════════════════════════════════════════════════════════ */
+
+// ─── Redesigned 30-min interval time picker component ───
+function timePicker(model, property) {
+    return {
+        model: model,
+        property: property,
+        open: false,
+        search: '',
+        dropdownTop: 0,
+        dropdownLeft: 0,
+        dropdownWidth: 0,
+        timeOptions: (() => {
+            const opts = [];
+            for (let h = 0; h < 24; h++) {
+                for (let m = 0; m < 60; m += 30) {
+                    const val = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    const h12 = h % 12 || 12;
+                    opts.push({ value: val, label: `${h12}:${String(m).padStart(2,'0')} ${ampm}`, amPm: ampm });
+                }
+            }
+            return opts;
+        })(),
+        get filteredOptions() {
+            if (!this.search) return this.timeOptions;
+            const q = this.search.toLowerCase().replace(/\s/g, '');
+            return this.timeOptions.filter(o => 
+                o.label.toLowerCase().replace(/\s/g, '').includes(q) || 
+                o.value.includes(q)
+            );
+        },
+        get groupedOptions() {
+            const opts = this.filteredOptions;
+            return { am: opts.filter(o => o.amPm === 'AM'), pm: opts.filter(o => o.amPm === 'PM') };
+        },
+        toggle($el) {
+            this.open = !this.open;
+            this.search = '';
+            if (this.open) {
+                this.$nextTick(() => {
+                    const rect = $el.getBoundingClientRect();
+                    const dropdownHeight = 320;
+                    const dropdownWidth = 220; // comfortable fixed width
+
+                    // Vertical placement
+                    let top = rect.bottom + 6;
+                    if (top + dropdownHeight > window.innerHeight - 12) {
+                        top = rect.top - dropdownHeight - 6;
+                    }
+
+                    // Horizontal: center under trigger, but keep inside viewport
+                    let left = rect.left + (rect.width / 2) - (dropdownWidth / 2);
+                    if (left < 12) left = 12;
+                    if (left + dropdownWidth > window.innerWidth - 12) {
+                        left = window.innerWidth - dropdownWidth - 12;
+                    }
+
+                    this.dropdownTop = top;
+                    this.dropdownLeft = left;
+                    this.dropdownWidth = dropdownWidth;
+                });
+            }
+        },
+        select(t) { this.model[this.property] = t; this.open = false; },
+        close() { this.open = false; }
+    };
+}
+
+function formatTime(t, fallback = '') {
+    if (!t) return fallback;
+    const [h, m] = String(t).split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return fallback;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function toast(message, icon = 'success') {
+    if (typeof Swal === 'undefined') { alert(message); return; }
+    const isDark = document.documentElement.classList.contains('dark');
+    Swal.fire({
+        icon: icon,
+        title: icon === 'success' ? 'Success' : (icon === 'warning' ? 'Warning' : 'Error'),
+        text: message,
+        timer: icon === 'success' ? 3000 : 4000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#fff' : '#374151'
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TEMPLATES APP
+   ═══════════════════════════════════════════════════════════════ */
 function templateApp() {
   return {
     selectedStaffId: '',
@@ -485,129 +799,109 @@ function templateApp() {
     template: Array.from({length:7},()=>({start_time:'09:00',end_time:'18:00',is_day_off:0})),
     exceptions: [],
     newException: {type:'day_off',date:'',end_date:'',start_time:'09:00',end_time:'18:00',reason:''},
-    showStaffPickers: Array(7).fill(false),
-    showStaffEndPickers: Array(7).fill(false),
-    showExStartPicker: false,
-    showExEndPicker: false,
-    timeOptions: (() => {
-      const opts = [];
-      for (let h = 0; h < 24; h++) {
-        for (let m = 0; m < 60; m += 30) {
-          opts.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
-        }
-      }
-      return opts;
-    })(),
 
     staffNames: @json($staff->mapWithKeys(fn($s) => [$s->id => $s->first_name . ' ' . $s->last_name])),
 
-    templateManager: null,
-
-    init() {
-      const parent = this;
-      this.templateManager = {
+    // FIX: Initialized the templateManager directly in the data object to prevent Alpine crash
+    templateManager: {
         templates: @json($templates ?? []),
         editing: null,
         saving: false,
         filter: '',
         form: { name: '', pattern: Array.from({length:7},()=>({start_time:'09:00',end_time:'18:00',is_day_off:0})) },
-        showPickers: Array(7).fill(false),
-        showEndPickers: Array(7).fill(false),
 
         get filteredTemplates() {
           if (!this.filter) return this.templates;
           const q = this.filter.toLowerCase();
           return this.templates.filter(t => t.name.toLowerCase().includes(q));
-        },
-
-        startCreate() {
-          this.editing = 'new';
-          this.form = { name: '', pattern: Array.from({length:7},()=>({start_time:'09:00',end_time:'18:00',is_day_off:0})) };
-          this.showPickers = Array(7).fill(false);
-          this.showEndPickers = Array(7).fill(false);
-        },
-
-        startEdit(tpl) {
-          this.editing = tpl.id;
-          let pat;
-          if (tpl.pattern && Array.isArray(tpl.pattern)) {
-            pat = JSON.parse(JSON.stringify(tpl.pattern));
-          } else {
-            pat = Array.from({length:7},()=>({start_time:'09:00',end_time:'18:00',is_day_off:0}));
-          }
-          pat.forEach(p => {
-            p.is_day_off = p.is_day_off ? 1 : 0;
-            if (p.start_time && typeof p.start_time === 'string') p.start_time = p.start_time.substring(0, 5);
-            if (p.end_time && typeof p.end_time === 'string') p.end_time = p.end_time.substring(0, 5);
-          });
-          this.form = { name: tpl.name, pattern: pat };
-          this.showPickers = Array(7).fill(false);
-          this.showEndPickers = Array(7).fill(false);
-        },
-
-        cancelEdit() {
-          this.editing = null;
-        },
-
-        saveTemplate() {
-          if (!this.form.name.trim()) { 
-            alert('Template name is required'); 
-            return; 
-          }
-          this.saving = true;
-          const url = this.editing === 'new' ? '{{ $templateStoreRoute }}' : '{{ $templateUpdateRoute }}' + '/' + this.editing;
-          const method = this.editing === 'new' ? 'POST' : 'PUT';
-          const payload = {
-            name: this.form.name.trim(),
-            pattern: this.form.pattern.map(p => ({
-              start_time: p.is_day_off ? null : (p.start_time || '09:00'),
-              end_time: p.is_day_off ? null : (p.end_time || '18:00'),
-              is_day_off: p.is_day_off ? true : false
-            }))
-          };
-          fetch(url, {
-            method: method,
-            headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Content-Type':'application/json','Accept':'application/json'},
-            body: JSON.stringify(payload)
-          })
-          .then(async r => {
-            const data = await r.json();
-            if (!r.ok) {
-              throw new Error(data.message || data.error || 'Server error ' + r.status);
-            }
-            return data;
-          })
-          .then(d => {
-            if (d.success) {
-              setTimeout(() => location.reload(), 300);
-            } else {
-              alert(d.message || 'Save failed');
-            }
-          })
-          .catch(e => alert('Error: ' + e.message))
-          .finally(() => this.saving = false);
-        },
-
-        deleteTemplate(id) {
-          if (!confirm('Delete this template? This cannot be undone.')) return;
-          fetch('{{ $templateDeleteRoute }}' + '/' + id, {
-            method: 'DELETE',
-            headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'}
-          })
-          .then(async r => {
-            const data = await r.json();
-            if (!r.ok) throw new Error(data.message || 'Delete failed');
-            return data;
-          })
-          .then(d => {
-            if (d.success) {
-              setTimeout(() => location.reload(), 300);
-            } else {
-              alert(d.message || 'Delete failed');
-            }
-          })
-          .catch(e => alert('Error: ' + e.message));
         }
+    },
+
+    init() {
+      // Bind methods to templateManager after initialization
+      this.templateManager.startCreate = () => {
+        this.templateManager.editing = 'new';
+        this.templateManager.form = { name: '', pattern: Array.from({length:7},()=>({start_time:'09:00',end_time:'18:00',is_day_off:0})) };
+      };
+
+      this.templateManager.startEdit = (tpl) => {
+        this.templateManager.editing = tpl.id;
+        let pat;
+        if (tpl.pattern && Array.isArray(tpl.pattern)) {
+          pat = JSON.parse(JSON.stringify(tpl.pattern));
+        } else {
+          pat = Array.from({length:7},()=>({start_time:'09:00',end_time:'18:00',is_day_off:0}));
+        }
+        pat.forEach(p => {
+          p.is_day_off = p.is_day_off ? 1 : 0;
+          if (p.start_time && typeof p.start_time === 'string') p.start_time = p.start_time.substring(0, 5);
+          if (p.end_time && typeof p.end_time === 'string') p.end_time = p.end_time.substring(0, 5);
+        });
+        this.templateManager.form = { name: tpl.name, pattern: pat };
+      };
+
+      this.templateManager.cancelEdit = () => {
+        this.templateManager.editing = null;
+      };
+
+      this.templateManager.saveTemplate = () => {
+        if (!this.templateManager.form.name.trim()) { 
+          toast('Template name is required', 'error'); 
+          return; 
+        }
+        this.templateManager.saving = true;
+        const url = this.templateManager.editing === 'new' ? '{{ $templateStoreRoute }}' : '{{ $templateUpdateRoute }}' + '/' + this.templateManager.editing;
+        const method = this.templateManager.editing === 'new' ? 'POST' : 'PUT';
+        const payload = {
+          name: this.templateManager.form.name.trim(),
+          pattern: this.templateManager.form.pattern.map(p => ({
+            start_time: p.is_day_off ? null : (p.start_time || '09:00'),
+            end_time: p.is_day_off ? null : (p.end_time || '18:00'),
+            is_day_off: p.is_day_off ? true : false
+          }))
+        };
+        fetch(url, {
+          method: method,
+          headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Content-Type':'application/json','Accept':'application/json'},
+          body: JSON.stringify(payload)
+        })
+        .then(async r => {
+          const data = await r.json();
+          if (!r.ok) {
+            throw new Error(data.message || data.error || 'Server error ' + r.status);
+          }
+          return data;
+        })
+        .then(d => {
+          if (d.success) {
+            setTimeout(() => location.reload(), 300);
+          } else {
+            toast(d.message || 'Save failed', 'error');
+          }
+        })
+        .catch(e => toast('Error: ' + e.message, 'error'))
+        .finally(() => this.templateManager.saving = false);
+      };
+
+      this.templateManager.deleteTemplate = (id) => {
+        if (!confirm('Delete this template? This cannot be undone.')) return;
+        fetch('{{ $templateDeleteRoute }}' + '/' + id, {
+          method: 'DELETE',
+          headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'}
+        })
+        .then(async r => {
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.message || 'Delete failed');
+          return data;
+        })
+        .then(d => {
+          if (d.success) {
+            setTimeout(() => location.reload(), 300);
+          } else {
+            toast(d.message || 'Delete failed', 'error');
+          }
+        })
+        .catch(e => toast('Error: ' + e.message, 'error'));
       };
 
       @if($staff->count() === 1)
@@ -620,7 +914,7 @@ function templateApp() {
       return this.staffNames[id] || 'Staff Member';
     },
 
-    staffMatchesFilter(id, nameLower) {
+    staffMatchesFilter(nameLower) {
       if (!this.staffFilter) return true;
       return nameLower.includes(this.staffFilter.toLowerCase());
     },
@@ -628,6 +922,7 @@ function templateApp() {
     loadStaffData() {
       if(!this.selectedStaffId) return;
       this.loading = true;
+      this.showAddException = false; 
       const url = '{{ $apiBase }}' + '/' + this.selectedStaffId + '/schedule';
       fetch(url, {headers:{'Accept':'application/json'}})
         .then(async r => {
@@ -651,12 +946,12 @@ function templateApp() {
           this.loading = false;
         })
         .catch(e => {
-          alert('Failed to load: '+e.message);
+          toast('Failed to load: '+e.message, 'error');
           this.loading=false;
         });
     },
 
-    saveTemplate() {
+    saveStaffTemplate() {
       this.saving = true;
       const payload = {};
       payload[this.selectedStaffId] = {};
@@ -664,7 +959,7 @@ function templateApp() {
         payload[this.selectedStaffId][idx] = {
           start_time: day.is_day_off ? null : (day.start_time || '09:00'),
           end_time: day.is_day_off ? null : (day.end_time || '18:00'),
-          is_day_off: day.is_day_off ? '1' : '0'
+          is_day_off: day.is_day_off ? 1 : 0
         };
       });
       fetch('{{ $updateRoute }}', {
@@ -674,16 +969,22 @@ function templateApp() {
       })
       .then(async r => {
         const data = await r.json();
-        if (!r.ok) throw new Error(data.message || 'Save failed');
+        if (!r.ok) throw new Error(data.message || data.error || 'Save failed');
         return data;
       })
-      .then(d => { /* success — master layout flash will show via redirect */ })
-      .catch(e => alert('Error: '+e.message))
+      .then(d => {
+        if (d.success) {
+          toast('Weekly template saved successfully');
+        } else {
+          toast(d.message || 'Save failed', 'error');
+        }
+      })
+      .catch(e => toast('Error: '+e.message, 'error'))
       .finally(() => this.saving = false);
     },
 
     addException() {
-      if(!this.newException.date){alert('Start date is required');return;}
+      if(!this.newException.date){toast('Start date is required', 'error'); return;}
       this.saving = true;
       fetch('{{ $exceptionRoute }}', {
         method: 'POST',
@@ -708,7 +1009,7 @@ function templateApp() {
         this.newException = {type:'day_off',date:'',end_date:'',start_time:'09:00',end_time:'18:00',reason:''};
         this.loadStaffData();
       })
-      .catch(e => alert('Error: '+e.message))
+      .catch(e => toast('Error: '+e.message, 'error'))
       .finally(() => this.saving = false);
     },
 
@@ -727,7 +1028,7 @@ function templateApp() {
       .then(d => {
         this.loadStaffData();
       })
-      .catch(e => alert('Error: ' + e.message));
+      .catch(e => toast('Error: ' + e.message, 'error'));
     }
   }
 }

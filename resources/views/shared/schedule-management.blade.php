@@ -12,7 +12,8 @@ $fmt = fn($t) => $t ? \Carbon\Carbon::createFromFormat('H:i', substr($t, 0, 5))-
 $todayStr = now()->toDateString();
 @endphp
 
-@extends(auth()->user()->isAdmin() ? 'layouts.admin' : 'layouts.receptionist')
+{{-- FIX: Use $isAdmin variable instead of undefined auth method --}}
+@extends($isAdmin ? 'layouts.admin' : 'layouts.receptionist')
 
 @section('title', 'Staff Schedules')
 
@@ -48,31 +49,108 @@ $todayStr = now()->toDateString();
 }
 .schedule-cell:hover:not(.cell-past) { transform: translateY(-1px); }
 
-.sheet-backdrop {
-    background: rgba(0, 0, 0, 0);
-    transition: background 0.3s ease;
-    pointer-events: none;
+/* ─── Centered Modal Overlay ─── */
+.modal-backdrop {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease;
 }
-.sheet-backdrop.open {
-    background: rgba(0, 0, 0, 0.2);
-    pointer-events: auto;
+.modal-backdrop.open { opacity: 1; pointer-events: auto; }
+.modal-panel {
+    background: white; border-radius: 16px;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+    width: 100%; max-width: 520px;
+    max-height: calc(100dvh - 32px);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    opacity: 0;
+    margin-top: 20px;
+    transition: opacity 0.25s cubic-bezier(0.32,0.72,0,1), margin-top 0.25s cubic-bezier(0.32,0.72,0,1);
 }
-.dark .sheet-backdrop.open { background: rgba(0, 0, 0, 0.5); }
+.modal-backdrop.open .modal-panel {
+    opacity: 1;
+    margin-top: 0;
+}
+.dark .modal-panel { background: #1e293b; }
 
+/* ─── Redesigned Time Picker ─── */
 .time-picker-wrapper { position: relative; }
+.time-picker-trigger {
+    width: 100%; padding: 0.5rem 0.75rem;
+    background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem;
+    font-size: 0.875rem; color: #374151; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    transition: all 0.15s ease;
+}
+.dark .time-picker-trigger { background: #1e293b; border-color: #475569; color: #e2e8f0; }
+.time-picker-trigger:hover { border-color: #9ca3af; }
+.time-picker-trigger:focus, .time-picker-trigger.open { border-color: #0d9488; box-shadow: 0 0 0 3px rgba(13,148,136,0.1); }
+.dark .time-picker-trigger:focus, .dark .time-picker-trigger.open { border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
+
 .time-picker-dropdown {
-    position: absolute; top: 100%; left: 0; right: 0;
-    max-height: 200px; overflow-y: auto;
+    position: fixed;
+    max-height: 320px; overflow: hidden;
     background: white; border: 1px solid #e5e7eb;
-    border-radius: 0.5rem; z-index: 50;
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+    border-radius: 0.75rem; z-index: 9999;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+    min-width: 180px;
+    display: flex; flex-direction: column;
 }
 .dark .time-picker-dropdown { background: #1e293b; border-color: #475569; }
-.time-picker-option { padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.875rem; }
+
+.time-picker-search {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+    background: #fafafa;
+    border-radius: 0.75rem 0.75rem 0 0;
+}
+.dark .time-picker-search { background: #0f172a; border-color: #334155; }
+.time-picker-search input {
+    width: 100%; padding: 0.375rem 0.5rem;
+    font-size: 0.75rem; background: white; border: 1px solid #e5e7eb;
+    border-radius: 0.375rem; color: #374151;
+    outline: none;
+}
+.dark .time-picker-search input { background: #1e293b; border-color: #475569; color: #e2e8f0; }
+.time-picker-search input:focus { border-color: #0d9488; box-shadow: 0 0 0 2px rgba(13,148,136,0.1); }
+
+.time-picker-scroll {
+    overflow-y: auto; padding: 4px;
+    max-height: 260px;
+}
+.time-picker-scroll::-webkit-scrollbar { width: 4px; }
+.time-picker-scroll::-webkit-scrollbar-track { background: transparent; }
+.time-picker-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.dark .time-picker-scroll::-webkit-scrollbar-thumb { background: #475569; }
+
+.time-picker-group-label {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: #9ca3af;
+    position: sticky; top: 0; background: inherit;
+    z-index: 1;
+}
+.dark .time-picker-group-label { color: #64748b; }
+
+.time-picker-option {
+    padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.875rem;
+    border-radius: 0.5rem; color: #374151;
+    transition: all 0.1s ease;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.dark .time-picker-option { color: #e2e8f0; }
 .time-picker-option:hover { background: #f3f4f6; }
 .dark .time-picker-option:hover { background: #334155; }
-.time-picker-option.selected { background: #ccfbf1; color: #0f766e; font-weight: 600; }
+.time-picker-option.selected {
+    background: #ccfbf1; color: #0f766e; font-weight: 600;
+}
 .dark .time-picker-option.selected { background: #134e4a; color: #5eead4; }
+.time-picker-option .check { width: 14px; height: 14px; opacity: 0; }
+.time-picker-option.selected .check { opacity: 1; }
 </style>
 @endpush
 
@@ -158,13 +236,14 @@ $todayStr = now()->toDateString();
             $s = $row['user']; $si = $loop->index;
             $stats = $staffStats[$s->id] ?? ['days' => [], 'hours' => 0, 'count' => 0];
             $initials = substr($s->first_name,0,1).substr($s->last_name,0,1);
+            $staffNameJson = json_encode($s->first_name.' '.$s->last_name, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT);
           @endphp
           <button
             type="button"
             @click="toggleStaffSelection({{ $s->id }})"
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200"
             :class="selectedStaffIds.includes({{ $s->id }}) ? 'bg-brand-50 dark:bg-brand-900/20 ring-1 ring-brand-200 dark:ring-brand-800' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'"
-            x-show="staffMatchesFilter('{{ addslashes($s->first_name.' '.$s->last_name) }}')"
+            x-show="staffMatchesFilter({{ $staffNameJson }})"
           >
             <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm" style="background: {{ $colors[$si % 8] }};">{{ $initials }}</div>
             <div class="min-w-0 flex-1">
@@ -179,7 +258,7 @@ $todayStr = now()->toDateString();
                 @endif
               </div>
             </div>
-            <div x-show="selectedStaffIds.includes({{ $s->id }})" class="w-4 h-4 rounded-full bg-brand-500 flex items-center justify-center">
+            <div x-show="selectedStaffIds.includes({{ $s->id }})" class="w-4 h-4 rounded-full bg-brand-500 flex items-center justify-center" x-cloak>
               <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
             </div>
           </button>
@@ -210,10 +289,11 @@ $todayStr = now()->toDateString();
                   @php
                     $s = $row['user']; $si = $loop->index;
                     $initials = substr($s->first_name,0,1).substr($s->last_name,0,1);
+                    $staffNameJson = json_encode($s->first_name.' '.$s->last_name, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT);
                   @endphp
                   <tr
                     class="border-b border-gray-100 dark:border-slate-700 last:border-b-0"
-                    x-show="staffMatchesFilter('{{ addslashes($s->first_name.' '.$s->last_name) }}') && (selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))"
+                    x-show="staffMatchesFilter({{ $staffNameJson }}) && (selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))"
                   >
                     <td class="w-14 p-2 border-r border-gray-200 dark:border-slate-700 sticky left-0 bg-white dark:bg-slate-800 z-10 text-center align-middle">
                       <div class="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold text-white mx-auto shadow-sm" style="background: {{ $colors[$si % 8] }};" title="{{ $s->first_name }} {{ $s->last_name }}">{{ $initials }}</div>
@@ -313,8 +393,9 @@ $todayStr = now()->toDateString();
                 $s = $row['user']; $block = $row['block'];
                 $initials = substr($s->first_name,0,1).substr($s->last_name,0,1);
                 $isPast = $date < $todayStr;
+                $attendanceStatus = $row['attendance']?->status ?? null;
               @endphp
-              <div class="flex items-stretch border-b border-gray-100 dark:border-slate-700 last:border-b-0 {{ $isPast ? 'cell-past' : '' }}" x-show="staffMatchesFilter('{{ addslashes($s->first_name.' '.$s->last_name) }}') && (selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))">
+              <div class="flex items-stretch border-b border-gray-100 dark:border-slate-700 last:border-b-0 {{ $isPast ? 'cell-past' : '' }}" x-show="staffMatchesFilter(@json($s->first_name.' '.$s->last_name)) && (selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))">
                 <div class="w-52 shrink-0 flex items-center gap-3 px-4 py-4 bg-gray-50 dark:bg-slate-800/50 border-r border-gray-200 dark:border-slate-700">
                   <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm" style="background: {{ $colors[$loop->index % 8] }};">{{ $initials }}</div>
                   <div class="min-w-0">
@@ -330,12 +411,12 @@ $todayStr = now()->toDateString();
                       @if(!empty($block['reason']))
                         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $block['reason'] }}</div>
                       @endif
-                      @if(!empty($row['attendance']))
+                      @if($attendanceStatus)
                         <span class="inline-flex items-center mt-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide
-                          {{ $row['attendance']->status === 'present' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : '' }}
-                          {{ $row['attendance']->status === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : '' }}
-                          {{ $row['attendance']->status === 'absent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : '' }}
-                        ">{{ ucfirst($row['attendance']->status) }}</span>
+                          {{ $attendanceStatus === 'present' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : '' }}
+                          {{ $attendanceStatus === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : '' }}
+                          {{ $attendanceStatus === 'absent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : '' }}
+                        ">{{ ucfirst($attendanceStatus) }}</span>
                       @endif
                     </div>
                   @else
@@ -350,224 +431,460 @@ $todayStr = now()->toDateString();
     </main>
   </div>
 
-  {{-- BACKDROP for bottom sheet --}}
+  {{-- ═══════════════════════════════════════════════════════════════ --}}
+  {{-- CENTERED MODAL OVERLAY                                        --}}
+  {{-- ═══════════════════════════════════════════════════════════════ --}}
   <div
-    class="sheet-backdrop fixed inset-0 z-40 md:hidden"
+    class="modal-backdrop"
     :class="popover.open ? 'open' : ''"
     @click="closePopover()"
     x-show="popover.open"
-    x-transition:enter="transition-opacity ease-out duration-300"
+    x-transition:enter="transition ease-out duration-200"
     x-transition:enter-start="opacity-0"
     x-transition:enter-end="opacity-100"
-    x-transition:leave="transition-opacity ease-in duration-200"
+    x-transition:leave="transition ease-in duration-150"
     x-transition:leave-start="opacity-100"
     x-transition:leave-end="opacity-0"
-  ></div>
-
-  {{-- CONTEXT PANEL (Bottom Sheet) --}}
-  <div
-    class="fixed bottom-0 right-0 md:left-64 left-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.3)] z-50 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
-    :class="popover.open ? 'translate-y-0' : 'translate-y-full'"
-    x-show="true"
   >
-    <div class="max-w-5xl mx-auto px-6 py-5">
+    <div class="modal-panel" @click.stop>
+
       {{-- Single Edit --}}
-      <div x-show="popover.mode === 'edit'" x-cloak>
-        <div class="flex items-center justify-between mb-4">
-          <div class="text-sm font-bold text-gray-800 dark:text-white">
-            <span x-text="staffNameById(popover.data.userId)"></span>
-            <span class="text-gray-400 font-normal ml-2" x-text="popover.data.date ? new Date(popover.data.date + 'T00:00:00').toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'}) : ''"></span>
+      <div x-show="popover.mode === 'edit'" x-cloak class="flex flex-col h-full">
+        {{-- Header --}}
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700 shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white shrink-0" :style="'background: ' + staffColor(popover.data.userId)" x-text="staffInitials(popover.data.userId)"></div>
+            <div>
+              <h3 class="text-sm font-bold text-gray-900 dark:text-white" x-text="staffNameById(popover.data.userId)"></h3>
+              <p class="text-xs text-gray-400 dark:text-gray-500" x-text="popover.data.date ? new Date(popover.data.date + 'T00:00:00').toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'}) : ''"></p>
+            </div>
           </div>
-          <button @click="closePopover()" class="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 transition-colors">
+          <button @click="closePopover()" class="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
 
-        <div class="flex flex-wrap items-end gap-4">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Status</label>
-            <select x-model="popover.data.status" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 min-w-[140px] transition-shadow">
-              <option value="work">Working</option>
-              <option value="off">Day Off</option>
-              <option value="exception">Exception / Block</option>
-            </select>
+        {{-- Body --}}
+        <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+          {{-- Status Segmented Control --}}
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Status</label>
+            <div class="grid grid-cols-3 gap-2 p-1 bg-gray-100 dark:bg-slate-700 rounded-xl">
+              <button @click="popover.data.status = 'work'" :class="popover.data.status === 'work' ? 'bg-white dark:bg-slate-600 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'" class="py-2.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Working
+              </button>
+              <button @click="popover.data.status = 'off'" :class="popover.data.status === 'off' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'" class="py-2.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                Day off
+              </button>
+              <button @click="popover.data.status = 'exception'" :class="popover.data.status === 'exception' ? 'bg-white dark:bg-slate-600 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'" class="py-2.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Exception
+              </button>
+            </div>
           </div>
 
-          <template x-if="popover.data.status === 'work'">
-            <div class="flex items-end gap-3">
-              <div class="flex flex-col gap-1.5">
-                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Start</label>
-                <div class="time-picker-wrapper" @click.away="showStartPicker = false">
-                  <input type="text" readonly @click="showStartPicker = true" :value="popover.data.start" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
-                  <div x-show="showStartPicker" x-cloak class="time-picker-dropdown">
-                    <template x-for="t in timeOptions" :key="t">
-                      <div @click="popover.data.start = t; showStartPicker = false" class="time-picker-option" :class="t === popover.data.start ? 'selected' : ''" x-text="t"></div>
+          {{-- Working Hours --}}
+          <div x-show="popover.data.status === 'work'" x-transition class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Start time</label>
+              <div x-data="timePicker(popover.data, 'start')" class="time-picker-wrapper" @click.away="open = false">
+                <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                  <span x-text="formatTime(model.start, '9:00 AM')"></span>
+                  <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                  <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                  <div class="time-picker-scroll">
+                    <template x-if="groupedOptions.am.length">
+                      <div>
+                        <div class="time-picker-group-label">Morning</div>
+                        <template x-for="opt in groupedOptions.am" :key="opt.value">
+                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
+                            <span x-text="opt.label"></span>
+                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                          </div>
+                        </template>
+                      </div>
                     </template>
-                  </div>
-                </div>
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">End</label>
-                <div class="time-picker-wrapper" @click.away="showEndPicker = false">
-                  <input type="text" readonly @click="showEndPicker = true" :value="popover.data.end" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
-                  <div x-show="showEndPicker" x-cloak class="time-picker-dropdown">
-                    <template x-for="t in timeOptions" :key="t">
-                      <div @click="popover.data.end = t; showEndPicker = false" class="time-picker-option" :class="t === popover.data.end ? 'selected' : ''" x-text="t"></div>
+                    <template x-if="groupedOptions.pm.length">
+                      <div>
+                        <div class="time-picker-group-label">Afternoon / Evening</div>
+                        <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
+                            <span x-text="opt.label"></span>
+                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                          </div>
+                        </template>
+                      </div>
                     </template>
+                    <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
                   </div>
                 </div>
               </div>
             </div>
-          </template>
-
-          <template x-if="popover.data.status === 'exception'">
-            <div class="flex flex-wrap items-end gap-4">
-              <div class="flex flex-col gap-1.5">
-                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Type</label>
-                <select x-model="popover.data.exceptionType" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 min-w-[160px] transition-shadow">
-                  <option value="day_off">Day Off</option>
-                  <option value="holiday">Holiday</option>
-                  <option value="sick_leave">Sick Leave</option>
-                  <option value="urgent_leave">Urgent Leave</option>
-                  <option value="custom_hours">Custom Hours</option>
-                </select>
-              </div>
-              <template x-if="popover.data.exceptionType === 'custom_hours'">
-                <div class="flex items-end gap-3">
-                  <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Start</label>
-                    <div class="time-picker-wrapper" @click.away="showExStartPicker = false">
-                      <input type="text" readonly @click="showExStartPicker = true" :value="popover.data.start" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
-                      <div x-show="showExStartPicker" x-cloak class="time-picker-dropdown">
-                        <template x-for="t in timeOptions" :key="t">
-                          <div @click="popover.data.start = t; showExStartPicker = false" class="time-picker-option" :class="t === popover.data.start ? 'selected' : ''" x-text="t"></div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">End time</label>
+              <div x-data="timePicker(popover.data, 'end')" class="time-picker-wrapper" @click.away="open = false">
+                <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                  <span x-text="formatTime(model.end, '6:00 PM')"></span>
+                  <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                  <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                  <div class="time-picker-scroll">
+                    <template x-if="groupedOptions.am.length">
+                      <div>
+                        <div class="time-picker-group-label">Morning</div>
+                        <template x-for="opt in groupedOptions.am" :key="opt.value">
+                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
+                            <span x-text="opt.label"></span>
+                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                          </div>
                         </template>
                       </div>
-                    </div>
+                    </template>
+                    <template x-if="groupedOptions.pm.length">
+                      <div>
+                        <div class="time-picker-group-label">Afternoon / Evening</div>
+                        <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
+                            <span x-text="opt.label"></span>
+                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                    <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
                   </div>
-                  <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">End</label>
-                    <div class="time-picker-wrapper" @click.away="showExEndPicker = false">
-                      <input type="text" readonly @click="showExEndPicker = true" :value="popover.data.end" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
-                      <div x-show="showExEndPicker" x-cloak class="time-picker-dropdown">
-                        <template x-for="t in timeOptions" :key="t">
-                          <div @click="popover.data.end = t; showExEndPicker = false" class="time-picker-option" :class="t === popover.data.end ? 'selected' : ''" x-text="t"></div>
-                        </template>
-                      </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {{-- Exception Fields --}}
+          <div x-show="popover.data.status === 'exception'" x-transition class="space-y-3">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Exception type</label>
+              <select x-model="popover.data.exceptionType" class="w-full px-3 py-2.5 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
+                <option value="day_off">Day off</option>
+                <option value="holiday">Holiday</option>
+                <option value="sick_leave">Sick leave</option>
+                <option value="urgent_leave">Urgent leave</option>
+                <option value="custom_hours">Custom hours</option>
+              </select>
+            </div>
+
+            <div x-show="popover.data.exceptionType === 'custom_hours'" class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Start time</label>
+                <div x-data="timePicker(popover.data, 'start')" class="time-picker-wrapper" @click.away="open = false">
+                  <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                    <span x-text="formatTime(model.start, '9:00 AM')"></span>
+                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                  </button>
+                  <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                    <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                    <div class="time-picker-scroll">
+                      <template x-if="groupedOptions.am.length">
+                        <div>
+                          <div class="time-picker-group-label">Morning</div>
+                          <template x-for="opt in groupedOptions.am" :key="opt.value">
+                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
+                              <span x-text="opt.label"></span>
+                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <template x-if="groupedOptions.pm.length">
+                        <div>
+                          <div class="time-picker-group-label">Afternoon / Evening</div>
+                          <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
+                              <span x-text="opt.label"></span>
+                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
                     </div>
                   </div>
                 </div>
-              </template>
-              <div class="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Note</label>
-                <input type="text" x-model="popover.data.reason" placeholder="Optional reason…" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">End time</label>
+                <div x-data="timePicker(popover.data, 'end')" class="time-picker-wrapper" @click.away="open = false">
+                  <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                    <span x-text="formatTime(model.end, '6:00 PM')"></span>
+                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                  </button>
+                  <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                    <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                    <div class="time-picker-scroll">
+                      <template x-if="groupedOptions.am.length">
+                        <div>
+                          <div class="time-picker-group-label">Morning</div>
+                          <template x-for="opt in groupedOptions.am" :key="opt.value">
+                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
+                              <span x-text="opt.label"></span>
+                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <template x-if="groupedOptions.pm.length">
+                        <div>
+                          <div class="time-picker-group-label">Afternoon / Evening</div>
+                          <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
+                              <span x-text="opt.label"></span>
+                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </template>
 
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Note <span class="font-normal text-gray-300">(optional)</span></label>
+              <input type="text" x-model="popover.data.reason" placeholder="Add a reason or note…" class="w-full px-3 py-2.5 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
+            </div>
+          </div>
+        </div>
+
+        {{-- Footer --}}
+        <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-slate-700 shrink-0 bg-gray-50/50 dark:bg-slate-800/50">
+          <button x-show="popover.data.exceptionId" @click="removeException(popover.data.exceptionId)" class="px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            Remove
+          </button>
           <div class="flex items-center gap-2 ml-auto">
             <button @click="closePopover()" class="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancel</button>
-            <button @click="saveCell()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20">
+            <button @click="saveCell()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20 flex items-center gap-1.5">
               <span x-show="!saving">Save</span>
               <span x-show="saving">Saving…</span>
             </button>
-            <button x-show="popover.data.exceptionId" @click="removeException(popover.data.exceptionId)" class="px-4 py-2 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">Remove</button>
           </div>
         </div>
       </div>
 
       {{-- Bulk Edit --}}
-      <div x-show="popover.mode === 'bulk'" x-cloak>
-        <div class="flex items-center justify-between mb-4">
-          <div class="text-sm font-bold text-gray-800 dark:text-white"><span x-text="Object.keys(selectedCells).length"></span> schedules selected</div>
-          <button @click="closePopover()" class="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 transition-colors">
+      <div x-show="popover.mode === 'bulk'" x-cloak class="flex flex-col h-full">
+        {{-- Header --}}
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700 shrink-0">
+          <div>
+            <h3 class="text-sm font-bold text-gray-900 dark:text-white"><span x-text="Object.keys(selectedCells).length"></span> schedules selected</h3>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Apply changes to all selected cells</p>
+          </div>
+          <button @click="closePopover()" class="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
 
-        <div class="flex flex-wrap items-end gap-4">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Apply to selected</label>
-            <select x-model="popover.data.status" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 min-w-[160px] transition-shadow">
-              <option value="work">Set Working Hours</option>
-              <option value="off">Set Day Off</option>
-              <option value="exception">Add Exception</option>
-            </select>
+        {{-- Body --}}
+        <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+          {{-- Status --}}
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Apply to selected</label>
+            <div class="grid grid-cols-3 gap-2 p-1 bg-gray-100 dark:bg-slate-700 rounded-xl">
+              <button @click="popover.data.status = 'work'" :class="popover.data.status === 'work' ? 'bg-white dark:bg-slate-600 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'" class="py-2.5 text-xs font-semibold rounded-lg transition-all">Set working</button>
+              <button @click="popover.data.status = 'off'" :class="popover.data.status === 'off' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'" class="py-2.5 text-xs font-semibold rounded-lg transition-all">Set day off</button>
+              <button @click="popover.data.status = 'exception'" :class="popover.data.status === 'exception' ? 'bg-white dark:bg-slate-600 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'" class="py-2.5 text-xs font-semibold rounded-lg transition-all">Add exception</button>
+            </div>
           </div>
 
-          <template x-if="popover.data.status === 'work'">
-            <div class="flex items-end gap-3">
-              <div class="flex flex-col gap-1.5">
-                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Start</label>
-                <div class="time-picker-wrapper" @click.away="showBulkStartPicker = false">
-                  <input type="text" readonly @click="showBulkStartPicker = true" :value="popover.data.start" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
-                  <div x-show="showBulkStartPicker" x-cloak class="time-picker-dropdown">
-                    <template x-for="t in timeOptions" :key="t">
-                      <div @click="popover.data.start = t; showBulkStartPicker = false" class="time-picker-option" :class="t === popover.data.start ? 'selected' : ''" x-text="t"></div>
+          {{-- Working Hours --}}
+          <div x-show="popover.data.status === 'work'" x-transition class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Start time</label>
+              <div x-data="timePicker(popover.data, 'start')" class="time-picker-wrapper" @click.away="open = false">
+                <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                  <span x-text="formatTime(model.start, '9:00 AM')"></span>
+                  <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                  <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                  <div class="time-picker-scroll">
+                    <template x-if="groupedOptions.am.length">
+                      <div>
+                        <div class="time-picker-group-label">Morning</div>
+                        <template x-for="opt in groupedOptions.am" :key="opt.value">
+                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
+                            <span x-text="opt.label"></span>
+                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                          </div>
+                        </template>
+                      </div>
                     </template>
-                  </div>
-                </div>
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">End</label>
-                <div class="time-picker-wrapper" @click.away="showBulkEndPicker = false">
-                  <input type="text" readonly @click="showBulkEndPicker = true" :value="popover.data.end" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
-                  <div x-show="showBulkEndPicker" x-cloak class="time-picker-dropdown">
-                    <template x-for="t in timeOptions" :key="t">
-                      <div @click="popover.data.end = t; showBulkEndPicker = false" class="time-picker-option" :class="t === popover.data.end ? 'selected' : ''" x-text="t"></div>
+                    <template x-if="groupedOptions.pm.length">
+                      <div>
+                        <div class="time-picker-group-label">Afternoon / Evening</div>
+                        <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
+                            <span x-text="opt.label"></span>
+                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                          </div>
+                        </template>
+                      </div>
                     </template>
+                    <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
                   </div>
                 </div>
               </div>
             </div>
-          </template>
-
-          <template x-if="popover.data.status === 'exception'">
-            <div class="flex flex-wrap items-end gap-4">
-              <div class="flex flex-col gap-1.5">
-                <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Type</label>
-                <select x-model="popover.data.exceptionType" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 min-w-[160px] transition-shadow">
-                  <option value="day_off">Day Off</option>
-                  <option value="holiday">Holiday</option>
-                  <option value="custom_hours">Custom Hours</option>
-                </select>
-              </div>
-              <template x-if="popover.data.exceptionType === 'custom_hours'">
-                <div class="flex items-end gap-3">
-                  <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Start</label>
-                    <div class="time-picker-wrapper" @click.away="showBulkExStartPicker = false">
-                      <input type="text" readonly @click="showBulkExStartPicker = true" :value="popover.data.start" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
-                      <div x-show="showBulkExStartPicker" x-cloak class="time-picker-dropdown">
-                        <template x-for="t in timeOptions" :key="t">
-                          <div @click="popover.data.start = t; showBulkExStartPicker = false" class="time-picker-option" :class="t === popover.data.start ? 'selected' : ''" x-text="t"></div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">End time</label>
+              <div x-data="timePicker(popover.data, 'end')" class="time-picker-wrapper" @click.away="open = false">
+                <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                  <span x-text="formatTime(model.end, '6:00 PM')"></span>
+                  <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                  <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                  <div class="time-picker-scroll">
+                    <template x-if="groupedOptions.am.length">
+                      <div>
+                        <div class="time-picker-group-label">Morning</div>
+                        <template x-for="opt in groupedOptions.am" :key="opt.value">
+                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
+                            <span x-text="opt.label"></span>
+                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                          </div>
                         </template>
                       </div>
-                    </div>
+                    </template>
+                    <template x-if="groupedOptions.pm.length">
+                      <div>
+                        <div class="time-picker-group-label">Afternoon / Evening</div>
+                        <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
+                            <span x-text="opt.label"></span>
+                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                    <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
                   </div>
-                  <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400">End</label>
-                    <div class="time-picker-wrapper" @click.away="showBulkExEndPicker = false">
-                      <input type="text" readonly @click="showBulkEndPicker = true" :value="popover.data.end" class="py-2 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 w-[100px] cursor-pointer">
-                      <div x-show="showBulkExEndPicker" x-cloak class="time-picker-dropdown">
-                        <template x-for="t in timeOptions" :key="t">
-                          <div @click="popover.data.end = t; showBulkExEndPicker = false" class="time-picker-option" :class="t === popover.data.end ? 'selected' : ''" x-text="t"></div>
-                        </template>
-                      </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {{-- Exception Fields --}}
+          <div x-show="popover.data.status === 'exception'" x-transition class="space-y-3">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Exception type</label>
+              <select x-model="popover.data.exceptionType" class="w-full px-3 py-2.5 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
+                <option value="day_off">Day off</option>
+                <option value="holiday">Holiday</option>
+                <option value="sick_leave">Sick leave</option>
+                <option value="urgent_leave">Urgent leave</option>
+                <option value="custom_hours">Custom hours</option>
+              </select>
+            </div>
+
+            <div x-show="popover.data.exceptionType === 'custom_hours'" class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Start time</label>
+                <div x-data="timePicker(popover.data, 'start')" class="time-picker-wrapper" @click.away="open = false">
+                  <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                    <span x-text="formatTime(model.start, '9:00 AM')"></span>
+                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                  </button>
+                  <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                    <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                    <div class="time-picker-scroll">
+                      <template x-if="groupedOptions.am.length">
+                        <div>
+                          <div class="time-picker-group-label">Morning</div>
+                          <template x-for="opt in groupedOptions.am" :key="opt.value">
+                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
+                              <span x-text="opt.label"></span>
+                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <template x-if="groupedOptions.pm.length">
+                        <div>
+                          <div class="time-picker-group-label">Afternoon / Evening</div>
+                          <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
+                              <span x-text="opt.label"></span>
+                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
                     </div>
                   </div>
                 </div>
-              </template>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">End time</label>
+                <div x-data="timePicker(popover.data, 'end')" class="time-picker-wrapper" @click.away="open = false">
+                  <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
+                    <span x-text="formatTime(model.end, '6:00 PM')"></span>
+                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                  </button>
+                  <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
+                    <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
+                    <div class="time-picker-scroll">
+                      <template x-if="groupedOptions.am.length">
+                        <div>
+                          <div class="time-picker-group-label">Morning</div>
+                          <template x-for="opt in groupedOptions.am" :key="opt.value">
+                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
+                              <span x-text="opt.label"></span>
+                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <template x-if="groupedOptions.pm.length">
+                        <div>
+                          <div class="time-picker-group-label">Afternoon / Evening</div>
+                          <template x-for="opt in groupedOptions.pm" :key="opt.value">
+                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
+                              <span x-text="opt.label"></span>
+                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </template>
 
-          <div class="flex items-center gap-2 ml-auto">
-            <button @click="selectedCells = {}; closePopover();" class="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Clear Selection</button>
-            <button @click="saveBulk()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20">
-              <span x-show="!saving">Apply to <span x-text="Object.keys(selectedCells).length"></span></span>
-              <span x-show="saving">Applying…</span>
-            </button>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Note <span class="font-normal text-gray-300">(optional)</span></label>
+              <input type="text" x-model="popover.data.reason" placeholder="Add a reason or note…" class="w-full px-3 py-2.5 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
+            </div>
           </div>
+        </div>
+
+        {{-- Footer --}}
+        <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-slate-700 shrink-0 bg-gray-50/50 dark:bg-slate-800/50">
+          <button @click="selectedCells = {}; closePopover();" class="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Clear selection</button>
+          <button @click="saveBulk()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20 flex items-center gap-1.5">
+            <span x-show="!saving">Apply to <span x-text="Object.keys(selectedCells).length"></span></span>
+            <span x-show="saving">Applying…</span>
+          </button>
         </div>
       </div>
     </div>
@@ -589,6 +906,107 @@ $todayStr = now()->toDateString();
 
 @push('scripts')
 <script>
+/* ═══════════════════════════════════════════════════════════════
+   SHARED HELPERS — Extract these to a global app.js in production
+   to keep things DRY across views.
+   ═══════════════════════════════════════════════════════════════ */
+
+// ─── Redesigned 30-min interval time picker component ───
+function timePicker(model, property) {
+    return {
+        model: model,
+        property: property,
+        open: false,
+        search: '',
+        dropdownTop: 0,
+        dropdownLeft: 0,
+        dropdownWidth: 0,
+        timeOptions: (() => {
+            const opts = [];
+            for (let h = 0; h < 24; h++) {
+                for (let m = 0; m < 60; m += 30) {
+                    const val = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    const h12 = h % 12 || 12;
+                    opts.push({ value: val, label: `${h12}:${String(m).padStart(2,'0')} ${ampm}`, amPm: ampm });
+                }
+            }
+            return opts;
+        })(),
+        get filteredOptions() {
+            if (!this.search) return this.timeOptions;
+            const q = this.search.toLowerCase().replace(/\s/g, '');
+            return this.timeOptions.filter(o => 
+                o.label.toLowerCase().replace(/\s/g, '').includes(q) || 
+                o.value.includes(q)
+            );
+        },
+        get groupedOptions() {
+            const opts = this.filteredOptions;
+            return { am: opts.filter(o => o.amPm === 'AM'), pm: opts.filter(o => o.amPm === 'PM') };
+        },
+        toggle($el) {
+            this.open = !this.open;
+            this.search = '';
+            if (this.open) {
+                this.$nextTick(() => {
+                    const rect = $el.getBoundingClientRect();
+                    const dropdownHeight = 320;
+                    const dropdownWidth = 220; // comfortable fixed width
+
+                    // Vertical placement
+                    let top = rect.bottom + 6;
+                    if (top + dropdownHeight > window.innerHeight - 12) {
+                        top = rect.top - dropdownHeight - 6;
+                    }
+
+                    // Horizontal: center under trigger, but keep inside viewport
+                    let left = rect.left + (rect.width / 2) - (dropdownWidth / 2);
+                    if (left < 12) left = 12;
+                    if (left + dropdownWidth > window.innerWidth - 12) {
+                        left = window.innerWidth - dropdownWidth - 12;
+                    }
+
+                    this.dropdownTop = top;
+                    this.dropdownLeft = left;
+                    this.dropdownWidth = dropdownWidth;
+                });
+            }
+        },
+        select(t) { this.model[this.property] = t; this.open = false; },
+        close() { this.open = false; }
+    };
+}
+
+function formatTime(t, fallback = '') {
+    if (!t) return fallback;
+    const [h, m] = String(t).split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return fallback;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function toast(message, icon = 'success') {
+    if (typeof Swal === 'undefined') { alert(message); return; }
+    const isDark = document.documentElement.classList.contains('dark');
+    Swal.fire({
+        icon: icon,
+        title: icon === 'success' ? 'Success' : (icon === 'warning' ? 'Warning' : 'Error'),
+        text: message,
+        timer: icon === 'success' ? 3000 : 4000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#fff' : '#374151'
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SCHEDULES APP
+   ═══════════════════════════════════════════════════════════════ */
 function schedApp() {
   return {
     staffFilter: '',
@@ -597,23 +1015,7 @@ function schedApp() {
     selectedCells: {},
     lastSelected: null,
     saving: false,
-    showStartPicker: false,
-    showEndPicker: false,
-    showExStartPicker: false,
-    showExEndPicker: false,
-    showBulkStartPicker: false,
-    showBulkEndPicker: false,
-    showBulkExStartPicker: false,
-    showBulkExEndPicker: false,
-    timeOptions: (() => {
-      const opts = [];
-      for (let h = 0; h < 24; h++) {
-        for (let m = 0; m < 60; m += 30) {
-          opts.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
-        }
-      }
-      return opts;
-    })(),
+    todayStr: '{{ $todayStr }}', 
     popover: {
       open: false,
       mode: 'edit',
@@ -625,8 +1027,22 @@ function schedApp() {
       return [$u->id => $u->first_name . ' ' . $u->last_name];
     })),
 
+    staffColors: @json($timeline->mapWithKeys(function($row, $index) use ($colors) {
+      $u = $row['user'];
+      return [$u->id => $colors[$index % 8]];
+    })),
+
     staffNameById(id) {
       return this.staffNames[id] || 'Staff Member';
+    },
+
+    staffColor(id) {
+      return this.staffColors[id] || '#78716c';
+    },
+
+    staffInitials(id) {
+      const name = this.staffNames[id] || '';
+      return name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
     },
 
     staffMatchesFilter(name) {
@@ -643,7 +1059,8 @@ function schedApp() {
           }
           return;
         }
-        if ((e.key === 't' || e.key === 'T') && this.activeTemplate && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT' && document.activeElement.tagName !== 'TEXTAREA') {
+        if ((e.key === 't' || e.key === 'T') && this.activeTemplate && 
+            !['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)) {
           e.preventDefault();
           this.applyTemplateToSelected();
         }
@@ -660,9 +1077,8 @@ function schedApp() {
     },
 
     handleCellClick(e, userId, date, dow, start, end, type, exType, exId) {
-      const today = new Date().toISOString().split('T')[0];
-      if (date < today) {
-        return; // Silently ignore past clicks — master layout handles flash messages server-side
+      if (date < this.todayStr) {
+        return;
       }
 
       const key = `${userId}|${date}`;
@@ -679,7 +1095,7 @@ function schedApp() {
             const next = { ...this.selectedCells };
             for (let i = a; i <= b; i++) {
               const cellDate = keys[i].split('|')[1];
-              if (cellDate >= today) next[keys[i]] = true;
+              if (cellDate >= this.todayStr) next[keys[i]] = true;
             }
             this.selectedCells = next;
           }
@@ -714,10 +1130,6 @@ function schedApp() {
           exceptionId: exId
         }
       };
-      this.showStartPicker = false;
-      this.showEndPicker = false;
-      this.showExStartPicker = false;
-      this.showExEndPicker = false;
     },
 
     openBulkEdit() {
@@ -737,22 +1149,10 @@ function schedApp() {
           exceptionId: null
         }
       };
-      this.showBulkStartPicker = false;
-      this.showBulkEndPicker = false;
-      this.showBulkExStartPicker = false;
-      this.showBulkExEndPicker = false;
     },
 
     closePopover() { 
-      this.popover.open = false; 
-      this.showStartPicker = false;
-      this.showEndPicker = false;
-      this.showExStartPicker = false;
-      this.showExEndPicker = false;
-      this.showBulkStartPicker = false;
-      this.showBulkEndPicker = false;
-      this.showBulkExStartPicker = false;
-      this.showBulkExEndPicker = false;
+      this.popover.open = false;
     },
 
     buildPayload(d, userId, date) {
@@ -801,12 +1201,13 @@ function schedApp() {
       })
       .then(d => {
         if (d.success) {
+          toast(d.message || 'Schedule updated');
           setTimeout(() => location.reload(), 300);
         } else {
-          alert(d.message || 'Save failed');
+          toast(d.message || 'Save failed', 'error');
         }
       })
-      .catch(e => alert('Error: ' + e.message))
+      .catch(e => toast('Error: ' + e.message, 'error'))
       .finally(() => this.saving = false);
     },
 
@@ -836,26 +1237,27 @@ function schedApp() {
       })
       .then(d => {
         if (d.success) {
+          toast(d.message || 'Schedules updated');
           this.selectedCells = {};
           this.closePopover();
           setTimeout(() => location.reload(), 300);
         } else {
-          alert(d.message || 'Bulk save failed');
+          toast(d.message || 'Bulk save failed', 'error');
         }
       })
-      .catch(e => alert('Error: ' + e.message))
+      .catch(e => toast('Error: ' + e.message, 'error'))
       .finally(() => this.saving = false);
     },
 
     applyTemplateToAll() {
-      if (!this.activeTemplate) return alert('Select a template first');
+      if (!this.activeTemplate) return toast('Select a template first', 'error');
       const userIds = @json($staff->pluck('id'));
       this.applyTemplateToUsers(userIds);
     },
 
     applyTemplateToSelected() {
-      if (!this.activeTemplate) return alert('Select a template first');
-      if (this.selectedStaffIds.length === 0) return alert('Select at least one staff member from the sidebar');
+      if (!this.activeTemplate) return toast('Select a template first', 'error');
+      if (this.selectedStaffIds.length === 0) return toast('Select at least one staff member from the sidebar', 'error');
       this.applyTemplateToUsers(this.selectedStaffIds);
     },
 
@@ -872,7 +1274,7 @@ function schedApp() {
         body: JSON.stringify({ 
           template_id: parseInt(this.activeTemplate), 
           user_ids: userIds, 
-          week_start: '{{ $weekStart }}' 
+          week_start: '{{ $weekStart ?? now()->startOfWeek()->toDateString() }}'
         })
       })
       .then(async r => {
@@ -892,32 +1294,48 @@ function schedApp() {
         const failedCount = Object.keys(failed).length;
 
         if (applied && failedCount === 0) {
+          toast(d.message || 'Template applied successfully');
           setTimeout(() => location.reload(), 300);
         } else if (applied && failedCount > 0) {
           console.error('Template apply failures:', failed);
-          alert(`Applied to ${applied}, failed for ${failedCount}`);
+          toast(`Applied to ${applied}, failed for ${failedCount}`, 'warning');
         } else {
           const failMsg = failedCount > 0 
             ? 'Failed: ' + Object.entries(failed).map(([k,v]) => `${k}: ${v}`).join(', ')
             : (d.message || 'Unknown error');
-          alert(failMsg);
+          toast(failMsg, 'error');
         }
       })
       .catch(e => {
         console.error('Template apply error:', e);
-        alert('Error: ' + e.message);
+        toast('Error: ' + e.message, 'error');
       })
       .finally(() => this.saving = false);
     },
 
     removeException(id) {
       if (!confirm('Remove this block?')) return;
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = '{{ $exceptionRoute }}/' + id;
-      form.innerHTML = `<input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="_method" value="DELETE">`;
-      document.body.appendChild(form);
-      form.submit();
+      fetch('{{ $exceptionRoute }}/' + id, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRF-TOKEN': '{{ csrf_token() }}',
+          'Accept': 'application/json'
+        }
+      })
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.message || 'Delete failed');
+        return data;
+      })
+      .then(d => {
+        if (d.success) {
+          toast('Block removed');
+          setTimeout(() => location.reload(), 300);
+        } else {
+          toast(d.message || 'Delete failed', 'error');
+        }
+      })
+      .catch(e => toast('Error: ' + e.message, 'error'));
     }
   }
 }

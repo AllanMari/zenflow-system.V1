@@ -24,7 +24,6 @@ class ScheduleController extends Controller
 
         $view = $request->get('view', 'week');
 
-        // FIX: week_start is already the start of week from nav links; don't re-calculate it
         if ($request->has('week_start')) {
             $weekStart = Carbon::parse($request->get('week_start'));
             $date = $weekStart->copy();
@@ -122,6 +121,10 @@ class ScheduleController extends Controller
     {
         $this->authorizeScheduleEdit();
         $this->schedBulkUpdate($request);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Schedule updated']);
+        }
         return back()->with('success', 'Schedule updated');
     }
 
@@ -129,10 +132,13 @@ class ScheduleController extends Controller
     {
         $this->authorizeScheduleEdit();
         $this->schedQuickBlock($request);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Block added successfully']);
+        }
         return back()->with('success', 'Block added successfully');
     }
 
-    // FIX: Updated method signature to match new route /schedules/template/apply/{user}
     public function applyTemplate(Request $request, User $user)
     {
         $this->authorizeScheduleEdit();
@@ -147,10 +153,14 @@ class ScheduleController extends Controller
         return response()->json($results);
     }
 
-    public function deleteException(ScheduleException $exception)
+    public function deleteException(Request $request, ScheduleException $exception)
     {
         $this->authorizeScheduleEdit();
         $exception->delete();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Exception removed']);
+        }
         return back()->with('success', 'Exception removed');
     }
 
@@ -167,7 +177,6 @@ class ScheduleController extends Controller
 
     public function templates(Request $request)
     {
-        // FIX: Add authorization check
         $this->authorizeScheduleEdit();
 
         $user = auth()->user();
@@ -189,7 +198,6 @@ class ScheduleController extends Controller
         ]);
     }
 
-    // FIX: Added authorization to staffScheduleApi
     public function staffScheduleApi(Request $request, User $staff)
     {
         $user = auth()->user();
