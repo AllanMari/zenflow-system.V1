@@ -1,296 +1,1011 @@
 <!DOCTYPE html>
-<html lang="en" class="{{ session('dark_mode') === 'enabled' ? 'dark' : '' }}">
+<html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Member Login — Spa Alexandria</title>
+
+    <title>Login | Spa Alexandria</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
+
     <script>
-        if (localStorage.getItem('darkMode') === 'enabled') document.documentElement.classList.add('dark');
-        tailwind.config = { 
-            darkMode: 'class',
+        tailwind.config = {
             theme: {
                 extend: {
+                    fontFamily: {
+                        sans: [
+                            'Inter',
+                            'ui-sans-serif',
+                            'system-ui',
+                            'sans-serif'
+                        ],
+                    },
                     colors: {
-                        teal: {
-                            50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4',
-                            300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6',
-                            600: '#0d9488', 700: '#0f766e', 800: '#115e59',
-                            900: '#134e4a', 950: '#042f2e',
+                        brand: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            200: '#99f6e4',
+                            300: '#5eead4',
+                            400: '#2dd4bf',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            700: '#0f766e',
+                            800: '#115e59',
+                            900: '#134e4a',
                         }
                     }
                 }
             }
         }
     </script>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Montserrat:wght@300;400;500;600&display=swap');
-        body { font-family: 'Montserrat', sans-serif; }
-        .serif { font-family: 'Cormorant Garamond', serif; }
-
-        /* Page load fade */
-        @keyframes pageFadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        .page-fade {
-            animation: pageFadeIn 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        html,
+        body {
+            min-height: 100%;
         }
 
-        /* Gentle floating for decorative orbs */
-        @keyframes floatSlow {
-            0%, 100% { transform: translateY(0px) scale(1); }
-            50% { transform: translateY(-20px) scale(1.05); }
-        }
-        @keyframes floatSlowReverse {
-            0%, 100% { transform: translateY(0px) scale(1); }
-            50% { transform: translateY(15px) scale(0.95); }
-        }
-        .float-orb {
-            animation: floatSlow 8s ease-in-out infinite;
-        }
-        .float-orb-reverse {
-            animation: floatSlowReverse 10s ease-in-out infinite;
+        body {
+            font-family: Inter, ui-sans-serif, system-ui, sans-serif;
         }
 
-        /* Text reveal animation */
-        @keyframes textReveal {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .text-reveal {
-            opacity: 0;
-            animation: textReveal 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-        .text-reveal-delay-1 { animation-delay: 0.3s; }
-        .text-reveal-delay-2 { animation-delay: 0.6s; }
-        .text-reveal-delay-3 { animation-delay: 0.9s; }
-
-        /* Breathing pulse for icon */
-        @keyframes breathe {
-            0%, 100% { opacity: 0.3; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(1.05); }
-        }
-        .breathe {
-            animation: breathe 6s ease-in-out infinite;
+        /* Minimal entrance animation */
+        .soft-fade {
+            animation: softFade 0.5s ease-out both;
         }
 
-        /* Form element staggered entrance */
-        @keyframes slideUpFade {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .form-enter {
-            opacity: 0;
-            animation: slideUpFade 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-        .form-enter-d1 { animation-delay: 0.1s; }
-        .form-enter-d2 { animation-delay: 0.2s; }
-        .form-enter-d3 { animation-delay: 0.3s; }
-        .form-enter-d4 { animation-delay: 0.4s; }
-        .form-enter-d5 { animation-delay: 0.5s; }
-        .form-enter-d6 { animation-delay: 0.6s; }
-        .form-enter-d7 { animation-delay: 0.7s; }
+        @keyframes softFade {
+            from {
+                opacity: 0;
+            }
 
-        /* Input focus glow */
-        .input-spa {
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .input-spa:focus {
-            box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15), 0 4px 20px rgba(20, 184, 166, 0.1);
-            transform: translateY(-1px);
+            to {
+                opacity: 1;
+            }
         }
 
-        /* Button hover - gentle lift and glow */
-        .btn-spa {
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }
-        .btn-spa::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.1);
-            transform: translate(-50%, -50%);
-            transition: width 0.6s ease, height 0.6s ease;
-        }
-        .btn-spa:hover::before {
-            width: 300px;
-            height: 300px;
-        }
-        .btn-spa:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 40px rgba(20, 184, 166, 0.3);
-        }
-        .btn-spa:active {
-            transform: translateY(0);
+        @media (prefers-reduced-motion: reduce) {
+            .soft-fade {
+                animation: none;
+            }
         }
 
-        /* Error message slide down */
-        @keyframes errorSlide {
-            from { opacity: 0; transform: translateY(-10px); max-height: 0; }
-            to { opacity: 1; transform: translateY(0); max-height: 200px; }
-        }
-        .error-animate {
-            animation: errorSlide 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        /* Link hover underline animation */
-        .link-spa {
-            position: relative;
-        }
-        .link-spa::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 0;
-            width: 0;
-            height: 1px;
-            background: currentColor;
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .link-spa:hover::after {
-            width: 100%;
+        .image-overlay {
+            background:
+                linear-gradient(
+                    180deg,
+                    rgba(15, 23, 42, 0.04) 0%,
+                    rgba(15, 23, 42, 0.15) 45%,
+                    rgba(15, 23, 42, 0.45) 100%
+                );
         }
 
-        /* Password toggle icon spin */
-        .eye-toggle {
-            transition: transform 0.3s ease, color 0.3s ease;
-        }
-        .eye-toggle:hover {
-            transform: scale(1.1);
+        .image-side-fade {
+            background:
+                linear-gradient(
+                    90deg,
+                    rgba(255, 255, 255, 0) 0%,
+                    rgba(255, 255, 255, 0.03) 55%,
+                    rgba(248, 250, 252, 0.25) 100%
+                );
         }
 
-        /* Footer fade in */
-        @keyframes footerFade {
-            from { opacity: 0; }
-            to { opacity: 1; }
+        .form-scroll::-webkit-scrollbar {
+            width: 6px;
         }
-        .footer-animate {
-            opacity: 0;
-            animation: footerFade 1s ease 1s forwards;
+
+        .form-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .form-scroll::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.35);
+            border-radius: 999px;
         }
     </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 min-h-screen flex transition-colors duration-500 page-fade">
 
-    <!-- Left Panel -->
-    <div class="hidden lg:flex lg:w-5/12 xl:w-1/2 bg-teal-800 dark:bg-teal-950 sticky top-0 h-screen items-center justify-center p-20 overflow-hidden relative">
-        <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-white/10 rounded-full blur-3xl float-orb"></div>
-        <div class="absolute bottom-[-5%] right-[-5%] w-64 h-64 bg-teal-500/10 rounded-full blur-2xl float-orb-reverse"></div>
-        <div class="absolute top-[30%] right-[20%] w-32 h-32 bg-teal-400/5 rounded-full blur-2xl float-orb" style="animation-duration: 12s;"></div>
-        
-        <div class="relative z-10 text-center text-white">
-            <h1 class="text-6xl xl:text-7xl serif italic mb-6 leading-tight text-reveal text-reveal-delay-1">Welcome<br>Back</h1>
-            <p class="text-teal-200 tracking-[0.3em] uppercase text-xs font-light text-reveal text-reveal-delay-2">The Alexandria Experience</p>
-            
-            <div class="mt-12 breathe">
-                <svg class="w-20 h-20 mx-auto text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 6v12M6 12h12M8.5 8.5l7 7M15.5 8.5l-7 7"/>
-                </svg>
-            </div>
-        </div>
-    </div>
 
-    <!-- Right Panel -->
-    <div class="w-full lg:w-7/12 xl:w-1/2 flex items-center justify-center p-8 md:p-16 lg:p-24 bg-white dark:bg-gray-900 min-h-screen transition-colors duration-500">
-        <div class="max-w-md w-full">
-            
-            <header class="mb-10 form-enter form-enter-d1">
-                <h2 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">Member Login</h2>
-                <p class="text-gray-500 dark:text-gray-400 text-sm">Enter your credentials to access your sanctuary.</p>
-            </header>
+<body class="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 antialiased">
 
-            <!-- NEW (matches register view) -->
-            @if($errors->any())
-                <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 text-sm rounded-r-lg error-animate">
-                    <ul class="space-y-1">
-                        @foreach($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
+    <main class="min-h-screen lg:grid lg:h-screen lg:grid-cols-2 lg:overflow-hidden">
+
+        {{-- =====================================================
+             LEFT IMAGE SIDE
+        ====================================================== --}}
+
+        <section class="relative hidden h-screen overflow-hidden lg:block">
+
+            @php
+                $loginImage = null;
+
+                if (isset($hero) && !empty($hero->image)) {
+                    $loginImage = trim($hero->image);
+
+                    if (!preg_match('/^https?:\/\//i', $loginImage)) {
+                        $loginImage = preg_replace(
+                            '#^/?storage/#i',
+                            '',
+                            $loginImage
+                        );
+
+                        $loginImage = asset(
+                            'storage/' . ltrim($loginImage, '/')
+                        );
+                    }
+                }
+            @endphp
+
+
+            @if($loginImage)
+
+                <img
+                    src="{{ $loginImage }}"
+                    alt="Spa Alexandria"
+                    class="absolute inset-0 h-full w-full object-cover"
+                >
+
+                <div class="image-overlay absolute inset-0"></div>
+
+                <div class="image-side-fade absolute inset-0"></div>
+
+            @else
+
+                <div
+                    class="
+                        absolute
+                        inset-0
+                        bg-gradient-to-br
+                        from-teal-900
+                        via-teal-800
+                        to-slate-900
+                    "
+                ></div>
+
             @endif
 
-            <form action="{{ route('login') }}" method="POST" class="space-y-6">
-                @csrf
-                
-                <div class="form-enter form-enter-d2">
-                    <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Username</label>
-                    <input type="text" name="username" value="{{ old('username') }}"
-                        class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white input-spa"
-                        placeholder="e.g. allan_mari" required>
-                </div>
 
-                <div class="form-enter form-enter-d3">
-                    <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Password</label>
-                    <div class="relative">
-                        <input type="password" id="password" name="password" 
-                            class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 pr-10 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white input-spa"
-                            placeholder="••••••••" required>
-                        <button type="button" onclick="togglePassword()" class="absolute right-3 top-3.5 text-gray-400 hover:text-teal-600 transition eye-toggle">
-                            <svg id="eye-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                        </button>
+            {{-- Brand --}}
+            <div
+                class="
+                    absolute
+                    left-8
+                    top-8
+                    z-10
+                    xl:left-14
+                    xl:top-14
+                "
+            >
+
+                <a
+                    href="{{ route('landing') }}"
+                    class="soft-fade flex items-center gap-3"
+                >
+
+                    <div
+                        class="
+                            flex
+                            h-11
+                            w-11
+                            shrink-0
+                            items-center
+                            justify-center
+                            rounded-2xl
+                            bg-white/90
+                            text-brand-700
+                            shadow-lg
+                            shadow-black/10
+                            backdrop-blur
+                        "
+                    >
+                        <i
+                            data-lucide="sparkles"
+                            class="h-5 w-5"
+                        ></i>
                     </div>
-                </div>
 
-                <div class="flex items-center justify-between form-enter form-enter-d4">
-                    <label class="flex items-center cursor-pointer group">
-                        <input type="checkbox" name="remember" 
-                            class="w-4 h-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500 dark:bg-gray-800 dark:border-gray-600 transition-all duration-300 group-hover:scale-110">
-                        <span class="ml-2 text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300 group-hover:text-teal-600 dark:group-hover:text-teal-400">Remember me</span>
-                    </label>
-                </div>
 
-                <button type="submit" 
-                    class="w-full bg-teal-600 text-white py-3.5 rounded-lg hover:bg-teal-700 transition font-semibold shadow-lg shadow-teal-200 dark:shadow-none btn-spa form-enter form-enter-d5">
-                    Enter Sanctuary
-                </button>
-            </form>
+                    <div>
 
-            <footer class="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-4 footer-animate">
-                <div class="text-center sm:text-left">
-                    <p class="text-xs text-gray-500 dark:text-gray-500 uppercase tracking-wider mb-1">New to Alexandria?</p>
-                    <a href="{{ route('customer.register') }}" class="text-teal-600 dark:text-teal-400 font-semibold link-spa">
-                        Create an Account
-                    </a>
-                </div>
-                <a href="{{ route('landing') }}" class="text-sm text-gray-400 hover:text-teal-600 transition link-spa">
-                    &larr; Back to Home
+                        <div
+                            class="
+                                text-sm
+                                font-extrabold
+                                tracking-wide
+                                text-white
+                            "
+                        >
+                            Spa Alexandria
+                        </div>
+
+                        <div
+                            class="
+                                mt-0.5
+                                text-[11px]
+                                font-medium
+                                uppercase
+                                tracking-[0.16em]
+                                text-white/65
+                            "
+                        >
+                            Wellness & Care
+                        </div>
+
+                    </div>
+
                 </a>
-            </footer>
-        </div>
-    </div>
+
+            </div>
+
+
+
+            {{-- Main image text --}}
+            <div
+                class="
+                    soft-fade
+                    absolute
+                    left-8
+                    top-1/2
+                    z-10
+                    max-w-lg
+                    -translate-y-1/2
+                    xl:left-14
+                "
+            >
+
+                <h1
+                    class="
+                        max-w-xl
+                        text-4xl
+                        font-extrabold
+                        leading-[1.08]
+                        tracking-tight
+                        text-white
+                        xl:text-5xl
+                    "
+                >
+                    Welcome back.
+                </h1>
+
+
+                <p
+                    class="
+                        mt-5
+                        max-w-md
+                        text-sm
+                        leading-7
+                        text-white/75
+                        xl:text-base
+                    "
+                >
+                    Sign in to manage your Spa Alexandria appointments and continue your wellness journey.
+                </p>
+
+            </div>
+
+
+
+            {{-- Copyright --}}
+            <div
+                class="
+                    soft-fade
+                    absolute
+                    bottom-8
+                    left-8
+                    z-10
+                    text-xs
+                    font-medium
+                    text-white/50
+                    xl:left-14
+                "
+            >
+                © {{ date('Y') }} Spa Alexandria
+            </div>
+
+        </section>
+
+
+
+        {{-- =====================================================
+             RIGHT LOGIN SIDE
+        ====================================================== --}}
+
+        <section
+            class="
+                form-scroll
+                flex
+                min-h-screen
+                w-full
+                items-center
+                justify-center
+                px-4
+                py-8
+                sm:px-6
+                lg:h-screen
+                lg:overflow-y-auto
+                lg:px-12
+                xl:px-20
+            "
+        >
+
+            <div class="soft-fade w-full max-w-md">
+
+                {{-- Mobile brand --}}
+                <div class="mb-9 w-full lg:hidden">
+
+                    <a
+                        href="{{ route('landing') }}"
+                        class="
+                            flex
+                            w-full
+                            items-center
+                            gap-2.5
+                            sm:gap-3
+                        "
+                    >
+
+                        <div
+                            class="
+                                flex
+                                h-10
+                                w-10
+                                shrink-0
+                                items-center
+                                justify-center
+                                rounded-xl
+                                bg-brand-700
+                                text-white
+                                shadow-sm
+                            "
+                        >
+
+                            <i
+                                data-lucide="sparkles"
+                                class="h-5 w-5"
+                            ></i>
+
+                        </div>
+
+
+                        <div class="min-w-0 flex-1">
+
+                            <div
+                                class="
+                                    text-sm
+                                    font-extrabold
+                                    tracking-wide
+                                    leading-5
+                                    text-slate-900
+                                "
+                            >
+                                Spa Alexandria
+                            </div>
+
+
+                            <div
+                                class="
+                                    text-[9px]
+                                    font-medium
+                                    uppercase
+                                    leading-4
+                                    tracking-[0.10em]
+                                    text-slate-400
+                                    sm:text-[11px]
+                                    sm:tracking-[0.14em]
+                                "
+                            >
+                                Wellness & Care
+                            </div>
+
+                        </div>
+
+                    </a>
+
+                </div>
+
+
+
+                {{-- Login header --}}
+                <div class="mb-8">
+
+                    <div
+                        class="
+                            mb-3
+                            flex
+                            h-11
+                            w-11
+                            items-center
+                            justify-center
+                            rounded-2xl
+                            bg-brand-50
+                            text-brand-700
+                        "
+                    >
+
+                        <i
+                            data-lucide="user-round"
+                            class="h-5 w-5"
+                        ></i>
+
+                    </div>
+
+
+                    <p
+                        class="
+                            text-sm
+                            font-bold
+                            text-brand-700
+                        "
+                    >
+                        Welcome back
+                    </p>
+
+
+                    <h2
+                        class="
+                            mt-1.5
+                            text-3xl
+                            font-extrabold
+                            tracking-tight
+                            text-slate-900
+                        "
+                    >
+                        Sign in to your account
+                    </h2>
+
+
+                    <p
+                        class="
+                            mt-2
+                            text-sm
+                            leading-6
+                            text-slate-500
+                        "
+                    >
+                        Enter your username and password to continue.
+                    </p>
+
+                </div>
+
+
+
+                {{-- Flash error --}}
+                @if(session('error'))
+
+                    <div
+                        class="
+                            mb-6
+                            flex
+                            items-start
+                            gap-3
+                            rounded-2xl
+                            border
+                            border-red-200
+                            bg-red-50
+                            p-4
+                            text-sm
+                            text-red-700
+                        "
+                    >
+
+                        <i
+                            data-lucide="circle-alert"
+                            class="mt-0.5 h-5 w-5 shrink-0"
+                        ></i>
+
+                        <p class="leading-6">
+                            {{ session('error') }}
+                        </p>
+
+                    </div>
+
+                @endif
+
+
+
+                {{-- Validation --}}
+                @if($errors->any())
+
+                    <div
+                        class="
+                            mb-6
+                            rounded-2xl
+                            border
+                            border-red-200
+                            bg-red-50
+                            p-4
+                            text-sm
+                            text-red-700
+                        "
+                    >
+
+                        <div class="flex items-start gap-3">
+
+                            <i
+                                data-lucide="circle-alert"
+                                class="mt-0.5 h-5 w-5 shrink-0"
+                            ></i>
+
+
+                            <div class="space-y-1">
+
+                                @foreach($errors->all() as $error)
+
+                                    <p>
+                                        {{ $error }}
+                                    </p>
+
+                                @endforeach
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                @endif
+
+
+
+                {{-- Login form --}}
+                <form
+                    method="POST"
+                    action="{{ route('login') }}"
+                    class="space-y-5"
+                >
+
+                    @csrf
+
+
+                    {{-- Username --}}
+                    <div>
+
+                        <label
+                            for="username"
+                            class="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                            Username
+                        </label>
+
+
+                        <div class="relative">
+
+                            <div
+                                class="
+                                    pointer-events-none
+                                    absolute
+                                    inset-y-0
+                                    left-0
+                                    flex
+                                    items-center
+                                    pl-4
+                                    text-slate-400
+                                "
+                            >
+
+                                <i
+                                    data-lucide="user"
+                                    class="h-5 w-5"
+                                ></i>
+
+                            </div>
+
+
+                            <input
+                                id="username"
+                                name="username"
+                                type="text"
+                                value="{{ old('username') }}"
+                                autocomplete="username"
+                                required
+                                autofocus
+                                placeholder="Enter your username"
+                                class="
+                                    w-full
+                                    rounded-2xl
+                                    border
+                                    border-slate-200
+                                    bg-white
+                                    py-3.5
+                                    pl-12
+                                    pr-4
+                                    text-sm
+                                    text-slate-900
+                                    shadow-sm
+                                    outline-none
+                                    transition
+                                    placeholder:text-slate-400
+                                    hover:border-slate-300
+                                    focus:border-brand-500
+                                    focus:ring-4
+                                    focus:ring-brand-500/10
+                                "
+                            >
+
+                        </div>
+
+                    </div>
+
+
+
+                    {{-- Password --}}
+                    <div>
+
+                        <label
+                            for="password"
+                            class="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                            Password
+                        </label>
+
+
+                        <div class="relative">
+
+                            <div
+                                class="
+                                    pointer-events-none
+                                    absolute
+                                    inset-y-0
+                                    left-0
+                                    flex
+                                    items-center
+                                    pl-4
+                                    text-slate-400
+                                "
+                            >
+
+                                <i
+                                    data-lucide="lock-keyhole"
+                                    class="h-5 w-5"
+                                ></i>
+
+                            </div>
+
+
+                            <input
+                                id="password"
+                                name="password"
+                                type="password"
+                                autocomplete="current-password"
+                                required
+                                placeholder="Enter your password"
+                                class="
+                                    w-full
+                                    rounded-2xl
+                                    border
+                                    border-slate-200
+                                    bg-white
+                                    py-3.5
+                                    pl-12
+                                    pr-12
+                                    text-sm
+                                    text-slate-900
+                                    shadow-sm
+                                    outline-none
+                                    transition
+                                    placeholder:text-slate-400
+                                    hover:border-slate-300
+                                    focus:border-brand-500
+                                    focus:ring-4
+                                    focus:ring-brand-500/10
+                                "
+                            >
+
+
+                            <button
+                                id="togglePassword"
+                                type="button"
+                                class="
+                                    absolute
+                                    inset-y-0
+                                    right-0
+                                    flex
+                                    items-center
+                                    px-4
+                                    text-slate-400
+                                    transition
+                                    hover:text-slate-700
+                                "
+                                aria-label="Show password"
+                            >
+
+                                <i
+                                    data-lucide="eye"
+                                    class="h-5 w-5"
+                                ></i>
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+
+                    {{-- Remember --}}
+                    <div class="flex items-center">
+
+                        <label
+                            class="inline-flex cursor-pointer items-center gap-2.5"
+                        >
+
+                            <input
+                                type="checkbox"
+                                name="remember"
+                                value="1"
+                                class="
+                                    h-4
+                                    w-4
+                                    rounded
+                                    border-slate-300
+                                    text-brand-700
+                                    focus:ring-brand-500
+                                "
+                                {{ old('remember') ? 'checked' : '' }}
+                            >
+
+                            <span
+                                class="text-sm font-medium text-slate-600"
+                            >
+                                Remember me
+                            </span>
+
+                        </label>
+
+                    </div>
+
+
+
+                    {{-- Submit --}}
+                    <button
+                        type="submit"
+                        class="
+                            flex
+                            w-full
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-2xl
+                            bg-brand-700
+                            px-5
+                            py-3.5
+                            text-sm
+                            font-bold
+                            text-white
+                            shadow-sm
+                            shadow-brand-700/20
+                            transition
+                            hover:bg-brand-800
+                            focus:outline-none
+                            focus:ring-4
+                            focus:ring-brand-500/20
+                            active:scale-[0.99]
+                        "
+                    >
+
+                        Sign In
+
+                        <i
+                            data-lucide="arrow-right"
+                            class="h-4 w-4"
+                        ></i>
+
+                    </button>
+
+                </form>
+
+
+
+                {{-- Register --}}
+                <div
+                    class="
+                        mt-7
+                        border-t
+                        border-slate-200
+                        pt-6
+                        text-center
+                    "
+                >
+
+                    <p class="text-sm text-slate-500">
+
+                        Don't have an account?
+
+                        <a
+                            href="{{ route('customer.register') }}"
+                            class="
+                                ml-1
+                                font-bold
+                                text-brand-700
+                                transition
+                                hover:text-brand-800
+                            "
+                        >
+                            Register
+                        </a>
+
+                    </p>
+
+                </div>
+
+
+
+                {{-- Guest booking --}}
+                <div
+                    class="
+                        mt-5
+                        rounded-2xl
+                        border
+                        border-brand-100
+                        bg-brand-50/70
+                        p-4
+                    "
+                >
+
+                    <div class="flex items-start gap-3">
+
+                        <div
+                            class="
+                                flex
+                                h-9
+                                w-9
+                                shrink-0
+                                items-center
+                                justify-center
+                                rounded-xl
+                                bg-white
+                                text-brand-700
+                                shadow-sm
+                            "
+                        >
+
+                            <i
+                                data-lucide="calendar-plus"
+                                class="h-4 w-4"
+                            ></i>
+
+                        </div>
+
+
+                        <div class="min-w-0">
+
+                            <p
+                                class="text-sm font-bold text-slate-900"
+                            >
+                                Booking without an account?
+                            </p>
+
+
+                            <p
+                                class="mt-0.5 text-xs leading-5 text-slate-500"
+                            >
+                                You can book your appointment as a guest.
+                            </p>
+
+
+                            <a
+                                href="{{ route('booking.wizard') }}"
+                                class="
+                                    mt-2
+                                    inline-flex
+                                    items-center
+                                    gap-1.5
+                                    text-xs
+                                    font-bold
+                                    text-brand-700
+                                    transition
+                                    hover:text-brand-800
+                                "
+                            >
+
+                                Continue as guest
+
+                                <i
+                                    data-lucide="arrow-up-right"
+                                    class="h-3.5 w-3.5"
+                                ></i>
+
+                            </a>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+
+                {{-- Back --}}
+                <div class="mt-6 text-center">
+
+                    <a
+                        href="{{ route('landing') }}"
+                        class="
+                            inline-flex
+                            items-center
+                            gap-2
+                            text-xs
+                            font-semibold
+                            text-slate-400
+                            transition
+                            hover:text-slate-700
+                        "
+                    >
+
+                        <i
+                            data-lucide="arrow-left"
+                            class="h-3.5 w-3.5"
+                        ></i>
+
+                        Back to Spa Alexandria
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
 
     <script>
-        function togglePassword() {
-            const field = document.getElementById('password');
-            const icon = document.getElementById('eye-icon');
-            if (field.type === 'password') {
-                field.type = 'text';
-                icon.style.transform = 'scale(0.8)';
-                setTimeout(() => {
-                    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />';
-                    icon.style.transform = 'scale(1)';
-                }, 150);
-            } else {
-                field.type = 'password';
-                icon.style.transform = 'scale(0.8)';
-                setTimeout(() => {
-                    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />';
-                    icon.style.transform = 'scale(1)';
-                }, 150);
+        document.addEventListener('DOMContentLoaded', function () {
+
+            if (window.lucide) {
+                lucide.createIcons();
             }
-        }
+
+
+            const password =
+                document.getElementById('password');
+
+            const togglePassword =
+                document.getElementById('togglePassword');
+
+
+            if (password && togglePassword) {
+
+                togglePassword.addEventListener('click', function () {
+
+                    const shouldShow =
+                        password.type === 'password';
+
+
+                    password.type =
+                        shouldShow
+                            ? 'text'
+                            : 'password';
+
+
+                    togglePassword.setAttribute(
+                        'aria-label',
+                        shouldShow
+                            ? 'Hide password'
+                            : 'Show password'
+                    );
+
+
+                    togglePassword.innerHTML =
+                        shouldShow
+                            ? '<i data-lucide="eye-off" class="h-5 w-5"></i>'
+                            : '<i data-lucide="eye" class="h-5 w-5"></i>';
+
+
+                    if (window.lucide) {
+                        lucide.createIcons();
+                    }
+
+                });
+
+            }
+
+        });
     </script>
+
 </body>
 </html>

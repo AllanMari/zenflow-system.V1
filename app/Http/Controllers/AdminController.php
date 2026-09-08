@@ -181,26 +181,59 @@ class AdminController extends Controller
 
     public function update(Request $request, User $user)
     {
+        // Validate the administrator authorization password first.
         if (!Hash::check($request->input('admin_password'), auth()->user()->password)) {
-            return redirect()->back()->withInput()->with('edit_user_id', $user->id)
+            return redirect()->back()
+                ->withInput()
+                ->with('edit_user_id', $user->id)
                 ->with('error', 'Your admin password is incorrect. Update cancelled.');
         }
 
         $rules = [
-            'username' => ['required', 'string', 'max:255', 'unique:users,username,'.$user->id, 'regex:/^\S+$/u'],
+            'username' => [
+                'required',
+                'string',
+                'max:255',
+                'unique:users,username,' . $user->id,
+                'regex:/^\S+$/u',
+            ],
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'role' => 'required|in:admin,receptionist,staff,customer',
+            'admin_password' => 'required|string',
         ];
+
+        // Only require a new password when one was entered.
         if ($request->filled('password')) {
-            $rules['password'] = 'string|min:6|confirmed';
+            $rules['password'] = [
+                'string',
+                'confirmed',
+                \Illuminate\Validation\Rules\Password::min(8)
+                    ->mixedCase()
+                    ->numbers()
+                    ->symbols(),
+            ];
         }
 
-        $validated = $request->validate($rules, ['username.regex' => 'The username must not contain spaces.']);
+        try {
+            $validated = $request->validate($rules, [
+                'username.regex' => 'The username must not contain spaces.',
+                'password.confirmed' => 'The new password and confirmation password do not match.',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('edit_user_id', $user->id)
+                ->withErrors($e->validator);
+        }
+
         $role = Role::where('name', $validated['role'])->first();
+
         if (!$role) {
-            return redirect()->back()->withInput()->with('edit_user_id', $user->id)
-                ->with('error', 'Role ['.$validated['role'].'] not found.');
+            return redirect()->back()
+                ->withInput()
+                ->with('edit_user_id', $user->id)
+                ->with('error', 'Role [' . $validated['role'] . '] not found.');
         }
 
         try {
@@ -210,12 +243,16 @@ class AdminController extends Controller
                     'first_name' => $validated['first_name'],
                     'last_name' => $validated['last_name'],
                 ];
+
                 if ($request->filled('password')) {
                     $updateData['password'] = Hash::make($validated['password']);
                     $updateData['password_changed_at'] = now();
+
                     $user->increment('session_version');
                 }
+
                 $user->update($updateData);
+
                 $user->roles()->sync([$role->id]);
 
                 if ($role->name === 'customer') {
@@ -231,13 +268,26 @@ class AdminController extends Controller
                 }
             });
 
-            $this->logActivity('user_updated', $user, 'Role set to '.$role->name);
-            return redirect()->route('admin.users.index')
-                ->with('success', 'User '.$user->username.' updated to '.$role->name.'.');
+            $this->logActivity(
+                'user_updated',
+                $user,
+                'Role set to ' . $role->name
+            );
+
+            return redirect()
+                ->route('admin.users.index')
+                ->with(
+                    'success',
+                    'User ' . $user->username . ' updated to ' . $role->name . '.'
+                );
+
         } catch (\Exception $e) {
-            Log::error('User update failed: '.$e->getMessage());
-            return redirect()->back()->withInput()->with('edit_user_id', $user->id)
-                ->with('error', 'Update failed: '.$e->getMessage());
+            Log::error('User update failed: ' . $e->getMessage());
+
+            return redirect()->back()
+                ->withInput()
+                ->with('edit_user_id', $user->id)
+                ->with('error', 'Update failed: ' . $e->getMessage());
         }
     }
 
@@ -336,7 +386,14 @@ class AdminController extends Controller
             'discount_price' => 'nullable|numeric|min:0|lt:price',
             'description' => 'nullable|string',
             'landing_description' => 'nullable|string|max:500',
-            'image' => 'nullable|image|max:2048',
+
+            // Image upload
+            'image' => [
+                'nullable',
+                'image',
+                'max:2048',
+            ],
+
             'is_package' => 'boolean',
             'included_services' => 'nullable|array',
             'included_services.*' => 'exists:services,id',
@@ -353,20 +410,41 @@ class AdminController extends Controller
         $validated['show_on_landing'] = $request->boolean('show_on_landing', true);
         $validated['requires_room'] = $request->boolean('requires_room', true);
 
-        if (!$validated['requires_room']) $validated['room_category_id'] = null;
-        if (!$validated['is_package']) $validated['included_services'] = null;
+        if (!$validated['requires_room']) {
+            $validated['room_category_id'] = null;
+        }
+
+        if (!$validated['is_package']) {
+            $validated['included_services'] = null;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Store image as a relative Laravel storage path
+        |--------------------------------------------------------------------------
+        | Example:
+        | services/abc123.jpg
+        |--------------------------------------------------------------------------
+        */
         if ($request->hasFile('image')) {
-            $validated['image'] = '/storage/' . $request->file('image')->store('services', 'public');
+            $validated['image'] = $request->file('image')->store('services', 'public');
         }
 
         Service::create($validated);
-        return redirect()->route('admin.services.index')->with('success', 'Service created successfully.');
+
+        return redirect()
+            ->route('admin.services.index')
+            ->with('success', 'Service created successfully.');
     }
 
     public function servicesUpdate(Request $request, Service $service)
     {
+        // Handle simple active/inactive status toggle
         if ($request->has('is_active') && count($request->all()) <= 3) {
-            $service->update(['is_active' => $request->boolean('is_active')]);
+            $service->update([
+                'is_active' => $request->boolean('is_active')
+            ]);
+
             return back()->with('success', 'Status updated successfully.');
         }
 
@@ -382,7 +460,15 @@ class AdminController extends Controller
             'included_services.*' => 'exists:services,id',
             'is_active' => 'boolean',
             'landing_description' => 'nullable|string|max:500',
-            'image' => 'nullable|image|max:2048',
+
+            // Image upload
+            'image' => [
+                'nullable',
+                'image',
+                'max:2048',
+            ],
+
+            'remove_image' => 'boolean',
             'show_on_landing' => 'boolean',
             'deposit_percentage_min' => 'nullable|integer|min:0|max:100',
             'deposit_percentage_max' => 'nullable|integer|min:0|max:100|gte:deposit_percentage_min',
@@ -395,29 +481,120 @@ class AdminController extends Controller
         $validated['show_on_landing'] = $request->boolean('show_on_landing', true);
         $validated['requires_room'] = $request->boolean('requires_room', true);
 
-        if (!$validated['requires_room']) $validated['room_category_id'] = null;
-        if (!$validated['is_package']) $validated['included_services'] = null;
-        if (empty($validated['discount_price'])) $validated['discount_price'] = null;
-        unset($validated['discount_percent']);
+        if (!$validated['requires_room']) {
+            $validated['room_category_id'] = null;
+        }
 
-        // Consolidated image handling
-        if ($request->boolean('remove_image') && $service->image) {
-            $this->deleteServiceImage($service->image);
+        if (!$validated['is_package']) {
+            $validated['included_services'] = null;
+        }
+
+        if (empty($validated['discount_price'])) {
+            $validated['discount_price'] = null;
+        }
+
+        unset($validated['discount_percent']);
+        unset($validated['remove_image']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Image handling
+        |--------------------------------------------------------------------------
+        | New upload takes priority over removal.
+        |--------------------------------------------------------------------------
+        */
+        if ($request->hasFile('image')) {
+
+            // Delete existing image first
+            if ($service->image) {
+                $this->deleteServiceImage($service->image);
+            }
+
+            // Store only relative path
+            $validated['image'] = $request->file('image')->store('services', 'public');
+
+        } elseif ($request->boolean('remove_image')) {
+
+            if ($service->image) {
+                $this->deleteServiceImage($service->image);
+            }
+
             $validated['image'] = null;
-        } elseif ($request->hasFile('image')) {
-            if ($service->image) $this->deleteServiceImage($service->image);
-            $validated['image'] = '/storage/' . $request->file('image')->store('services', 'public');
         }
 
         $service->update($validated);
-        return redirect()->route('admin.services.index')->with('success', 'Service updated successfully.');
+
+        return redirect()
+            ->route('admin.services.index')
+            ->with('success', 'Service updated successfully.');
     }
 
     private function deleteServiceImage(?string $imagePath): void
     {
-        if (!$imagePath) return;
-        $path = str_replace(['/storage/', asset('storage/')], '', $imagePath);
-        Storage::disk('public')->delete($path);
+        if (!$imagePath) {
+            return;
+        }
+
+        $path = $this->normalizeStoragePath($imagePath);
+
+        if ($path) {
+            Storage::disk('public')->delete($path);
+        }
+    }
+
+    private function deleteStorageImage(?string $imagePath): void
+    {
+        if (!$imagePath) {
+            return;
+        }
+
+        $path = $this->normalizeStoragePath($imagePath);
+
+        if ($path) {
+            Storage::disk('public')->delete($path);
+        }
+    }
+
+    private function normalizeStoragePath(string $imagePath): ?string
+    {
+        $imagePath = trim($imagePath);
+
+        if ($imagePath === '') {
+            return null;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Full URL
+        | Example:
+        | http://localhost/storage/services/example.jpg
+        |--------------------------------------------------------------------------
+        */
+        if (filter_var($imagePath, FILTER_VALIDATE_URL)) {
+            $parsedPath = parse_url($imagePath, PHP_URL_PATH);
+
+            if (!$parsedPath) {
+                return null;
+            }
+
+            $imagePath = $parsedPath;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Remove /storage/ prefix
+        |--------------------------------------------------------------------------
+        */
+        $imagePath = preg_replace('#^/storage/#', '', $imagePath);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Remove any leading slash
+        |--------------------------------------------------------------------------
+        */
+        $imagePath = ltrim($imagePath, '/');
+
+        return $imagePath !== '' ? $imagePath : null;
     }
 
     public function servicesDestroy(Service $service)
@@ -541,74 +718,215 @@ class AdminController extends Controller
     public function landingEditor()
     {
         $this->authorizeLandingEditor();
+
+        $heroImage = LandingSetting::where('key', 'hero_image')->first()?->value;
+
         $heroSettings = [
-            'hero_title' => LandingSetting::where('key', 'hero_title')->first()?->value ?? 'Spa Alexandria',
-            'hero_subtitle' => LandingSetting::where('key', 'hero_subtitle')->first()?->value ?? '',
-            'hero_image' => LandingSetting::where('key', 'hero_image')->first()?->value ?? null,
+            'hero_title' => LandingSetting::where('key', 'hero_title')->first()?->value
+                ?? 'Spa Alexandria',
+
+            'hero_subtitle' => LandingSetting::where('key', 'hero_subtitle')->first()?->value
+                ?? '',
+
+            'hero_image' => $heroImage,
         ];
-        $categories = ServiceCategory::with(['services' => fn($q) => $q->orderBy('name')])->orderBy('name')->get();
-        $receptionists = User::whereHas('roles', fn($q) => $q->where('name', 'receptionist'))
-            ->get(['id', 'first_name', 'last_name', 'can_edit_landing']);
-        return view('shared.landing-editor', compact('heroSettings', 'categories', 'receptionists'));
+
+        $categories = ServiceCategory::with([
+            'services' => fn($q) => $q->orderBy('name')
+        ])
+            ->orderBy('name')
+            ->get();
+
+        $receptionists = User::whereHas(
+            'roles',
+            fn($q) => $q->where('name', 'receptionist')
+        )
+            ->get([
+                'id',
+                'first_name',
+                'last_name',
+                'can_edit_landing'
+            ]);
+
+        return view(
+            'shared.landing-editor',
+            compact(
+                'heroSettings',
+                'categories',
+                'receptionists'
+            )
+        );
     }
 
     public function landingUpdate(Request $request)
     {
         $this->authorizeLandingEditor();
+
         $validated = $request->validate([
             'hero_title' => 'required|string|max:255',
             'hero_subtitle' => 'nullable|string|max:500',
-            'hero_image' => 'nullable|image|max:2048',
+
+            'hero_image' => [
+                'nullable',
+                'image',
+                'max:2048',
+            ],
+
+            'remove_hero_image' => 'nullable|boolean',
+
+            'categories' => 'nullable|array',
+            'categories.*.show' => 'nullable|boolean',
+
+            'services' => 'nullable|array',
+            'services.*.show' => 'nullable|boolean',
+            'services.*.landing_description' => 'nullable|string|max:500',
+            'services.*.remove_image' => 'nullable|boolean',
+
+            // Validate every uploaded service image
+            'service_images' => 'nullable|array',
+            'service_images.*' => [
+                'nullable',
+                'image',
+                'max:2048',
+            ],
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | HERO IMAGE
+        |--------------------------------------------------------------------------
+        */
+        $heroSetting = LandingSetting::where('key', 'hero_image')->first();
+
+        // New image uploaded -> replace old image
         if ($request->hasFile('hero_image')) {
-            $old = LandingSetting::where('key', 'hero_image')->first();
-            if ($old && $old->value) {
-                $oldPath = str_replace(asset('storage/'), '', $old->value);
-                $oldPath = str_replace('/storage/', '', $oldPath);
-                Storage::disk('public')->delete($oldPath);
+
+            if ($heroSetting && $heroSetting->value) {
+                $this->deleteStorageImage($heroSetting->value);
             }
+
             $path = $request->file('hero_image')->store('landing', 'public');
-            LandingSetting::updateOrCreate(['key' => 'hero_image'], ['value' => asset('storage/' . $path)]);
+
+            LandingSetting::updateOrCreate(
+                ['key' => 'hero_image'],
+                ['value' => $path]
+            );
+
+        // No new image, but admin requested removal
+        } elseif ($request->boolean('remove_hero_image')) {
+
+            if ($heroSetting && $heroSetting->value) {
+                $this->deleteStorageImage($heroSetting->value);
+            }
+
+            LandingSetting::updateOrCreate(
+                ['key' => 'hero_image'],
+                ['value' => null]
+            );
         }
 
-        LandingSetting::updateOrCreate(['key' => 'hero_title'], ['value' => $validated['hero_title']]);
-        LandingSetting::updateOrCreate(['key' => 'hero_subtitle'], ['value' => $validated['hero_subtitle'] ?? '']);
+        /*
+        |--------------------------------------------------------------------------
+        | HERO TEXT
+        |--------------------------------------------------------------------------
+        */
+        LandingSetting::updateOrCreate(
+            ['key' => 'hero_title'],
+            ['value' => $validated['hero_title']]
+        );
 
+        LandingSetting::updateOrCreate(
+            ['key' => 'hero_subtitle'],
+            ['value' => $validated['hero_subtitle'] ?? '']
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | CATEGORY VISIBILITY
+        |--------------------------------------------------------------------------
+        */
         if ($request->has('categories')) {
-            foreach ($request->categories as $catId => $data) {
-                ServiceCategory::where('id', $catId)->update(['show_on_landing' => !empty($data['show'])]);
+
+            foreach ($request->input('categories', []) as $catId => $data) {
+
+                ServiceCategory::where('id', $catId)->update([
+                    'show_on_landing' => !empty($data['show']),
+                ]);
             }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | SERVICE SETTINGS
+        |--------------------------------------------------------------------------
+        */
         if ($request->has('services')) {
-            foreach ($request->services as $serviceId => $data) {
+
+            foreach ($request->input('services', []) as $serviceId => $data) {
+
                 $service = Service::find($serviceId);
-                if (!$service) continue;
+
+                if (!$service) {
+                    continue;
+                }
+
                 $update = [
                     'show_on_landing' => !empty($data['show']),
                     'landing_description' => $data['landing_description'] ?? null,
                 ];
+
+                /*
+                | Remove service image if requested.
+                | Actual replacement upload below takes priority.
+                */
                 if (!empty($data['remove_image']) && $service->image) {
+
                     $this->deleteServiceImage($service->image);
+
                     $update['image'] = null;
                 }
+
                 $service->update($update);
             }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | SERVICE IMAGE UPLOADS
+        |--------------------------------------------------------------------------
+        */
         if ($request->hasFile('service_images')) {
+
             foreach ($request->file('service_images') as $serviceId => $file) {
-                if (!$file || !$file->isValid()) continue;
+
+                if (!$file || !$file->isValid()) {
+                    continue;
+                }
+
                 $service = Service::find($serviceId);
-                if (!$service) continue;
-                if ($service->image) $this->deleteServiceImage($service->image);
+
+                if (!$service) {
+                    continue;
+                }
+
+                // Delete old image before replacement
+                if ($service->image) {
+                    $this->deleteServiceImage($service->image);
+                }
+
+                // Store only relative path
                 $path = $file->store('services', 'public');
-                $service->update(['image' => asset('storage/' . $path)]);
+
+                $service->update([
+                    'image' => $path,
+                ]);
             }
         }
 
-        return back()->with('success', 'Landing page updated successfully.');
+        return back()->with(
+            'success',
+            'Landing page updated successfully.'
+        );
     }
 
     public function toggleLandingPermission(User $user)

@@ -3,509 +3,1605 @@
 @section('title', 'User Management')
 
 @section('content')
-<div class="bg-white dark:bg-gray-800 dark:text-white rounded shadow p-6 transition-colors duration-300">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-teal-600">User Management</h1>
-        <button onclick="openModal()" class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 transition">+ Create New User</button>
-    </div>
 
-    {{-- Server-Side Search & Filter --}}
-    <form method="GET" action="{{ route('admin.users.index') }}" class="mb-4 flex flex-col sm:flex-row gap-2">
-        <input type="text" name="search" value="{{ request('search') }}" placeholder="Search username or name..." 
-            class="w-full sm:w-1/3 border rounded p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400">
-        
-        <select name="role" class="border rounded p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+@php
+$roleStyles = [
+'admin' => 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300',
+'receptionist' => 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
+'staff' => 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-300',
+'customer' => 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+];
+@endphp
+
+<div class="w-full">
+
+```
+{{-- Search and Filter --}}
+<div class="mb-5 rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-[#1e293b]">
+    <form
+        method="GET"
+        action="{{ route('admin.users.index') }}"
+        class="flex flex-col gap-3 p-4 sm:p-5 lg:flex-row lg:items-center"
+    >
+        {{-- Search --}}
+        <div class="relative min-w-0 flex-1">
+            <svg
+                class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.8"
+                    d="M21 21l-4.35-4.35m2.35-5.65a8 8 0 11-16 0 8 8 0 0116 0z"
+                />
+            </svg>
+
+            <input
+                type="text"
+                name="search"
+                value="{{ request('search') }}"
+                placeholder="Search username or name..."
+                autocomplete="off"
+                class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800/60 dark:text-white dark:placeholder-gray-500 dark:focus:border-brand-500"
+            >
+        </div>
+
+        {{-- Role --}}
+        <select
+            name="role"
+            class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800/60 dark:text-white lg:w-48"
+        >
             <option value="">All Roles</option>
+
             @foreach($roles as $role)
-                <option value="{{ $role->name }}" {{ request('role') == $role->name ? 'selected' : '' }}>
+                <option
+                    value="{{ $role->name }}"
+                    {{ request('role') == $role->name ? 'selected' : '' }}
+                >
                     {{ ucfirst($role->name) }}
                 </option>
             @endforeach
         </select>
 
-        <button type="submit" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition">Filter</button>
-        
-        @if(request()->hasAny(['search', 'role']))
-            <a href="{{ route('admin.users.index') }}" class="px-4 py-2 border rounded text-center hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 dark:text-white transition">Clear</a>
-        @endif
-    </form>
+        {{-- Filter --}}
+        <button
+            type="submit"
+            class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-[#1e293b] lg:w-auto"
+        >
+            <svg
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.8"
+                    d="M3 5h18M6 12h12m-9 7h6"
+                />
+            </svg>
+            Filter
+        </button>
 
-    {{-- Users Table --}}
+        {{-- Clear --}}
+        @if(request()->hasAny(['search', 'role']))
+            <a
+                href="{{ route('admin.users.index') }}"
+                class="inline-flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 lg:w-auto"
+            >
+                Clear
+            </a>
+        @endif
+
+        {{-- Create --}}
+        <button
+            type="button"
+            onclick="openModal('createModal', 'createUsername')"
+            class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 dark:focus:ring-offset-[#1e293b] lg:w-auto"
+        >
+            <svg
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 5v14M5 12h14"
+                />
+            </svg>
+            New User
+        </button>
+    </form>
+</div>
+
+{{-- =========================================================
+     DESKTOP / TABLET VIEW
+========================================================== --}}
+<div class="hidden overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-[#1e293b] md:block">
     <div class="overflow-x-auto">
-        <table class="w-full border-collapse">
-            <thead>
-                <tr class="bg-gray-50 dark:bg-gray-700">
-                    <th class="border dark:border-gray-600 p-3 text-left">ID</th>
-                    <th class="border dark:border-gray-600 p-3 text-left">Username</th>
-                    <th class="border dark:border-gray-600 p-3 text-left">Name</th>
-                    <th class="border dark:border-gray-600 p-3 text-left">Role</th>
-                    <th class="border dark:border-gray-600 p-3 text-left">Status</th>
-                    <th class="border dark:border-gray-600 p-3 text-left">Created At</th>
-                    <th class="border dark:border-gray-600 p-3 text-left">Actions</th>
+        <table class="min-w-[760px] w-full">
+            <thead class="bg-gray-50 dark:bg-gray-900/40">
+                <tr>
+                    <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                        User
+                    </th>
+                    <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                        Role
+                    </th>
+                    <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                        Status
+                    </th>
+                    <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                        Created
+                    </th>
+                    <th class="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                        Actions
+                    </th>
                 </tr>
             </thead>
-            <tbody>
+
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($users as $user)
-                @php
-                    $hasAppointments = \App\Models\Appointment::where('user_id', $user->id)->exists()
-                        || \App\Models\Appointment::where('created_by', $user->id)->exists()
-                        || ($user->customerProfile && \App\Models\Appointment::where('customer_id', $user->customerProfile->id)->exists());
-                @endphp
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 user-row transition-colors">
-                    <td class="border dark:border-gray-700 p-3">{{ $user->id }}</td>
-                    <td class="border dark:border-gray-700 p-3 font-medium">{{ $user->username }}</td>
-                    <td class="border dark:border-gray-700 p-3">{{ $user->first_name }} {{ $user->last_name }}</td>
-                    <td class="border dark:border-gray-700 p-3">
-                        @foreach($user->roles as $role)
-                            <span class="inline-block bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200 px-2 py-1 rounded text-xs font-bold uppercase mb-1">
-                                {{ $role->name }}
-                            </span>
-                        @endforeach
-                    </td>
-                    <td class="border dark:border-gray-700 p-3">
-                        @if($user->is_active)
-                            <span class="inline-block bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-xs font-bold uppercase">Active</span>
-                        @else
-                            <span class="inline-block bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded text-xs font-bold uppercase">Inactive</span>
-                        @endif
-                    </td>
-                    <td class="border dark:border-gray-700 p-3 text-sm">
-                        {{ $user->created_at->format('Y-m-d') }}
-                    </td>
-                    <td class="border dark:border-gray-700 p-3">
-                        <div class="flex gap-2 flex-wrap">
-                            <button onclick='openEditModal(@json($user->id), @json($user->username), @json($user->first_name), @json($user->last_name), @json($user->roles->pluck("name")->first() ?? ""))' 
-                                class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition text-sm">
-                                Edit
-                            </button>
-                            
+                    @php
+                        $hasAppointments =
+                            \App\Models\Appointment::where('user_id', $user->id)->exists()
+                            || \App\Models\Appointment::where('created_by', $user->id)->exists()
+                            || (
+                                $user->customerProfile &&
+                                \App\Models\Appointment::where('customer_id', $user->customerProfile->id)->exists()
+                            );
+
+                        $fullName = trim(
+                            ($user->first_name ?? '') . ' ' . ($user->last_name ?? '')
+                        );
+
+                        $initials = strtoupper(
+                            substr($user->first_name ?? '', 0, 1) .
+                            substr($user->last_name ?? '', 0, 1)
+                        );
+
+                        $primaryRole = $user->roles->pluck('name')->first() ?? '';
+
+                        $roleClass = $roleStyles[strtolower($primaryRole)]
+                            ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+                    @endphp
+
+                    <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
+
+                        {{-- User --}}
+                        <td class="px-5 py-4">
+                            <div class="flex min-w-0 items-center gap-3">
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
+                                    {{ $initials ?: '?' }}
+                                </div>
+
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                                        {{ $fullName ?: 'Unnamed User' }}
+                                    </p>
+
+                                    <p class="truncate text-xs text-gray-500 dark:text-gray-400">
+                                        {{ $user->username }}
+                                    </p>
+                                </div>
+                            </div>
+                        </td>
+
+                        {{-- Role --}}
+                        <td class="px-5 py-4">
+                            <div class="flex flex-wrap gap-1.5">
+                                @forelse($user->roles as $role)
+                                    @php
+                                        $currentRoleClass = $roleStyles[strtolower($role->name)]
+                                            ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+                                    @endphp
+
+                                    <span class="inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold capitalize {{ $currentRoleClass }}">
+                                        {{ $role->name }}
+                                    </span>
+                                @empty
+                                    <span class="text-xs text-gray-400">
+                                        No role
+                                    </span>
+                                @endforelse
+                            </div>
+                        </td>
+
+                        {{-- Status --}}
+                        <td class="px-5 py-4">
                             @if($user->is_active)
-                                {{-- ALL active users can be deactivated --}}
-                                <button onclick='confirmDeactivate(@json($user->id), @json($user->username))' 
-                                    class="bg-amber-500 text-white px-3 py-1 rounded hover:bg-amber-600 transition text-sm">
-                                    Deactivate
-                                </button>
-                                
-                                {{-- Only users with NO appointment history can be hard deleted --}}
-                                @if(!$hasAppointments)
-                                    <button onclick='confirmDelete(@json($user->id), @json($user->username))' 
-                                        class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition text-sm">
-                                        Delete
-                                    </button>
-                                @endif
+                                <span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 dark:bg-green-900/20 dark:text-green-300">
+                                    <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                                    Active
+                                </span>
                             @else
-                                {{-- Inactive users can be reactivated --}}
-                                <button onclick='confirmReactivate(@json($user->id), @json($user->username))' 
-                                    class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition text-sm">
-                                    Reactivate
-                                </button>
+                                <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                    <span class="h-1.5 w-1.5 rounded-full bg-gray-400"></span>
+                                    Inactive
+                                </span>
                             @endif
-                        </div>
-                    </td>
-                </tr>
+                        </td>
+
+                        {{-- Created --}}
+                        <td class="whitespace-nowrap px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                            {{ $user->created_at ? $user->created_at->format('M d, Y') : '—' }}
+                        </td>
+
+                        {{-- Actions --}}
+                        <td class="px-5 py-4">
+                            <div class="flex flex-wrap justify-end gap-2">
+
+                                <button
+                                    type="button"
+                                    onclick='openEditModal(
+                                        @json($user->id),
+                                        @json($user->username),
+                                        @json($user->first_name),
+                                        @json($user->last_name),
+                                        @json($primaryRole)
+                                    )'
+                                    class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-blue-900/20 dark:hover:text-blue-300"
+                                >
+                                    Edit
+                                </button>
+
+                                @if($user->is_active)
+
+                                    <button
+                                        type="button"
+                                        onclick='openConfirmModal("deactivate", @json($user->id), @json($user->username))'
+                                        class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300"
+                                    >
+                                        Deactivate
+                                    </button>
+
+                                    @if(!$hasAppointments)
+                                        <button
+                                            type="button"
+                                            onclick='openConfirmModal("delete", @json($user->id), @json($user->username))'
+                                            class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300"
+                                        >
+                                            Delete
+                                        </button>
+                                    @endif
+
+                                @else
+
+                                    <button
+                                        type="button"
+                                        onclick='openConfirmModal("reactivate", @json($user->id), @json($user->username))'
+                                        class="rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300"
+                                    >
+                                        Reactivate
+                                    </button>
+
+                                @endif
+                            </div>
+                        </td>
+                    </tr>
+
                 @empty
-                <tr>
-                    <td colspan="7" class="border dark:border-gray-700 p-6 text-center text-gray-500 dark:text-gray-400">
-                        No users found.
-                    </td>
-                </tr>
+
+                    <tr>
+                        <td colspan="5" class="px-5 py-16 text-center text-sm text-gray-500 dark:text-gray-400">
+                            No users found.
+                        </td>
+                    </tr>
+
                 @endforelse
             </tbody>
         </table>
     </div>
 
-    {{-- Pagination --}}
-    <div class="mt-4">
-        {{ $users->links() }}
-    </div>
+    @if($users->hasPages())
+        <div class="border-t border-gray-200 px-5 py-4 dark:border-gray-700">
+            {{ $users->links() }}
+        </div>
+    @endif
 </div>
 
-<!-- Create User Modal -->
-<div id="createModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-800 dark:text-white rounded-lg p-6 w-full max-w-md shadow-xl transition-colors max-h-[90vh] overflow-y-auto">
-        <h2 class="text-2xl font-bold mb-4">Create New User</h2>
-        
-        <form action="{{ route('admin.users.store') }}" method="POST">
-            @csrf
-            <input type="hidden" name="form_context" value="create">
+{{-- =========================================================
+     MOBILE VIEW
+========================================================== --}}
+<div class="space-y-3 md:hidden">
+
+    @forelse($users as $user)
+
+        @php
+            $hasAppointments =
+                \App\Models\Appointment::where('user_id', $user->id)->exists()
+                || \App\Models\Appointment::where('created_by', $user->id)->exists()
+                || (
+                    $user->customerProfile &&
+                    \App\Models\Appointment::where('customer_id', $user->customerProfile->id)->exists()
+                );
+
+            $fullName = trim(
+                ($user->first_name ?? '') . ' ' . ($user->last_name ?? '')
+            );
+
+            $initials = strtoupper(
+                substr($user->first_name ?? '', 0, 1) .
+                substr($user->last_name ?? '', 0, 1)
+            );
+
+            $primaryRole = $user->roles->pluck('name')->first() ?? '';
+
+            $roleClass = $roleStyles[strtolower($primaryRole)]
+                ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+        @endphp
+
+        <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-[#1e293b]">
+
+            <div class="flex items-start gap-3">
+
+                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
+                    {{ $initials ?: '?' }}
+                </div>
+
+                <div class="min-w-0 flex-1">
+
+                    <div class="flex items-start justify-between gap-2">
+
+                        <div class="min-w-0">
+                            <p class="truncate text-sm font-bold text-gray-900 dark:text-white">
+                                {{ $fullName ?: 'Unnamed User' }}
+                            </p>
+
+                            <p class="truncate text-xs text-gray-500 dark:text-gray-400">
+                                {{ $user->username }}
+                            </p>
+                        </div>
+
+                        @if($user->is_active)
+                            <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-green-50 px-2 py-1 text-[10px] font-semibold text-green-700 dark:bg-green-900/20 dark:text-green-300">
+                                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                                Active
+                            </span>
+                        @else
+                            <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                <span class="h-1.5 w-1.5 rounded-full bg-gray-400"></span>
+                                Inactive
+                            </span>
+                        @endif
+
+                    </div>
+
+                    <div class="mt-3 flex items-center justify-between gap-3">
+
+                        <div class="flex flex-wrap gap-1.5">
+                            @forelse($user->roles as $role)
+                                @php
+                                    $currentRoleClass = $roleStyles[strtolower($role->name)]
+                                        ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+                                @endphp
+
+                                <span class="inline-flex rounded-lg px-2 py-1 text-[10px] font-semibold capitalize {{ $currentRoleClass }}">
+                                    {{ $role->name }}
+                                </span>
+                            @empty
+                                <span class="text-[10px] text-gray-400">
+                                    No role
+                                </span>
+                            @endforelse
+                        </div>
+
+                        <span class="shrink-0 text-[10px] text-gray-400 dark:text-gray-500">
+                            {{ $user->created_at ? $user->created_at->format('M d, Y') : '—' }}
+                        </span>
+
+                    </div>
+                </div>
+            </div>
+
+            {{-- Mobile Actions --}}
+            <div class="mt-4 grid grid-cols-2 gap-2 border-t border-gray-100 pt-3 dark:border-gray-700">
+
+                <button
+                    type="button"
+                    onclick='openEditModal(
+                        @json($user->id),
+                        @json($user->username),
+                        @json($user->first_name),
+                        @json($user->last_name),
+                        @json($primaryRole)
+                    )'
+                    class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                    Edit
+                </button>
+
+                @if($user->is_active)
+
+                    <button
+                        type="button"
+                        onclick='openConfirmModal("deactivate", @json($user->id), @json($user->username))'
+                        class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300"
+                    >
+                        Deactivate
+                    </button>
+
+                    @if(!$hasAppointments)
+
+                        <button
+                            type="button"
+                            onclick='openConfirmModal("delete", @json($user->id), @json($user->username))'
+                            class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300"
+                        >
+                            Delete
+                        </button>
+
+                        <span></span>
+
+                    @endif
+
+                @else
+
+                    <button
+                        type="button"
+                        onclick='openConfirmModal("reactivate", @json($user->id), @json($user->username))'
+                        class="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700 transition hover:bg-green-100 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300"
+                    >
+                        Reactivate
+                    </button>
+
+                @endif
+            </div>
+        </div>
+
+    @empty
+
+        <div class="rounded-2xl border border-gray-200 bg-white px-5 py-12 text-center shadow-sm dark:border-gray-700 dark:bg-[#1e293b]">
+
+            <svg
+                class="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.7"
+                    d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"
+                />
+                <circle
+                    cx="9"
+                    cy="7"
+                    r="4"
+                    fill="none"
+                    stroke-width="1.7"
+                />
+            </svg>
+
+            <p class="mt-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                No users found.
+            </p>
+
+        </div>
+
+    @endforelse
+
+    @if($users->hasPages())
+        <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-[#1e293b]">
+            {{ $users->links() }}
+        </div>
+    @endif
+</div>
+```
+
+</div>
+
+{{-- =============================================================
+CREATE MODAL
+============================================================== --}}
+
+<div
+    id="createModal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+>
+    <div
+        class="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#1e293b]"
+        onclick="event.stopPropagation()"
+    >
+
+```
+    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700">
+
+        <div>
+            <h2 class="text-lg font-bold text-gray-900 dark:text-white">
+                Create New User
+            </h2>
+
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                Create an account and assign a role.
+            </p>
+        </div>
+
+        <button
+            type="button"
+            onclick="closeModal('createModal')"
+            class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+            aria-label="Close"
+        >
+            ✕
+        </button>
+
+    </div>
+
+    <form action="{{ route('admin.users.store') }}" method="POST">
+        @csrf
+
+        <input type="hidden" name="form_context" value="create">
+
+        <div class="max-h-[75vh] overflow-y-auto p-5">
 
             @if($errors->any() && old('form_context') === 'create')
-              <div class="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 p-3 mb-4 rounded">
-                <ul class="list-disc list-inside text-sm">
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                 </ul>
-              </div>
+                <div class="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+
+                    <p class="mb-2 font-semibold">
+                        Please correct the following:
+                    </p>
+
+                    <ul class="list-disc space-y-1 pl-5">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+
+                </div>
             @endif
 
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold dark:text-gray-200">Username</label>
-                <input type="text" name="username" value="{{ old('username') }}" class="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-                @error('username')
-                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                @enderror
-            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold dark:text-gray-200">First Name</label>
-                <input type="text" name="first_name" value="{{ old('first_name') }}" class="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-            </div>
+                {{-- Username --}}
+                <div class="sm:col-span-2">
 
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold dark:text-gray-200">Last Name</label>
-                <input type="text" name="last_name" value="{{ old('last_name') }}" class="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-            </div>
+                    <label
+                        for="createUsername"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Username
+                    </label>
 
-            <div class="mb-4 relative">
-                <label class="block mb-1 font-semibold dark:text-gray-200">Password</label>
-                <input type="password" name="password" id="createPassword" class="w-full border rounded p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-                <button type="button" onclick="togglePassword('createPassword', this)" class="absolute right-3 top-[2.35rem] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                </button>
-                @error('password')
-                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                @enderror
-            </div>
+                    <input
+                        type="text"
+                        name="username"
+                        id="createUsername"
+                        value="{{ old('username') }}"
+                        autocomplete="username"
+                        required
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
 
-            <div class="mb-4 relative">
-                <label class="block mb-1 font-semibold dark:text-gray-200">Confirm Password</label>
-                <input type="password" name="password_confirmation" id="createPasswordConfirm" class="w-full border rounded p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-                <button type="button" onclick="togglePassword('createPasswordConfirm', this)" class="absolute right-3 top-[2.35rem] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                </button>
-            </div>
+                    @error('username')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
 
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold dark:text-gray-200">Role</label>
-                <select name="role" class="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-                    <option value="">Select Role</option>
-                    <option value="admin" {{ old('role') == 'admin' ? 'selected' : '' }}>Admin</option>
-                    <option value="receptionist" {{ old('role') == 'receptionist' ? 'selected' : '' }}>Receptionist</option>
-                    <option value="staff" {{ old('role') == 'staff' ? 'selected' : '' }}>Staff</option>
-                    <option value="customer" {{ old('role') == 'customer' ? 'selected' : '' }}>Customer</option>
-                </select>
-                @error('role')
-                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                @enderror
-            </div>
+                </div>
 
-            <div class="flex justify-end gap-2">
-                <button type="button" onclick="closeModal()" class="px-4 py-2 border rounded transition-colors hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 dark:text-white">Cancel</button>
-                <button type="submit" class="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700">Create User</button>
-            </div>
-        </form>
-    </div>
-</div>
+                {{-- First Name --}}
+                <div>
 
-<!-- Delete Confirmation Modal (for users with NO appointment history) -->
-<div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-800 dark:text-white rounded-lg p-6 w-full max-w-sm text-center shadow-xl">
-        <h2 class="text-xl font-bold mb-2">Delete User?</h2>
-        <p class="text-gray-600 dark:text-gray-400 mb-4">Permanently delete <span id="deleteUsername" class="font-semibold"></span>?</p>
-        <p class="text-red-500 text-sm mb-4">This action cannot be undone. No appointment history exists.</p>
-        
-        <form id="deleteForm" action="{{ route('admin.users.destroy', 0) }}" method="POST" class="text-left">
-            @csrf
-            @method('DELETE')
-            
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold text-red-600 dark:text-red-400 text-sm">Admin Password Required</label>
-                <div class="relative">
-                    <input type="password" name="admin_password" id="deleteAdminPassword" class="w-full border rounded p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required placeholder="Enter your password">
-                    <button type="button" onclick="togglePassword('deleteAdminPassword', this)" class="absolute right-2 top-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 focus:outline-none">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                    </button>
+                    <label
+                        for="createFirstName"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        First Name
+                    </label>
+
+                    <input
+                        type="text"
+                        name="first_name"
+                        id="createFirstName"
+                        value="{{ old('first_name') }}"
+                        autocomplete="given-name"
+                        required
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+
+                    @error('first_name')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
+                {{-- Last Name --}}
+                <div>
+
+                    <label
+                        for="createLastName"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Last Name
+                    </label>
+
+                    <input
+                        type="text"
+                        name="last_name"
+                        id="createLastName"
+                        value="{{ old('last_name') }}"
+                        autocomplete="family-name"
+                        required
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+
+                    @error('last_name')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
+                {{-- Password --}}
+                <div>
+
+                    <label
+                        for="createPassword"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Password
+                    </label>
+
+                    <div class="relative">
+
+                        <input
+                            type="password"
+                            name="password"
+                            id="createPassword"
+                            autocomplete="new-password"
+                            required
+                            class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-3.5 pr-10 text-sm outline-none focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                        >
+
+                        <button
+                            type="button"
+                            onclick="togglePassword('createPassword', this)"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                            aria-label="Show password"
+                        >
+                            ◉
+                        </button>
+
+                    </div>
+
+                    <p class="mt-1.5 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+                        At least 8 characters with uppercase, lowercase, number, and symbol.
+                    </p>
+
+                    @error('password')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
+                {{-- Confirm Password --}}
+                <div>
+
+                    <label
+                        for="createPasswordConfirm"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Confirm Password
+                    </label>
+
+                    <div class="relative">
+
+                        <input
+                            type="password"
+                            name="password_confirmation"
+                            id="createPasswordConfirm"
+                            autocomplete="new-password"
+                            required
+                            class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-3.5 pr-10 text-sm outline-none focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                        >
+
+                        <button
+                            type="button"
+                            onclick="togglePassword('createPasswordConfirm', this)"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                            aria-label="Show password"
+                        >
+                            ◉
+                        </button>
+
+                    </div>
+
+                    @error('password_confirmation')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
+                {{-- Role --}}
+                <div class="sm:col-span-2">
+
+                    <label
+                        for="createRole"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Role
+                    </label>
+
+                    <select
+                        name="role"
+                        id="createRole"
+                        required
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+                        <option value="">Select Role</option>
+
+                        @foreach($roles as $role)
+                            <option
+                                value="{{ $role->name }}"
+                                {{ old('role') == $role->name ? 'selected' : '' }}
+                            >
+                                {{ ucfirst($role->name) }}
+                            </option>
+                        @endforeach
+                    </select>
+
+                    @error('role')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
                 </div>
             </div>
+        </div>
 
-            <div class="flex justify-center gap-2">
-                <button type="button" onclick="closeDeleteModal()" class="px-4 py-2 border rounded transition-colors hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 dark:text-white">Cancel</button>
-                <button type="submit" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Yes, Delete</button>
-            </div>
-        </form>
-    </div>
+        <div class="flex flex-col-reverse gap-2 border-t border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/30 sm:flex-row sm:justify-end">
+
+            <button
+                type="button"
+                onclick="closeModal('createModal')"
+                class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            >
+                Cancel
+            </button>
+
+            <button
+                type="submit"
+                class="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+                Create User
+            </button>
+
+        </div>
+    </form>
+</div>
+```
+
 </div>
 
-<!-- Deactivate Confirmation Modal (for ALL active users) -->
-<div id="deactivateModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-800 dark:text-white rounded-lg p-6 w-full max-w-sm text-center shadow-xl border-t-4 border-amber-500">
-        <h2 class="text-xl font-bold mb-2 text-amber-600">Deactivate User?</h2>
-        <p class="text-gray-600 dark:text-gray-400 mb-4">Deactivate <span id="deactivateUsername" class="font-semibold"></span>?</p>
-        <p class="text-amber-600 text-sm mb-4">They will no longer be able to log in. Appointment history is preserved.</p>
-        
-        <form id="deactivateForm" action="{{ route('admin.users.deactivate', 0) }}" method="POST" class="text-left">
-            @csrf
-            @method('PUT')
-            
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold text-amber-600 dark:text-amber-400 text-sm">Admin Password Required</label>
-                <div class="relative">
-                    <input type="password" name="admin_password" id="deactivateAdminPassword" class="w-full border rounded p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required placeholder="Enter your password">
-                    <button type="button" onclick="togglePassword('deactivateAdminPassword', this)" class="absolute right-2 top-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 focus:outline-none">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                    </button>
-                </div>
-            </div>
+{{-- =============================================================
+EDIT MODAL
+============================================================== --}}
 
-            <div class="flex justify-center gap-2">
-                <button type="button" onclick="closeDeactivateModal()" class="px-4 py-2 border rounded transition-colors hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 dark:text-white">Cancel</button>
-                <button type="submit" class="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600">Deactivate</button>
-            </div>
-        </form>
+<div
+    id="editModal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+>
+    <div
+        class="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#1e293b]"
+        onclick="event.stopPropagation()"
+    >
+
+```
+    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700">
+
+        <div>
+            <h2 class="text-lg font-bold text-gray-900 dark:text-white">
+                Edit User
+            </h2>
+
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                Update account information.
+            </p>
+        </div>
+
+        <button
+            type="button"
+            onclick="closeModal('editModal')"
+            class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+            aria-label="Close"
+        >
+            ✕
+        </button>
+
     </div>
-</div>
 
-<!-- Reactivate Confirmation Modal -->
-<div id="reactivateModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-800 dark:text-white rounded-lg p-6 w-full max-w-sm text-center shadow-xl border-t-4 border-green-500">
-        <h2 class="text-xl font-bold mb-2 text-green-600">Reactivate User?</h2>
-        <p class="text-gray-600 dark:text-gray-400 mb-4">Reactivate <span id="reactivateUsername" class="font-semibold"></span>?</p>
-        <p class="text-green-600 text-sm mb-4">They will be able to log in again. You must reassign their role manually.</p>
-        
-        <form id="reactivateForm" action="{{ route('admin.users.reactivate', 0) }}" method="POST" class="text-left">
-            @csrf
-            @method('PUT')
-            
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold text-green-600 dark:text-green-400 text-sm">Admin Password Required</label>
-                <div class="relative">
-                    <input type="password" name="admin_password" id="reactivateAdminPassword" class="w-full border rounded p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required placeholder="Enter your password">
-                    <button type="button" onclick="togglePassword('reactivateAdminPassword', this)" class="absolute right-2 top-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 focus:outline-none">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                    </button>
-                </div>
-            </div>
+    <form
+        id="editForm"
+        action="{{ route('admin.users.update', '__USER__') }}"
+        method="POST"
+    >
+        @csrf
+        @method('PUT')
 
-            <div class="flex justify-center gap-2">
-                <button type="button" onclick="closeReactivateModal()" class="px-4 py-2 border rounded transition-colors hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 dark:text-white">Cancel</button>
-                <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Reactivate</button>
-            </div>
-        </form>
-    </div>
-</div>
+        <input type="hidden" name="form_context" value="edit">
 
-<!-- Edit User Modal -->
-<div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-800 dark:text-white rounded-lg p-6 w-full max-w-md shadow-xl transition-colors max-h-[90vh] overflow-y-auto">
-        <h2 class="text-2xl font-bold mb-4">Edit User</h2>
-        
-        <form id="editForm" action="{{ route('admin.users.update', 0) }}" method="POST">
-            @csrf
-            @method('PUT')
-            <input type="hidden" name="form_context" value="edit">
+        <div class="max-h-[75vh] overflow-y-auto p-5">
 
             @if($errors->any() && old('form_context') === 'edit')
-              <div class="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 p-3 mb-4 rounded">
-                <ul class="list-disc list-inside text-sm">
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                 </ul>
-              </div>
+                <div class="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+
+                    <p class="mb-2 font-semibold">
+                        Please correct the following:
+                    </p>
+
+                    <ul class="list-disc space-y-1 pl-5">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+
+                </div>
             @endif
 
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold dark:text-gray-200">Username</label>
-                <input type="text" id="editUsername" name="username" class="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-                @error('username')
-                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                @enderror
-            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold dark:text-gray-200">First Name</label>
-                <input type="text" id="editFirstName" name="first_name" class="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-            </div>
+                {{-- Username --}}
+                <div class="sm:col-span-2">
 
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold dark:text-gray-200">Last Name</label>
-                <input type="text" id="editLastName" name="last_name" class="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-            </div>
+                    <label
+                        for="editUsername"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Username
+                    </label>
 
-            <div class="mb-4 relative">
-                <label class="block mb-1 font-semibold dark:text-gray-200">New Password <span class="text-xs font-normal text-gray-500">(leave blank to keep current)</span></label>
-                <input type="password" name="password" id="editPassword" class="w-full border rounded p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                <button type="button" onclick="togglePassword('editPassword', this)" class="absolute right-3 top-[2.35rem] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                </button>
-                @error('password')
-                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                @enderror
-            </div>
-            <div class="mb-4 relative">
-                <label class="block mb-1 font-semibold dark:text-gray-200">Confirm New Password</label>
-                <input type="password" name="password_confirmation" id="editPasswordConfirm" class="w-full border rounded p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                <button type="button" onclick="togglePassword('editPasswordConfirm', this)" class="absolute right-3 top-[2.35rem] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                </button>
-            </div>
+                    <input
+                        type="text"
+                        id="editUsername"
+                        name="username"
+                        autocomplete="username"
+                        required
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
 
-            <div class="mb-4">
-                <label class="block mb-1 font-semibold dark:text-gray-200">Role</label>
-                <select id="editRole" name="role" class="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-                    <option value="admin">Admin</option>
-                    <option value="receptionist">Receptionist</option>
-                    <option value="staff">Staff</option>
-                    <option value="customer">Customer</option>
-                </select>
-            </div>
+                    @error('username')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
 
-            <div class="mb-4 border-t dark:border-gray-600 pt-4 mt-2">
-                <label class="block mb-1 font-semibold text-red-600 dark:text-red-400 text-sm">Confirm Your Admin Password</label>
-                <div class="relative">
-                    <input type="password" name="admin_password" id="editAdminPassword" class="w-full border rounded p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required placeholder="Enter your password to authorize changes">
-                    <button type="button" onclick="togglePassword('editAdminPassword', this)" class="absolute right-2 top-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 focus:outline-none">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                    </button>
                 </div>
-            </div>
 
-            <div class="flex justify-end gap-2">
-                <button type="button" onclick="closeEditModal()" class="px-4 py-2 border rounded transition-colors hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 dark:text-white">Cancel</button>
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Update User</button>
+                {{-- First Name --}}
+                <div>
+
+                    <label
+                        for="editFirstName"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        First Name
+                    </label>
+
+                    <input
+                        type="text"
+                        id="editFirstName"
+                        name="first_name"
+                        autocomplete="given-name"
+                        required
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+
+                    @error('first_name')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
+                {{-- Last Name --}}
+                <div>
+
+                    <label
+                        for="editLastName"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Last Name
+                    </label>
+
+                    <input
+                        type="text"
+                        id="editLastName"
+                        name="last_name"
+                        autocomplete="family-name"
+                        required
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+
+                    @error('last_name')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
+                {{-- New Password --}}
+                <div>
+
+                    <label
+                        for="editPassword"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        New Password
+                    </label>
+
+                    <div class="relative">
+
+                        <input
+                            type="password"
+                            name="password"
+                            id="editPassword"
+                            autocomplete="new-password"
+                            class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-3.5 pr-10 text-sm outline-none focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                        >
+
+                        <button
+                            type="button"
+                            onclick="togglePassword('editPassword', this)"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                            aria-label="Show password"
+                        >
+                            ◉
+                        </button>
+
+                    </div>
+
+                    <p class="mt-1.5 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+                        Leave blank to keep the current password. New passwords must use 8+ characters, uppercase, lowercase, number, and symbol.
+                    </p>
+
+                    @error('password')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
+                {{-- Confirm New Password --}}
+                <div>
+
+                    <label
+                        for="editPasswordConfirm"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Confirm New Password
+                    </label>
+
+                    <div class="relative">
+
+                        <input
+                            type="password"
+                            name="password_confirmation"
+                            id="editPasswordConfirm"
+                            autocomplete="new-password"
+                            class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-3.5 pr-10 text-sm outline-none focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                        >
+
+                        <button
+                            type="button"
+                            onclick="togglePassword('editPasswordConfirm', this)"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                            aria-label="Show password"
+                        >
+                            ◉
+                        </button>
+
+                    </div>
+
+                    @error('password_confirmation')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
+                {{-- Role --}}
+                <div class="sm:col-span-2">
+
+                    <label
+                        for="editRole"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Role
+                    </label>
+
+                    <select
+                        id="editRole"
+                        name="role"
+                        required
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+                        @foreach($roles as $role)
+                            <option value="{{ $role->name }}">
+                                {{ ucfirst($role->name) }}
+                            </option>
+                        @endforeach
+                    </select>
+
+                    @error('role')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
+                {{-- Authorization --}}
+                <div class="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/40 dark:bg-red-900/10">
+
+                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">
+                        Authorization
+                    </p>
+
+                    <label
+                        for="editAdminPassword"
+                        class="mb-1.5 block text-sm font-semibold text-red-800 dark:text-red-300"
+                    >
+                        Confirm Your Admin Password
+                    </label>
+
+                    <input
+                        type="password"
+                        name="admin_password"
+                        id="editAdminPassword"
+                        autocomplete="current-password"
+                        required
+                        placeholder="Enter your password"
+                        class="w-full rounded-xl border border-red-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 dark:border-red-900/60 dark:bg-gray-800 dark:text-white"
+                    >
+
+                    @error('admin_password')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
             </div>
-        </form>
-    </div>
+        </div>
+
+        <div class="flex flex-col-reverse gap-2 border-t border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/30 sm:flex-row sm:justify-end">
+
+            <button
+                type="button"
+                onclick="closeModal('editModal')"
+                class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            >
+                Cancel
+            </button>
+
+            <button
+                type="submit"
+                class="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+                Update User
+            </button>
+
+        </div>
+    </form>
 </div>
+```
+
+</div>
+
+{{-- =============================================================
+SHARED CONFIRMATION MODAL
+============================================================== --}}
+
+<div
+    id="confirmModal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+>
+    <div
+        class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#1e293b]"
+        onclick="event.stopPropagation()"
+    >
+
+```
+    <div class="p-5 text-center sm:p-6">
+
+        <div
+            id="confirmIcon"
+            class="mx-auto flex h-12 w-12 items-center justify-center rounded-full"
+        >
+            <svg
+                class="h-6 w-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.8"
+                    d="M12 9v4m0 4h.01"
+                />
+            </svg>
+        </div>
+
+        <h2
+            id="confirmTitle"
+            class="mt-4 text-lg font-bold text-gray-900 dark:text-white"
+        >
+            Confirm Action
+        </h2>
+
+        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            <span id="confirmMessage"></span>
+            <span
+                id="confirmUsername"
+                class="font-semibold text-gray-900 dark:text-white"
+            ></span>?
+        </p>
+
+        <div
+            id="confirmDescription"
+            class="mt-4 rounded-xl border p-3 text-left text-xs"
+        ></div>
+    </div>
+
+    <form
+        id="confirmForm"
+        method="POST"
+        action=""
+        class="border-t border-gray-100 px-5 pb-5 pt-4 dark:border-gray-700 sm:px-6 sm:pb-6"
+    >
+        @csrf
+
+        <input
+            type="hidden"
+            id="confirmAdminPassword"
+            name="admin_password"
+        >
+
+        <div class="mb-4">
+
+            <label
+                for="confirmPasswordInput"
+                class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+            >
+                Confirm Your Admin Password
+            </label>
+
+            <div class="relative">
+
+                <input
+                    type="password"
+                    id="confirmPasswordInput"
+                    autocomplete="current-password"
+                    required
+                    placeholder="Enter your password"
+                    class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-3.5 pr-10 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                >
+
+                <button
+                    type="button"
+                    onclick="togglePassword('confirmPasswordInput', this)"
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                    aria-label="Show password"
+                >
+                    ◉
+                </button>
+
+            </div>
+        </div>
+
+        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+
+            <button
+                type="button"
+                onclick="closeModal('confirmModal')"
+                class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            >
+                Cancel
+            </button>
+
+            <button
+                id="confirmSubmit"
+                type="submit"
+                class="rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+            >
+                Confirm
+            </button>
+
+        </div>
+    </form>
+</div>
+```
+
+</div>
+
 @endsection
 
 @push('scripts')
+
 <script>
-    // ========== MODAL CONTROLS ==========
-    function openModal() {
-        document.getElementById('createModal').classList.remove('hidden');
-        document.getElementById('createModal').classList.add('flex');
+    const USER_MODAL_IDS = [
+        'createModal',
+        'editModal',
+        'confirmModal'
+    ];
+
+    function openModal(modalId, focusId) {
+        const modal = document.getElementById(modalId);
+
+        if (!modal) {
+            return;
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        document.body.classList.add('overflow-hidden');
+
+        if (focusId) {
+            setTimeout(function () {
+                const element = document.getElementById(focusId);
+
+                if (element) {
+                    element.focus();
+                }
+            }, 50);
+        }
     }
 
-    function closeModal() {
-        document.getElementById('createModal').classList.add('hidden');
-        document.getElementById('createModal').classList.remove('flex');
+    function closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+
+        if (!modal) {
+            return;
+        }
+
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+
+        modal.querySelectorAll('input[type="password"]').forEach(function (input) {
+            input.value = '';
+            input.type = 'password';
+        });
+
+        const anyOpen = USER_MODAL_IDS.some(function (id) {
+            const element = document.getElementById(id);
+
+            return element && element.classList.contains('flex');
+        });
+
+        if (!anyOpen) {
+            document.body.classList.remove('overflow-hidden');
+        }
     }
 
-    function confirmDelete(userId, username) {
-        document.getElementById('deleteUsername').textContent = username;
-        const form = document.getElementById('deleteForm');
+    function setUserAction(formId, userId) {
+        const form = document.getElementById(formId);
+
+        if (!form) {
+            return;
+        }
+
         if (!form.dataset.baseAction) {
             form.dataset.baseAction = form.action;
         }
-        form.action = form.dataset.baseAction.replace('/0', '/' + userId);
-        document.getElementById('deleteModal').classList.remove('hidden');
-        document.getElementById('deleteModal').classList.add('flex');
-    }
 
-    function closeDeleteModal() {
-        document.getElementById('deleteModal').classList.add('hidden');
-        document.getElementById('deleteModal').classList.remove('flex');
-    }
-
-    function confirmDeactivate(userId, username) {
-        document.getElementById('deactivateUsername').textContent = username;
-        const form = document.getElementById('deactivateForm');
-        if (!form.dataset.baseAction) {
-            form.dataset.baseAction = form.action;
-        }
-        form.action = form.dataset.baseAction.replace('/0', '/' + userId);
-        document.getElementById('deactivateModal').classList.remove('hidden');
-        document.getElementById('deactivateModal').classList.add('flex');
-    }
-
-    function closeDeactivateModal() {
-        document.getElementById('deactivateModal').classList.add('hidden');
-        document.getElementById('deactivateModal').classList.remove('flex');
-    }
-
-    function confirmReactivate(userId, username) {
-        document.getElementById('reactivateUsername').textContent = username;
-        const form = document.getElementById('reactivateForm');
-        if (!form.dataset.baseAction) {
-            form.dataset.baseAction = form.action;
-        }
-        form.action = form.dataset.baseAction.replace('/0', '/' + userId);
-        document.getElementById('reactivateModal').classList.remove('hidden');
-        document.getElementById('reactivateModal').classList.add('flex');
-    }
-
-    function closeReactivateModal() {
-        document.getElementById('reactivateModal').classList.add('hidden');
-        document.getElementById('reactivateModal').classList.remove('flex');
+        form.action = form.dataset.baseAction.replace(
+            '__USER__',
+            encodeURIComponent(userId)
+        );
     }
 
     function openEditModal(id, username, firstName, lastName, role) {
-        const form = document.getElementById('editForm');
-        if (!form.dataset.baseAction) {
-            form.dataset.baseAction = form.action;
+        setUserAction('editForm', id);
+
+        const usernameInput = document.getElementById('editUsername');
+        const firstNameInput = document.getElementById('editFirstName');
+        const lastNameInput = document.getElementById('editLastName');
+        const roleInput = document.getElementById('editRole');
+        const passwordInput = document.getElementById('editPassword');
+        const passwordConfirmInput = document.getElementById('editPasswordConfirm');
+        const adminPasswordInput = document.getElementById('editAdminPassword');
+
+        if (usernameInput) {
+            usernameInput.value = username || '';
         }
-        form.action = form.dataset.baseAction.replace('/0', '/' + id);
-        document.getElementById('editUsername').value = username;
-        document.getElementById('editFirstName').value = firstName;
-        document.getElementById('editLastName').value = lastName;
-        document.getElementById('editRole').value = role;
-        document.getElementById('editModal').classList.remove('hidden');
-        document.getElementById('editModal').classList.add('flex');
+
+        if (firstNameInput) {
+            firstNameInput.value = firstName || '';
+        }
+
+        if (lastNameInput) {
+            lastNameInput.value = lastName || '';
+        }
+
+        if (roleInput) {
+            roleInput.value = role || '';
+        }
+
+        if (passwordInput) {
+            passwordInput.value = '';
+            passwordInput.type = 'password';
+        }
+
+        if (passwordConfirmInput) {
+            passwordConfirmInput.value = '';
+            passwordConfirmInput.type = 'password';
+        }
+
+        if (adminPasswordInput) {
+            adminPasswordInput.value = '';
+            adminPasswordInput.type = 'password';
+        }
+
+        openModal('editModal', 'editUsername');
     }
 
-    function closeEditModal() {
-        document.getElementById('editModal').classList.add('hidden');
-        document.getElementById('editModal').classList.remove('flex');
+    function openConfirmModal(type, userId, username) {
+        const form = document.getElementById('confirmForm');
+        const title = document.getElementById('confirmTitle');
+        const message = document.getElementById('confirmMessage');
+        const description = document.getElementById('confirmDescription');
+        const usernameElement = document.getElementById('confirmUsername');
+        const icon = document.getElementById('confirmIcon');
+        const submit = document.getElementById('confirmSubmit');
+        const passwordInput = document.getElementById('confirmPasswordInput');
+        const hiddenPassword = document.getElementById('confirmAdminPassword');
+
+        if (
+            !form ||
+            !title ||
+            !message ||
+            !description ||
+            !usernameElement ||
+            !icon ||
+            !submit
+        ) {
+            return;
+        }
+
+        usernameElement.textContent = username || '';
+
+        const descriptions = {
+            delete: 'This action cannot be undone. The delete option is only available when the user has no appointment history.',
+            deactivate: 'The user will no longer be able to log in. Existing appointment history is preserved.',
+            reactivate: 'The user will be able to log in again after reactivation.'
+        };
+
+        if (type === 'delete') {
+
+            title.textContent = 'Delete User?';
+            message.textContent = 'Permanently delete ';
+            description.textContent = descriptions.delete;
+
+            icon.className =
+                'mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400';
+
+            description.className =
+                'mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-left text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300';
+
+            submit.className =
+                'rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700';
+
+            submit.textContent = 'Delete User';
+
+            form.action = '{{ route('admin.users.destroy', '__USER__') }}'
+                .replace('__USER__', encodeURIComponent(userId));
+
+            form.dataset.method = 'DELETE';
+
+        } else if (type === 'deactivate') {
+
+            title.textContent = 'Deactivate User?';
+            message.textContent = 'Deactivate ';
+            description.textContent = descriptions.deactivate;
+
+            icon.className =
+                'mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400';
+
+            description.className =
+                'mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs font-medium text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300';
+
+            submit.className =
+                'rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-600';
+
+            submit.textContent = 'Deactivate';
+
+            form.action = '{{ route('admin.users.deactivate', '__USER__') }}'
+                .replace('__USER__', encodeURIComponent(userId));
+
+            form.dataset.method = 'PUT';
+
+        } else {
+
+            title.textContent = 'Reactivate User?';
+            message.textContent = 'Reactivate ';
+            description.textContent = descriptions.reactivate;
+
+            icon.className =
+                'mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400';
+
+            description.className =
+                'mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-left text-xs font-medium text-green-700 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300';
+
+            submit.className =
+                'rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700';
+
+            submit.textContent = 'Reactivate';
+
+            form.action = '{{ route('admin.users.reactivate', '__USER__') }}'
+                .replace('__USER__', encodeURIComponent(userId));
+
+            form.dataset.method = 'PUT';
+        }
+
+        if (passwordInput) {
+            passwordInput.value = '';
+            passwordInput.type = 'password';
+        }
+
+        if (hiddenPassword) {
+            hiddenPassword.value = '';
+        }
+
+        const existingMethod = form.querySelector('input[name="_method"]');
+
+        if (existingMethod) {
+            existingMethod.remove();
+        }
+
+        const methodInput = document.createElement('input');
+
+        methodInput.type = 'hidden';
+        methodInput.name = '_method';
+        methodInput.value = form.dataset.method;
+
+        form.appendChild(methodInput);
+
+        openModal('confirmModal', 'confirmPasswordInput');
     }
 
-    // ========== PASSWORD EYE TOGGLE ==========
-    function togglePassword(inputId, btn) {
+    function togglePassword(inputId, button) {
         const input = document.getElementById(inputId);
-        const isHidden = input.type === 'password';
-        input.type = isHidden ? 'text' : 'password';
-        
-        const eyeOpen = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>';
-        const eyeClosed = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.05 10.05 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.05 10.05 0 01-3.925 4.472m-5.858-9.9l-3.29-3.29"/></svg>';
-        
-        btn.innerHTML = isHidden ? eyeClosed : eyeOpen;
+
+        if (!input) {
+            return;
+        }
+
+        const isPassword = input.type === 'password';
+
+        input.type = isPassword ? 'text' : 'password';
+
+        if (button) {
+            button.setAttribute(
+                'aria-label',
+                isPassword ? 'Hide password' : 'Show password'
+            );
+        }
     }
 
-    // ========== CLICK OUTSIDE TO CLOSE ==========
-    window.addEventListener('click', function(event) {
-        if (event.target === document.getElementById('createModal')) closeModal();
-        if (event.target === document.getElementById('deleteModal')) closeDeleteModal();
-        if (event.target === document.getElementById('deactivateModal')) closeDeactivateModal();
-        if (event.target === document.getElementById('reactivateModal')) closeReactivateModal();
-        if (event.target === document.getElementById('editModal')) closeEditModal();
-    });
+    const confirmForm = document.getElementById('confirmForm');
 
-    // ========== BULLETPROOF DOUBLE SUBMIT PREVENTION ==========
-    document.querySelectorAll('#createModal form, #editForm, #deleteForm, #deactivateForm, #reactivateForm').forEach(form => {
-        form.addEventListener('submit', function(e) {
-            if (this.dataset.submitting === 'true') {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return false;
+    if (confirmForm) {
+        confirmForm.addEventListener('submit', function (event) {
+
+            const passwordInput = document.getElementById('confirmPasswordInput');
+            const hiddenPassword = document.getElementById('confirmAdminPassword');
+
+            if (!passwordInput || !hiddenPassword) {
+                event.preventDefault();
+                return;
             }
+
+            hiddenPassword.value = passwordInput.value;
+        });
+    }
+
+    document.querySelectorAll(
+        '#createModal form, #editForm, #confirmForm'
+    ).forEach(function (form) {
+
+        form.addEventListener('submit', function (event) {
+
+            if (this.dataset.submitting === 'true') {
+                event.preventDefault();
+                return;
+            }
+
             this.dataset.submitting = 'true';
-            const buttons = this.querySelectorAll('button[type="submit"]');
-            buttons.forEach(btn => {
-                btn.disabled = true;
-                btn.innerHTML = '<span class="opacity-75">Processing...</span>';
+
+            this.querySelectorAll('button[type="submit"]').forEach(function (button) {
+                button.disabled = true;
+                button.textContent = 'Processing...';
             });
         });
     });
 
-    // ========== AUTO-OPEN MODALS ON VALIDATION/ERROR ==========
+    document.addEventListener('click', function (event) {
+
+        USER_MODAL_IDS.forEach(function (modalId) {
+
+            const modal = document.getElementById(modalId);
+
+            if (event.target === modal) {
+                closeModal(modalId);
+            }
+        });
+    });
+
+    document.addEventListener('keydown', function (event) {
+
+        if (event.key !== 'Escape') {
+            return;
+        }
+
+        USER_MODAL_IDS.forEach(function (modalId) {
+            closeModal(modalId);
+        });
+    });
+
     @if(old('form_context') === 'create')
-        openModal();
+        openModal('createModal', 'createUsername');
     @endif
 
-    @if(session('edit_user_id'))
+    @if(old('form_context') === 'edit' && session('edit_user_id'))
         @php
             $editUser = \App\Models\User::with('roles')->find(session('edit_user_id'));
         @endphp
+
         @if($editUser)
             openEditModal(
-                {{ $editUser->id }}, 
-                @json($editUser->username), 
-                @json($editUser->first_name), 
-                @json($editUser->last_name), 
+                @json($editUser->id),
+                @json($editUser->username),
+                @json($editUser->first_name),
+                @json($editUser->last_name),
+                @json($editUser->roles->first()->name ?? '')
+            );
+        @endif
+    @elseif(session('edit_user_id'))
+        @php
+            $editUser = \App\Models\User::with('roles')->find(session('edit_user_id'));
+        @endphp
+
+        @if($editUser)
+            openEditModal(
+                @json($editUser->id),
+                @json($editUser->username),
+                @json($editUser->first_name),
+                @json($editUser->last_name),
                 @json($editUser->roles->first()->name ?? '')
             );
         @endif
     @endif
 </script>
+
 @endpush

@@ -202,8 +202,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 // ==================== LANDING EDITOR (Admin + Authorized Receptionists) ====================
 Route::middleware(['auth'])->group(function () {
     Route::get('/landing-editor', [AdminController::class, 'landingEditor'])->name('admin.landing.editor');
-    Route::put('/landing-editor', [AdminController::class, 'landingUpdate'])->name('admin.landing.update');
-});
+    Route::post('/landing-editor', [AdminController::class, 'landingUpdate'])->name('admin.landing.update');});
 
 // ==================== ATTENDANCE ====================
 Route::middleware(['auth'])->group(function () {
