@@ -296,24 +296,88 @@ class AttendanceController extends Controller
     // ============================================================
     public function report(Request $request)
     {
-        $start = $request->date_from
-            ? Carbon::parse($request->date_from)->startOfWeek()
-            : now()->startOfWeek();
-        $end = $start->copy()->endOfWeek();
+        abort_unless(auth()->user()->roles->contains('name', 'admin'), 403);
 
-        $staff = User::whereHas('roles', fn ($q) => $q->where('name', 'staff'))
+        $startDate = $request->filled('start_date')
+            ? Carbon::parse($request->start_date)->startOfDay()
+            : now()->startOfWeek();
+        $endDate = $request->filled('end_date')
+            ? Carbon::parse($request->end_date)->endOfDay()
+            : $startDate->copy()->endOfWeek();
+
+        $allStaff = User::whereHas('roles', fn ($q) => $q->where('name', 'staff'))
+            ->where('is_active', true)
+            ->with('workSchedules')
+            ->orderBy('first_name')
+            ->get();
+
+        $staffId = $request->filled('staff_id') ? (int) $request->staff_id : null;
+
+        // ── Paginated attendance records (attendance-only statuses) ──
+        $attendances = Attendance::with(['user', 'marker'])
+            ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->when($staffId, fn ($q) => $q->where('user_id', $staffId))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
+            ->orderBy('date', 'desc')
+            ->orderBy('user_id')
+            ->paginate(20)
+            ->appends($request->query());
+
+        // ── Summary ──
+        $base = Attendance::whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->when($staffId, fn ($q) => $q->where('user_id', $staffId));
+
+        $present = (clone $base)->where('status', 'present')->count();
+        $late    = (clone $base)->where('status', 'late')->count();
+
+        $onLeave = ScheduleException::whereIn('type', self::LEAVE_TYPES)
+            ->whereBetween('exception_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->when($staffId, fn ($q) => $q->where('user_id', $staffId))
+            ->count();
+
+        // Absent = scheduled working day with no attendance record and no leave exception
+        $exceptions = ScheduleException::whereBetween('exception_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->when($staffId, fn ($q) => $q->where('user_id', $staffId))
+            ->get()
+            ->groupBy(fn ($e) => $e->user_id . '|' . $e->exception_date->toDateString());
+
+        $attendanceDates = Attendance::whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->when($staffId, fn ($q) => $q->where('user_id', $staffId))
+            ->pluck('date')
+            ->map(fn ($d) => Carbon::parse($d)->toDateString());
+
+        $absent = 0;
+        $rangeStaff = $staffId ? $allStaff->where('id', $staffId) : $allStaff;
+        foreach ($rangeStaff as $member) {
+            $scheduleMap = $member->workSchedules->keyBy('day_of_week');
+            for ($d = $startDate->copy(); $d->lte($endDate); $d->addDay()) {
+                $key = $member->id . '|' . $d->toDateString();
+                $exc = $exceptions->get($key)?->first();
+                if ($exc && in_array($exc->type, self::LEAVE_TYPES)) continue;           // on leave
+                $sched = $scheduleMap->get($d->dayOfWeek);
+                $working = ($exc && $exc->type === 'custom_hours' && $exc->start_time)
+                    || ($sched && !$sched->is_day_off && $sched->start_time);
+                if (!$working) continue;                                                  // not scheduled
+                if (!$attendanceDates->contains($d->toDateString())) $absent++;           // no punch at all
+            }
+        }
+
+        $summary = ['present' => $present, 'absent' => $absent, 'late' => $late, 'on_leave' => $onLeave];
+
+        $receptionists = User::whereHas('roles', fn ($q) => $q->where('name', 'receptionist'))
             ->where('is_active', true)
             ->orderBy('first_name')
             ->get();
 
-        $attendances = Attendance::whereBetween('date', [$start->toDateString(), $end->toDateString()])
-            ->with('user')
-            ->get()
-            ->groupBy('user_id');
-
-        return view('attendance.report', compact('staff', 'attendances', 'start', 'end'));
+        return view('admin.attendance-report', compact(
+            'attendances',
+            'allStaff',
+            'receptionists',
+            'summary',
+            'startDate',
+            'endDate'
+        ));
     }
-
     public function togglePermission(User $user)
     {
         if (!$user->roles()->where('name', 'receptionist')->exists()) {

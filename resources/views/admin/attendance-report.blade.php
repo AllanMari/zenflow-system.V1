@@ -13,7 +13,11 @@
                 </svg>
                 Attendance Report
             </h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Track staff attendance and authorize receptionists</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {{ $startDate->format('M j, Y') }} – {{ $endDate->format('M j, Y') }}
+                <span class="text-gray-300 dark:text-gray-600 mx-1">•</span>
+                Track staff attendance and authorize receptionists
+            </p>
         </div>
         <a href="{{ route('attendance.today') }}"
            class="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-medium transition-all duration-200 shadow-lg shadow-teal-200 dark:shadow-none text-sm flex items-center justify-center gap-2 active:scale-95">
@@ -28,9 +32,9 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         @php
             $cardConfig = [
-                'present' => ['label' => 'Present', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', 'color' => 'green'],
-                'absent' => ['label' => 'Absent', 'icon' => 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z', 'color' => 'red'],
-                'late' => ['label' => 'Late', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', 'color' => 'yellow'],
+                'present'  => ['label' => 'Present',  'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', 'color' => 'green'],
+                'absent'   => ['label' => 'Absent',   'icon' => 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z', 'color' => 'red'],
+                'late'     => ['label' => 'Late',     'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', 'color' => 'yellow'],
                 'on_leave' => ['label' => 'On Leave', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', 'color' => 'blue'],
             ];
         @endphp
@@ -52,7 +56,7 @@
     <!-- Filters -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
         <!-- Mobile Filter Toggle -->
-        <button type="button" 
+        <button type="button"
                 @click="mobileFilterOpen = !mobileFilterOpen"
                 class="md:hidden w-full px-4 py-3 flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
             <span class="flex items-center gap-2">
@@ -67,7 +71,7 @@
         </button>
 
         <!-- Filter Form -->
-        <form method="GET" 
+        <form method="GET"
               class="p-4 flex flex-wrap gap-3 items-end"
               :class="mobileFilterOpen ? '' : 'hidden md:flex'">
             <div class="w-full sm:w-auto flex-1 sm:flex-none min-w-[140px]">
@@ -97,10 +101,10 @@
                 <select name="status"
                         class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:ring-teal-500 focus:border-teal-500 py-2 px-3 shadow-sm">
                     <option value="">All Statuses</option>
-                    <option value="present" {{ request('status') === 'present' ? 'selected' : '' }}>✅ Present</option>
-                    <option value="absent" {{ request('status') === 'absent' ? 'selected' : '' }}>❌ Absent</option>
-                    <option value="late" {{ request('status') === 'late' ? 'selected' : '' }}>⏰ Late</option>
-                    <option value="on_leave" {{ request('status') === 'on_leave' ? 'selected' : '' }}>🏖️ On Leave</option>
+                    <option value="present" {{ request('status') === 'present' ? 'selected' : '' }}>Present</option>
+                    <option value="absent"  {{ request('status') === 'absent'  ? 'selected' : '' }}>Absent</option>
+                    <option value="late"    {{ request('status') === 'late'    ? 'selected' : '' }}>Late</option>
+                    <option value="on_leave" {{ request('status') === 'on_leave' ? 'selected' : '' }}>On Leave</option>
                 </select>
             </div>
             <button type="submit"
@@ -112,6 +116,16 @@
             </button>
         </form>
     </div>
+
+    @php
+        // Single source of truth for status badges, shared by desktop + mobile.
+        $statusConfig = [
+            'present'  => ['bg' => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',  'border' => 'border-green-200 dark:border-green-800',    'icon' => 'M5 13l4 4L19 7'],
+            'absent'   => ['bg' => 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',        'border' => 'border-red-200 dark:border-red-800',      'icon' => 'M6 18L18 6M6 6l12 12'],
+            'late'     => ['bg' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300', 'border' => 'border-yellow-200 dark:border-yellow-800', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+            'on_leave' => ['bg' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',    'border' => 'border-blue-200 dark:border-blue-800',    'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],
+        ];
+    @endphp
 
     <!-- Attendance Records -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
@@ -131,7 +145,8 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($attendances as $record)
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition group">
+                        @php $config = $statusConfig[$record->status] ?? ['bg' => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300', 'border' => 'border-gray-200 dark:border-gray-600', 'icon' => '']; @endphp
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
                             <td class="px-6 py-3.5 text-sm text-gray-900 dark:text-white whitespace-nowrap">
                                 <div class="flex items-center gap-2">
                                     <div class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
@@ -139,36 +154,27 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                         </svg>
                                     </div>
-                                    {{ $record->date->format('M j, Y') }}
+                                    {{ \Carbon\Carbon::parse($record->date)->format('M j, Y') }}
                                 </div>
                             </td>
                             <td class="px-6 py-3.5">
                                 <div class="flex items-center gap-2.5">
                                     <div class="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900/50 flex items-center justify-center text-teal-600 dark:text-teal-400 text-xs font-bold ring-2 ring-white dark:ring-gray-800">
-                                        {{ strtoupper(substr($record->user->first_name, 0, 1)) }}
+                                        {{ strtoupper(substr($record->user->first_name ?? '?', 0, 1)) }}
                                     </div>
                                     <span class="text-sm text-gray-900 dark:text-white font-medium">
-                                        {{ $record->user->first_name }} {{ $record->user->last_name }}
+                                        {{ $record->user->first_name ?? 'Unknown' }} {{ $record->user->last_name ?? '' }}
                                     </span>
                                 </div>
                             </td>
                             <td class="px-6 py-3.5">
-                                @php
-                                    $statusConfig = [
-                                        'present' => ['bg' => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', 'icon' => 'M5 13l4 4L19 7'],
-                                        'absent' => ['bg' => 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300', 'icon' => 'M6 18L18 6M6 6l12 12'],
-                                        'late' => ['bg' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
-                                        'on_leave' => ['bg' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],
-                                    ];
-                                    $config = $statusConfig[$record->status] ?? ['bg' => 'bg-gray-100 text-gray-800', 'icon' => ''];
-                                @endphp
                                 <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium {{ $config['bg'] }}">
                                     @if($config['icon'])
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $config['icon'] }}"/>
                                         </svg>
                                     @endif
-                                    {{ ucfirst($record->status) }}
+                                    {{ ucfirst(str_replace('_', ' ', $record->status)) }}
                                 </span>
                             </td>
                             <td class="px-6 py-3.5 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
@@ -180,7 +186,7 @@
                             <td class="px-6 py-3.5 text-sm text-gray-500 dark:text-gray-400">
                                 {{ $record->marker?->first_name ?? 'System' }}
                             </td>
-                            <td class="px-6 py-3.5 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                            <td class="px-6 py-3.5 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ $record->notes }}">
                                 {{ $record->notes ?? '-' }}
                             </td>
                         </tr>
@@ -194,7 +200,13 @@
                                         </svg>
                                     </div>
                                     <p class="text-gray-500 dark:text-gray-400 font-medium">No attendance records found</p>
-                                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Try adjusting your filters or date range</p>
+                                    @if(request('status') === 'absent')
+                                        <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Absences are not stored as records — they appear in the summary card only.</p>
+                                    @elseif(request('status') === 'on_leave')
+                                        <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Leave is tracked in schedule exceptions — it appears in the summary card only.</p>
+                                    @else
+                                        <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Try adjusting your filters or date range</p>
+                                    @endif
                                 </div>
                             </td>
                         </tr>
@@ -206,28 +218,20 @@
         <!-- MOBILE: Card View -->
         <div class="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
             @forelse($attendances as $record)
-                @php
-                    $statusConfig = [
-                        'present' => ['bg' => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', 'border' => 'border-green-200 dark:border-green-800'],
-                        'absent' => ['bg' => 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300', 'border' => 'border-red-200 dark:border-red-800'],
-                        'late' => ['bg' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300', 'border' => 'border-yellow-200 dark:border-yellow-800'],
-                        'on_leave' => ['bg' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', 'border' => 'border-blue-200 dark:border-blue-800'],
-                    ];
-                    $config = $statusConfig[$record->status] ?? ['bg' => 'bg-gray-100 text-gray-800', 'border' => 'border-gray-200'];
-                @endphp
+                @php $config = $statusConfig[$record->status] ?? ['bg' => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300', 'border' => 'border-gray-200 dark:border-gray-600']; @endphp
                 <div class="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/20 transition">
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex items-center gap-2.5">
                             <div class="w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-900/50 flex items-center justify-center text-teal-600 dark:text-teal-400 text-sm font-bold ring-2 ring-white dark:ring-gray-800">
-                                {{ strtoupper(substr($record->user->first_name, 0, 1)) }}
+                                {{ strtoupper(substr($record->user->first_name ?? '?', 0, 1)) }}
                             </div>
                             <div>
-                                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ $record->user->first_name }} {{ $record->user->last_name }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $record->date->format('M j, Y') }}</p>
+                                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ $record->user->first_name ?? 'Unknown' }} {{ $record->user->last_name ?? '' }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ \Carbon\Carbon::parse($record->date)->format('M j, Y') }}</p>
                             </div>
                         </div>
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ $config['bg'] }} border {{ $config['border'] }}">
-                            {{ ucfirst($record->status) }}
+                            {{ ucfirst(str_replace('_', ' ', $record->status)) }}
                         </span>
                     </div>
                     <div class="grid grid-cols-3 gap-2 text-xs">
@@ -264,9 +268,11 @@
         </div>
 
         <!-- Pagination -->
-        <div class="px-4 sm:px-6 py-4 border-t border-gray-100 dark:border-gray-700">
-            {{ $attendances->links() }}
-        </div>
+        @if($attendances instanceof \Illuminate\Pagination\LengthAwarePaginator && $attendances->hasPages())
+            <div class="px-4 sm:px-6 py-4 border-t border-gray-100 dark:border-gray-700">
+                {{ $attendances->links() }}
+            </div>
+        @endif
     </div>
 
     <!-- Receptionist Permissions Section -->

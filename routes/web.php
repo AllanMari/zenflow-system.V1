@@ -172,6 +172,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/schedules', [ScheduleController::class, 'index'])->name('admin.schedules');
     Route::get('/shift-templates', [ScheduleController::class, 'templates'])->name('admin.shift-templates.index');
     Route::get('/api/staff/{staff}/schedule', [ScheduleController::class, 'staffScheduleApi'])->name('admin.api.staff.schedule');
+
+    Route::get('/attendance', [AttendanceController::class, 'report'])->name('attendance.report');
 });
 
 // ─── Admin Schedule Edit Routes ───
@@ -206,7 +208,6 @@ Route::middleware(['auth'])->group(function () {
 // ==================== ATTENDANCE ====================
 Route::middleware(['auth'])->group(function () {
     Route::get('/attendance/today', [AttendanceController::class, 'today'])->name('attendance.today');
-    Route::get('/admin/attendance', [AttendanceController::class, 'report'])->name('attendance.report');
     Route::patch('/admin/attendance/toggle-permission/{user}', [AttendanceController::class, 'togglePermission'])->name('attendance.toggle-permission');
 
     Route::post('/api/attendance/quick-checkin/{staff}', [AttendanceController::class, 'quickCheckIn'])->name('attendance.quick-checkin');
