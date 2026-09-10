@@ -1039,4 +1039,72 @@ class AdminController extends Controller
 
         return view('admin.appointments', compact('appointments', 'stats', 'staffList'));
     }
+
+    private function authorizeRoomTracking(): void
+    {
+        $user = auth()->user();
+
+        if ($user->roles->contains('name', 'admin')) {
+            return;
+        }
+
+        if (
+            $user->roles->contains('name', 'receptionist') &&
+            $user->can_view_room_tracking
+        ) {
+            return;
+        }
+
+        abort(403, 'Unauthorized to view room tracking.');
+    }
+
+    public function roomTracking(Request $request)
+    {
+        $this->authorizeRoomTracking();
+
+        $trackingDate = $request->filled('date')
+            ? Carbon::parse($request->date)->toDateString()
+            : Carbon::today()->toDateString();
+
+        $rooms = Room::with([
+            'category',
+            'appointments' => function ($query) use ($trackingDate) {
+                $query->whereDate('appointment_date', $trackingDate)
+                    ->whereIn('status', ['pending', 'confirmed', 'completed'])
+                    ->with(['customer', 'staff', 'services'])
+                    ->orderBy('start_time');
+            },
+        ])
+        ->orderBy('name')
+        ->get();
+
+        return view('shared.room-tracking', compact(
+            'rooms',
+            'trackingDate'
+        ));
+    }
+
+    public function toggleRoomTrackingPermission(User $user)
+    {
+        if (!auth()->user()->roles->contains('name', 'admin')) {
+            abort(403, 'Admin only');
+        }
+
+        if (!$user->roles()->where('name', 'receptionist')->exists()) {
+            return back()->with('error', 'User is not a receptionist.');
+        }
+
+        $user->update([
+            'can_view_room_tracking' => !$user->can_view_room_tracking,
+        ]);
+
+        $status = $user->can_view_room_tracking
+            ? 'can now view Room Tracking'
+            : 'can no longer view Room Tracking';
+
+        return back()->with(
+            'success',
+            $user->first_name . ' ' . $user->last_name . ' ' . $status . '.'
+        );
+    }
 }

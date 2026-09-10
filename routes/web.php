@@ -94,6 +94,9 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     Route::get('/schedules', [ScheduleController::class, 'index'])->name('receptionist.schedules');
     Route::get('/shift-templates', [ScheduleController::class, 'templates'])->name('receptionist.shift-templates.index');
     Route::get('/api/staff/{staff}/schedule', [ScheduleController::class, 'staffScheduleApi'])->name('receptionist.api.staff.schedule');
+
+    Route::get('/room-tracking', [AdminController::class, 'roomTracking'])
+    ->name('receptionist.room-tracking');
 });
 
 // ─── Receptionist Schedule Edit Routes (requires can_manage_schedules) ───
@@ -157,7 +160,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
     // Landing permissions
     Route::put('/receptionists/{user}/toggle-landing', [AdminController::class, 'toggleLandingPermission'])->name('admin.receptionist.toggle-landing');
-
+    // Room Tracking permission
+    Route::put(
+        '/receptionists/{user}/toggle-room-tracking',
+        [AdminController::class, 'toggleRoomTrackingPermission']
+    )->name('admin.receptionist.toggle-room-tracking');
     // Sales
     Route::get('/sales', [SalesReportController::class, 'index'])->name('admin.sales');
     Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('admin.sales.tx-log');
@@ -174,6 +181,9 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/api/staff/{staff}/schedule', [ScheduleController::class, 'staffScheduleApi'])->name('admin.api.staff.schedule');
 
     Route::get('/attendance', [AttendanceController::class, 'report'])->name('attendance.report');
+    
+    Route::get('/room-tracking', [AdminController::class, 'roomTracking'])
+    ->name('admin.room-tracking');
 });
 
 // ─── Admin Schedule Edit Routes ───
