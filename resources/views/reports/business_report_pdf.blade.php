@@ -565,49 +565,201 @@
             </table>
         </div>
 
-        <!-- Top Staff -->
-        <div class="section-title">Top Performing Staff</div>
+        <!-- Staff Performance -->
+        <div class="section-title">Staff Performance</div>
+
         <div class="table-wrap">
             <table class="data-table">
+
                 <thead>
                     <tr>
                         <th style="width: 5%;">#</th>
-                        <th style="width: 45%;">Staff Member</th>
-                        <th style="width: 25%;" class="text-right">Revenue</th>
-                        <th style="width: 25%;" class="text-right">Contribution</th>
+                        <th style="width: 22%;">Staff Member</th>
+                        <th style="width: 10%;" class="text-right">Appointments</th>
+                        <th style="width: 10%;" class="text-right">Completed</th>
+                        <th style="width: 9%;" class="text-right">No-Shows</th>
+                        <th style="width: 9%;" class="text-right">Cancelled</th>
+                        <th style="width: 11%;" class="text-right">Completion</th>
+                        <th style="width: 14%;" class="text-right">Revenue</th>
+                        <th style="width: 10%;" class="text-right">Commission</th>
                     </tr>
                 </thead>
+
                 <tbody>
-                    @php 
-                        $staffTotal = collect($topStaff ?? [])->sum();
-                        $rank = 0;
-                    @endphp
-                    @foreach($topStaff as $name => $amount)
-                    @php
-                        $rank++;
-                        $share = $staffTotal > 0 ? round(($amount / $staffTotal) * 100, 1) : 0;
-                        $rankClass = $rank === 1 ? 'gold' : ($rank === 2 ? 'silver' : ($rank === 3 ? 'bronze' : 'other'));
-                    @endphp
-                    <tr>
-                        <td><span class="rank {{ $rankClass }}">{{ $rank }}</span></td>
-                        <td>
-                            <strong>{{ $name }}</strong>
-                            <div class="bar-bg">
-                                <div class="bar-fill staff" style="width: {{ $share }}%"></div>
-                            </div>
-                        </td>
-                        <td class="text-right amount">₱{{ number_format($amount, 2) }}</td>
-                        <td class="text-right pct">{{ $share }}%</td>
-                    </tr>
-                    @endforeach
-                    <tr class="total-row">
-                        <td></td>
-                        <td>Total Staff Revenue</td>
-                        <td class="text-right">₱{{ number_format($staffTotal, 2) }}</td>
-                        <td class="text-right">100%</td>
-                    </tr>
+
+                    @forelse($staffPerformance ?? [] as $staff)
+
+                        <tr>
+
+                            <td>
+                                @php
+                                    $rank = $staff['rank'];
+                                    $rankClass =
+                                        $rank === 1
+                                            ? 'gold'
+                                            : ($rank === 2
+                                                ? 'silver'
+                                                : ($rank === 3
+                                                    ? 'bronze'
+                                                    : 'other'));
+                                @endphp
+
+                                <span class="rank {{ $rankClass }}">
+                                    {{ $rank }}
+                                </span>
+                            </td>
+
+                            <td>
+                                <strong>
+                                    {{ $staff['name'] }}
+                                </strong>
+
+                                <div style="font-size: 7px; color: #94a3b8; margin-top: 2px;">
+                                    {{ $staff['services'] }}
+                                    service{{ $staff['services'] == 1 ? '' : 's' }}
+                                    handled
+                                </div>
+                            </td>
+
+                            <td class="text-right">
+                                {{ $staff['appointments'] }}
+                            </td>
+
+                            <td class="text-right" style="color: #059669; font-weight: 700;">
+                                {{ $staff['completed'] }}
+                            </td>
+
+                            <td class="text-right" style="color: #d97706; font-weight: 700;">
+                                {{ $staff['no_shows'] }}
+                            </td>
+
+                            <td class="text-right" style="color: #e11d48; font-weight: 700;">
+                                {{ $staff['cancelled'] }}
+                            </td>
+
+                            <td class="text-right">
+
+                                <strong>
+                                    {{ number_format($staff['completion_rate'], 1) }}%
+                                </strong>
+
+                                <div class="bar-bg">
+                                    <div
+                                        class="bar-fill staff"
+                                        style="width: {{ min($staff['completion_rate'], 100) }}%"
+                                    ></div>
+                                </div>
+
+                            </td>
+
+                            <td class="text-right amount">
+                                ₱{{ number_format($staff['revenue'], 2) }}
+                            </td>
+
+                            <td class="text-right">
+                                ₱{{ number_format($staff['commission'], 2) }}
+                            </td>
+
+                        </tr>
+
+                    @empty
+
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: #94a3b8; padding: 20px;">
+                                No staff performance data available for this period.
+                            </td>
+                        </tr>
+
+                    @endforelse
+
                 </tbody>
+
             </table>
+        </div>
+
+
+        <!-- Peak Business Hours -->
+        <div class="section-title">Peak Business Hours</div>
+
+        <div class="table-wrap">
+
+            <table class="data-table">
+
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th class="text-right">Appointments</th>
+                        <th class="text-right">Demand Share</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    @php
+                        $peakHours = $peakBusinessHours['hours'] ?? [];
+                        $totalPeakAppointments = collect($peakHours)->sum('count');
+                        $maxPeakCount = collect($peakHours)->max('count') ?: 1;
+                    @endphp
+
+                    @foreach($peakHours as $hour)
+
+                        @if($hour['count'] > 0)
+
+                            @php
+                                $share = $totalPeakAppointments > 0
+                                    ? round(($hour['count'] / $totalPeakAppointments) * 100, 1)
+                                    : 0;
+                            @endphp
+
+                            <tr>
+
+                                <td>
+                                    <strong>
+                                        {{ $hour['label'] }}
+                                    </strong>
+                                </td>
+
+                                <td class="text-right">
+                                    {{ $hour['count'] }}
+                                </td>
+
+                                <td class="text-right pct">
+                                    {{ $share }}%
+                                </td>
+
+                                <td>
+                                    @if($hour['is_peak'])
+                                        <strong style="color: #0f766e;">
+                                            Peak Hour
+                                        </strong>
+                                    @else
+                                        <span style="color: #64748b;">
+                                            Normal
+                                        </span>
+                                    @endif
+                                </td>
+
+                            </tr>
+
+                        @endif
+
+                    @endforeach
+
+                    @if(empty(array_filter($peakHours, fn($h) => $h['count'] > 0)))
+
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #94a3b8; padding: 20px;">
+                                No appointment activity available.
+                            </td>
+                        </tr>
+
+                    @endif
+
+                </tbody>
+
+            </table>
+
         </div>
 
         <!-- Payment Methods -->
