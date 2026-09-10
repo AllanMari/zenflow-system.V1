@@ -1,27 +1,68 @@
 <!DOCTYPE html>
-<html lang="en" x-data="bookingSystem({{ $categoriesJson }})" x-init="init()">
+<html lang="en" x-data="spaBookingWizard()">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Book Appointment - Spa Alexandria</title>
+
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    <title>Book an Appointment | Spa Alexandria</title>
+
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Preline UI -->
+    <script src="https://cdn.jsdelivr.net/npm/preline@2.7.0/dist/preline.min.js"></script>
+
+    <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- FullCalendar -->
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css"
+    >
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+
+    <!-- Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+    >
 
     <script>
-        tailwind.config = { 
+        tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
                     colors: {
-                        teal: {
-                            50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4',
-                            300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6',
-                            600: '#0d9488', 700: '#0f766e', 800: '#115e59',
-                            900: '#134e4a', 950: '#042f2e',
+                        zen: {
+                            50: '#effcf9',
+                            100: '#d7f8f1',
+                            200: '#b0f0e3',
+                            300: '#7fe4d3',
+                            400: '#48d1bd',
+                            500: '#20b8a3',
+                            600: '#159582',
+                            700: '#14776a',
+                            800: '#155f57',
+                            900: '#154f49',
                         }
+                    },
+                    boxShadow: {
+                        soft: '0 10px 40px rgba(15, 118, 110, 0.08)',
+                        card: '0 4px 24px rgba(15, 23, 42, 0.06)',
                     }
                 }
             }
@@ -29,826 +70,3039 @@
     </script>
 
     <style>
-        [x-cloak] { display: none !important; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        .dark ::-webkit-scrollbar-thumb { background: #4b5563; }
-        
-        .stagger-item {
-            opacity: 0;
-            transform: translateY(16px);
-            animation: slideUp 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(16px); }
-            to { opacity: 1; transform: translateY(0); }
+        [x-cloak] {
+            display: none !important;
         }
 
-        .category-services {
-            display: grid;
-            grid-template-rows: 0fr;
-            transition: grid-template-rows 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s ease;
-            opacity: 0;
+        html {
+            scroll-behavior: smooth;
         }
-        .category-services.open {
-            grid-template-rows: 1fr;
-            opacity: 1;
-        }
-        .category-services > div { overflow: hidden; }
-        .chevron { transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        .chevron.rotated { transform: rotate(180deg); }
 
-        .custom-checkbox {
-            appearance: none;
-            width: 1.25rem;
-            height: 1.25rem;
-            border: 2px solid #d1d5db;
-            border-radius: 0.375rem;
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* ---------------------------------------------------------
+           FullCalendar
+        --------------------------------------------------------- */
+
+        .fc {
+            --fc-border-color: #e5e7eb;
+            --fc-button-bg-color: #0f766e;
+            --fc-button-border-color: #0f766e;
+            --fc-button-hover-bg-color: #115e59;
+            --fc-button-hover-border-color: #115e59;
+            --fc-button-active-bg-color: #115e59;
+            --fc-button-active-border-color: #115e59;
+            --fc-today-bg-color: #f0fdfa;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .fc .fc-toolbar-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .fc .fc-button {
+            border-radius: 0.75rem;
+            box-shadow: none;
+            font-weight: 600;
+            font-size: 0.8rem;
+            padding: 0.55rem 0.8rem;
+        }
+
+        .fc .fc-button:focus {
+            box-shadow: none !important;
+        }
+
+        .fc .fc-daygrid-day {
             cursor: pointer;
-            transition: all 0.15s ease;
-            position: relative;
-            flex-shrink: 0;
+            transition: background-color 0.15s ease;
         }
-        .custom-checkbox:checked {
-            background-color: #0d9488;
-            border-color: #0d9488;
+
+        .fc .fc-daygrid-day:hover {
+            background: #f0fdfa;
         }
-        .custom-checkbox:checked::after {
-            content: '';
-            position: absolute;
-            left: 5px;
-            top: 1px;
+
+        .fc .fc-daygrid-day-number {
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.55rem;
+            color: #334155;
+        }
+
+        .fc .fc-col-header-cell-cushion {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .fc .fc-day-today .fc-daygrid-day-number {
+            color: #0f766e;
+        }
+
+        .fc .fc-day-disabled {
+            background: #f8fafc;
+            cursor: not-allowed;
+        }
+
+        .fc .fc-day-disabled .fc-daygrid-day-number {
+            color: #cbd5e1;
+        }
+
+        .fc .fc-day-sun {
+            background: #fafafa;
+        }
+
+        @media (max-width: 640px) {
+            .fc .fc-toolbar {
+                flex-direction: column;
+                gap: 0.75rem;
+                align-items: stretch;
+            }
+
+            .fc .fc-toolbar-chunk {
+                display: flex;
+                justify-content: center;
+            }
+
+            .fc .fc-toolbar-title {
+                font-size: 0.95rem;
+            }
+
+            .fc .fc-daygrid-day-number {
+                padding: 0.4rem;
+            }
+        }
+
+        /* ---------------------------------------------------------
+           Scrollbars
+        --------------------------------------------------------- */
+
+        .nice-scrollbar::-webkit-scrollbar {
             width: 5px;
-            height: 10px;
-            border: solid white;
-            border-width: 0 2px 2px 0;
-            transform: rotate(45deg);
+            height: 5px;
         }
-        .dark .custom-checkbox { border-color: #6b7280; }
+
+        .nice-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .nice-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+
+        /* ---------------------------------------------------------
+           Animations
+        --------------------------------------------------------- */
+
+        .fade-up {
+            animation: fadeUp 0.35s ease-out;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
 
         .service-card {
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
+            transition:
+                transform 0.2s ease,
+                border-color 0.2s ease,
+                box-shadow 0.2s ease,
+                background-color 0.2s ease;
         }
+
         .service-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.1);
-        }
-        .service-card.selected {
-            border-color: #0d9488;
-            background: linear-gradient(135deg, #f0fdfa 0%, #ffffff 100%);
-            box-shadow: 0 0 0 2px #0d9488, 0 12px 28px -8px rgba(13, 148, 136, 0.2);
-        }
-        .dark .service-card.selected {
-            background: linear-gradient(135deg, #134e4a20 0%, #1f2937 100%);
-            box-shadow: 0 0 0 2px #14b8a6, 0 12px 28px -8px rgba(13, 148, 136, 0.25);
-        }
-        .service-card .check-indicator {
-            opacity: 0;
-            transform: scale(0.5) rotate(-10deg);
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        .service-card.selected .check-indicator {
-            opacity: 1;
-            transform: scale(1) rotate(0deg);
-        }
-
-        .time-slot {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            font-variant-numeric: tabular-nums;
-        }
-        .time-slot:not(:disabled):hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(13, 148, 136, 0.18);
-        }
-        .time-slot.occupied {
-            background: #fef2f2 !important;
-            color: #b91c1c !important;
-            cursor: not-allowed;
-            opacity: 0.45;
-            text-decoration: line-through;
-            border-color: #fecaca !important;
-        }
-        .dark .time-slot.occupied {
-            background: rgba(153, 27, 27, 0.12) !important;
-            border-color: rgba(248, 113, 113, 0.12) !important;
-            color: #f87171 !important;
-        }
-        .time-slot.selected {
-            background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%) !important;
-            color: white !important;
-            border-color: #0d9488 !important;
-            box-shadow: 0 6px 16px rgba(13, 148, 136, 0.35);
-            font-weight: 700;
         }
 
-        .shimmer {
-            background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.4s infinite;
-            border-radius: 0.75rem;
-        }
-        .dark .shimmer {
-            background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
-            background-size: 200% 100%;
-        }
-        @keyframes shimmer {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
+        .slot-button {
+            transition:
+                transform 0.15s ease,
+                background-color 0.15s ease,
+                border-color 0.15s ease,
+                box-shadow 0.15s ease;
         }
 
-        .fc { background: white; max-width: 100%; font-family: 'Inter', sans-serif !important; }
-        .fc-daygrid-day {
-            cursor: pointer;
-            transition: all 0.2s ease;
-            border-radius: 10px;
-            position: relative;
-            overflow: hidden;
+        .slot-button:hover:not(:disabled) {
+            transform: translateY(-1px);
         }
-        .fc-daygrid-day:hover {
-            background: #f0fdfa !important;
-            transform: scale(1.03);
-            box-shadow: 0 4px 14px rgba(13, 148, 136, 0.12);
-            z-index: 1;
-        }
-        .fc-day-selected { 
-            background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%) !important; 
-            color: white !important; 
-            border-radius: 12px !important;
-            box-shadow: 0 6px 16px rgba(13, 148, 136, 0.35);
-            font-weight: 700;
-        }
-        .dark .fc { background: #1f2937; color: #e5e7eb; }
-        .dark .fc-daygrid-day { background: #374151; border-color: #4b5563; }
-        .dark .fc-daygrid-day:hover { background: #4b5563 !important; }
-        .dark .fc-day-today {
-            background: #374151 !important; 
-            border: 2px solid #0d9488 !important;
-            color: white !important;
-            font-weight: 700;
-            border-radius: 10px !important;
+
+        /* ---------------------------------------------------------
+           Mobile bottom summary
+        --------------------------------------------------------- */
+
+        .mobile-safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
         }
     </style>
 </head>
 
-<body class="bg-gray-50 dark:bg-gray-950 min-h-screen font-sans transition-colors duration-300" x-cloak>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
 
-    <!-- Header -->
-    <header class="bg-gradient-to-r from-teal-600 to-teal-700 text-white shadow-lg sticky top-0 z-50">
-        <div class="w-full px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <a href="{{ route('landing') }}" class="text-xl font-bold tracking-tight hover:opacity-90 flex items-center gap-2.5 transition">
-                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Spa Alexandria
-                </a>
-                <div class="flex items-center gap-3">
-                    @auth
-                        @if(auth()->user()->roles()->where('name', 'customer')->exists())
-                            <a href="{{ route('customer-dashboard') }}" class="text-sm font-semibold hover:text-teal-200 transition bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full">My Dashboard</a>
-                        @endif
-                    @else
-                        <a href="{{ route('login') }}" class="text-sm font-semibold hover:text-teal-200 transition bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full">Member Login</a>
-                    @endauth
+    <!-- ============================================================
+         NAVIGATION
+    ============================================================= -->
+
+    <header class="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+        <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+
+            <a href="{{ url('/') }}" class="flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-zen-600 text-white shadow-sm">
+                    <i data-lucide="sparkles" class="h-5 w-5"></i>
                 </div>
+
+                <div class="hidden sm:block">
+                    <div class="text-sm font800 font-bold tracking-tight text-slate-900">
+                        Spa Alexandria
+                    </div>
+
+                    <div class="text-[11px] font-medium text-slate-500">
+                        Wellness & Relaxation
+                    </div>
+                </div>
+            </a>
+
+            <div class="flex items-center gap-2">
+                <a
+                    href="{{ url('/') }}"
+                    class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                >
+                    <i data-lucide="arrow-left" class="h-4 w-4"></i>
+                    <span class="hidden sm:inline">Back to Home</span>
+                    <span class="sm:hidden">Home</span>
+                </a>
             </div>
         </div>
     </header>
 
-    <!-- Progress Stepper -->
-    <div class="sticky top-16 z-40 bg-gray-50/90 dark:bg-gray-950/90 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800/50 py-3.5 px-4">
-        <div class="max-w-6xl mx-auto flex items-center justify-center gap-1 sm:gap-2">
-            <div class="flex items-center gap-2">
-                <div :class="selectedServices.length > 0 ? 'bg-teal-600 text-white scale-110' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'" 
-                     class="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-all duration-300 shadow-sm">1</div>
-                <span class="text-xs sm:text-sm font-semibold hidden sm:block" :class="selectedServices.length > 0 ? 'text-teal-700 dark:text-teal-400' : 'text-gray-400'">Services</span>
-            </div>
-            <div class="w-6 sm:w-10 h-1 rounded-full transition-all" :class="selectedServices.length > 0 ? 'bg-teal-500' : 'bg-gray-200 dark:bg-gray-700'"></div>
-            <div class="flex items-center gap-2">
-                <div :class="guest_name && phoneValid ? 'bg-teal-600 text-white scale-110' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'" 
-                     class="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-all duration-300 shadow-sm">2</div>
-                <span class="text-xs sm:text-sm font-semibold hidden sm:block" :class="guest_name && phoneValid ? 'text-teal-700 dark:text-teal-400' : 'text-gray-400'">Details</span>
-            </div>
-            <div class="w-6 sm:w-10 h-1 rounded-full transition-all" :class="start_time ? 'bg-teal-500' : 'bg-gray-200 dark:bg-gray-700'"></div>
-            <div class="flex items-center gap-2">
-                <div :class="start_time ? 'bg-teal-600 text-white scale-110' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'" 
-                     class="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-all duration-300 shadow-sm">3</div>
-                <span class="text-xs sm:text-sm font-semibold hidden sm:block" :class="start_time ? 'text-teal-700 dark:text-teal-400' : 'text-gray-400'">Schedule</span>
-            </div>
-        </div>
-    </div>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="max-w-6xl mx-auto">
-            
-            <div class="text-center mb-10">
-                <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">Book Your Appointment</h1>
-                <p class="text-gray-500 dark:text-gray-400">Select your services, pick a time, and we'll handle the rest</p>
-            </div>
+    <!-- ============================================================
+         PAGE
+    ============================================================= -->
 
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <main class="mx-auto max-w-7xl px-4 pb-36 pt-6 sm:px-6 sm:pb-20 sm:pt-10 lg:px-8">
 
-                <!-- LEFT COLUMN -->
-                <div class="lg:col-span-7 space-y-6">
+        <!-- Header -->
 
-                    <!-- Services -->
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                        <div class="flex items-center justify-between mb-6">
-                            <div>
-                                <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                    <span class="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 flex items-center justify-center text-sm font-bold">1</span>
-                                    Select Services
-                                </h2>
-                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-10">Click a category to explore services</p>
-                            </div>
-                            <span class="text-xs font-bold bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-full transition-all" 
-                                  :class="selectedServices.length > 0 ? 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300' : 'text-gray-500 dark:text-gray-400'"
-                                  x-text="selectedServices.length + ' selected'"></span>
-                        </div>
-
-                        <div class="space-y-3">
-                            <template x-for="(cat, catIndex) in categories" :key="cat.id">
-                                <div class="rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 stagger-item" :style="'animation-delay: ' + (catIndex * 80) + 'ms'">
-                                    <button type="button" @click="toggleCategory(cat.id)" 
-                                            class="w-full p-4 flex items-center justify-between text-left select-none group relative overflow-hidden">
-                                        <div class="absolute inset-0 opacity-10 transition-opacity group-hover:opacity-20" :style="'background-color: ' + cat.color"></div>
-                                        <div class="flex items-center gap-4 relative z-10">
-                                            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg" 
-                                                 :style="'background-color: ' + cat.color">
-                                                <span x-text="cat.name.charAt(0).toUpperCase()"></span>
-                                            </div>
-                                            <div>
-                                                <h3 class="font-bold text-gray-900 dark:text-white text-lg" x-text="cat.name"></h3>
-                                                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                                    <span x-text="cat.services.length"></span> service<span x-show="cat.services.length !== 1">s</span>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div class="relative z-10 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                                            <svg :id="'chevron-' + cat.id" class="chevron w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
-                                            </svg>
-                                        </div>
-                                    </button>
-
-                                    <div :id="'services-' + cat.id" class="category-services bg-gray-50/50 dark:bg-gray-900/20">
-                                        <div class="p-4 grid grid-cols-1 gap-3">
-                                            <template x-for="(s, sIndex) in cat.services" :key="s.id">
-                                                <label :data-service-id="s.id" 
-                                                       :class="{ 'selected': isSelected(s.id) }" 
-                                                       class="service-card relative flex gap-4 p-4 rounded-xl border-2 border-transparent bg-white dark:bg-gray-800 cursor-pointer hover:border-teal-200 dark:hover:border-teal-800 stagger-item"
-                                                       :style="'animation-delay: ' + ((catIndex * 80) + (sIndex * 50) + 100) + 'ms'">
-                                                    
-                                                    <div class="check-indicator absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-teal-500 to-teal-600 rounded-full flex items-center justify-center shadow-lg z-10">
-                                                        <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-                                                        </svg>
-                                                    </div>
-
-                                                    <input type="checkbox" :checked="isSelected(s.id)" @change="toggleService(s)" class="custom-checkbox mt-1">
-                                                    
-                                                    <div class="shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 relative">
-                                                        <img x-show="s.image && s.image.toString().trim() !== ''"
-                                                            :src="s.image" :alt="s.name" 
-                                                            class="w-full h-full object-cover"
-                                                            onerror="this.style.display='none'">
-                                                        <div x-show="!s.image || s.image.toString().trim() === ''" 
-                                                             class="w-full h-full flex items-center justify-center text-gray-400">
-                                                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                                            </svg>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div class="flex-1 min-w-0">
-                                                        <div class="flex justify-between items-start gap-3 mb-1">
-                                                            <p class="font-bold text-gray-900 dark:text-white text-[15px]" x-text="s.name"></p>
-                                                            <span class="text-base font-bold text-teal-600 dark:text-teal-400 whitespace-nowrap" 
-                                                                  x-text="'₱' + parseFloat(s.discount_price || s.price).toLocaleString('en-PH', {minimumFractionDigits: 2})"></span>
-                                                        </div>
-                                                        
-                                                        <div class="flex items-center gap-2 mt-1 flex-wrap">
-                                                            <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-700">
-                                                                <span x-text="s.duration_minutes + ' min'"></span>
-                                                            </span>
-                                                            <template x-if="hasDeposit(s)">
-                                                                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
-                                                                    <span x-text="getDepositText(s)"></span>
-                                                                </span>
-                                                            </template>
-                                                        </div>
-                                                        
-                                                        <p x-show="s.description" x-text="s.description" 
-                                                           class="text-[13px] text-gray-500 dark:text-gray-400 mt-2 line-clamp-2"></p>
-                                                    </div>
-                                                </label>
-                                            </template>
-                                        </div>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-
-                    <!-- Step 2 & 3 -->
-                    <div x-show="selectedServices.length > 0" 
-                         x-transition:enter="transition ease-out duration-300"
-                         x-transition:enter-start="opacity-0 translate-y-6"
-                         x-transition:enter-end="opacity-100 translate-y-0"
-                         class="space-y-6">
-
-                        <!-- Customer Info -->
-                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                            <div class="flex items-center gap-3 mb-5">
-                                <span class="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 flex items-center justify-center text-sm font-bold">2</span>
-                                <h2 class="text-xl font-bold text-gray-900 dark:text-white">Your Details</h2>
-                            </div>
-                            
-                            @auth
-                                @if(auth()->user()->roles()->where('name', 'customer')->exists())
-                                    <div class="mb-4 p-4 bg-teal-50 dark:bg-teal-900/20 rounded-xl border border-teal-200 dark:border-teal-800">
-                                        <p class="text-sm font-bold text-teal-800 dark:text-teal-300">Welcome back, {{ auth()->user()->first_name }}!</p>
-                                        <p class="text-xs text-teal-600 dark:text-teal-400">Your details are pre-filled.</p>
-                                    </div>
-                                @endif
-                            @endauth
-
-                            @guest
-                                <div class="mb-4 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-200 dark:border-gray-600 flex justify-between items-center">
-                                    <div>
-                                        <p class="text-sm font-bold text-gray-700 dark:text-gray-300">Booking as Guest</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">No account needed.</p>
-                                    </div>
-                                    <a href="{{ route('customer.register') }}" class="text-sm font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 px-4 py-2 rounded-lg">Create account &rarr;</a>
-                                </div>
-                            @endguest
-
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Full Name</label>
-                                    <input type="text" x-model="guest_name" class="w-full p-3.5 border border-gray-200 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" placeholder="e.g. Maria Santos">
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Phone Number</label>
-                                    <div class="relative">
-                                        <input type="tel" x-model="guest_phone" @input="formatPhone" maxlength="11"
-                                            class="w-full pl-4 pr-4 py-3.5 border border-gray-200 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white font-mono text-sm tracking-wide outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500" 
-                                            placeholder="09XXXXXXXXX">
-                                    </div>
-                                    <p class="text-xs mt-1.5 font-bold" :class="phoneValid ? 'text-green-600' : 'text-red-500'" x-text="phoneMessage"></p>
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Medical Notes / Preferences</label>
-                                    <textarea x-model="medical_notes" rows="3" 
-                                        class="w-full p-3.5 border border-gray-200 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white text-sm outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 resize-none"
-                                        placeholder="Allergies, pregnancy, skin conditions..."></textarea>
-                                </div>
-                            </div>
-
-                            <div class="mt-5 p-4 bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/50 rounded-xl flex gap-3 items-start">
-                                <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800/50 rounded-xl flex gap-3 items-start">
-                                    <svg class="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    <div>
-                                        <p class="text-sm font-bold text-blue-800 dark:text-blue-300">Data Privacy Notice</p>
-                                        <p class="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
-                                            We collect your name, phone number, and medical notes solely for appointment fulfillment and your safety. 
-                                            By proceeding with this booking, you consent to this processing under the Data Privacy Act of 2012 (RA 10173).
-                                            <a href="{{ route('privacy') }}" target="_blank" class="underline font-semibold">Read our Privacy Policy</a>.
-                                        </p>
-                                    </div>
-                                </div>
-                                <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                                </svg>
-                                <div>
-                                    <p class="text-sm font-bold text-amber-800 dark:text-amber-300">Confirmation Policy</p>
-                                    <p class="text-xs text-amber-700 dark:text-amber-400 mt-0.5">A receptionist will call you to confirm. If you do not answer within 30 minutes of your appointment time, you may be marked as a no-show.</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Calendar -->
-                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                            <div class="flex items-center gap-3 mb-5">
-                                <span class="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 flex items-center justify-center text-sm font-bold">3</span>
-                                <div>
-                                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Select Date & Time</h2>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">Choose your preferred schedule</p>
-                                </div>
-                            </div>
-                            
-                            <div id="calendar" class="rounded-xl overflow-hidden"></div>
-                            
-                            <div x-show="appointment_date" class="mt-5 p-4 bg-teal-50 dark:bg-teal-900/15 rounded-xl border border-teal-100 dark:border-teal-800/30 flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-800 flex items-center justify-center text-teal-600 dark:text-teal-300">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-teal-600 dark:text-teal-400 font-bold uppercase">Selected Date</p>
-                                    <p class="text-lg font-bold text-teal-800 dark:text-teal-200" x-text="formatDate(appointment_date)"></p>
-                                </div>
-                            </div>
-                            
-                            <!-- Time Slots -->
-                            <div x-show="appointment_date" class="mt-5">
-                                <p class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    Available Times
-                                </p>
-                                
-                                <div x-show="loadingSlots" class="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-                                    <template x-for="i in 8" :key="i">
-                                        <div class="h-12 shimmer"></div>
-                                    </template>
-                                </div>
-                                
-                                <div class="grid grid-cols-3 sm:grid-cols-4 gap-2.5" x-show="!loadingSlots">
-                                    <template x-for="slot in timeSlots" :key="slot.time">
-                                        <button type="button" @click="!slot.occupied && setTime(slot.time)"
-                                                :disabled="slot.occupied"
-                                                :class="{
-                                                    'occupied': slot.occupied,
-                                                    'selected': start_time === slot.time && !slot.occupied,
-                                                    'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-teal-300': !slot.occupied && start_time !== slot.time
-                                                }"
-                                                class="time-slot py-3 px-2 rounded-xl border-2 text-sm font-bold text-center"
-                                                :title="slot.reason || ''">
-                                            <span x-text="slot.display"></span>
-                                        </button>
-                                    </template>
-                                </div>
-                                
-                                <div x-show="timeSlots.length === 0 && !loadingSlots" class="text-center py-10 bg-gray-50 dark:bg-gray-700/30 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-600">
-                                    <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    <p class="text-sm text-gray-500 font-bold">No available slots</p>
-                                    <p class="text-xs text-gray-400 mt-1">Try selecting a different date</p>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
+        <section class="mb-8">
+            <div class="max-w-3xl">
+                <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-zen-50 px-3 py-1.5 text-xs font-bold text-zen-700 ring-1 ring-zen-100">
+                    <span class="h-1.5 w-1.5 rounded-full bg-zen-500"></span>
+                    ONLINE APPOINTMENT
                 </div>
 
-                <!-- RIGHT COLUMN - Summary -->
-                <div class="lg:col-span-5">
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 sticky top-36 overflow-hidden">
-                        <div class="bg-gradient-to-r from-teal-600 to-teal-700 p-6 text-white">
-                            <h2 class="text-lg font-bold flex items-center gap-2">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                                </svg>
-                                Booking Summary
-                            </h2>
-                        </div>
+                <h1 class="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
+                    Book your time to relax.
+                </h1>
 
-                        <div class="p-6">
-                            <div x-show="selectedServices.length === 0" class="text-center py-10">
-                                <p class="text-sm text-gray-500 dark:text-gray-400 font-bold">No services selected yet</p>
-                                <p class="text-xs text-gray-400 mt-1">Choose from the categories on the left</p>
-                            </div>
+                <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+                    Choose your treatments, select a convenient schedule, and send your
+                    appointment request. Our receptionist will confirm your booking.
+                </p>
+            </div>
+        </section>
 
-                            <div x-show="selectedServices.length > 0" class="space-y-3 max-h-64 overflow-y-auto pr-1 mb-5">
-                                <template x-for="s in selectedServices" :key="s.id">
-                                    <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-700/40 border border-gray-100 dark:border-gray-600/50">
-                                        <div class="w-10 h-10 rounded-lg bg-gray-200 dark:bg-gray-600 overflow-hidden shrink-0">
-                                            <img x-show="s.image" :src="s.image" class="w-full h-full object-cover">
-                                            <div x-show="!s.image" class="w-full h-full flex items-center justify-center text-gray-400">
-                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                                </svg>
-                                            </div>
-                                        </div>
-                                        <div class="flex-1 min-w-0">
-                                            <p class="text-sm font-bold text-gray-800 dark:text-gray-200 truncate" x-text="s.name"></p>
-                                            <p class="text-xs text-gray-500 dark:text-gray-400" x-text="s.duration_minutes + ' min'"></p>
-                                        </div>
-                                        <span class="text-sm font-bold text-teal-600 dark:text-teal-400" x-text="'₱' + parseFloat(s.discount_price || s.price).toLocaleString('en-PH', {minimumFractionDigits: 2})"></span>
-                                    </div>
+
+        <!-- ========================================================
+             STEP INDICATOR
+        ========================================================= -->
+
+        <section class="mb-8">
+            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-card sm:p-4">
+
+                <div class="grid grid-cols-4 gap-1 sm:gap-2">
+
+                    <!-- Step 1 -->
+
+                    <button
+                        type="button"
+                        @click="goToStep(1)"
+                        class="group rounded-xl px-2 py-2.5 text-left transition sm:px-3"
+                        :class="step >= 1
+                            ? 'bg-zen-50'
+                            : 'bg-transparent hover:bg-slate-50'"
+                    >
+                        <div class="flex items-center gap-2 sm:gap-3">
+                            <div
+                                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition sm:h-9 sm:w-9"
+                                :class="step >= 1
+                                    ? 'bg-zen-600 text-white'
+                                    : 'bg-slate-100 text-slate-400'"
+                            >
+                                <template x-if="step > 1">
+                                    <i data-lucide="check" class="h-4 w-4"></i>
+                                </template>
+
+                                <template x-if="step <= 1">
+                                    <span>1</span>
                                 </template>
                             </div>
 
-                            <div x-show="selectedServices.length > 0" class="space-y-2.5 text-sm mb-5">
-                                <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-                                    <span class="text-gray-500 dark:text-gray-400">Date</span>
-                                    <span class="font-bold text-gray-800 dark:text-gray-200" x-text="formatDate(appointment_date) || 'Not selected'"></span>
-                                </div>
-                                <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-                                    <span class="text-gray-500 dark:text-gray-400">Time</span>
-                                    <span class="font-bold text-gray-800 dark:text-gray-200" x-text="start_time ? convertTo12Hour(start_time) : 'Not selected'"></span>
-                                </div>
-                                <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-                                    <span class="text-gray-500 dark:text-gray-400">Name</span>
-                                    <span class="font-bold text-gray-800 dark:text-gray-200" x-text="guest_name || 'Not entered'"></span>
-                                </div>
+                            <div class="min-w-0">
+                                <p
+                                    class="truncate text-xs font-bold sm:text-sm"
+                                    :class="step >= 1 ? 'text-slate-900' : 'text-slate-400'"
+                                >
+                                    Services
+                                </p>
+
+                                <p class="hidden text-[11px] text-slate-400 sm:block">
+                                    Choose treatments
+                                </p>
+                            </div>
+                        </div>
+                    </button>
+
+
+                    <!-- Connector -->
+
+                    <div class="hidden items-center sm:flex">
+                        <div
+                            class="h-px w-full"
+                            :class="step >= 2 ? 'bg-zen-300' : 'bg-slate-200'"
+                        ></div>
+                    </div>
+
+
+                    <!-- Step 2 -->
+
+                    <button
+                        type="button"
+                        @click="goToStep(2)"
+                        :disabled="!canEnterStep(2)"
+                        class="group rounded-xl px-2 py-2.5 text-left transition sm:px-3"
+                        :class="step >= 2
+                            ? 'bg-zen-50'
+                            : 'bg-transparent hover:bg-slate-50 disabled:hover:bg-transparent'"
+                    >
+                        <div class="flex items-center gap-2 sm:gap-3">
+                            <div
+                                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition sm:h-9 sm:w-9"
+                                :class="step >= 2
+                                    ? 'bg-zen-600 text-white'
+                                    : 'bg-slate-100 text-slate-400'"
+                            >
+                                <template x-if="step > 2">
+                                    <i data-lucide="check" class="h-4 w-4"></i>
+                                </template>
+
+                                <template x-if="step <= 2">
+                                    <span>2</span>
+                                </template>
                             </div>
 
-                            <div x-show="selectedServices.length > 0" class="pt-4 border-t-2 border-gray-100 dark:border-gray-700">
-                                <div class="flex justify-between items-end">
-                                    <span class="text-lg font-bold text-gray-900 dark:text-white">Total</span>
-                                    <span class="text-3xl font-bold text-teal-600 dark:text-teal-400">₱<span x-text="parseFloat(animatedPrice).toLocaleString('en-PH', {minimumFractionDigits: 2})"></span></span>
-                                </div>
+                            <div class="min-w-0">
+                                <p
+                                    class="truncate text-xs font-bold sm:text-sm"
+                                    :class="step >= 2 ? 'text-slate-900' : 'text-slate-400'"
+                                >
+                                    Date & Time
+                                </p>
+
+                                <p class="hidden text-[11px] text-slate-400 sm:block">
+                                    Find a schedule
+                                </p>
+                            </div>
+                        </div>
+                    </button>
+
+
+                    <!-- Connector -->
+
+                    <div class="hidden items-center sm:flex">
+                        <div
+                            class="h-px w-full"
+                            :class="step >= 3 ? 'bg-zen-300' : 'bg-slate-200'"
+                        ></div>
+                    </div>
+
+
+                    <!-- Step 3 -->
+
+                    <button
+                        type="button"
+                        @click="goToStep(3)"
+                        :disabled="!canEnterStep(3)"
+                        class="group rounded-xl px-2 py-2.5 text-left transition sm:px-3"
+                        :class="step >= 3
+                            ? 'bg-zen-50'
+                            : 'bg-transparent hover:bg-slate-50 disabled:hover:bg-transparent'"
+                    >
+                        <div class="flex items-center gap-2 sm:gap-3">
+                            <div
+                                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition sm:h-9 sm:w-9"
+                                :class="step >= 3
+                                    ? 'bg-zen-600 text-white'
+                                    : 'bg-slate-100 text-slate-400'"
+                            >
+                                3
                             </div>
 
-                            <button type="button" @click="showConfirmation = true"
-                                    class="w-full mt-6 py-4 rounded-xl text-white font-bold text-sm uppercase tracking-wide transition-all flex items-center justify-center gap-2"
-                                    :class="(start_time && guest_name && phoneValid) ? 'bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 shadow-lg shadow-teal-500/25' : 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'"
-                                    :disabled="!(start_time && guest_name && phoneValid)">
-                                Review & Confirm
-                            </button>
+                            <div class="min-w-0">
+                                <p
+                                    class="truncate text-xs font-bold sm:text-sm"
+                                    :class="step >= 3 ? 'text-slate-900' : 'text-slate-400'"
+                                >
+                                    Your Details
+                                </p>
+
+                                <p class="hidden text-[11px] text-slate-400 sm:block">
+                                    Tell us about you
+                                </p>
+                            </div>
+                        </div>
+                    </button>
+
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ========================================================
+             MAIN GRID
+        ========================================================= -->
+
+        <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+
+            <!-- ====================================================
+                 LEFT / MAIN CONTENT
+            ===================================================== -->
+
+            <div>
+
+                <!-- =================================================
+                     STEP 1 — SERVICES
+                ================================================== -->
+
+                <section
+                    x-show="step === 1"
+                    x-cloak
+                    class="fade-up"
+                >
+
+                    <div class="rounded-3xl border border-slate-200 bg-white shadow-card">
+
+                        <div class="border-b border-slate-100 p-5 sm:p-7">
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
+                                        Step 1
+                                    </p>
+
+                                    <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                                        What would you like today?
+                                    </h2>
+
+                                    <p class="mt-2 text-sm text-slate-500">
+                                        Select one or more treatments for your appointment.
+                                    </p>
+                                </div>
+
+                                <div class="hidden rounded-xl bg-slate-50 px-3 py-2 text-right sm:block">
+                                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        Selected
+                                    </p>
+
+                                    <p class="text-sm font-bold text-slate-900">
+                                        <span x-text="selectedServices.length"></span>
+                                        <span x-text="selectedServices.length === 1 ? 'service' : 'services'"></span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- Category navigation -->
+
+                        <div class="border-b border-slate-100 px-5 pt-4 sm:px-7">
+                            <div class="nice-scrollbar flex gap-2 overflow-x-auto pb-4">
+
+                                <template x-for="category in categories" :key="category.id">
+                                    <button
+                                        type="button"
+                                        @click="activeCategory = category.id"
+                                        class="whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition"
+                                        :class="activeCategory === category.id
+                                            ? 'bg-slate-900 text-white shadow-sm'
+                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                                    >
+                                        <span x-text="category.name"></span>
+                                    </button>
+                                </template>
+
+                            </div>
+                        </div>
+
+
+                        <!-- Services -->
+
+                        <div class="p-5 sm:p-7">
+
+                            <template x-if="activeCategoryObject">
+                                <div>
+
+                                    <div class="mb-4 flex items-center justify-between">
+                                        <div>
+                                            <h3
+                                                class="font-bold text-slate-900"
+                                                x-text="activeCategoryObject.name"
+                                            ></h3>
+
+                                            <p class="mt-1 text-xs text-slate-500">
+                                                Select the treatments you want to include.
+                                            </p>
+                                        </div>
+
+                                        <span
+                                            class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500"
+                                            x-text="activeCategoryServices.length + ' services'"
+                                        ></span>
+                                    </div>
+
+
+                                    <div class="grid gap-3 sm:grid-cols-2">
+
+                                        <template
+                                            x-for="service in activeCategoryServices"
+                                            :key="service.id"
+                                        >
+
+                                            <button
+                                                type="button"
+                                                @click="toggleService(service)"
+                                                class="service-card group relative overflow-hidden rounded-2xl border p-4 text-left"
+                                                :class="isSelected(service.id)
+                                                    ? 'border-zen-500 bg-zen-50/70 shadow-md shadow-zen-100'
+                                                    : 'border-slate-200 bg-white hover:border-zen-200 hover:bg-slate-50'"
+                                            >
+
+                                                <!-- Selected indicator -->
+
+                                                <div
+                                                    class="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full transition"
+                                                    :class="isSelected(service.id)
+                                                        ? 'bg-zen-600 text-white'
+                                                        : 'bg-slate-100 text-transparent group-hover:bg-slate-200'"
+                                                >
+                                                    <i data-lucide="check" class="h-3.5 w-3.5"></i>
+                                                </div>
+
+
+                                                <div class="flex gap-4">
+
+                                                    <!-- Image -->
+
+                                                    <div
+                                                        class="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100"
+                                                    >
+                                                        <template x-if="service.image">
+                                                            <img
+                                                                :src="service.image"
+                                                                :alt="service.name"
+                                                                class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                                                            >
+                                                        </template>
+
+                                                        <template x-if="!service.image">
+                                                            <div class="flex h-full w-full items-center justify-center text-slate-300">
+                                                                <i data-lucide="sparkles" class="h-7 w-7"></i>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+
+
+                                                    <!-- Info -->
+
+                                                    <div class="min-w-0 flex-1 pr-6">
+
+                                                        <h4 class="line-clamp-2 text-sm font-bold leading-5 text-slate-900">
+                                                            <span x-text="service.name"></span>
+                                                        </h4>
+
+                                                        <p
+                                                            x-show="service.description"
+                                                            class="mt-1 line-clamp-2 text-xs leading-5 text-slate-500"
+                                                            x-text="service.description"
+                                                        ></p>
+
+                                                        <div class="mt-3 flex flex-wrap items-center gap-2">
+
+                                                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
+                                                                <i data-lucide="clock-3" class="h-3.5 w-3.5"></i>
+                                                                <span x-text="service.duration_minutes"></span> min
+                                                            </span>
+
+                                                            <span class="h-1 w-1 rounded-full bg-slate-300"></span>
+
+                                                            <span class="text-sm font-extrabold text-zen-700">
+                                                                ₱<span x-text="formatMoney(service.discount_price || service.price)"></span>
+                                                            </span>
+
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+
+                                            </button>
+
+                                        </template>
+
+                                    </div>
+
+
+                                    <!-- Empty category -->
+
+                                    <template x-if="activeCategoryServices.length === 0">
+                                        <div class="rounded-2xl border border-dashed border-slate-200 py-12 text-center">
+                                            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                                                <i data-lucide="sparkles" class="h-6 w-6"></i>
+                                            </div>
+
+                                            <p class="mt-3 text-sm font-semibold text-slate-700">
+                                                No services available
+                                            </p>
+
+                                            <p class="mt-1 text-xs text-slate-400">
+                                                Please choose another category.
+                                            </p>
+                                        </div>
+                                    </template>
+
+                                </div>
+                            </template>
+
                         </div>
                     </div>
-                </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     STEP 2 — DATE & TIME
+                ================================================== -->
+
+                <section
+                    x-show="step === 2"
+                    x-cloak
+                    class="fade-up"
+                >
+
+                    <div class="rounded-3xl border border-slate-200 bg-white shadow-card">
+
+                        <div class="border-b border-slate-100 p-5 sm:p-7">
+                            <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
+                                Step 2
+                            </p>
+
+                            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                                Find a time that works for you.
+                            </h2>
+
+                            <p class="mt-2 text-sm text-slate-500">
+                                Select a date first, then choose from the available appointment times.
+                            </p>
+                        </div>
+
+
+                        <div class="grid lg:grid-cols-[minmax(0,1fr)_300px]">
+
+                            <!-- Calendar -->
+
+                            <div class="border-b border-slate-100 p-5 sm:p-7 lg:border-b-0 lg:border-r">
+
+                                <div class="mb-4 flex items-center justify-between">
+                                    <div>
+                                        <h3 class="text-sm font-bold text-slate-900">
+                                            Choose a date
+                                        </h3>
+
+                                        <p class="mt-1 text-xs text-slate-500">
+                                            Sundays are unavailable.
+                                        </p>
+                                    </div>
+
+                                    <div class="hidden items-center gap-2 text-[11px] text-slate-500 sm:flex">
+                                        <span class="h-2 w-2 rounded-full bg-zen-500"></span>
+                                        Available
+                                    </div>
+                                </div>
+
+                                <div
+                                    id="booking-calendar"
+                                    class="min-h-[330px]"
+                                ></div>
+
+                            </div>
+
+
+                            <!-- Times -->
+
+                            <div class="p-5 sm:p-7">
+
+                                <div class="mb-5">
+                                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                        Available times
+                                    </p>
+
+                                    <h3 class="mt-1 text-base font-extrabold text-slate-900">
+                                        <template x-if="appointmentDate">
+                                            <span x-text="formatDateLong(appointmentDate)"></span>
+                                        </template>
+
+                                        <template x-if="!appointmentDate">
+                                            <span>Select a date</span>
+                                        </template>
+                                    </h3>
+                                </div>
+
+
+                                <!-- Loading -->
+
+                                <template x-if="loadingSlots">
+                                    <div class="space-y-2">
+                                        <template x-for="i in 6" :key="i">
+                                            <div class="h-12 animate-pulse rounded-xl bg-slate-100"></div>
+                                        </template>
+                                    </div>
+                                </template>
+
+
+                                <!-- No date -->
+
+                                <template x-if="!loadingSlots && !appointmentDate">
+                                    <div class="rounded-2xl border border-dashed border-slate-200 p-6 text-center">
+                                        <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+                                            <i data-lucide="calendar-days" class="h-5 w-5"></i>
+                                        </div>
+
+                                        <p class="mt-3 text-sm font-semibold text-slate-700">
+                                            Choose a date
+                                        </p>
+
+                                        <p class="mt-1 text-xs leading-5 text-slate-400">
+                                            Available times will appear here.
+                                        </p>
+                                    </div>
+                                </template>
+
+
+                                <!-- No slots -->
+
+                                <template x-if="!loadingSlots && appointmentDate && availableSlots.length === 0">
+                                    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center">
+                                        <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                                            <i data-lucide="calendar-x-2" class="h-5 w-5"></i>
+                                        </div>
+
+                                        <p class="mt-3 text-sm font-bold text-amber-900">
+                                            No available times
+                                        </p>
+
+                                        <p class="mt-1 text-xs leading-5 text-amber-700">
+                                            Please choose another date.
+                                        </p>
+                                    </div>
+                                </template>
+
+
+                                <!-- Slots -->
+
+                                <template x-if="!loadingSlots && availableSlots.length > 0">
+
+                                    <div class="space-y-5">
+
+                                        <!-- Morning -->
+
+                                        <template x-if="morningSlots.length">
+                                            <div>
+                                                <div class="mb-2 flex items-center gap-2">
+                                                    <i data-lucide="sunrise" class="h-4 w-4 text-amber-500"></i>
+
+                                                    <span class="text-xs font-bold text-slate-600">
+                                                        Morning
+                                                    </span>
+                                                </div>
+
+                                                <div class="grid grid-cols-2 gap-2">
+                                                    <template x-for="slot in morningSlots" :key="slot.time">
+                                                        <button
+                                                            type="button"
+                                                            @click="selectSlot(slot)"
+                                                            :disabled="slot.room_available === false"
+                                                            class="slot-button min-h-12 rounded-xl border px-3 py-3 text-sm font-bold"
+                                                            :class="selectedTime === slot.time
+                                                                ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
+                                                                : slot.room_available === false
+                                                                    ? 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'
+                                                                    : 'border-slate-200 bg-white text-slate-700 hover:border-zen-300 hover:bg-zen-50 hover:text-zen-700'"
+                                                        >
+                                                            <span x-text="formatTime(slot.time)"></span>
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+
+
+                                        <!-- Afternoon -->
+
+                                        <template x-if="afternoonSlots.length">
+                                            <div>
+                                                <div class="mb-2 flex items-center gap-2">
+                                                    <i data-lucide="sun" class="h-4 w-4 text-orange-500"></i>
+
+                                                    <span class="text-xs font-bold text-slate-600">
+                                                        Afternoon
+                                                    </span>
+                                                </div>
+
+                                                <div class="grid grid-cols-2 gap-2">
+                                                    <template x-for="slot in afternoonSlots" :key="slot.time">
+                                                        <button
+                                                            type="button"
+                                                            @click="selectSlot(slot)"
+                                                            :disabled="slot.room_available === false"
+                                                            class="slot-button min-h-12 rounded-xl border px-3 py-3 text-sm font-bold"
+                                                            :class="selectedTime === slot.time
+                                                                ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
+                                                                : slot.room_available === false
+                                                                    ? 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'
+                                                                    : 'border-slate-200 bg-white text-slate-700 hover:border-zen-300 hover:bg-zen-50 hover:text-zen-700'"
+                                                        >
+                                                            <span x-text="formatTime(slot.time)"></span>
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+
+
+                                        <!-- Evening -->
+
+                                        <template x-if="eveningSlots.length">
+                                            <div>
+                                                <div class="mb-2 flex items-center gap-2">
+                                                    <i data-lucide="sunset" class="h-4 w-4 text-indigo-500"></i>
+
+                                                    <span class="text-xs font-bold text-slate-600">
+                                                        Evening
+                                                    </span>
+                                                </div>
+
+                                                <div class="grid grid-cols-2 gap-2">
+                                                    <template x-for="slot in eveningSlots" :key="slot.time">
+                                                        <button
+                                                            type="button"
+                                                            @click="selectSlot(slot)"
+                                                            :disabled="slot.room_available === false"
+                                                            class="slot-button min-h-12 rounded-xl border px-3 py-3 text-sm font-bold"
+                                                            :class="selectedTime === slot.time
+                                                                ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
+                                                                : slot.room_available === false
+                                                                    ? 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'
+                                                                    : 'border-slate-200 bg-white text-slate-700 hover:border-zen-300 hover:bg-zen-50 hover:text-zen-700'"
+                                                        >
+                                                            <span x-text="formatTime(slot.time)"></span>
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                    </div>
+
+                                </template>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     STEP 3 — CUSTOMER DETAILS
+                ================================================== -->
+
+                <section
+                    x-show="step === 3"
+                    x-cloak
+                    class="fade-up"
+                >
+
+                    <div class="rounded-3xl border border-slate-200 bg-white shadow-card">
+
+                        <div class="border-b border-slate-100 p-5 sm:p-7">
+                            <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
+                                Step 3
+                            </p>
+
+                            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                                Tell us about yourself.
+                            </h2>
+
+                            <p class="mt-2 text-sm text-slate-500">
+                                We only need a few details so our receptionist can confirm your appointment.
+                            </p>
+                        </div>
+
+
+                        <div class="p-5 sm:p-7">
+
+                            <div class="space-y-6">
+
+                                <!-- Name -->
+
+                                <div>
+                                    <label
+                                        for="guest_first_name"
+                                        class="mb-2 block text-sm font-bold text-slate-800"
+                                    >
+                                        Full name
+                                    </label>
+
+                                    <div class="relative">
+                                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                                            <i data-lucide="user" class="h-4 w-4"></i>
+                                        </div>
+
+                                        <input
+                                            id="guest_first_name"
+                                            name="guest_first_name"
+                                            type="text"
+                                            x-model="guestName"
+                                            autocomplete="name"
+                                            maxlength="100"
+                                            placeholder="Enter your full name"
+                                            class="block w-full rounded-xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-zen-500 focus:ring-4 focus:ring-zen-500/10"
+                                        >
+                                    </div>
+
+                                    <p class="mt-1.5 text-xs text-slate-400">
+                                        You may use your preferred name or alias.
+                                    </p>
+                                </div>
+
+
+                                <!-- Phone -->
+
+                                <div>
+                                    <label
+                                        for="phone"
+                                        class="mb-2 block text-sm font-bold text-slate-800"
+                                    >
+                                        Mobile number
+                                    </label>
+
+                                    <div class="relative">
+                                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                                            <i data-lucide="phone" class="h-4 w-4"></i>
+                                        </div>
+
+                                        <input
+                                            id="phone"
+                                            name="phone"
+                                            type="tel"
+                                            x-model="phone"
+                                            @input="formatPhone()"
+                                            autocomplete="tel"
+                                            maxlength="11"
+                                            inputmode="numeric"
+                                            placeholder="09XXXXXXXXX"
+                                            class="block w-full rounded-xl border py-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-4"
+                                            :class="phone.length === 11 && phoneValid
+                                                ? 'border-emerald-300 bg-emerald-50/30 focus:border-emerald-500 focus:ring-emerald-500/10'
+                                                : phone.length > 0
+                                                    ? 'border-red-300 bg-red-50/30 focus:border-red-500 focus:ring-red-500/10'
+                                                    : 'border-slate-200 bg-white focus:border-zen-500 focus:ring-zen-500/10'"
+                                        >
+
+                                        <div
+                                            x-show="phone.length > 0"
+                                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4"
+                                        >
+                                            <i
+                                                x-show="phoneValid"
+                                                data-lucide="circle-check"
+                                                class="h-5 w-5 text-emerald-500"
+                                            ></i>
+
+                                            <i
+                                                x-show="!phoneValid"
+                                                data-lucide="circle-x"
+                                                class="h-5 w-5 text-red-400"
+                                            ></i>
+                                        </div>
+                                    </div>
+
+                                    <p
+                                        x-show="phone.length > 0 && !phoneValid"
+                                        class="mt-1.5 text-xs font-medium text-red-500"
+                                    >
+                                        Please enter a valid Philippine mobile number starting with 09.
+                                    </p>
+                                </div>
+
+
+                                <!-- Notes -->
+
+                                <div>
+                                    <div class="mb-2 flex items-center justify-between gap-3">
+                                        <label
+                                            for="medical_notes"
+                                            class="block text-sm font-bold text-slate-800"
+                                        >
+                                            Notes or special concerns
+                                        </label>
+
+                                        <span class="text-[11px] text-slate-400">
+                                            Optional
+                                        </span>
+                                    </div>
+
+                                    <textarea
+                                        id="medical_notes"
+                                        name="medical_notes"
+                                        x-model="medicalNotes"
+                                        rows="5"
+                                        maxlength="1000"
+                                        placeholder="Let us know about allergies, sensitivities, preferences, or anything our therapists should be aware of."
+                                        class="block w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-zen-500 focus:ring-4 focus:ring-zen-500/10"
+                                    ></textarea>
+
+                                    <div class="mt-1.5 flex justify-end">
+                                        <span class="text-[11px] text-slate-400">
+                                            <span x-text="medicalNotes.length"></span>/1000
+                                        </span>
+                                    </div>
+                                </div>
+
+
+                                <!-- Privacy -->
+
+                                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <div class="flex gap-3">
+                                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-zen-600 shadow-sm">
+                                            <i data-lucide="shield-check" class="h-4 w-4"></i>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-xs font-bold text-slate-800">
+                                                Your information is handled privately.
+                                            </p>
+
+                                            <p class="mt-1 text-xs leading-5 text-slate-500">
+                                                Your contact details are used to process and confirm
+                                                your appointment request with Spa Alexandria.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+
+                                <!-- Confirmation notice -->
+
+                                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                    <div class="flex gap-3">
+                                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-600 shadow-sm">
+                                            <i data-lucide="phone-call" class="h-4 w-4"></i>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-xs font-bold text-amber-900">
+                                                Your request is not automatically confirmed.
+                                            </p>
+
+                                            <p class="mt-1 text-xs leading-5 text-amber-800">
+                                                Our receptionist will contact you to confirm your
+                                                appointment. Please keep your phone available.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     STEP 4 — REVIEW
+                ================================================== -->
+
+                <section
+                    x-show="step === 4"
+                    x-cloak
+                    class="fade-up"
+                >
+
+                    <div class="rounded-3xl border border-slate-200 bg-white shadow-card">
+
+                        <div class="border-b border-slate-100 p-5 sm:p-7">
+                            <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
+                                Final step
+                            </p>
+
+                            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                                Review your appointment.
+                            </h2>
+
+                            <p class="mt-2 text-sm text-slate-500">
+                                Check everything before sending your booking request.
+                            </p>
+                        </div>
+
+
+                        <div class="divide-y divide-slate-100">
+
+                            <!-- Appointment -->
+
+                            <div class="p-5 sm:p-7">
+                                <div class="mb-4 flex items-center justify-between">
+                                    <div>
+                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                            Appointment
+                                        </p>
+
+                                        <h3 class="mt-1 text-sm font-bold text-slate-900">
+                                            Your selected schedule
+                                        </h3>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        @click="step = 2; $nextTick(() => refreshIcons())"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-zen-700 transition hover:bg-zen-50"
+                                    >
+                                        <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                                        Edit
+                                    </button>
+                                </div>
+
+
+                                <div class="grid gap-3 sm:grid-cols-2">
+
+                                    <div class="rounded-2xl bg-slate-50 p-4">
+                                        <div class="flex items-center gap-2 text-slate-400">
+                                            <i data-lucide="calendar-days" class="h-4 w-4"></i>
+                                            <span class="text-[11px] font-bold uppercase tracking-wider">
+                                                Date
+                                            </span>
+                                        </div>
+
+                                        <p class="mt-2 text-sm font-bold text-slate-900">
+                                            <span x-text="formatDateLong(appointmentDate)"></span>
+                                        </p>
+                                    </div>
+
+
+                                    <div class="rounded-2xl bg-slate-50 p-4">
+                                        <div class="flex items-center gap-2 text-slate-400">
+                                            <i data-lucide="clock-3" class="h-4 w-4"></i>
+                                            <span class="text-[11px] font-bold uppercase tracking-wider">
+                                                Time
+                                            </span>
+                                        </div>
+
+                                        <p class="mt-2 text-sm font-bold text-slate-900">
+                                            <span x-text="formatTime(selectedTime)"></span>
+                                            <span class="font-medium text-slate-400">
+                                                —
+                                                <span x-text="formatTime(endTime)"></span>
+                                            </span>
+                                        </p>
+                                    </div>
+
+                                </div>
+                            </div>
+
+
+                            <!-- Services -->
+
+                            <div class="p-5 sm:p-7">
+
+                                <div class="mb-4 flex items-center justify-between">
+                                    <div>
+                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                            Services
+                                        </p>
+
+                                        <h3 class="mt-1 text-sm font-bold text-slate-900">
+                                            Selected treatments
+                                        </h3>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        @click="step = 1; $nextTick(() => refreshIcons())"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-zen-700 transition hover:bg-zen-50"
+                                    >
+                                        <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                                        Edit
+                                    </button>
+                                </div>
+
+
+                                <div class="space-y-2">
+
+                                    <template x-for="service in selectedServiceObjects" :key="service.id">
+                                        <div class="flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-white p-3.5">
+                                            <div class="min-w-0">
+                                                <p class="truncate text-sm font-bold text-slate-800">
+                                                    <span x-text="service.name"></span>
+                                                </p>
+
+                                                <p class="mt-1 text-xs text-slate-400">
+                                                    <span x-text="service.duration_minutes"></span> minutes
+                                                </p>
+                                            </div>
+
+                                            <p class="shrink-0 text-sm font-extrabold text-slate-900">
+                                                ₱<span x-text="formatMoney(service.discount_price || service.price)"></span>
+                                            </p>
+                                        </div>
+                                    </template>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- Customer -->
+
+                            <div class="p-5 sm:p-7">
+
+                                <div class="mb-4 flex items-center justify-between">
+                                    <div>
+                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                            Customer
+                                        </p>
+
+                                        <h3 class="mt-1 text-sm font-bold text-slate-900">
+                                            Your information
+                                        </h3>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        @click="step = 3; $nextTick(() => refreshIcons())"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-zen-700 transition hover:bg-zen-50"
+                                    >
+                                        <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                                        Edit
+                                    </button>
+                                </div>
+
+
+                                <div class="grid gap-3 sm:grid-cols-2">
+
+                                    <div class="rounded-xl border border-slate-100 p-3.5">
+                                        <p class="text-[11px] font-semibold text-slate-400">
+                                            Name
+                                        </p>
+
+                                        <p class="mt-1 text-sm font-bold text-slate-800">
+                                            <span x-text="guestName"></span>
+                                        </p>
+                                    </div>
+
+                                    <div class="rounded-xl border border-slate-100 p-3.5">
+                                        <p class="text-[11px] font-semibold text-slate-400">
+                                            Mobile number
+                                        </p>
+
+                                        <p class="mt-1 text-sm font-bold text-slate-800">
+                                            <span x-text="phone"></span>
+                                        </p>
+                                    </div>
+
+                                </div>
+
+
+                                <template x-if="medicalNotes">
+                                    <div class="mt-3 rounded-xl border border-slate-100 p-3.5">
+                                        <p class="text-[11px] font-semibold text-slate-400">
+                                            Notes
+                                        </p>
+
+                                        <p
+                                            class="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700"
+                                            x-text="medicalNotes"
+                                        ></p>
+                                    </div>
+                                </template>
+
+                            </div>
+
+
+                            <!-- Total -->
+
+                            <div class="bg-slate-950 p-5 text-white sm:p-7">
+
+                                <div class="flex items-end justify-between gap-5">
+                                    <div>
+                                        <p class="text-xs font-semibold text-slate-400">
+                                            Estimated total
+                                        </p>
+
+                                        <p class="mt-1 text-xs text-slate-500">
+                                            Final charges are based on selected services.
+                                        </p>
+                                    </div>
+
+                                    <div class="text-right">
+                                        <p class="text-3xl font-extrabold tracking-tight">
+                                            ₱<span x-text="formatMoney(totalPrice)"></span>
+                                        </p>
+
+                                        <p class="mt-1 text-xs text-slate-400">
+                                            <span x-text="totalDuration"></span> minutes
+                                        </p>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
 
             </div>
+
+
+            <!-- ====================================================
+                 RIGHT / SUMMARY
+            ===================================================== -->
+
+            <aside class="hidden lg:block">
+
+                <div class="sticky top-24 space-y-4">
+
+                    <!-- Summary -->
+
+                    <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-card">
+
+                        <div class="border-b border-slate-100 p-5">
+                            <div class="flex items-center gap-2">
+                                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-zen-50 text-zen-600">
+                                    <i data-lucide="receipt-text" class="h-4 w-4"></i>
+                                </div>
+
+                                <div>
+                                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                        Booking summary
+                                    </p>
+
+                                    <h3 class="text-sm font-extrabold text-slate-900">
+                                        Your appointment
+                                    </h3>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div class="p-5">
+
+                            <!-- Empty -->
+
+                            <template x-if="selectedServices.length === 0">
+                                <div class="py-5 text-center">
+                                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                                        <i data-lucide="shopping-bag" class="h-5 w-5"></i>
+                                    </div>
+
+                                    <p class="mt-3 text-sm font-semibold text-slate-700">
+                                        No services selected
+                                    </p>
+
+                                    <p class="mt-1 text-xs leading-5 text-slate-400">
+                                        Your selected treatments will appear here.
+                                    </p>
+                                </div>
+                            </template>
+
+
+                            <!-- Selected -->
+
+                            <template x-if="selectedServices.length > 0">
+                                <div>
+
+                                    <div class="nice-scrollbar max-h-60 space-y-3 overflow-y-auto pr-1">
+
+                                        <template
+                                            x-for="service in selectedServiceObjects"
+                                            :key="service.id"
+                                        >
+                                            <div class="flex items-start justify-between gap-3">
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-semibold leading-5 text-slate-800">
+                                                        <span x-text="service.name"></span>
+                                                    </p>
+
+                                                    <p class="mt-0.5 text-xs text-slate-400">
+                                                        <span x-text="service.duration_minutes"></span> min
+                                                    </p>
+                                                </div>
+
+                                                <p class="shrink-0 text-sm font-bold text-slate-900">
+                                                    ₱<span x-text="formatMoney(service.discount_price || service.price)"></span>
+                                                </p>
+                                            </div>
+                                        </template>
+
+                                    </div>
+
+
+                                    <div class="my-4 border-t border-slate-100"></div>
+
+
+                                    <div class="space-y-3">
+
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs text-slate-500">
+                                                Duration
+                                            </span>
+
+                                            <span class="text-xs font-bold text-slate-800">
+                                                <span x-text="totalDuration"></span> min
+                                            </span>
+                                        </div>
+
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs text-slate-500">
+                                                Schedule
+                                            </span>
+
+                                            <span
+                                                class="text-right text-xs font-bold text-slate-800"
+                                                x-text="appointmentDate ? formatDateShort(appointmentDate) : 'Not selected'"
+                                            ></span>
+                                        </div>
+
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs text-slate-500">
+                                                Time
+                                            </span>
+
+                                            <span
+                                                class="text-xs font-bold text-slate-800"
+                                                x-text="selectedTime ? formatTime(selectedTime) : 'Not selected'"
+                                            ></span>
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="my-4 border-t border-slate-100"></div>
+
+
+                                    <div class="flex items-end justify-between">
+                                        <span class="text-sm font-bold text-slate-800">
+                                            Total
+                                        </span>
+
+                                        <span class="text-2xl font-extrabold tracking-tight text-zen-700">
+                                            ₱<span x-text="formatMoney(totalPrice)"></span>
+                                        </span>
+                                    </div>
+
+                                </div>
+                            </template>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Booking policy -->
+
+                    <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-card">
+
+                        <div class="flex items-center gap-2">
+                            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                                <i data-lucide="info" class="h-4 w-4"></i>
+                            </div>
+
+                            <p class="text-sm font-bold text-slate-800">
+                                Before you book
+                            </p>
+                        </div>
+
+                        <ul class="mt-4 space-y-3">
+
+                            <li class="flex gap-2.5">
+                                <i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-500"></i>
+                                <span class="text-xs leading-5 text-slate-500">
+                                    Online requests remain pending until confirmed.
+                                </span>
+                            </li>
+
+                            <li class="flex gap-2.5">
+                                <i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-500"></i>
+                                <span class="text-xs leading-5 text-slate-500">
+                                    A receptionist may contact you using the mobile number provided.
+                                </span>
+                            </li>
+
+                            <li class="flex gap-2.5">
+                                <i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-500"></i>
+                                <span class="text-xs leading-5 text-slate-500">
+                                    Please arrive on time for your scheduled appointment.
+                                </span>
+                            </li>
+
+                        </ul>
+
+                    </div>
+
+                </div>
+
+            </aside>
+
         </div>
+
     </main>
 
-    <!-- Confirmation Modal -->
-    <div x-show="showConfirmation" 
-         class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-             @click.away="showConfirmation = false">
-            
-            <div class="bg-gradient-to-r from-teal-600 to-teal-700 p-6 text-white">
-                <h2 class="text-xl font-bold">Confirm Your Booking</h2>
-                <p class="text-teal-100 text-sm mt-1">Please review your appointment details</p>
-            </div>
 
-            <div class="p-6">
-                <div class="space-y-3 mb-6">
-                    <div class="flex justify-between py-2.5 border-b border-gray-100 dark:border-gray-700">
-                        <span class="text-gray-500 dark:text-gray-400 text-sm">Services</span>
-                        <span class="font-bold text-gray-800 dark:text-gray-200 text-sm text-right" x-text="selectedServices.map(s => s.name).join(', ')"></span>
-                    </div>
-                    <div class="flex justify-between py-2.5 border-b border-gray-100 dark:border-gray-700">
-                        <span class="text-gray-500 dark:text-gray-400 text-sm">Date</span>
-                        <span class="font-bold text-gray-800 dark:text-gray-200 text-sm" x-text="formatDate(appointment_date)"></span>
-                    </div>
-                    <div class="flex justify-between py-2.5 border-b border-gray-100 dark:border-gray-700">
-                        <span class="text-gray-500 dark:text-gray-400 text-sm">Time</span>
-                        <span class="font-bold text-gray-800 dark:text-gray-200 text-sm" x-text="convertTo12Hour(start_time)"></span>
-                    </div>
-                    <div class="flex justify-between items-center pt-2 bg-gray-50 dark:bg-gray-700/30 p-3 rounded-xl">
-                        <span class="text-gray-600 dark:text-gray-400 font-bold">Total</span>
-                        <span class="font-bold text-teal-600 dark:text-teal-400 text-2xl">₱<<span x-text="parseFloat(animatedPrice).toLocaleString('en-PH', {minimumFractionDigits: 2})"></span></span>
-                    </div>
+    <!-- ============================================================
+         MOBILE STICKY ACTION BAR
+    ============================================================= -->
+
+    <div class="mobile-safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden">
+
+        <div class="mx-auto max-w-7xl px-4 py-3 sm:px-6">
+
+            <div class="flex items-center gap-3">
+
+                <!-- Summary -->
+
+                <div class="min-w-0 flex-1">
+                    <template x-if="selectedServices.length === 0">
+                        <div>
+                            <p class="text-xs font-bold text-slate-800">
+                                No services selected
+                            </p>
+
+                            <p class="mt-0.5 text-[11px] text-slate-400">
+                                Choose a service to continue.
+                            </p>
+                        </div>
+                    </template>
+
+                    <template x-if="selectedServices.length > 0">
+                        <div>
+                            <p class="truncate text-xs font-bold text-slate-800">
+                                <span x-text="selectedServices.length"></span>
+                                <span x-text="selectedServices.length === 1 ? 'service' : 'services'"></span>
+
+                                <template x-if="appointmentDate && selectedTime">
+                                    <span>
+                                        · <span x-text="formatTime(selectedTime)"></span>
+                                    </span>
+                                </template>
+                            </p>
+
+                            <p class="mt-0.5 text-[11px] text-slate-400">
+                                ₱<span x-text="formatMoney(totalPrice)"></span>
+                                ·
+                                <span x-text="totalDuration"></span> min
+                            </p>
+                        </div>
+                    </template>
                 </div>
 
-                <div class="flex gap-3">
-                    <button @click="showConfirmation = false" class="flex-1 py-3.5 border-2 border-gray-200 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm">
-                        Go Back
-                    </button>
-                    <form method="POST" action="{{ route('booking.store') }}" class="flex-1" @submit.prevent="$el.submit()">
-                        @csrf
-                        <input type="hidden" name="source" value="public">
-                        <template x-for="s in selectedServices">
-                            <input type="hidden" name="services[]" :value="s.id">
-                        </template>
-                        <input type="hidden" name="appointment_date" :value="appointment_date">
-                        <input type="hidden" name="start_time" :value="start_time">
-                        <input type="hidden" name="end_time" :value="endTime">
-                        <input type="hidden" name="guest_first_name" :value="guest_name">
-                        <input type="hidden" name="guest_phone" :value="guest_phone">
-                        <input type="hidden" name="medical_notes" :value="medical_notes">
-                        
-                        <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-xl font-bold text-sm shadow-lg">
-                            Confirm Booking
-                        </button>
-                    </form>
-                </div>
+
+                <!-- Back -->
+
+                <button
+                    type="button"
+                    x-show="step > 1"
+                    @click="previousStep()"
+                    class="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                    Back
+                </button>
+
+
+                <!-- Continue -->
+
+                <button
+                    type="button"
+                    x-show="step < 4"
+                    @click="nextStep()"
+                    :disabled="!canContinue"
+                    class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-zen-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-zen-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                >
+                    <span x-text="step === 3 ? 'Review' : 'Continue'"></span>
+                    <i data-lucide="arrow-right" class="h-4 w-4"></i>
+                </button>
+
+
+                <!-- Submit -->
+
+                <button
+                    type="button"
+                    x-show="step === 4"
+                    @click="submitBooking()"
+                    :disabled="submitting"
+                    class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-zen-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-zen-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                    <template x-if="!submitting">
+                        <span class="inline-flex items-center gap-2">
+                            Request Booking
+                            <i data-lucide="send" class="h-4 w-4"></i>
+                        </span>
+                    </template>
+
+                    <template x-if="submitting">
+                        <span class="inline-flex items-center gap-2">
+                            Sending...
+                            <i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i>
+                        </span>
+                    </template>
+                </button>
+
             </div>
+
         </div>
+
     </div>
 
+
+    <!-- ============================================================
+         DESKTOP ACTION BAR
+    ============================================================= -->
+
+    <div class="fixed inset-x-0 bottom-0 z-30 hidden border-t border-slate-200 bg-white/95 backdrop-blur-xl lg:block">
+
+        <div class="mx-auto flex max-w-7xl items-center justify-between gap-6 px-8 py-4">
+
+            <div class="min-w-0">
+                <template x-if="selectedServices.length === 0">
+                    <p class="text-sm font-semibold text-slate-500">
+                        Start by selecting a service.
+                    </p>
+                </template>
+
+                <template x-if="selectedServices.length > 0">
+                    <div class="flex items-center gap-4">
+                        <div>
+                            <p class="text-xs text-slate-400">
+                                Appointment total
+                            </p>
+
+                            <p class="text-lg font-extrabold text-slate-900">
+                                ₱<span x-text="formatMoney(totalPrice)"></span>
+                            </p>
+                        </div>
+
+                        <div class="h-8 w-px bg-slate-200"></div>
+
+                        <div>
+                            <p class="text-xs text-slate-400">
+                                Duration
+                            </p>
+
+                            <p class="text-sm font-bold text-slate-700">
+                                <span x-text="totalDuration"></span> minutes
+                            </p>
+                        </div>
+
+                        <template x-if="appointmentDate && selectedTime">
+                            <div class="hidden items-center gap-2 md:flex">
+                                <div class="h-8 w-px bg-slate-200"></div>
+
+                                <div>
+                                    <p class="text-xs text-slate-400">
+                                        Schedule
+                                    </p>
+
+                                    <p class="text-sm font-bold text-slate-700">
+                                        <span x-text="formatDateShort(appointmentDate)"></span>
+                                        ·
+                                        <span x-text="formatTime(selectedTime)"></span>
+                                    </p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+
+            <div class="flex items-center gap-2">
+
+                <button
+                    type="button"
+                    x-show="step > 1"
+                    @click="previousStep()"
+                    class="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                    <i data-lucide="arrow-left" class="h-4 w-4"></i>
+                    Back
+                </button>
+
+
+                <button
+                    type="button"
+                    x-show="step < 4"
+                    @click="nextStep()"
+                    :disabled="!canContinue"
+                    class="inline-flex h-11 items-center gap-2 rounded-xl bg-zen-600 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-zen-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                >
+                    <span x-text="step === 3 ? 'Review Appointment' : 'Continue'"></span>
+                    <i data-lucide="arrow-right" class="h-4 w-4"></i>
+                </button>
+
+
+                <button
+                    type="button"
+                    x-show="step === 4"
+                    @click="submitBooking()"
+                    :disabled="submitting"
+                    class="inline-flex h-11 items-center gap-2 rounded-xl bg-zen-600 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-zen-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                    <template x-if="!submitting">
+                        <span class="inline-flex items-center gap-2">
+                            Request Appointment
+                            <i data-lucide="send" class="h-4 w-4"></i>
+                        </span>
+                    </template>
+
+                    <template x-if="submitting">
+                        <span class="inline-flex items-center gap-2">
+                            Sending request...
+                            <i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i>
+                        </span>
+                    </template>
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ============================================================
+         ACTUAL LARAVEL FORM
+    ============================================================= -->
+
+    <form
+        id="booking-form"
+        action="{{ route('booking.store') }}"
+        method="POST"
+        class="hidden"
+    >
+        @csrf
+
+        <input
+            type="hidden"
+            name="source"
+            value="public"
+        >
+
+        <input
+            type="hidden"
+            name="appointment_date"
+            :value="appointmentDate"
+        >
+
+        <input
+            type="hidden"
+            name="start_time"
+            :value="selectedTime"
+        >
+
+        <input
+            type="hidden"
+            name="end_time"
+            :value="endTime"
+        >
+
+        <input
+            type="hidden"
+            name="guest_first_name"
+            :value="guestName"
+        >
+
+        <input
+            type="hidden"
+            name="guest_phone"
+            :value="phone"
+        >
+
+        <input
+            type="hidden"
+            name="medical_notes"
+            :value="medicalNotes"
+        >
+
+        <template x-for="serviceId in selectedServices" :key="serviceId">
+            <input
+                type="hidden"
+                name="services[]"
+                :value="serviceId"
+            >
+        </template>
+    </form>
+
+
+    <!-- ============================================================
+         REBOOK DATA
+    ============================================================= -->
+
     <script>
-        function bookingSystem(cats) {
+        window.bookingCategories = {!! $categoriesJson !!};
+
+        window.bookingDefaults = {
+            name: @json($defaultName ?? ''),
+            phone: @json($defaultPhone ?? ''),
+            medicalNotes: @json($customerMedicalNotes ?? ''),
+            rebookServiceIds: @json($preselectedIds ?? []),
+        };
+    </script>
+
+
+    <!-- ============================================================
+         BOOKING LOGIC
+    ============================================================= -->
+
+    <script>
+        function spaBookingWizard() {
             return {
-                categories: cats,
+
+                /* -------------------------------------------------
+                   State
+                ------------------------------------------------- */
+
+                step: 1,
+
+                categories: window.bookingCategories || [],
+
+                activeCategory: null,
+
                 selectedServices: [],
-                timeSlots: [],
-                appointment_date: null,
-                start_time: null,
-                guest_name: @json($defaultName),
-                guest_phone: @json($defaultPhone),
-                medical_notes: @json($customerMedicalNotes),
-                preselectedIds: @json($preselectedIds),
-                showConfirmation: false,
-                phoneValid: false,
-                phoneMessage: '',
+
+                appointmentDate: '',
+
+                selectedTime: '',
+
+                slots: [],
+
                 loadingSlots: false,
+
+                submitting: false,
+
+                guestName: window.bookingDefaults?.name || '',
+
+                phone: window.bookingDefaults?.phone || '',
+
+                medicalNotes: window.bookingDefaults?.medicalNotes || '',
+
                 calendar: null,
-                animatedPrice: '0.00',
 
-                hasDeposit(service) {
-                    const min = parseFloat(service.deposit_percentage_min) || 0;
-                    return min > 0;
+                initialized: false,
+
+
+                /* -------------------------------------------------
+                   Initialization
+                ------------------------------------------------- */
+
+                init() {
+
+                    this.categories = Array.isArray(this.categories)
+                        ? this.categories
+                        : [];
+
+                    if (this.categories.length > 0) {
+                        this.activeCategory = this.categories[0].id;
+                    }
+
+                    this.initializeRebook();
+
+                    this.$nextTick(() => {
+                        this.refreshIcons();
+                        this.initializeCalendar();
+                    });
+
+                    this.initialized = true;
                 },
 
-                getDepositText(service) {
-                    const min = parseFloat(service.deposit_percentage_min) || 0;
-                    const max = parseFloat(service.deposit_percentage_max) || 0;
-                    if (min > 0 && max > 0 && max !== min) return min + '%-' + max + '%';
-                    return min + '%';
+
+                initializeRebook() {
+
+                    const ids = window.bookingDefaults?.rebookServiceIds || [];
+
+                    if (!Array.isArray(ids) || ids.length === 0) {
+                        return;
+                    }
+
+                    const normalized = ids
+                        .map(id => Number(id))
+                        .filter(id => !Number.isNaN(id));
+
+                    this.selectedServices = normalized;
+
+                    if (this.selectedServices.length > 0) {
+                        this.activeCategory = this.findCategoryForService(
+                            this.selectedServices[0]
+                        );
+                    }
                 },
 
-                formatDate(dateStr) {
-                    if (!dateStr) return '';
-                    const date = new Date(dateStr + 'T00:00:00');
-                    return date.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+                /* -------------------------------------------------
+                   Category helpers
+                ------------------------------------------------- */
+
+                get activeCategoryObject() {
+
+                    return this.categories.find(
+                        category => Number(category.id) === Number(this.activeCategory)
+                    ) || null;
                 },
 
-                convertTo12Hour(time24) {
-                    if (!time24) return '';
-                    const [h, m] = time24.split(':').map(Number);
-                    const period = h >= 12 ? 'PM' : 'AM';
-                    const hour12 = h % 12 || 12;
-                    return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+
+                get activeCategoryServices() {
+
+                    if (!this.activeCategoryObject) {
+                        return [];
+                    }
+
+                    return Array.isArray(this.activeCategoryObject.services)
+                        ? this.activeCategoryObject.services.filter(service => {
+                            return service.is_active === undefined ||
+                                   service.is_active === true ||
+                                   Number(service.is_active) === 1;
+                        })
+                        : [];
                 },
+
+
+                findCategoryForService(serviceId) {
+
+                    for (const category of this.categories) {
+
+                        const services = Array.isArray(category.services)
+                            ? category.services
+                            : [];
+
+                        const found = services.some(
+                            service => Number(service.id) === Number(serviceId)
+                        );
+
+                        if (found) {
+                            return category.id;
+                        }
+                    }
+
+                    return this.categories.length
+                        ? this.categories[0].id
+                        : null;
+                },
+
+
+                /* -------------------------------------------------
+                   Service selection
+                ------------------------------------------------- */
 
                 isSelected(serviceId) {
-                    return this.selectedServices.some(s => s.id === serviceId);
+
+                    return this.selectedServices.includes(Number(serviceId));
                 },
+
 
                 toggleService(service) {
-                    const i = this.selectedServices.findIndex(s => s.id === service.id);
-                    if (i === -1) {
-                        this.selectedServices.push(service);
+
+                    const id = Number(service.id);
+
+                    if (this.isSelected(id)) {
+
+                        this.selectedServices = this.selectedServices.filter(
+                            serviceId => serviceId !== id
+                        );
+
                     } else {
-                        this.selectedServices.splice(i, 1);
+
+                        this.selectedServices = [
+                            ...this.selectedServices,
+                            id
+                        ];
+
                     }
-                    this.$nextTick(() => {
-                        if (this.selectedServices.length > 0 && !this.calendar) {
-                            this.initCalendar();
+
+                    /*
+                     * Changing services changes duration.
+                     * Therefore the selected time may no longer be valid.
+                     */
+
+                    this.selectedTime = '';
+
+                    if (this.appointmentDate) {
+                        this.loadTimeSlots();
+                    }
+
+                    this.$nextTick(() => this.refreshIcons());
+                },
+
+
+                get selectedServiceObjects() {
+
+                    const result = [];
+
+                    for (const category of this.categories) {
+
+                        const services = Array.isArray(category.services)
+                            ? category.services
+                            : [];
+
+                        for (const service of services) {
+
+                            if (this.isSelected(service.id)) {
+                                result.push(service);
+                            }
+
                         }
-                    });
-                },
-
-                toggleCategory(catId) {
-                    const servicesDiv = document.getElementById('services-' + catId);
-                    const chevron = document.getElementById('chevron-' + catId);
-                    servicesDiv.classList.toggle('open');
-                    chevron.classList.toggle('rotated');
-                },
-
-                formatPhone() {
-                    this.guest_phone = this.guest_phone.replace(/\D/g, '');
-                    const regex = /^09\d{9}$/;
-                    this.phoneValid = regex.test(this.guest_phone);
-                    if (this.guest_phone.length === 0) {
-                        this.phoneMessage = '';
-                    } else if (this.guest_phone.length < 11) {
-                        this.phoneMessage = 'Need ' + (11 - this.guest_phone.length) + ' more digits';
-                    } else if (this.phoneValid) {
-                        this.phoneMessage = '✓ Valid number';
-                    } else {
-                        this.phoneMessage = 'Must start with 09, 11 digits';
                     }
+
+                    return result;
                 },
 
-                setTime(time) {
-                    this.start_time = time;
+
+                /* -------------------------------------------------
+                   Pricing / duration
+                ------------------------------------------------- */
+
+                servicePrice(service) {
+
+                    const discount = Number(service.discount_price);
+                    const price = Number(service.price);
+
+                    if (
+                        service.discount_price !== null &&
+                        service.discount_price !== undefined &&
+                        service.discount_price !== '' &&
+                        !Number.isNaN(discount)
+                    ) {
+                        return discount;
+                    }
+
+                    return Number.isNaN(price) ? 0 : price;
                 },
 
-                get endTime() {
-                    if (!this.start_time || this.selectedServices.length === 0) return null;
-                    const totalDuration = this.selectedServices.reduce((a, s) => a + (s.duration_minutes || 60), 0);
-                    const [h, m] = this.start_time.split(':').map(Number);
-                    const end = new Date(2000, 0, 1, h, m + totalDuration);
-                    return String(end.getHours()).padStart(2, '0') + ':' + String(end.getMinutes()).padStart(2, '0');
-                },
 
                 get totalPrice() {
-                    return this.selectedServices.reduce((a, s) => a + parseFloat(s.discount_price || s.price), 0).toFixed(2);
+
+                    return this.selectedServiceObjects.reduce(
+                        (total, service) => {
+                            return total + this.servicePrice(service);
+                        },
+                        0
+                    );
                 },
 
-                async loadTimeSlots() {
-                    if (!this.appointment_date || this.selectedServices.length === 0) return;
-                    
-                    this.loadingSlots = true;
-                    this.timeSlots = [];
-                    this.start_time = null;
-                    
-                    try {
-                        const duration = this.selectedServices.reduce((a, s) => a + (s.duration_minutes || 60), 0);
-                        const serviceIds = this.selectedServices.map(s => s.id);
-                        const serviceParams = serviceIds.map(id => `services[]=${id}`).join('&');
-                        
-                        const res = await fetch(`{{ route('booking.slots') }}?date=${this.appointment_date}&duration=${duration}&${serviceParams}`);
-                        const data = await res.json();
-                        
-                        if (!res.ok) throw new Error(data.message || 'Failed to load slots');
-                        
-                        const dateSlots = data.slots.filter(s => s.date === this.appointment_date);
-                        
-                        this.timeSlots = dateSlots.map(slot => {
-                            const isBlocked = !slot.room_available;
-                            let reason = null;
-                            if (isBlocked) reason = 'No room available';
-                            
-                            return { 
-                                ...slot, 
-                                occupied: isBlocked,
-                                reason: reason
-                            };
-                        });
-                        
-                    } catch (err) {
-                        console.error('Failed to load slots:', err);
-                        this.timeSlots = [];
-                    } finally {
-                        this.loadingSlots = false;
+
+                get totalDuration() {
+
+                    return this.selectedServiceObjects.reduce(
+                        (total, service) => {
+                            return total + Number(service.duration_minutes || 0);
+                        },
+                        0
+                    );
+                },
+
+
+                get endTime() {
+
+                    if (!this.selectedTime || !this.totalDuration) {
+                        return '';
                     }
+
+                    const [hours, minutes] = this.selectedTime
+                        .split(':')
+                        .map(Number);
+
+                    const totalMinutes =
+                        (hours * 60) +
+                        minutes +
+                        this.totalDuration;
+
+                    const endHours = Math.floor(totalMinutes / 60);
+                    const endMinutes = totalMinutes % 60;
+
+                    return String(endHours).padStart(2, '0')
+                        + ':'
+                        + String(endMinutes).padStart(2, '0');
                 },
 
-                async init() {
-                    // Preselected services from rebook
-                    if (this.preselectedIds.length > 0) {
-                        for (let cat of this.categories) {
-                            for (let s of cat.services) {
-                                if (this.preselectedIds.includes(s.id)) {
-                                    this.selectedServices.push(s);
+
+                /* -------------------------------------------------
+                   Phone
+                ------------------------------------------------- */
+
+                formatPhone() {
+
+                    this.phone = String(this.phone || '')
+                        .replace(/\D/g, '')
+                        .slice(0, 11);
+                },
+
+
+                get phoneValid() {
+
+                    return /^09\d{9}$/.test(this.phone);
+                },
+
+
+                /* -------------------------------------------------
+                   Calendar
+                ------------------------------------------------- */
+
+                initializeCalendar() {
+
+                    // Guard: never render twice into the same element
+                    if (this.calendar) {
+                        this.calendar.updateSize();
+                        return;
+                    }
+
+                    const calendarEl = document.getElementById(
+                        'booking-calendar'
+                    );
+
+                    if (!calendarEl || !window.FullCalendar) {
+                        return;
+                    }
+
+                    /*
+                     * Use browser date only for presentation.
+                     * The actual booking validation remains server-side.
+                     */
+
+                    const today = this.localDateString(
+                        new Date()
+                    );
+
+                    const maxDate = this.addDays(
+                        today,
+                        14
+                    );
+
+                    this.calendar = new FullCalendar.Calendar(
+                        calendarEl,
+                        {
+
+                            initialView: 'dayGridMonth',
+
+                            initialDate: today,
+
+                            height: 'auto',
+
+                            fixedWeekCount: false,
+
+                            showNonCurrentDates: true,
+
+                            firstDay: 1,
+
+                            headerToolbar: {
+                                left: 'prev,next',
+                                center: 'title',
+                                right: ''
+                            },
+
+                            validRange: {
+                                start: today,
+                                end: this.addDays(maxDate, 1)
+                            },
+
+                            dateClick: (info) => {
+
+                                const clickedDate = info.dateStr;
+
+                                /*
+                                 * Sunday
+                                 */
+
+                                if (this.isSunday(clickedDate)) {
+
+                                    this.showMessage(
+                                        'Sunday is unavailable',
+                                        'Spa Alexandria is closed on Sundays.',
+                                        'info'
+                                    );
+
+                                    return;
                                 }
+
+                                /*
+                                 * Prevent dates beyond booking window.
+                                 */
+
+                                if (
+                                    clickedDate < today ||
+                                    clickedDate > maxDate
+                                ) {
+                                    return;
+                                }
+
+                                this.selectDate(clickedDate);
+                            },
+
+                            dayCellClassNames: (arg) => {
+
+                                const date = this.localDateString(
+                                    arg.date
+                                );
+
+                                if (this.isSunday(date)) {
+                                    return ['booking-sunday'];
+                                }
+
+                                return [];
+                            },
+
+                            datesSet: () => {
+                                this.$nextTick(() => {
+                                    this.refreshIcons();
+                                });
                             }
                         }
-                        if (this.selectedServices.length > 0) {
-                            this.$nextTick(() => this.initCalendar());
+                    );
+
+                    this.calendar.render();
+                },
+
+
+                selectDate(date) {
+
+                    if (this.isSunday(date)) {
+                        return;
+                    }
+
+                    this.appointmentDate = date;
+
+                    /*
+                     * A date change invalidates the old time.
+                     */
+
+                    this.selectedTime = '';
+
+                    this.loadTimeSlots();
+
+                    this.$nextTick(() => {
+                        this.refreshCalendarSelection();
+                    });
+                },
+
+
+                refreshCalendarSelection() {
+
+                    const calendarEl = document.getElementById(
+                        'booking-calendar'
+                    );
+
+                    if (!calendarEl) {
+                        return;
+                    }
+
+                    calendarEl
+                        .querySelectorAll('.booking-selected-date')
+                        .forEach(el => {
+                            el.classList.remove('booking-selected-date');
+                        });
+
+                    if (!this.appointmentDate) {
+                        return;
+                    }
+
+                    const selectedCell = calendarEl.querySelector(
+                        `[data-date="${this.appointmentDate}"]`
+                    );
+
+                    if (selectedCell) {
+                        selectedCell.classList.add(
+                            'booking-selected-date'
+                        );
+                    }
+                },
+
+
+                /* -------------------------------------------------
+                   Slots
+                ------------------------------------------------- */
+
+                async loadTimeSlots() {
+
+                    if (
+                        !this.appointmentDate ||
+                        this.selectedServices.length === 0
+                    ) {
+                        this.slots = [];
+                        return;
+                    }
+
+                    this.loadingSlots = true;
+
+                    try {
+
+                        const params = new URLSearchParams();
+
+                        params.append(
+                            'date',
+                            this.appointmentDate
+                        );
+
+                        params.append(
+                            'duration',
+                            this.totalDuration
+                        );
+
+                        this.selectedServices.forEach(
+                            id => params.append('services[]', id)
+                        );
+
+                        const response = await fetch(
+                            `{{ route('booking.slots') }}?${params.toString()}`,
+                            {
+                                method: 'GET',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            }
+                        );
+
+                        if (!response.ok) {
+                            // Surface Laravel validation/error messages (e.g. 422)
+                            let serverMessage = null;
+
+                            try {
+                                const err = await response.json();
+                                serverMessage = err.message || null;
+
+                                if (!serverMessage && err.errors) {
+                                    serverMessage = Object.values(err.errors)
+                                        .flat()
+                                        .join(' ');
+                                }
+                            } catch (parseError) {
+                                // non-JSON response — fall through to default
+                            }
+
+                            throw new Error(
+                                serverMessage || 'Unable to load available times.'
+                            );
+                        }
+
+                        const data = await response.json();
+
+                        /*
+                         * Controller currently returns either:
+                         * - an array
+                         * - { slots: [...] }
+                         */
+
+                        if (Array.isArray(data)) {
+                            this.slots = data;
+                        } else if (Array.isArray(data.slots)) {
+                            this.slots = data.slots;
+                        } else {
+                            this.slots = [];
+                        }
+
+                        /*
+                         * Only show slots for the selected date.
+                         */
+
+                        this.slots = this.slots.filter(slot => {
+
+                            if (!slot.date) {
+                                return true;
+                            }
+
+                            return slot.date === this.appointmentDate;
+                        });
+
+                        /*
+                         * Make sure an old selected time is removed
+                         * if the server no longer returns it.
+                         */
+
+                        const stillAvailable = this.slots.some(
+                            slot => {
+                                return slot.time === this.selectedTime &&
+                                    slot.room_available !== false;
+                            }
+                        );
+
+                        if (!stillAvailable) {
+                            this.selectedTime = '';
+                        }
+
+                    } catch (error) {
+
+                        console.error(
+                            'Booking slot error:',
+                            error
+                        );
+
+                        this.slots = [];
+                        this.selectedTime = '';
+
+                        this.showMessage(
+                            'Unable to load times',
+                            error.message || 'We could not load the available appointment times. Please try again.',
+                            'error'
+                        );
+
+                    } finally {
+
+                        this.loadingSlots = false;
+
+                        this.$nextTick(() => {
+                            this.refreshIcons();
+                            this.refreshCalendarSelection();
+                        });
+                    }
+                },
+
+
+                get availableSlots() {
+
+                    return this.slots.filter(
+                        slot => slot.room_available !== false
+                    );
+                },
+
+
+                get morningSlots() {
+
+                    return this.availableSlots.filter(
+                        slot => this.hourOf(slot.time) < 12
+                    );
+                },
+
+
+                get afternoonSlots() {
+
+                    return this.availableSlots.filter(
+                        slot => {
+                            const hour = this.hourOf(slot.time);
+
+                            return hour >= 12 && hour < 17;
+                        }
+                    );
+                },
+
+
+                get eveningSlots() {
+
+                    return this.availableSlots.filter(
+                        slot => this.hourOf(slot.time) >= 17
+                    );
+                },
+
+
+                selectSlot(slot) {
+
+                    if (!slot || slot.room_available === false) {
+                        return;
+                    }
+
+                    this.selectedTime = slot.time;
+
+                    this.$nextTick(() => {
+                        this.refreshIcons();
+                    });
+                },
+
+
+                /* -------------------------------------------------
+                   Step navigation
+                ------------------------------------------------- */
+
+                canEnterStep(targetStep) {
+
+                    if (targetStep <= 1) {
+                        return true;
+                    }
+
+                    if (targetStep === 2) {
+                        return this.selectedServices.length > 0;
+                    }
+
+                    if (targetStep === 3) {
+                        return (
+                            this.selectedServices.length > 0 &&
+                            this.appointmentDate &&
+                            this.selectedTime
+                        );
+                    }
+
+                    if (targetStep === 4) {
+                        return (
+                            this.selectedServices.length > 0 &&
+                            this.appointmentDate &&
+                            this.selectedTime &&
+                            this.guestName.trim().length > 0 &&
+                            this.phoneValid
+                        );
+                    }
+
+                    return false;
+                },
+
+
+                get canContinue() {
+
+                    if (this.step === 1) {
+                        return this.selectedServices.length > 0;
+                    }
+
+                    if (this.step === 2) {
+                        return !!(
+                            this.appointmentDate &&
+                            this.selectedTime
+                        );
+                    }
+
+                    if (this.step === 3) {
+                        return (
+                            this.guestName.trim().length > 0 &&
+                            this.phoneValid
+                        );
+                    }
+
+                    return true;
+                },
+
+
+                nextStep() {
+
+                    if (!this.canContinue) {
+                        this.validateCurrentStep();
+                        return;
+                    }
+
+                    if (this.step < 4) {
+                        this.step++;
+                    }
+
+                    this.$nextTick(() => {
+                        this.refreshIcons();
+
+                        if (
+                            this.step === 2 &&
+                            this.calendar
+                        ) {
+                            this.calendar.updateSize();
+                        }
+
+                        window.scrollTo({
+                            top: 0,
+                            behavior: 'smooth'
+                        });
+                    });
+                },
+
+
+                previousStep() {
+
+                    if (this.step > 1) {
+                        this.step--;
+                    }
+
+                    this.$nextTick(() => {
+                        this.refreshIcons();
+
+                        window.scrollTo({
+                            top: 0,
+                            behavior: 'smooth'
+                        });
+                    });
+                },
+
+
+                goToStep(targetStep) {
+
+                    if (targetStep > this.step) {
+
+                        if (!this.canEnterStep(targetStep)) {
+                            return;
                         }
                     }
-                    
-                    if (this.guest_phone) this.formatPhone();
 
-                    // Watch services to reload slots when date already selected
-                    this.$watch('selectedServices', () => {
-                        this.animatedPrice = this.totalPrice;
-                        if (this.appointment_date && this.selectedServices.length > 0) {
-                            this.loadTimeSlots();
-                        } else if (this.selectedServices.length === 0) {
-                            this.timeSlots = [];
-                            this.start_time = null;
-                            this.appointment_date = null;
+                    /*
+                     * Don't allow jumping over unfinished steps.
+                     */
+
+                    if (targetStep === 2 && !this.selectedServices.length) {
+                        return;
+                    }
+
+                    if (
+                        targetStep >= 3 &&
+                        !(
+                            this.selectedServices.length &&
+                            this.appointmentDate &&
+                            this.selectedTime
+                        )
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        targetStep === 4 &&
+                        !(
+                            this.guestName.trim() &&
+                            this.phoneValid
+                        )
+                    ) {
+                        return;
+                    }
+
+                    this.step = targetStep;
+
+                    this.$nextTick(() => {
+                        this.refreshIcons();
+
+                        if (
+                            targetStep === 2 &&
+                            this.calendar
+                        ) {
+                            this.calendar.updateSize();
                         }
-                    }, { deep: true });
 
-                    // Watch date to load slots
-                    this.$watch('appointment_date', (val) => {
-                        if (val && this.selectedServices.length > 0) {
-                            this.loadTimeSlots();
+                        window.scrollTo({
+                            top: 0,
+                            behavior: 'smooth'
+                        });
+                    });
+                },
+
+
+                validateCurrentStep() {
+
+                    if (this.step === 1) {
+
+                        this.showMessage(
+                            'Choose a service',
+                            'Please select at least one service before continuing.',
+                            'info'
+                        );
+
+                        return;
+                    }
+
+                    if (this.step === 2) {
+
+                        if (!this.appointmentDate) {
+
+                            this.showMessage(
+                                'Choose a date',
+                                'Please select an appointment date.',
+                                'info'
+                            );
+
+                            return;
+                        }
+
+                        if (!this.selectedTime) {
+
+                            this.showMessage(
+                                'Choose a time',
+                                'Please select an available appointment time.',
+                                'info'
+                            );
+
+                            return;
+                        }
+
+                        return;
+                    }
+
+                    if (this.step === 3) {
+
+                        if (!this.guestName.trim()) {
+
+                            this.showMessage(
+                                'Name required',
+                                'Please enter your full name.',
+                                'info'
+                            );
+
+                            return;
+                        }
+
+                        if (!this.phoneValid) {
+
+                            this.showMessage(
+                                'Invalid mobile number',
+                                'Please enter a valid Philippine mobile number.',
+                                'info'
+                            );
+
+                            return;
+                        }
+                    }
+                },
+
+
+                /* -------------------------------------------------
+                   Submit
+                ------------------------------------------------- */
+
+                async submitBooking() {
+
+                    if (this.submitting) {
+                        return;
+                    }
+
+                    if (!this.canEnterStep(4)) {
+
+                        this.showMessage(
+                            'Incomplete booking',
+                            'Please complete all required booking details.',
+                            'warning'
+                        );
+
+                        return;
+                    }
+
+                    /*
+                     * Confirm one final time before POST.
+                     */
+
+                    const result = await Swal.fire({
+                        title: 'Send appointment request?',
+                        html: `
+                            <div class="text-left">
+                                <div class="rounded-xl bg-slate-50 p-4 mb-3">
+                                    <p class="text-xs font-semibold text-slate-400">
+                                        Schedule
+                                    </p>
+                                    <p class="mt-1 text-sm font-bold text-slate-900">
+                                        ${this.escapeHtml(this.formatDateLong(this.appointmentDate))}
+                                    </p>
+                                    <p class="mt-1 text-sm text-slate-600">
+                                        ${this.escapeHtml(this.formatTime(this.selectedTime))}
+                                        – 
+                                        ${this.escapeHtml(this.formatTime(this.endTime))}
+                                    </p>
+                                </div>
+
+                                <div class="rounded-xl bg-zen-50 p-4">
+                                    <p class="text-xs font-semibold text-zen-700">
+                                        Estimated total
+                                    </p>
+                                    <p class="mt-1 text-xl font-extrabold text-zen-800">
+                                        ₱${this.formatMoney(this.totalPrice)}
+                                    </p>
+                                </div>
+                            </div>
+                        `,
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonText: 'Send request',
+                        cancelButtonText: 'Review again',
+                        reverseButtons: true,
+                        customClass: {
+                            popup: 'rounded-3xl',
+                            confirmButton: 'rounded-xl px-5 py-3 font-bold',
+                            cancelButton: 'rounded-xl px-5 py-3 font-bold'
+                        },
+                        buttonsStyling: true
+                    });
+
+                    if (!result.isConfirmed) {
+                        return;
+                    }
+
+                    this.submitting = true;
+
+                    /*
+                     * Submit the real Laravel form.
+                     */
+
+                    const form = document.getElementById(
+                        'booking-form'
+                    );
+
+                    if (!form) {
+                        this.submitting = false;
+
+                        this.showMessage(
+                            'Booking error',
+                            'The booking form could not be found.',
+                            'error'
+                        );
+
+                        return;
+                    }
+
+                    form.submit();
+                },
+
+
+                /* -------------------------------------------------
+                   Date / time utilities
+                ------------------------------------------------- */
+
+                localDateString(date) {
+
+                    const year = date.getFullYear();
+
+                    const month = String(
+                        date.getMonth() + 1
+                    ).padStart(2, '0');
+
+                    const day = String(
+                        date.getDate()
+                    ).padStart(2, '0');
+
+                    return `${year}-${month}-${day}`;
+                },
+
+
+                addDays(dateString, days) {
+
+                    const parts = dateString
+                        .split('-')
+                        .map(Number);
+
+                    const date = new Date(
+                        parts[0],
+                        parts[1] - 1,
+                        parts[2]
+                    );
+
+                    date.setDate(
+                        date.getDate() + days
+                    );
+
+                    return this.localDateString(date);
+                },
+
+
+                isSunday(dateString) {
+
+                    const parts = dateString
+                        .split('-')
+                        .map(Number);
+
+                    const date = new Date(
+                        parts[0],
+                        parts[1] - 1,
+                        parts[2]
+                    );
+
+                    return date.getDay() === 0;
+                },
+
+
+                hourOf(time) {
+
+                    if (!time) {
+                        return 0;
+                    }
+
+                    return Number(
+                        String(time)
+                            .split(':')[0]
+                    );
+                },
+
+
+                formatTime(time) {
+
+                    if (!time) {
+                        return '';
+                    }
+
+                    const parts = String(time)
+                        .split(':')
+                        .map(Number);
+
+                    const hours = parts[0];
+                    const minutes = parts[1] || 0;
+
+                    const suffix = hours >= 12
+                        ? 'PM'
+                        : 'AM';
+
+                    const displayHour =
+                        hours % 12 || 12;
+
+                    return `${displayHour}:${String(minutes).padStart(2, '0')} ${suffix}`;
+                },
+
+
+                formatDateLong(dateString) {
+
+                    if (!dateString) {
+                        return '';
+                    }
+
+                    const [year, month, day] = dateString
+                        .split('-')
+                        .map(Number);
+
+                    const date = new Date(
+                        year,
+                        month - 1,
+                        day
+                    );
+
+                    return new Intl.DateTimeFormat(
+                        'en-PH',
+                        {
+                            weekday: 'long',
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric'
+                        }
+                    ).format(date);
+                },
+
+
+                formatDateShort(dateString) {
+
+                    if (!dateString) {
+                        return 'Not selected';
+                    }
+
+                    const [year, month, day] = dateString
+                        .split('-')
+                        .map(Number);
+
+                    const date = new Date(
+                        year,
+                        month - 1,
+                        day
+                    );
+
+                    return new Intl.DateTimeFormat(
+                        'en-PH',
+                        {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                        }
+                    ).format(date);
+                },
+
+
+                formatMoney(value) {
+
+                    const number = Number(value || 0);
+
+                    return number.toLocaleString(
+                        'en-PH',
+                        {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        }
+                    );
+                },
+
+
+                /* -------------------------------------------------
+                   UI helpers
+                ------------------------------------------------- */
+
+                refreshIcons() {
+
+                    if (
+                        window.lucide &&
+                        typeof window.lucide.createIcons === 'function'
+                    ) {
+                        window.lucide.createIcons();
+                    }
+                },
+
+
+                showMessage(title, text, icon = 'info') {
+
+                    Swal.fire({
+                        title,
+                        text,
+                        icon,
+                        confirmButtonText: 'Okay',
+                        customClass: {
+                            popup: 'rounded-3xl',
+                            confirmButton: 'rounded-xl px-5 py-3 font-bold'
                         }
                     });
                 },
 
-                initCalendar() {
-                    const today = new Date();
-                    const format = d => {
-                        const y = d.getFullYear();
-                        const m = String(d.getMonth()+1).padStart(2,'0');
-                        const day = String(d.getDate()).padStart(2,'0');
-                        return `${y}-${m}-${day}`;
-                    };
 
-                    let days = [];
-                    let temp = new Date(today);
-                    while (days.length < 14) {
-                        if (temp.getDay() !== 0) { // Skip Sundays
-                            days.push(format(temp));
-                        }
-                        temp.setDate(temp.getDate() + 1);
-                    }
+                escapeHtml(value) {
 
-                    const el = document.getElementById('calendar');
-                    this.calendar = new FullCalendar.Calendar(el, {
-                        initialView: 'dayGridMonth',
-                        height: 'auto',
-                        headerToolbar: { left: 'title', center: '', right: 'prev,next' },
-                        validRange: { start: days[0], end: days[days.length - 1] },
-                        dateClick: (info) => {
-                            this.appointment_date = info.dateStr;
-                            this.start_time = null;
-                            document.querySelectorAll('.fc-day-selected').forEach(e => e.classList.remove('fc-day-selected'));
-                            const cell = document.querySelector(`[data-date="${this.appointment_date}"]`);
-                            if (cell) cell.classList.add('fc-day-selected');
-                        }
-                    });
-                    this.calendar.render();
+                    return String(value ?? '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
                 }
-            }
+
+            };
         }
     </script>
+
+
+    <!-- ============================================================
+         EXTRA CALENDAR STYLING
+    ============================================================= -->
+
+    <style>
+        #booking-calendar .booking-selected-date {
+            background: rgba(20, 184, 166, 0.10) !important;
+        }
+
+        #booking-calendar .booking-selected-date .fc-daygrid-day-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2rem;
+            height: 2rem;
+            margin: 0.15rem;
+            border-radius: 9999px;
+            background: #0f766e;
+            color: white;
+        }
+
+        #booking-calendar .booking-sunday {
+            background: #fafafa !important;
+        }
+
+        #booking-calendar .booking-sunday .fc-daygrid-day-number {
+            color: #cbd5e1 !important;
+        }
+    </style>
+
 </body>
 </html>

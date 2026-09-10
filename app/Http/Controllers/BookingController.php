@@ -533,7 +533,105 @@ class BookingController extends Controller
         return ['slots' => $slots, 'requires_room' => $requiresRoom, 'room_count' => $rooms->count()];
     }
 
+
+    // ==================== AVAILABILITY / CONFLICT HELPERS ====================
+
+    private function validateBusinessHours(string $date, Carbon $startTime, Carbon $endTime): ?string
+    {
+        if (Carbon::parse($date)->dayOfWeek === Carbon::SUNDAY) {
+            return 'We are closed on Sundays. Please pick another date.';
+        }
+
+        $open  = Carbon::parse($date . ' 10:00:00', 'Asia/Manila');
+        $close = Carbon::parse($date . ' 20:00:00', 'Asia/Manila');
+
+        if ($startTime->lt($open) || $endTime->gt($close)) {
+            return 'Appointments must be between 10:00 AM and 8:00 PM.';
+        }
+
+        return null;
+    }
+
+    private function getStaffWorkWindow(int $staffId, string $date): ?array
+    {
+        $dayOfWeek = Carbon::parse($date)->dayOfWeek;
+
+        $exception = ScheduleException::where('user_id', $staffId)
+            ->whereDate('exception_date', $date)
+            ->first();
+
+        if ($exception && in_array($exception->type, ['day_off', 'holiday', 'sick_leave', 'urgent_leave'])) {
+            return null;
+        }
+
+        $schedule = WorkSchedule::where('user_id', $staffId)
+            ->where('day_of_week', $dayOfWeek)
+            ->where('is_day_off', false)
+            ->first();
+
+        if (!$schedule) return null;
+
+        $start = $this->extractTime($schedule->start_time);
+        $end   = $this->extractTime($schedule->end_time);
+
+        if ($exception && $exception->type === 'custom_hours') {
+            $start = $this->extractTime($exception->start_time);
+            $end   = $this->extractTime($exception->end_time);
+        }
+
+        if (!$start || !$end) return null;
+
+        return ['start' => $start, 'end' => $end];
+    }
+
+    private function isStaffAvailable(int $staffId, string $date, string $startTime, string $endTime): bool
+    {
+        $window = $this->getStaffWorkWindow($staffId, $date);
+        if (!$window) return false;
+
+        $start = substr($startTime, 0, 5);
+        $end   = substr($endTime, 0, 5);
+
+        // Slot must fit entirely inside the staff's shift
+        if ($start < $window['start'] || $end > $window['end']) return false;
+
+        // Overlap check against existing appointments (confirmed AND pending,
+        // so two pending bookings can't grab the same staff slot)
+        return !Appointment::where('user_id', $staffId)
+            ->where('appointment_date', $date)
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('start_time', [$start . ':00', $end . ':00'])
+                  ->orWhereBetween('end_time', [$start . ':00', $end . ':00'])
+                  ->orWhere(function ($sq) use ($start, $end) {
+                      $sq->where('start_time', '<=', $start . ':00')
+                         ->where('end_time', '>=', $end . ':00');
+                  });
+            })->exists();
+    }
+
+    private function findFreeRoom($services, string $date, string $startTime, string $endTime): ?Room
+    {
+        $roomCategoryIds = $services->where('requires_room', true)
+            ->whereNotNull('room_category_id')
+            ->pluck('room_category_id')
+            ->unique()
+            ->values();
+
+        $query = Room::active()->where('status', '!=', 'maintenance');
+        if ($roomCategoryIds->isNotEmpty()) {
+            $query->where(function ($q) use ($roomCategoryIds) {
+                $q->whereIn('category_id', $roomCategoryIds)->orWhereNull('category_id');
+            });
+        }
+
+        return $query->get()->first(fn($room) =>
+            $room->isAvailableFor($date, $startTime, $endTime)
+        );
+    }
+
     // ==================== STORE (shared by wizard + quick-book) ====================
+
     public function store(Request $request)
     {
         $request->validate([
@@ -574,6 +672,67 @@ class BookingController extends Controller
             : $startTime->copy()->addMinutes($totalDuration);
 
         $totalPrice = $services->sum(fn($s) => $s->discount_price ?? $s->price);
+
+        // ─── SERVER-SIDE CONFLICT PREVENTION ───
+        $tz = 'Asia/Manila';
+        $requiresRoom = $services->contains(fn($s) => $s->requires_room);
+        $startTimeStr = $startTime->format('H:i:s');
+        $endTimeStr   = $endTime->format('H:i:s');
+
+        $fail = function (string $message) use ($request) {
+            if ($request->ajax() || $request->wantsJson() || $request->get('source') === 'receptionist') {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+            return back()->withInput()->with('error', $message);
+        };
+
+        // 1. Business hours / closed days (matches the slot generator: 10:00–20:00, closed Sundays)
+        $bizError = $this->validateBusinessHours($request->appointment_date, $startTime, $endTime);
+        if ($bizError) {
+            return $fail($bizError);
+        }
+
+        // 2. Lead time — public customers need 30 min lead; receptionist walk-ins are instant
+        if (!$isReceptionist && $startTime->lte(Carbon::now($tz)->addMinutes(30))) {
+            return $fail('Please choose a time at least 30 minutes from now.');
+        }
+
+        // 3. Staff validation
+        if ($isReceptionist && $request->filled('staff_id')) {
+            // Receptionist picked a specific staff member — make sure they're actually free
+            if (!$this->isStaffAvailable((int) $request->staff_id, $request->appointment_date, $startTimeStr, $endTimeStr)) {
+                return $fail('Selected staff is not available at this time (off-shift, on leave, or has another appointment).');
+            }
+        } else {
+            // Public booking with no staff picking — require at least ONE available staff
+            $hasAvailableStaff = User::whereHas('roles', fn($q) => $q->where('name', 'staff'))
+                ->where('is_active', true)
+                ->get()
+                ->contains(fn($s) => $this->isStaffAvailable($s->id, $request->appointment_date, $startTimeStr, $endTimeStr));
+
+            if (!$hasAvailableStaff) {
+                return $fail('Sorry — no available staff at this hour (all staff are occupied or off-shift). Please choose a different time slot.');
+            }
+        }
+
+        // 4. Room validation
+        if ($requiresRoom) {
+            if ($request->filled('room_id')) {
+                // Caller requested a specific room — verify it is actually free
+                $room = Room::find($request->room_id);
+                if (!$room || !$room->isAvailableFor($request->appointment_date, $startTimeStr, $endTimeStr)) {
+                    return $fail('The selected room is no longer available at this time. Please pick another slot.');
+                }
+            } else {
+                // No room chosen — auto-assign the first compatible free room, or reject
+                $freeRoom = $this->findFreeRoom($services, $request->appointment_date, $startTimeStr, $endTimeStr);
+                if (!$freeRoom) {
+                    return $fail('No rooms available for this time slot. Please choose a different time.');
+                }
+                $request->merge(['room_id' => $freeRoom->id]);
+            }
+        }
+
 
         if ($isCustomer) {
             $customer = Customer::updateOrCreate(
