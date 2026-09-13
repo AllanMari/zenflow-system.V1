@@ -1,4 +1,4 @@
-```blade
+
 <!DOCTYPE html>
 <html lang="en" class="{{ session('dark_mode') === 'enabled' ? 'dark' : '' }}">
 <head>
@@ -115,40 +115,30 @@
     </div>
 
     <!-- Header -->
-    <header class="relative border-b border-gray-200/80 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl">
-        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3">
-            <div class="flex items-center justify-between gap-4">
+    <header class="sticky top-0 z-50 border-b border-gray-200/80 dark:border-gray-800 bg-white/90 dark:bg-gray-950/90 backdrop-blur-xl transition-colors duration-200">
+        <div class="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
-                <!-- Brand -->
-                <a href="{{ route('landing') }}" class="flex items-center gap-2.5 group">
-
-                    <div class="w-9 h-9 rounded-lg bg-teal-600 text-white flex items-center justify-center shadow-sm group-hover:bg-teal-700 transition">
-                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+            <!-- Brand -->
+            <a href="{{ route('landing') }}" class="flex items-center gap-3 group">
+                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white shadow-sm group-hover:bg-teal-700 transition">
+                    <i data-lucide="sparkles" class="h-5 w-5"></i>
+                </div>
+                <div class="hidden sm:block leading-tight">
+                    <div class="font-bold text-sm text-gray-900 dark:text-white">
+                        Spa Alexandria
                     </div>
-
-                    <div>
-                        <div class="font-bold text-sm text-gray-900 dark:text-white leading-tight">
-                            Spa Alexandria
-                        </div>
-
-                        <div class="text-[10px] text-gray-500 dark:text-gray-400">
-                            Relax. Restore. Rejuvenate.
-                        </div>
+                    <div class="text-[11px] text-gray-500 dark:text-gray-400">
+                        Relax. Restore. Rejuvenate.
                     </div>
+                </div>
+            </a>
 
-                </a>
-
-                <!-- Dark Mode -->
-                <button
-                    type="button"
-                    onclick="toggleDarkMode()"
-                    class="w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-200 dark:hover:border-teal-800 transition"
-                    aria-label="Toggle dark mode"
-                >
-                    <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
-                    <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+            <!-- Actions -->
+            <div class="flex items-center gap-4">
+                <button type="button" onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-200 dark:hover:border-teal-700 transition" aria-label="Toggle dark mode">
+                    <i data-lucide="sun" class="h-4 w-4 hidden dark:block"></i>
+                    <i data-lucide="moon" class="h-4 w-4 block dark:hidden"></i>
                 </button>
-
             </div>
         </div>
     </header>
@@ -163,7 +153,7 @@
             <div class="text-center max-w-2xl mx-auto mb-5 sm:mb-6">
 
                 <!-- Success Icon -->
-                <div class="relative mx-auto w-14 h-14 mb-3">
+                <div class="relative mx-auto w-14 h-16 mb-3">
 
                     <div class="success-ring absolute inset-0 rounded-full bg-teal-100 dark:bg-teal-900/40"></div>
 
@@ -217,7 +207,7 @@
 
                         <div class="flex gap-3">
 
-                            <div class="shrink-0 w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/60 flex items-center justify-center">
+                            <div class="shrink-0 h-10 w-10 rounded-xl bg-teal-100 dark:bg-teal-900/60 flex items-center justify-center">
                                 <i data-lucide="phone-call" class="w-4 h-4 text-teal-700 dark:text-teal-300"></i>
                             </div>
 
@@ -275,7 +265,7 @@
 
                                 <div class="flex items-center gap-2.5">
 
-                                    <div class="w-8 h-8 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+                                    <div class="h-10 w-10 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
                                         <i data-lucide="calendar-days" class="w-4 h-4 text-teal-600 dark:text-teal-400"></i>
                                     </div>
 
@@ -299,7 +289,7 @@
 
                                 <div class="flex items-center gap-2.5">
 
-                                    <div class="w-8 h-8 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+                                    <div class="h-10 w-10 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
                                         <i data-lucide="clock-4" class="w-4 h-4 text-teal-600 dark:text-teal-400"></i>
                                     </div>
 
@@ -581,19 +571,10 @@
 
         function toggleDarkMode() {
             const html = document.documentElement;
-
-            html.classList.toggle('dark');
-
-            if (html.classList.contains('dark')) {
-                localStorage.setItem('darkMode', 'enabled');
-            } else {
-                localStorage.setItem('darkMode', 'disabled');
-            }
-
-            lucide.createIcons();
+            const isDark = html.classList.toggle('dark');
+            localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
         }
     </script>
 
 </body>
 </html>
-```

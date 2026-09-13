@@ -699,7 +699,7 @@
                          * Customer initials
                          */
                         $customerName =
-                            $appt->customer->full_name ?? 'Walk-in';
+                            $appt->customer->display_name ?? 'Walk-in';
 
                         $customerParts =
                             preg_split('/\s+/', trim($customerName));

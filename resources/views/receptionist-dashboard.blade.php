@@ -40,7 +40,7 @@
                     @foreach($pending as $appointment)
                     <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td class="p-3 dark:text-gray-300 font-medium">
-                            {{ $appointment->customer->first_name }} {{ $appointment->customer->last_name }}
+                            {{ $appointment->customer->display_name }}
                         </td>
                         <td class="p-3 dark:text-gray-300">
                             {{ $appointment->appointment_date }} | {{ $appointment->start_time }}

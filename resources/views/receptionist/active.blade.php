@@ -25,12 +25,12 @@ $calendarEvents = $appointments->map(function($a) {
 
     return [
         'id' => $a->id,
-        'title' => $a->customer->full_name,
+        'title' => $a->customer->display_name,
         'start' => $a->appointment_date->format('Y-m-d') . 'T' . $a->start_time,
         'end' => $a->appointment_date->format('Y-m-d') . 'T' . $a->end_time,
         'color' => $color,
         'extendedProps' => [
-            'customer' => $a->customer->full_name,
+            'customer' => $a->customer->display_name,
             'staff' => $a->staff->full_name ?? 'Unassigned',
             'staffId' => $a->user_id,
             'roomId' => $a->room_id,
@@ -168,7 +168,7 @@ $allRooms = \App\Models\Room::where('status', '!=', 'maintenance')
                             <span class="text-gray-400 dark:text-gray-500 text-xs font-mono">#{{ $appointment->id }}</span>
                         </div>
 
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-white truncate">{{ $appointment->customer->full_name }}</h3>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white truncate">{{ $appointment->customer->display_name }}</h3>
                         
                         <div class="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400 flex-wrap">
                             <span class="flex items-center gap-1.5">

@@ -15,7 +15,6 @@ $roleStyles = [
 
 <div class="w-full">
 
-```
 {{-- Search and Filter --}}
 <div class="mb-5 rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-[#1e293b]">
     <form
@@ -495,7 +494,7 @@ $roleStyles = [
         </div>
     @endif
 </div>
-```
+
 
 </div>
 
@@ -514,7 +513,7 @@ CREATE MODAL
         onclick="event.stopPropagation()"
     >
 
-```
+
     <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700">
 
         <div>
@@ -789,7 +788,7 @@ CREATE MODAL
         </div>
     </form>
 </div>
-```
+
 
 </div>
 
@@ -808,7 +807,7 @@ EDIT MODAL
         onclick="event.stopPropagation()"
     >
 
-```
+
     <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700">
 
         <div>
@@ -1111,7 +1110,7 @@ EDIT MODAL
         </div>
     </form>
 </div>
-```
+
 
 </div>
 
@@ -1130,7 +1129,7 @@ SHARED CONFIRMATION MODAL
         onclick="event.stopPropagation()"
     >
 
-```
+
     <div class="p-5 text-center sm:p-6">
 
         <div
@@ -1240,7 +1239,7 @@ SHARED CONFIRMATION MODAL
         </div>
     </form>
 </div>
-```
+
 
 </div>
 

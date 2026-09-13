@@ -74,13 +74,13 @@
                     default => ['bg-gray-100 text-gray-600 border-gray-200', $apptDateTime->diffForHumans()]
                 };
 
-                $initials = collect(explode(' ', $appointment->customer->full_name))
+                $initials = collect(explode(' ', $appointment->customer->display_name))
                     ->map(fn($n) => strtoupper(substr($n, 0, 1)))->filter()->take(2)->join('');
             @endphp
 
             <article class="appointment-card group bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 {{ $urgencyClass }}"
                      data-id="{{ $appointment->id }}"
-                     data-customer="{{ strtolower($appointment->customer->full_name) }}"
+                     data-customer="{{ strtolower($appointment->customer->display_name) }}"
                      data-phone="{{ $appointment->customer->phone_number }}"
                      data-date="{{ $dateStr }}"
                      data-timestamp="{{ $apptDateTime->timestamp }}"
@@ -108,7 +108,7 @@
                             </div>
 
                             <h3 class="text-base font-bold text-gray-900 dark:text-white truncate">
-                                {{ $appointment->customer->full_name }}
+                                {{ $appointment->customer->display_name }}
                             </h3>
 
                             <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-gray-500 dark:text-gray-400">

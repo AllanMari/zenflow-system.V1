@@ -2,6 +2,11 @@
 <html lang="en">
 
 <head>
+    <script>
+        if (localStorage.getItem('darkMode') === 'enabled') {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -11,6 +16,7 @@
 
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
@@ -93,6 +99,16 @@
                 );
         }
 
+        .dark .image-side-fade {
+            background:
+                linear-gradient(
+                    90deg,
+                    rgba(15, 23, 42, 0) 0%,
+                    rgba(15, 23, 42, 0.03) 55%,
+                    rgba(15, 23, 42, 0.25) 100%
+                );
+        }
+
         .form-scroll::-webkit-scrollbar {
             width: 6px;
         }
@@ -109,7 +125,7 @@
 </head>
 
 
-<body class="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 antialiased">
+<body class="min-h-screen overflow-x-hidden bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white antialiased">
 
     <main class="min-h-screen lg:grid lg:h-screen lg:grid-cols-2 lg:overflow-hidden">
 
@@ -194,8 +210,8 @@
                             items-center
                             justify-center
                             rounded-2xl
-                            bg-white/90
-                            text-brand-700
+                            bg-white/90 dark:bg-slate-900/90
+                            text-brand-700 dark:text-brand-400
                             shadow-lg
                             shadow-black/10
                             backdrop-blur
@@ -359,7 +375,7 @@
                                 items-center
                                 justify-center
                                 rounded-xl
-                                bg-brand-700
+                                bg-brand-700 dark:bg-brand-600
                                 text-white
                                 shadow-sm
                             "
@@ -381,7 +397,7 @@
                                     font-extrabold
                                     tracking-wide
                                     leading-5
-                                    text-slate-900
+                                    text-slate-900 dark:text-white
                                 "
                             >
                                 Spa Alexandria
@@ -395,7 +411,7 @@
                                     uppercase
                                     leading-4
                                     tracking-[0.10em]
-                                    text-slate-400
+                                    text-slate-400 dark:text-slate-500
                                     sm:text-[11px]
                                     sm:tracking-[0.14em]
                                 "
@@ -423,8 +439,8 @@
                             items-center
                             justify-center
                             rounded-2xl
-                            bg-brand-50
-                            text-brand-700
+                            bg-brand-50 dark:bg-brand-900/20
+                            text-brand-700 dark:text-brand-400
                         "
                     >
 
@@ -440,7 +456,7 @@
                         class="
                             text-sm
                             font-bold
-                            text-brand-700
+                            text-brand-700 dark:text-brand-400
                         "
                     >
                         Welcome
@@ -453,7 +469,7 @@
                             text-3xl
                             font-extrabold
                             tracking-tight
-                            text-slate-900
+                            text-slate-900 dark:text-white
                         "
                     >
                         Create your account
@@ -465,7 +481,7 @@
                             mt-2
                             text-sm
                             leading-6
-                            text-slate-500
+                            text-slate-500 dark:text-slate-400
                         "
                     >
                         Register as a customer to manage your Spa Alexandria appointments.
@@ -483,11 +499,11 @@
                             mb-6
                             rounded-2xl
                             border
-                            border-red-200
-                            bg-red-50
+                            border-red-200 dark:border-red-800/40
+                            bg-red-50 dark:bg-red-900/20
                             p-4
                             text-sm
-                            text-red-700
+                            text-red-700 dark:text-red-400
                         "
                     >
 
@@ -537,7 +553,7 @@
 
                             <label
                                 for="first_name"
-                                class="mb-2 block text-sm font-semibold text-slate-700"
+                                class="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
                             >
                                 First Name
                             </label>
@@ -554,7 +570,7 @@
                                         flex
                                         items-center
                                         pl-4
-                                        text-slate-400
+                                        text-slate-400 dark:text-slate-500
                                     "
                                 >
 
@@ -578,18 +594,18 @@
                                         w-full
                                         rounded-2xl
                                         border
-                                        border-slate-200
-                                        bg-white
+                                        border-slate-200 dark:border-slate-700
+                                        bg-white dark:bg-slate-800
                                         py-3.5
                                         pl-12
                                         pr-4
                                         text-sm
-                                        text-slate-900
+                                        text-slate-900 dark:text-white
                                         shadow-sm
                                         outline-none
                                         transition
-                                        placeholder:text-slate-400
-                                        hover:border-slate-300
+                                        placeholder:text-slate-400 dark:text-slate-500
+                                        hover:border-slate-300 dark:hover:border-slate-600
                                         focus:border-brand-500
                                         focus:ring-4
                                         focus:ring-brand-500/10
@@ -606,7 +622,7 @@
 
                             <label
                                 for="last_name"
-                                class="mb-2 block text-sm font-semibold text-slate-700"
+                                class="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
                             >
                                 Last Name
                             </label>
@@ -623,7 +639,7 @@
                                         flex
                                         items-center
                                         pl-4
-                                        text-slate-400
+                                        text-slate-400 dark:text-slate-500
                                     "
                                 >
 
@@ -647,18 +663,18 @@
                                         w-full
                                         rounded-2xl
                                         border
-                                        border-slate-200
-                                        bg-white
+                                        border-slate-200 dark:border-slate-700
+                                        bg-white dark:bg-slate-800
                                         py-3.5
                                         pl-12
                                         pr-4
                                         text-sm
-                                        text-slate-900
+                                        text-slate-900 dark:text-white
                                         shadow-sm
                                         outline-none
                                         transition
-                                        placeholder:text-slate-400
-                                        hover:border-slate-300
+                                        placeholder:text-slate-400 dark:text-slate-500
+                                        hover:border-slate-300 dark:hover:border-slate-600
                                         focus:border-brand-500
                                         focus:ring-4
                                         focus:ring-brand-500/10
@@ -678,7 +694,7 @@
 
                         <label
                             for="username"
-                            class="mb-2 block text-sm font-semibold text-slate-700"
+                            class="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
                         >
                             Username
                         </label>
@@ -695,7 +711,7 @@
                                     flex
                                     items-center
                                     pl-4
-                                    text-slate-400
+                                    text-slate-400 dark:text-slate-500
                                 "
                             >
 
@@ -719,18 +735,18 @@
                                     w-full
                                     rounded-2xl
                                     border
-                                    border-slate-200
-                                    bg-white
+                                    border-slate-200 dark:border-slate-700
+                                    bg-white dark:bg-slate-800
                                     py-3.5
                                     pl-12
                                     pr-4
                                     text-sm
-                                    text-slate-900
+                                    text-slate-900 dark:text-white
                                     shadow-sm
                                     outline-none
                                     transition
-                                    placeholder:text-slate-400
-                                    hover:border-slate-300
+                                    placeholder:text-slate-400 dark:text-slate-500
+                                    hover:border-slate-300 dark:hover:border-slate-600
                                     focus:border-brand-500
                                     focus:ring-4
                                     focus:ring-brand-500/10
@@ -748,7 +764,7 @@
 
                         <label
                             for="password"
-                            class="mb-2 block text-sm font-semibold text-slate-700"
+                            class="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
                         >
                             Password
                         </label>
@@ -765,7 +781,7 @@
                                     flex
                                     items-center
                                     pl-4
-                                    text-slate-400
+                                    text-slate-400 dark:text-slate-500
                                 "
                             >
 
@@ -788,18 +804,18 @@
                                     w-full
                                     rounded-2xl
                                     border
-                                    border-slate-200
-                                    bg-white
+                                    border-slate-200 dark:border-slate-700
+                                    bg-white dark:bg-slate-800
                                     py-3.5
                                     pl-12
                                     pr-12
                                     text-sm
-                                    text-slate-900
+                                    text-slate-900 dark:text-white
                                     shadow-sm
                                     outline-none
                                     transition
-                                    placeholder:text-slate-400
-                                    hover:border-slate-300
+                                    placeholder:text-slate-400 dark:text-slate-500
+                                    hover:border-slate-300 dark:hover:border-slate-600
                                     focus:border-brand-500
                                     focus:ring-4
                                     focus:ring-brand-500/10
@@ -817,9 +833,9 @@
                                     flex
                                     items-center
                                     px-4
-                                    text-slate-400
+                                    text-slate-400 dark:text-slate-500
                                     transition
-                                    hover:text-slate-700
+                                    hover:text-slate-700 dark:hover:text-slate-300
                                 "
                                 aria-label="Show password"
                             >
@@ -842,7 +858,7 @@
 
                         <label
                             for="password_confirmation"
-                            class="mb-2 block text-sm font-semibold text-slate-700"
+                            class="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
                         >
                             Confirm Password
                         </label>
@@ -859,7 +875,7 @@
                                     flex
                                     items-center
                                     pl-4
-                                    text-slate-400
+                                    text-slate-400 dark:text-slate-500
                                 "
                             >
 
@@ -882,18 +898,18 @@
                                     w-full
                                     rounded-2xl
                                     border
-                                    border-slate-200
-                                    bg-white
+                                    border-slate-200 dark:border-slate-700
+                                    bg-white dark:bg-slate-800
                                     py-3.5
                                     pl-12
                                     pr-12
                                     text-sm
-                                    text-slate-900
+                                    text-slate-900 dark:text-white
                                     shadow-sm
                                     outline-none
                                     transition
-                                    placeholder:text-slate-400
-                                    hover:border-slate-300
+                                    placeholder:text-slate-400 dark:text-slate-500
+                                    hover:border-slate-300 dark:hover:border-slate-600
                                     focus:border-brand-500
                                     focus:ring-4
                                     focus:ring-brand-500/10
@@ -911,9 +927,9 @@
                                     flex
                                     items-center
                                     px-4
-                                    text-slate-400
+                                    text-slate-400 dark:text-slate-500
                                     transition
-                                    hover:text-slate-700
+                                    hover:text-slate-700 dark:hover:text-slate-300
                                 "
                                 aria-label="Show password"
                             >
@@ -936,8 +952,8 @@
                         class="
                             rounded-2xl
                             border
-                            border-slate-200
-                            bg-white
+                            border-slate-200 dark:border-slate-700
+                            bg-white dark:bg-slate-800
                             p-4
                         "
                     >
@@ -962,8 +978,8 @@
                                     w-4
                                     shrink-0
                                     rounded
-                                    border-slate-300
-                                    text-brand-700
+                                    border-slate-300 dark:border-slate-600
+                                    text-brand-700 dark:text-brand-400
                                     focus:ring-brand-500
                                 "
                                 {{ old('terms') ? 'checked' : '' }}
@@ -974,7 +990,7 @@
                                 class="
                                     text-xs
                                     leading-5
-                                    text-slate-500
+                                    text-slate-500 dark:text-slate-400
                                 "
                             >
 
@@ -985,7 +1001,7 @@
                                     target="_blank"
                                     class="
                                         font-bold
-                                        text-brand-700
+                                        text-brand-700 dark:text-brand-400
                                         hover:text-brand-800
                                     "
                                 >
@@ -999,7 +1015,7 @@
                                     target="_blank"
                                     class="
                                         font-bold
-                                        text-brand-700
+                                        text-brand-700 dark:text-brand-400
                                         hover:text-brand-800
                                     "
                                 >
@@ -1024,7 +1040,7 @@
                             justify-center
                             gap-2
                             rounded-2xl
-                            bg-brand-700
+                            bg-brand-700 dark:bg-brand-600
                             px-5
                             py-3.5
                             text-sm
@@ -1033,7 +1049,7 @@
                             shadow-sm
                             shadow-brand-700/20
                             transition
-                            hover:bg-brand-800
+                            hover:bg-brand-800 dark:hover:bg-brand-700
                             focus:outline-none
                             focus:ring-4
                             focus:ring-brand-500/20
@@ -1059,13 +1075,13 @@
                     class="
                         mt-6
                         border-t
-                        border-slate-200
+                        border-slate-200 dark:border-slate-700
                         pt-5
                         text-center
                     "
                 >
 
-                    <p class="text-sm text-slate-500">
+                    <p class="text-sm text-slate-500 dark:text-slate-400">
 
                         Already have an account?
 
@@ -1074,7 +1090,7 @@
                             class="
                                 ml-1
                                 font-bold
-                                text-brand-700
+                                text-brand-700 dark:text-brand-400
                                 transition
                                 hover:text-brand-800
                             "
@@ -1099,9 +1115,9 @@
                             gap-2
                             text-xs
                             font-semibold
-                            text-slate-400
+                            text-slate-400 dark:text-slate-500
                             transition
-                            hover:text-slate-700
+                            hover:text-slate-700 dark:hover:text-slate-300
                         "
                     >
 
@@ -1197,3 +1213,6 @@
 
 </body>
 </html>
+
+
+

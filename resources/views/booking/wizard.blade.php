@@ -8,6 +8,13 @@
 
     <title>Book an Appointment | Spa Alexandria</title>
 
+    <!-- Dark mode: apply before render to avoid flash -->
+    <script>
+        if (localStorage.getItem('darkMode') === 'enabled') {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -250,13 +257,13 @@
     </style>
 </head>
 
-<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+<body class="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased">
 
     <!-- ============================================================
          NAVIGATION
     ============================================================= -->
 
-    <header class="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+    <header class="sticky top-0 z-50 border-b border-slate-200/80 dark:border-slate-700/80 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl">
         <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
             <a href="{{ url('/') }}" class="flex items-center gap-3">
@@ -265,20 +272,26 @@
                 </div>
 
                 <div class="hidden sm:block">
-                    <div class="text-sm font800 font-bold tracking-tight text-slate-900">
+                    <div class="text-sm font800 font-bold tracking-tight text-slate-900 dark:text-slate-100">
                         Spa Alexandria
                     </div>
 
-                    <div class="text-[11px] font-medium text-slate-500">
-                        Wellness & Relaxation
+                    <div class="text-[11px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                        Wellness &amp; Relaxation
                     </div>
                 </div>
             </a>
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-4">
+                <!-- Dark Mode Toggle -->
+                <button type="button" onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-200 dark:hover:border-teal-700 transition" aria-label="Toggle dark mode">
+                    <i data-lucide="sun" class="h-4 w-4 hidden dark:block"></i>
+                    <i data-lucide="moon" class="h-4 w-4 block dark:hidden"></i>
+                </button>
+
                 <a
                     href="{{ url('/') }}"
-                    class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                    class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
                 >
                     <i data-lucide="arrow-left" class="h-4 w-4"></i>
                     <span class="hidden sm:inline">Back to Home</span>
@@ -299,16 +312,16 @@
 
         <section class="mb-8">
             <div class="max-w-3xl">
-                <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-zen-50 px-3 py-1.5 text-xs font-bold text-zen-700 ring-1 ring-zen-100">
+                <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-zen-50 dark:bg-teal-900/20 px-3 py-1.5 text-xs font-bold text-zen-700 dark:text-teal-400 ring-1 ring-zen-100 dark:ring-teal-800/50">
                     <span class="h-1.5 w-1.5 rounded-full bg-zen-500"></span>
                     ONLINE APPOINTMENT
                 </div>
 
-                <h1 class="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
+                <h1 class="text-3xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-4xl">
                     Book your time to relax.
                 </h1>
 
-                <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+                <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400 dark:text-slate-500 sm:text-base">
                     Choose your treatments, select a convenient schedule, and send your
                     appointment request. Our receptionist will confirm your booking.
                 </p>
@@ -321,7 +334,7 @@
         ========================================================= -->
 
         <section class="mb-8">
-            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-card sm:p-4">
+            <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-card sm:p-4">
 
                 <div class="grid grid-cols-4 gap-1 sm:gap-2">
 
@@ -332,15 +345,15 @@
                         @click="goToStep(1)"
                         class="group rounded-xl px-2 py-2.5 text-left transition sm:px-3"
                         :class="step >= 1
-                            ? 'bg-zen-50'
-                            : 'bg-transparent hover:bg-slate-50'"
+                            ? 'bg-zen-50 dark:bg-teal-900/20'
+                            : 'bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50'"
                     >
                         <div class="flex items-center gap-2 sm:gap-3">
                             <div
                                 class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition sm:h-9 sm:w-9"
                                 :class="step >= 1
                                     ? 'bg-zen-600 text-white'
-                                    : 'bg-slate-100 text-slate-400'"
+                                    : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400'"
                             >
                                 <template x-if="step > 1">
                                     <i data-lucide="check" class="h-4 w-4"></i>
@@ -354,12 +367,12 @@
                             <div class="min-w-0">
                                 <p
                                     class="truncate text-xs font-bold sm:text-sm"
-                                    :class="step >= 1 ? 'text-slate-900' : 'text-slate-400'"
+                                    :class="step >= 1 ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
                                 >
                                     Services
                                 </p>
 
-                                <p class="hidden text-[11px] text-slate-400 sm:block">
+                                <p class="hidden text-[11px] text-slate-400 dark:text-slate-500 sm:block">
                                     Choose treatments
                                 </p>
                             </div>
@@ -385,15 +398,15 @@
                         :disabled="!canEnterStep(2)"
                         class="group rounded-xl px-2 py-2.5 text-left transition sm:px-3"
                         :class="step >= 2
-                            ? 'bg-zen-50'
-                            : 'bg-transparent hover:bg-slate-50 disabled:hover:bg-transparent'"
+                            ? 'bg-zen-50 dark:bg-teal-900/20'
+                            : 'bg-transparent hover:bg-slate-50 dark:bg-slate-900 disabled:hover:bg-transparent'"
                     >
                         <div class="flex items-center gap-2 sm:gap-3">
                             <div
                                 class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition sm:h-9 sm:w-9"
                                 :class="step >= 2
                                     ? 'bg-zen-600 text-white'
-                                    : 'bg-slate-100 text-slate-400'"
+                                    : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400'"
                             >
                                 <template x-if="step > 2">
                                     <i data-lucide="check" class="h-4 w-4"></i>
@@ -407,12 +420,12 @@
                             <div class="min-w-0">
                                 <p
                                     class="truncate text-xs font-bold sm:text-sm"
-                                    :class="step >= 2 ? 'text-slate-900' : 'text-slate-400'"
+                                    :class="step >= 2 ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
                                 >
                                     Date & Time
                                 </p>
 
-                                <p class="hidden text-[11px] text-slate-400 sm:block">
+                                <p class="hidden text-[11px] text-slate-400 dark:text-slate-500 sm:block">
                                     Find a schedule
                                 </p>
                             </div>
@@ -438,15 +451,15 @@
                         :disabled="!canEnterStep(3)"
                         class="group rounded-xl px-2 py-2.5 text-left transition sm:px-3"
                         :class="step >= 3
-                            ? 'bg-zen-50'
-                            : 'bg-transparent hover:bg-slate-50 disabled:hover:bg-transparent'"
+                            ? 'bg-zen-50 dark:bg-teal-900/20'
+                            : 'bg-transparent hover:bg-slate-50 dark:bg-slate-900 disabled:hover:bg-transparent'"
                     >
                         <div class="flex items-center gap-2 sm:gap-3">
                             <div
                                 class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition sm:h-9 sm:w-9"
                                 :class="step >= 3
                                     ? 'bg-zen-600 text-white'
-                                    : 'bg-slate-100 text-slate-400'"
+                                    : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400'"
                             >
                                 3
                             </div>
@@ -454,12 +467,12 @@
                             <div class="min-w-0">
                                 <p
                                     class="truncate text-xs font-bold sm:text-sm"
-                                    :class="step >= 3 ? 'text-slate-900' : 'text-slate-400'"
+                                    :class="step >= 3 ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
                                 >
                                     Your Details
                                 </p>
 
-                                <p class="hidden text-[11px] text-slate-400 sm:block">
+                                <p class="hidden text-[11px] text-slate-400 dark:text-slate-500 sm:block">
                                     Tell us about you
                                 </p>
                             </div>
@@ -493,30 +506,30 @@
                     class="fade-up"
                 >
 
-                    <div class="rounded-3xl border border-slate-200 bg-white shadow-card">
+                    <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
 
-                        <div class="border-b border-slate-100 p-5 sm:p-7">
+                        <div class="border-b border-slate-100 dark:border-slate-700/50 p-5 sm:p-7">
                             <div class="flex items-start justify-between gap-4">
                                 <div>
                                     <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
                                         Step 1
                                     </p>
 
-                                    <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                                    <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-2xl">
                                         What would you like today?
                                     </h2>
 
-                                    <p class="mt-2 text-sm text-slate-500">
+                                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                         Select one or more treatments for your appointment.
                                     </p>
                                 </div>
 
-                                <div class="hidden rounded-xl bg-slate-50 px-3 py-2 text-right sm:block">
-                                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                <div class="hidden rounded-xl bg-slate-50 dark:bg-slate-900 px-3 py-2 text-right sm:block">
+                                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                         Selected
                                     </p>
 
-                                    <p class="text-sm font-bold text-slate-900">
+                                    <p class="text-sm font-bold text-slate-900 dark:text-slate-100">
                                         <span x-text="selectedServices.length"></span>
                                         <span x-text="selectedServices.length === 1 ? 'service' : 'services'"></span>
                                     </p>
@@ -527,7 +540,7 @@
 
                         <!-- Category navigation -->
 
-                        <div class="border-b border-slate-100 px-5 pt-4 sm:px-7">
+                        <div class="border-b border-slate-100 dark:border-slate-700/50 px-5 pt-4 sm:px-7">
                             <div class="nice-scrollbar flex gap-2 overflow-x-auto pb-4">
 
                                 <template x-for="category in categories" :key="category.id">
@@ -536,8 +549,8 @@
                                         @click="activeCategory = category.id"
                                         class="whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition"
                                         :class="activeCategory === category.id
-                                            ? 'bg-slate-900 text-white shadow-sm'
-                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                                            ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-sm'
+                                            : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-200'"
                                     >
                                         <span x-text="category.name"></span>
                                     </button>
@@ -557,17 +570,17 @@
                                     <div class="mb-4 flex items-center justify-between">
                                         <div>
                                             <h3
-                                                class="font-bold text-slate-900"
+                                                class="font-bold text-slate-900 dark:text-slate-100"
                                                 x-text="activeCategoryObject.name"
                                             ></h3>
 
-                                            <p class="mt-1 text-xs text-slate-500">
+                                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                                 Select the treatments you want to include.
                                             </p>
                                         </div>
 
                                         <span
-                                            class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500"
+                                            class="rounded-full bg-slate-100 dark:bg-slate-800/60 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500"
                                             x-text="activeCategoryServices.length + ' services'"
                                         ></span>
                                     </div>
@@ -586,7 +599,7 @@
                                                 class="service-card group relative overflow-hidden rounded-2xl border p-4 text-left"
                                                 :class="isSelected(service.id)
                                                     ? 'border-zen-500 bg-zen-50/70 shadow-md shadow-zen-100'
-                                                    : 'border-slate-200 bg-white hover:border-zen-200 hover:bg-slate-50'"
+                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-zen-200 dark:hover:border-teal-700 hover:bg-slate-50 dark:hover:bg-slate-800/80'"
                                             >
 
                                                 <!-- Selected indicator -->
@@ -595,7 +608,7 @@
                                                     class="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full transition"
                                                     :class="isSelected(service.id)
                                                         ? 'bg-zen-600 text-white'
-                                                        : 'bg-slate-100 text-transparent group-hover:bg-slate-200'"
+                                                        : 'bg-slate-100 dark:bg-slate-800/60 text-transparent group-hover:bg-slate-200'"
                                                 >
                                                     <i data-lucide="check" class="h-3.5 w-3.5"></i>
                                                 </div>
@@ -606,7 +619,7 @@
                                                     <!-- Image -->
 
                                                     <div
-                                                        class="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100"
+                                                        class="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800/60"
                                                     >
                                                         <template x-if="service.image">
                                                             <img
@@ -628,26 +641,26 @@
 
                                                     <div class="min-w-0 flex-1 pr-6">
 
-                                                        <h4 class="line-clamp-2 text-sm font-bold leading-5 text-slate-900">
+                                                        <h4 class="line-clamp-2 text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">
                                                             <span x-text="service.name"></span>
                                                         </h4>
 
                                                         <p
                                                             x-show="service.description"
-                                                            class="mt-1 line-clamp-2 text-xs leading-5 text-slate-500"
+                                                            class="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400 dark:text-slate-500"
                                                             x-text="service.description"
                                                         ></p>
 
                                                         <div class="mt-3 flex flex-wrap items-center gap-2">
 
-                                                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
+                                                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                                                 <i data-lucide="clock-3" class="h-3.5 w-3.5"></i>
                                                                 <span x-text="service.duration_minutes"></span> min
                                                             </span>
 
                                                             <span class="h-1 w-1 rounded-full bg-slate-300"></span>
 
-                                                            <span class="text-sm font-extrabold text-zen-700">
+                                                            <span class="text-sm font-extrabold text-zen-700 dark:text-teal-400">
                                                                 ₱<span x-text="formatMoney(service.discount_price || service.price)"></span>
                                                             </span>
 
@@ -666,16 +679,16 @@
                                     <!-- Empty category -->
 
                                     <template x-if="activeCategoryServices.length === 0">
-                                        <div class="rounded-2xl border border-dashed border-slate-200 py-12 text-center">
-                                            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                                        <div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 py-12 text-center">
+                                            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500">
                                                 <i data-lucide="sparkles" class="h-6 w-6"></i>
                                             </div>
 
-                                            <p class="mt-3 text-sm font-semibold text-slate-700">
+                                            <p class="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
                                                 No services available
                                             </p>
 
-                                            <p class="mt-1 text-xs text-slate-400">
+                                            <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
                                                 Please choose another category.
                                             </p>
                                         </div>
@@ -700,18 +713,18 @@
                     class="fade-up"
                 >
 
-                    <div class="rounded-3xl border border-slate-200 bg-white shadow-card">
+                    <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
 
-                        <div class="border-b border-slate-100 p-5 sm:p-7">
+                        <div class="border-b border-slate-100 dark:border-slate-700/50 p-5 sm:p-7">
                             <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
                                 Step 2
                             </p>
 
-                            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-2xl">
                                 Find a time that works for you.
                             </h2>
 
-                            <p class="mt-2 text-sm text-slate-500">
+                            <p class="mt-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                 Select a date first, then choose from the available appointment times.
                             </p>
                         </div>
@@ -721,20 +734,20 @@
 
                             <!-- Calendar -->
 
-                            <div class="border-b border-slate-100 p-5 sm:p-7 lg:border-b-0 lg:border-r">
+                            <div class="border-b border-slate-100 dark:border-slate-700/50 p-5 sm:p-7 lg:border-b-0 lg:border-r">
 
                                 <div class="mb-4 flex items-center justify-between">
                                     <div>
-                                        <h3 class="text-sm font-bold text-slate-900">
+                                        <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100">
                                             Choose a date
                                         </h3>
 
-                                        <p class="mt-1 text-xs text-slate-500">
+                                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                             Sundays are unavailable.
                                         </p>
                                     </div>
 
-                                    <div class="hidden items-center gap-2 text-[11px] text-slate-500 sm:flex">
+                                    <div class="hidden items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 sm:flex">
                                         <span class="h-2 w-2 rounded-full bg-zen-500"></span>
                                         Available
                                     </div>
@@ -753,11 +766,11 @@
                             <div class="p-5 sm:p-7">
 
                                 <div class="mb-5">
-                                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                         Available times
                                     </p>
 
-                                    <h3 class="mt-1 text-base font-extrabold text-slate-900">
+                                    <h3 class="mt-1 text-base font-extrabold text-slate-900 dark:text-slate-100">
                                         <template x-if="appointmentDate">
                                             <span x-text="formatDateLong(appointmentDate)"></span>
                                         </template>
@@ -774,7 +787,7 @@
                                 <template x-if="loadingSlots">
                                     <div class="space-y-2">
                                         <template x-for="i in 6" :key="i">
-                                            <div class="h-12 animate-pulse rounded-xl bg-slate-100"></div>
+                                            <div class="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800/60"></div>
                                         </template>
                                     </div>
                                 </template>
@@ -783,16 +796,16 @@
                                 <!-- No date -->
 
                                 <template x-if="!loadingSlots && !appointmentDate">
-                                    <div class="rounded-2xl border border-dashed border-slate-200 p-6 text-center">
-                                        <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+                                    <div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-6 text-center">
+                                        <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500">
                                             <i data-lucide="calendar-days" class="h-5 w-5"></i>
                                         </div>
 
-                                        <p class="mt-3 text-sm font-semibold text-slate-700">
+                                        <p class="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
                                             Choose a date
                                         </p>
 
-                                        <p class="mt-1 text-xs leading-5 text-slate-400">
+                                        <p class="mt-1 text-xs leading-5 text-slate-400 dark:text-slate-500">
                                             Available times will appear here.
                                         </p>
                                     </div>
@@ -802,7 +815,7 @@
                                 <!-- No slots -->
 
                                 <template x-if="!loadingSlots && appointmentDate && availableSlots.length === 0">
-                                    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center">
+                                    <div class="rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 p-5 text-center">
                                         <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
                                             <i data-lucide="calendar-x-2" class="h-5 w-5"></i>
                                         </div>
@@ -811,7 +824,7 @@
                                             No available times
                                         </p>
 
-                                        <p class="mt-1 text-xs leading-5 text-amber-700">
+                                        <p class="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-400">
                                             Please choose another date.
                                         </p>
                                     </div>
@@ -831,7 +844,7 @@
                                                 <div class="mb-2 flex items-center gap-2">
                                                     <i data-lucide="sunrise" class="h-4 w-4 text-amber-500"></i>
 
-                                                    <span class="text-xs font-bold text-slate-600">
+                                                    <span class="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">
                                                         Morning
                                                     </span>
                                                 </div>
@@ -846,8 +859,8 @@
                                                             :class="selectedTime === slot.time
                                                                 ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
                                                                 : slot.room_available === false
-                                                                    ? 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'
-                                                                    : 'border-slate-200 bg-white text-slate-700 hover:border-zen-300 hover:bg-zen-50 hover:text-zen-700'"
+                                                                    ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
+                                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
                                                         >
                                                             <span x-text="formatTime(slot.time)"></span>
                                                         </button>
@@ -864,7 +877,7 @@
                                                 <div class="mb-2 flex items-center gap-2">
                                                     <i data-lucide="sun" class="h-4 w-4 text-orange-500"></i>
 
-                                                    <span class="text-xs font-bold text-slate-600">
+                                                    <span class="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">
                                                         Afternoon
                                                     </span>
                                                 </div>
@@ -879,8 +892,8 @@
                                                             :class="selectedTime === slot.time
                                                                 ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
                                                                 : slot.room_available === false
-                                                                    ? 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'
-                                                                    : 'border-slate-200 bg-white text-slate-700 hover:border-zen-300 hover:bg-zen-50 hover:text-zen-700'"
+                                                                    ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
+                                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
                                                         >
                                                             <span x-text="formatTime(slot.time)"></span>
                                                         </button>
@@ -897,7 +910,7 @@
                                                 <div class="mb-2 flex items-center gap-2">
                                                     <i data-lucide="sunset" class="h-4 w-4 text-indigo-500"></i>
 
-                                                    <span class="text-xs font-bold text-slate-600">
+                                                    <span class="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">
                                                         Evening
                                                     </span>
                                                 </div>
@@ -912,8 +925,8 @@
                                                             :class="selectedTime === slot.time
                                                                 ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
                                                                 : slot.room_available === false
-                                                                    ? 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'
-                                                                    : 'border-slate-200 bg-white text-slate-700 hover:border-zen-300 hover:bg-zen-50 hover:text-zen-700'"
+                                                                    ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
+                                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
                                                         >
                                                             <span x-text="formatTime(slot.time)"></span>
                                                         </button>
@@ -945,18 +958,18 @@
                     class="fade-up"
                 >
 
-                    <div class="rounded-3xl border border-slate-200 bg-white shadow-card">
+                    <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
 
-                        <div class="border-b border-slate-100 p-5 sm:p-7">
+                        <div class="border-b border-slate-100 dark:border-slate-700/50 p-5 sm:p-7">
                             <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
                                 Step 3
                             </p>
 
-                            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-2xl">
                                 Tell us about yourself.
                             </h2>
 
-                            <p class="mt-2 text-sm text-slate-500">
+                            <p class="mt-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                 We only need a few details so our receptionist can confirm your appointment.
                             </p>
                         </div>
@@ -971,13 +984,13 @@
                                 <div>
                                     <label
                                         for="guest_first_name"
-                                        class="mb-2 block text-sm font-bold text-slate-800"
+                                        class="mb-2 block text-sm font-bold text-slate-800 dark:text-slate-200"
                                     >
                                         Full name
                                     </label>
 
                                     <div class="relative">
-                                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 dark:text-slate-500">
                                             <i data-lucide="user" class="h-4 w-4"></i>
                                         </div>
 
@@ -989,11 +1002,33 @@
                                             autocomplete="name"
                                             maxlength="100"
                                             placeholder="Enter your full name"
-                                            class="block w-full rounded-xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-zen-500 focus:ring-4 focus:ring-zen-500/10"
+                                            class="block w-full rounded-xl border py-3.5 pl-11 pr-12 text-sm text-slate-900 dark:text-slate-100 outline-none transition placeholder:text-slate-400 dark:text-slate-500 focus:ring-4"
+                                            :class="guestName.trim().length >= 2
+                                                ? 'border-emerald-300 bg-emerald-50/30 dark:bg-emerald-900/20 focus:border-emerald-500 focus:ring-emerald-500/10'
+                                                : guestName.trim().length > 0
+                                                    ? 'border-red-300 bg-red-50/30 dark:bg-red-900/20 focus:border-red-500 focus:ring-red-500/10'
+                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-zen-500 focus:ring-zen-500/10'"
                                         >
+                                        
+                                        <div
+                                            x-show="guestName.trim().length > 0"
+                                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4"
+                                        >
+                                            <i
+                                                x-show="guestName.trim().length >= 2"
+                                                data-lucide="circle-check"
+                                                class="h-5 w-5 text-emerald-500"
+                                            ></i>
+
+                                            <i
+                                                x-show="guestName.trim().length > 0 && guestName.trim().length < 2"
+                                                data-lucide="circle-x"
+                                                class="h-5 w-5 text-red-400"
+                                            ></i>
+                                        </div>
                                     </div>
 
-                                    <p class="mt-1.5 text-xs text-slate-400">
+                                    <p class="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
                                         You may use your preferred name or alias.
                                     </p>
                                 </div>
@@ -1004,13 +1039,13 @@
                                 <div>
                                     <label
                                         for="phone"
-                                        class="mb-2 block text-sm font-bold text-slate-800"
+                                        class="mb-2 block text-sm font-bold text-slate-800 dark:text-slate-200"
                                     >
                                         Mobile number
                                     </label>
 
                                     <div class="relative">
-                                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 dark:text-slate-500">
                                             <i data-lucide="phone" class="h-4 w-4"></i>
                                         </div>
 
@@ -1024,12 +1059,12 @@
                                             maxlength="11"
                                             inputmode="numeric"
                                             placeholder="09XXXXXXXXX"
-                                            class="block w-full rounded-xl border py-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-4"
+                                            class="block w-full rounded-xl border py-3.5 pl-11 pr-12 text-sm text-slate-900 dark:text-slate-100 outline-none transition placeholder:text-slate-400 dark:text-slate-500 focus:ring-4"
                                             :class="phone.length === 11 && phoneValid
-                                                ? 'border-emerald-300 bg-emerald-50/30 focus:border-emerald-500 focus:ring-emerald-500/10'
+                                                ? 'border-emerald-300 bg-emerald-50/30 dark:bg-emerald-900/20 focus:border-emerald-500 focus:ring-emerald-500/10'
                                                 : phone.length > 0
-                                                    ? 'border-red-300 bg-red-50/30 focus:border-red-500 focus:ring-red-500/10'
-                                                    : 'border-slate-200 bg-white focus:border-zen-500 focus:ring-zen-500/10'"
+                                                    ? 'border-red-300 bg-red-50/30 dark:bg-red-900/20 focus:border-red-500 focus:ring-red-500/10'
+                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-zen-500 focus:ring-zen-500/10'"
                                         >
 
                                         <div
@@ -1065,12 +1100,12 @@
                                     <div class="mb-2 flex items-center justify-between gap-3">
                                         <label
                                             for="medical_notes"
-                                            class="block text-sm font-bold text-slate-800"
+                                            class="block text-sm font-bold text-slate-800 dark:text-slate-200"
                                         >
                                             Notes or special concerns
                                         </label>
 
-                                        <span class="text-[11px] text-slate-400">
+                                        <span class="text-[11px] text-slate-400 dark:text-slate-500">
                                             Optional
                                         </span>
                                     </div>
@@ -1082,11 +1117,11 @@
                                         rows="5"
                                         maxlength="1000"
                                         placeholder="Let us know about allergies, sensitivities, preferences, or anything our therapists should be aware of."
-                                        class="block w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-zen-500 focus:ring-4 focus:ring-zen-500/10"
+                                        class="block w-full resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3.5 text-sm leading-6 text-slate-900 dark:text-slate-100 outline-none transition placeholder:text-slate-400 dark:text-slate-500 focus:border-zen-500 focus:ring-4 focus:ring-zen-500/10"
                                     ></textarea>
 
                                     <div class="mt-1.5 flex justify-end">
-                                        <span class="text-[11px] text-slate-400">
+                                        <span class="text-[11px] text-slate-400 dark:text-slate-500">
                                             <span x-text="medicalNotes.length"></span>/1000
                                         </span>
                                     </div>
@@ -1095,18 +1130,18 @@
 
                                 <!-- Privacy -->
 
-                                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4">
                                     <div class="flex gap-3">
-                                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-zen-600 shadow-sm">
+                                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-800 text-zen-600 shadow-sm">
                                             <i data-lucide="shield-check" class="h-4 w-4"></i>
                                         </div>
 
                                         <div>
-                                            <p class="text-xs font-bold text-slate-800">
+                                            <p class="text-xs font-bold text-slate-800 dark:text-slate-200">
                                                 Your information is handled privately.
                                             </p>
 
-                                            <p class="mt-1 text-xs leading-5 text-slate-500">
+                                            <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                                 Your contact details are used to process and confirm
                                                 your appointment request with Spa Alexandria.
                                             </p>
@@ -1117,9 +1152,9 @@
 
                                 <!-- Confirmation notice -->
 
-                                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                <div class="rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 p-4">
                                     <div class="flex gap-3">
-                                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-600 shadow-sm">
+                                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-800 text-amber-600 shadow-sm">
                                             <i data-lucide="phone-call" class="h-4 w-4"></i>
                                         </div>
 
@@ -1155,18 +1190,18 @@
                     class="fade-up"
                 >
 
-                    <div class="rounded-3xl border border-slate-200 bg-white shadow-card">
+                    <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
 
-                        <div class="border-b border-slate-100 p-5 sm:p-7">
+                        <div class="border-b border-slate-100 dark:border-slate-700/50 p-5 sm:p-7">
                             <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
                                 Final step
                             </p>
 
-                            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-2xl">
                                 Review your appointment.
                             </h2>
 
-                            <p class="mt-2 text-sm text-slate-500">
+                            <p class="mt-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                 Check everything before sending your booking request.
                             </p>
                         </div>
@@ -1179,11 +1214,11 @@
                             <div class="p-5 sm:p-7">
                                 <div class="mb-4 flex items-center justify-between">
                                     <div>
-                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                             Appointment
                                         </p>
 
-                                        <h3 class="mt-1 text-sm font-bold text-slate-900">
+                                        <h3 class="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">
                                             Your selected schedule
                                         </h3>
                                     </div>
@@ -1191,7 +1226,7 @@
                                     <button
                                         type="button"
                                         @click="step = 2; $nextTick(() => refreshIcons())"
-                                        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-zen-700 transition hover:bg-zen-50"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-zen-700 dark:text-teal-400 transition hover:bg-zen-50 dark:hover:bg-teal-900/20"
                                     >
                                         <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
                                         Edit
@@ -1201,31 +1236,31 @@
 
                                 <div class="grid gap-3 sm:grid-cols-2">
 
-                                    <div class="rounded-2xl bg-slate-50 p-4">
-                                        <div class="flex items-center gap-2 text-slate-400">
+                                    <div class="rounded-2xl bg-slate-50 dark:bg-slate-900 p-4">
+                                        <div class="flex items-center gap-2 text-slate-400 dark:text-slate-500">
                                             <i data-lucide="calendar-days" class="h-4 w-4"></i>
                                             <span class="text-[11px] font-bold uppercase tracking-wider">
                                                 Date
                                             </span>
                                         </div>
 
-                                        <p class="mt-2 text-sm font-bold text-slate-900">
+                                        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100">
                                             <span x-text="formatDateLong(appointmentDate)"></span>
                                         </p>
                                     </div>
 
 
-                                    <div class="rounded-2xl bg-slate-50 p-4">
-                                        <div class="flex items-center gap-2 text-slate-400">
+                                    <div class="rounded-2xl bg-slate-50 dark:bg-slate-900 p-4">
+                                        <div class="flex items-center gap-2 text-slate-400 dark:text-slate-500">
                                             <i data-lucide="clock-3" class="h-4 w-4"></i>
                                             <span class="text-[11px] font-bold uppercase tracking-wider">
                                                 Time
                                             </span>
                                         </div>
 
-                                        <p class="mt-2 text-sm font-bold text-slate-900">
+                                        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100">
                                             <span x-text="formatTime(selectedTime)"></span>
-                                            <span class="font-medium text-slate-400">
+                                            <span class="font-medium text-slate-400 dark:text-slate-500">
                                                 —
                                                 <span x-text="formatTime(endTime)"></span>
                                             </span>
@@ -1242,11 +1277,11 @@
 
                                 <div class="mb-4 flex items-center justify-between">
                                     <div>
-                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                             Services
                                         </p>
 
-                                        <h3 class="mt-1 text-sm font-bold text-slate-900">
+                                        <h3 class="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">
                                             Selected treatments
                                         </h3>
                                     </div>
@@ -1254,7 +1289,7 @@
                                     <button
                                         type="button"
                                         @click="step = 1; $nextTick(() => refreshIcons())"
-                                        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-zen-700 transition hover:bg-zen-50"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-zen-700 dark:text-teal-400 transition hover:bg-zen-50 dark:hover:bg-teal-900/20"
                                     >
                                         <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
                                         Edit
@@ -1265,18 +1300,18 @@
                                 <div class="space-y-2">
 
                                     <template x-for="service in selectedServiceObjects" :key="service.id">
-                                        <div class="flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-white p-3.5">
+                                        <div class="flex items-center justify-between gap-4 rounded-xl border border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 p-3.5">
                                             <div class="min-w-0">
-                                                <p class="truncate text-sm font-bold text-slate-800">
+                                                <p class="truncate text-sm font-bold text-slate-800 dark:text-slate-200">
                                                     <span x-text="service.name"></span>
                                                 </p>
 
-                                                <p class="mt-1 text-xs text-slate-400">
+                                                <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
                                                     <span x-text="service.duration_minutes"></span> minutes
                                                 </p>
                                             </div>
 
-                                            <p class="shrink-0 text-sm font-extrabold text-slate-900">
+                                            <p class="shrink-0 text-sm font-extrabold text-slate-900 dark:text-slate-100">
                                                 ₱<span x-text="formatMoney(service.discount_price || service.price)"></span>
                                             </p>
                                         </div>
@@ -1293,11 +1328,11 @@
 
                                 <div class="mb-4 flex items-center justify-between">
                                     <div>
-                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                             Customer
                                         </p>
 
-                                        <h3 class="mt-1 text-sm font-bold text-slate-900">
+                                        <h3 class="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">
                                             Your information
                                         </h3>
                                     </div>
@@ -1305,7 +1340,7 @@
                                     <button
                                         type="button"
                                         @click="step = 3; $nextTick(() => refreshIcons())"
-                                        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-zen-700 transition hover:bg-zen-50"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-zen-700 dark:text-teal-400 transition hover:bg-zen-50 dark:hover:bg-teal-900/20"
                                     >
                                         <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
                                         Edit
@@ -1315,22 +1350,22 @@
 
                                 <div class="grid gap-3 sm:grid-cols-2">
 
-                                    <div class="rounded-xl border border-slate-100 p-3.5">
-                                        <p class="text-[11px] font-semibold text-slate-400">
+                                    <div class="rounded-xl border border-slate-100 dark:border-slate-700/50 p-3.5">
+                                        <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
                                             Name
                                         </p>
 
-                                        <p class="mt-1 text-sm font-bold text-slate-800">
+                                        <p class="mt-1 text-sm font-bold text-slate-800 dark:text-slate-200">
                                             <span x-text="guestName"></span>
                                         </p>
                                     </div>
 
-                                    <div class="rounded-xl border border-slate-100 p-3.5">
-                                        <p class="text-[11px] font-semibold text-slate-400">
+                                    <div class="rounded-xl border border-slate-100 dark:border-slate-700/50 p-3.5">
+                                        <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
                                             Mobile number
                                         </p>
 
-                                        <p class="mt-1 text-sm font-bold text-slate-800">
+                                        <p class="mt-1 text-sm font-bold text-slate-800 dark:text-slate-200">
                                             <span x-text="phone"></span>
                                         </p>
                                     </div>
@@ -1339,13 +1374,13 @@
 
 
                                 <template x-if="medicalNotes">
-                                    <div class="mt-3 rounded-xl border border-slate-100 p-3.5">
-                                        <p class="text-[11px] font-semibold text-slate-400">
+                                    <div class="mt-3 rounded-xl border border-slate-100 dark:border-slate-700/50 p-3.5">
+                                        <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
                                             Notes
                                         </p>
 
                                         <p
-                                            class="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700"
+                                            class="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700 dark:text-slate-300"
                                             x-text="medicalNotes"
                                         ></p>
                                     </div>
@@ -1360,11 +1395,11 @@
 
                                 <div class="flex items-end justify-between gap-5">
                                     <div>
-                                        <p class="text-xs font-semibold text-slate-400">
+                                        <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                                             Estimated total
                                         </p>
 
-                                        <p class="mt-1 text-xs text-slate-500">
+                                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                             Final charges are based on selected services.
                                         </p>
                                     </div>
@@ -1374,7 +1409,7 @@
                                             ₱<span x-text="formatMoney(totalPrice)"></span>
                                         </p>
 
-                                        <p class="mt-1 text-xs text-slate-400">
+                                        <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
                                             <span x-text="totalDuration"></span> minutes
                                         </p>
                                     </div>
@@ -1401,20 +1436,20 @@
 
                     <!-- Summary -->
 
-                    <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-card">
+                    <div class="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
 
-                        <div class="border-b border-slate-100 p-5">
+                        <div class="border-b border-slate-100 dark:border-slate-700/50 p-5">
                             <div class="flex items-center gap-2">
-                                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-zen-50 text-zen-600">
+                                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-zen-50 dark:bg-teal-900/20 text-zen-600">
                                     <i data-lucide="receipt-text" class="h-4 w-4"></i>
                                 </div>
 
                                 <div>
-                                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                         Booking summary
                                     </p>
 
-                                    <h3 class="text-sm font-extrabold text-slate-900">
+                                    <h3 class="text-sm font-extrabold text-slate-900 dark:text-slate-100">
                                         Your appointment
                                     </h3>
                                 </div>
@@ -1428,15 +1463,15 @@
 
                             <template x-if="selectedServices.length === 0">
                                 <div class="py-5 text-center">
-                                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500">
                                         <i data-lucide="shopping-bag" class="h-5 w-5"></i>
                                     </div>
 
-                                    <p class="mt-3 text-sm font-semibold text-slate-700">
+                                    <p class="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
                                         No services selected
                                     </p>
 
-                                    <p class="mt-1 text-xs leading-5 text-slate-400">
+                                    <p class="mt-1 text-xs leading-5 text-slate-400 dark:text-slate-500">
                                         Your selected treatments will appear here.
                                     </p>
                                 </div>
@@ -1456,16 +1491,16 @@
                                         >
                                             <div class="flex items-start justify-between gap-3">
                                                 <div class="min-w-0">
-                                                    <p class="text-sm font-semibold leading-5 text-slate-800">
+                                                    <p class="text-sm font-semibold leading-5 text-slate-800 dark:text-slate-200">
                                                         <span x-text="service.name"></span>
                                                     </p>
 
-                                                    <p class="mt-0.5 text-xs text-slate-400">
+                                                    <p class="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
                                                         <span x-text="service.duration_minutes"></span> min
                                                     </p>
                                                 </div>
 
-                                                <p class="shrink-0 text-sm font-bold text-slate-900">
+                                                <p class="shrink-0 text-sm font-bold text-slate-900 dark:text-slate-100">
                                                     ₱<span x-text="formatMoney(service.discount_price || service.price)"></span>
                                                 </p>
                                             </div>
@@ -1474,39 +1509,39 @@
                                     </div>
 
 
-                                    <div class="my-4 border-t border-slate-100"></div>
+                                    <div class="my-4 border-t border-slate-100 dark:border-slate-700/50"></div>
 
 
                                     <div class="space-y-3">
 
                                         <div class="flex items-center justify-between">
-                                            <span class="text-xs text-slate-500">
+                                            <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                                 Duration
                                             </span>
 
-                                            <span class="text-xs font-bold text-slate-800">
+                                            <span class="text-xs font-bold text-slate-800 dark:text-slate-200">
                                                 <span x-text="totalDuration"></span> min
                                             </span>
                                         </div>
 
                                         <div class="flex items-center justify-between">
-                                            <span class="text-xs text-slate-500">
+                                            <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                                 Schedule
                                             </span>
 
                                             <span
-                                                class="text-right text-xs font-bold text-slate-800"
+                                                class="text-right text-xs font-bold text-slate-800 dark:text-slate-200"
                                                 x-text="appointmentDate ? formatDateShort(appointmentDate) : 'Not selected'"
                                             ></span>
                                         </div>
 
                                         <div class="flex items-center justify-between">
-                                            <span class="text-xs text-slate-500">
+                                            <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                                 Time
                                             </span>
 
                                             <span
-                                                class="text-xs font-bold text-slate-800"
+                                                class="text-xs font-bold text-slate-800 dark:text-slate-200"
                                                 x-text="selectedTime ? formatTime(selectedTime) : 'Not selected'"
                                             ></span>
                                         </div>
@@ -1514,15 +1549,15 @@
                                     </div>
 
 
-                                    <div class="my-4 border-t border-slate-100"></div>
+                                    <div class="my-4 border-t border-slate-100 dark:border-slate-700/50"></div>
 
 
                                     <div class="flex items-end justify-between">
-                                        <span class="text-sm font-bold text-slate-800">
+                                        <span class="text-sm font-bold text-slate-800 dark:text-slate-200">
                                             Total
                                         </span>
 
-                                        <span class="text-2xl font-extrabold tracking-tight text-zen-700">
+                                        <span class="text-2xl font-extrabold tracking-tight text-zen-700 dark:text-teal-400">
                                             ₱<span x-text="formatMoney(totalPrice)"></span>
                                         </span>
                                     </div>
@@ -1537,14 +1572,14 @@
 
                     <!-- Booking policy -->
 
-                    <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-card">
+                    <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-card">
 
                         <div class="flex items-center gap-2">
-                            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600">
                                 <i data-lucide="info" class="h-4 w-4"></i>
                             </div>
 
-                            <p class="text-sm font-bold text-slate-800">
+                            <p class="text-sm font-bold text-slate-800 dark:text-slate-200">
                                 Before you book
                             </p>
                         </div>
@@ -1553,21 +1588,21 @@
 
                             <li class="flex gap-2.5">
                                 <i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-500"></i>
-                                <span class="text-xs leading-5 text-slate-500">
+                                <span class="text-xs leading-5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                     Online requests remain pending until confirmed.
                                 </span>
                             </li>
 
                             <li class="flex gap-2.5">
                                 <i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-500"></i>
-                                <span class="text-xs leading-5 text-slate-500">
+                                <span class="text-xs leading-5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                     A receptionist may contact you using the mobile number provided.
                                 </span>
                             </li>
 
                             <li class="flex gap-2.5">
                                 <i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-500"></i>
-                                <span class="text-xs leading-5 text-slate-500">
+                                <span class="text-xs leading-5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                     Please arrive on time for your scheduled appointment.
                                 </span>
                             </li>
@@ -1589,7 +1624,7 @@
          MOBILE STICKY ACTION BAR
     ============================================================= -->
 
-    <div class="mobile-safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden">
+    <div class="mobile-safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden">
 
         <div class="mx-auto max-w-7xl px-4 py-3 sm:px-6">
 
@@ -1600,11 +1635,11 @@
                 <div class="min-w-0 flex-1">
                     <template x-if="selectedServices.length === 0">
                         <div>
-                            <p class="text-xs font-bold text-slate-800">
+                            <p class="text-xs font-bold text-slate-800 dark:text-slate-200">
                                 No services selected
                             </p>
 
-                            <p class="mt-0.5 text-[11px] text-slate-400">
+                            <p class="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
                                 Choose a service to continue.
                             </p>
                         </div>
@@ -1612,7 +1647,7 @@
 
                     <template x-if="selectedServices.length > 0">
                         <div>
-                            <p class="truncate text-xs font-bold text-slate-800">
+                            <p class="truncate text-xs font-bold text-slate-800 dark:text-slate-200">
                                 <span x-text="selectedServices.length"></span>
                                 <span x-text="selectedServices.length === 1 ? 'service' : 'services'"></span>
 
@@ -1623,7 +1658,7 @@
                                 </template>
                             </p>
 
-                            <p class="mt-0.5 text-[11px] text-slate-400">
+                            <p class="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
                                 ₱<span x-text="formatMoney(totalPrice)"></span>
                                 ·
                                 <span x-text="totalDuration"></span> min
@@ -1639,7 +1674,7 @@
                     type="button"
                     x-show="step > 1"
                     @click="previousStep()"
-                    class="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                    class="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 text-sm font-bold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:bg-slate-900"
                 >
                     Back
                 </button>
@@ -1652,7 +1687,7 @@
                     x-show="step < 4"
                     @click="nextStep()"
                     :disabled="!canContinue"
-                    class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-zen-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-zen-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                    class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-zen-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-zen-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 dark:text-slate-500"
                 >
                     <span x-text="step === 3 ? 'Review' : 'Continue'"></span>
                     <i data-lucide="arrow-right" class="h-4 w-4"></i>
@@ -1694,13 +1729,13 @@
          DESKTOP ACTION BAR
     ============================================================= -->
 
-    <div class="fixed inset-x-0 bottom-0 z-30 hidden border-t border-slate-200 bg-white/95 backdrop-blur-xl lg:block">
+    <div class="fixed inset-x-0 bottom-0 z-30 hidden border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl lg:block">
 
         <div class="mx-auto flex max-w-7xl items-center justify-between gap-6 px-8 py-4">
 
             <div class="min-w-0">
                 <template x-if="selectedServices.length === 0">
-                    <p class="text-sm font-semibold text-slate-500">
+                    <p class="text-sm font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">
                         Start by selecting a service.
                     </p>
                 </template>
@@ -1708,11 +1743,11 @@
                 <template x-if="selectedServices.length > 0">
                     <div class="flex items-center gap-4">
                         <div>
-                            <p class="text-xs text-slate-400">
+                            <p class="text-xs text-slate-400 dark:text-slate-500">
                                 Appointment total
                             </p>
 
-                            <p class="text-lg font-extrabold text-slate-900">
+                            <p class="text-lg font-extrabold text-slate-900 dark:text-slate-100">
                                 ₱<span x-text="formatMoney(totalPrice)"></span>
                             </p>
                         </div>
@@ -1720,11 +1755,11 @@
                         <div class="h-8 w-px bg-slate-200"></div>
 
                         <div>
-                            <p class="text-xs text-slate-400">
+                            <p class="text-xs text-slate-400 dark:text-slate-500">
                                 Duration
                             </p>
 
-                            <p class="text-sm font-bold text-slate-700">
+                            <p class="text-sm font-bold text-slate-700 dark:text-slate-300">
                                 <span x-text="totalDuration"></span> minutes
                             </p>
                         </div>
@@ -1734,11 +1769,11 @@
                                 <div class="h-8 w-px bg-slate-200"></div>
 
                                 <div>
-                                    <p class="text-xs text-slate-400">
+                                    <p class="text-xs text-slate-400 dark:text-slate-500">
                                         Schedule
                                     </p>
 
-                                    <p class="text-sm font-bold text-slate-700">
+                                    <p class="text-sm font-bold text-slate-700 dark:text-slate-300">
                                         <span x-text="formatDateShort(appointmentDate)"></span>
                                         ·
                                         <span x-text="formatTime(selectedTime)"></span>
@@ -1757,7 +1792,7 @@
                     type="button"
                     x-show="step > 1"
                     @click="previousStep()"
-                    class="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                    class="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-5 text-sm font-bold text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:bg-slate-900"
                 >
                     <i data-lucide="arrow-left" class="h-4 w-4"></i>
                     Back
@@ -1769,7 +1804,7 @@
                     x-show="step < 4"
                     @click="nextStep()"
                     :disabled="!canContinue"
-                    class="inline-flex h-11 items-center gap-2 rounded-xl bg-zen-600 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-zen-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                    class="inline-flex h-11 items-center gap-2 rounded-xl bg-zen-600 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-zen-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 dark:text-slate-500"
                 >
                     <span x-text="step === 3 ? 'Review Appointment' : 'Continue'"></span>
                     <i data-lucide="arrow-right" class="h-4 w-4"></i>
@@ -2800,22 +2835,22 @@
                         title: 'Send appointment request?',
                         html: `
                             <div class="text-left">
-                                <div class="rounded-xl bg-slate-50 p-4 mb-3">
-                                    <p class="text-xs font-semibold text-slate-400">
+                                <div class="rounded-xl bg-slate-50 dark:bg-slate-900 p-4 mb-3">
+                                    <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                                         Schedule
                                     </p>
-                                    <p class="mt-1 text-sm font-bold text-slate-900">
+                                    <p class="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">
                                         ${this.escapeHtml(this.formatDateLong(this.appointmentDate))}
                                     </p>
-                                    <p class="mt-1 text-sm text-slate-600">
+                                    <p class="mt-1 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
                                         ${this.escapeHtml(this.formatTime(this.selectedTime))}
                                         – 
                                         ${this.escapeHtml(this.formatTime(this.endTime))}
                                     </p>
                                 </div>
 
-                                <div class="rounded-xl bg-zen-50 p-4">
-                                    <p class="text-xs font-semibold text-zen-700">
+                                <div class="rounded-xl bg-zen-50 dark:bg-teal-900/20 p-4">
+                                    <p class="text-xs font-semibold text-zen-700 dark:text-teal-400">
                                         Estimated total
                                     </p>
                                     <p class="mt-1 text-xl font-extrabold text-zen-800">
@@ -3103,6 +3138,15 @@
             color: #cbd5e1 !important;
         }
     </style>
+
+    <!-- Dark Mode Script -->
+    <script>
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            const isDark = html.classList.toggle('dark');
+            localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
+        }
+    </script>
 
 </body>
 </html>

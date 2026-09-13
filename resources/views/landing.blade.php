@@ -9,8 +9,16 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- Dark mode: apply before render to avoid flash -->
+    <script>
+        if (localStorage.getItem('darkMode') === 'enabled') {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
@@ -128,7 +136,7 @@
 </head>
 
 
-<body class="page-fade min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 antialiased">
+<body class="page-fade min-h-screen overflow-x-hidden bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased">
 
 @php
 
@@ -219,7 +227,9 @@
                 rounded-2xl
                 border
                 border-slate-200/70
+                dark:border-slate-700/70
                 bg-white/90
+                dark:bg-slate-900/90
                 px-4
                 py-3
                 shadow-sm
@@ -263,9 +273,14 @@
                             text-sm
                             font-extrabold
                             text-slate-900
+                            dark:text-slate-100
                         "
                     >
                         Spa Alexandria
+                    </div>
+
+                    <div class="text-[11px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                        Wellness &amp; Relaxation
                     </div>
 
                 </div>
@@ -277,6 +292,12 @@
             {{-- Login + Register --}}
             <div class="flex items-center gap-4 sm:gap-6">
 
+                <!-- Dark Mode Toggle -->
+                <button type="button" onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-200 dark:hover:border-teal-700 transition" aria-label="Toggle dark mode">
+                    <i data-lucide="sun" class="h-4 w-4 hidden dark:block"></i>
+                    <i data-lucide="moon" class="h-4 w-4 block dark:hidden"></i>
+                </button>
+
                 @auth
 
                     <a
@@ -285,8 +306,10 @@
                             text-sm
                             font-semibold
                             text-slate-600
+                            dark:text-slate-300
                             transition
                             hover:text-teal-700
+                            dark:hover:text-teal-400
                         "
                     >
                         Dashboard
@@ -300,8 +323,10 @@
                             text-sm
                             font-semibold
                             text-slate-600
+                            dark:text-slate-300
                             transition
                             hover:text-teal-700
+                            dark:hover:text-teal-400
                         "
                     >
                         Login
@@ -314,8 +339,10 @@
                             text-sm
                             font-semibold
                             text-slate-600
+                            dark:text-slate-300
                             transition
                             hover:text-teal-700
+                            dark:hover:text-teal-400
                         "
                     >
                         Register
@@ -333,6 +360,7 @@
 
 
 
+
 {{-- =========================================================
      HERO
 ========================================================== --}}
@@ -342,7 +370,7 @@
         relative
         min-h-[720px]
         overflow-hidden
-        bg-slate-50
+        bg-slate-50 dark:bg-slate-900
     "
 >
 
@@ -504,15 +532,15 @@
                         justify-center
                         gap-2
                         rounded-xl
-                        bg-white
+                        bg-white dark:bg-slate-800
                         px-5
                         py-3
                         text-sm
                         font-extrabold
-                        text-slate-900
+                        text-slate-900 dark:text-slate-100
                         shadow-lg
                         transition
-                        hover:bg-slate-100
+                        hover:bg-slate-100 dark:bg-slate-800/60
                     "
                 >
 
@@ -571,7 +599,7 @@
      BOOKING OPTIONS
 ========================================================== --}}
 
-<section class="bg-slate-50">
+<section class="bg-slate-50 dark:bg-slate-900">
 
     <div
         class="
@@ -601,8 +629,8 @@
                     gap-3
                     rounded-2xl
                     border
-                    border-slate-200
-                    bg-white
+                    border-slate-200 dark:border-slate-700
+                    bg-white dark:bg-slate-800
                     px-5
                     py-4
                     shadow-sm
@@ -637,7 +665,7 @@
                         class="
                             text-sm
                             font-bold
-                            text-slate-900
+                            text-slate-900 dark:text-slate-100
                         "
                     >
                         Book as a guest
@@ -648,7 +676,7 @@
                         class="
                             mt-0.5
                             text-xs
-                            text-slate-500
+                            text-slate-500 dark:text-slate-400 dark:text-slate-500
                         "
                     >
                         No account required
@@ -668,8 +696,8 @@
                     gap-3
                     rounded-2xl
                     border
-                    border-slate-200
-                    bg-white
+                    border-slate-200 dark:border-slate-700
+                    bg-white dark:bg-slate-800
                     px-5
                     py-4
                     shadow-sm
@@ -704,7 +732,7 @@
                         class="
                             text-sm
                             font-bold
-                            text-slate-900
+                            text-slate-900 dark:text-slate-100
                         "
                     >
                         Choose your date & time
@@ -715,7 +743,7 @@
                         class="
                             mt-0.5
                             text-xs
-                            text-slate-500
+                            text-slate-500 dark:text-slate-400 dark:text-slate-500
                         "
                     >
                         See available appointments
@@ -735,8 +763,8 @@
                     gap-3
                     rounded-2xl
                     border
-                    border-slate-200
-                    bg-white
+                    border-slate-200 dark:border-slate-700
+                    bg-white dark:bg-slate-800
                     px-5
                     py-4
                     shadow-sm
@@ -771,7 +799,7 @@
                         class="
                             text-sm
                             font-bold
-                            text-slate-900
+                            text-slate-900 dark:text-slate-100
                         "
                     >
                         Select multiple services
@@ -782,7 +810,7 @@
                         class="
                             mt-0.5
                             text-xs
-                            text-slate-500
+                            text-slate-500 dark:text-slate-400 dark:text-slate-500
                         "
                     >
                         Build your appointment your way
@@ -808,7 +836,7 @@
     id="services"
     class="
         scroll-mt-20
-        bg-slate-50
+        bg-slate-50 dark:bg-slate-900
         pb-20
         pt-8
         sm:pb-24
@@ -858,7 +886,7 @@
                         text-3xl
                         font-extrabold
                         tracking-tight
-                        text-slate-900
+                        text-slate-900 dark:text-slate-100
                         sm:text-4xl
                     "
                 >
@@ -871,7 +899,7 @@
                         max-w-md
                         text-sm
                         leading-6
-                        text-slate-500
+                        text-slate-500 dark:text-slate-400 dark:text-slate-500
                     "
                 >
                     Explore a selection of services featured on our landing page.
@@ -890,8 +918,8 @@
                     rounded-3xl
                     border
                     border-dashed
-                    border-slate-300
-                    bg-white
+                    border-slate-300 dark:border-slate-600
+                    bg-white dark:bg-slate-800
                     px-6
                     py-16
                     text-center
@@ -907,8 +935,8 @@
                         items-center
                         justify-center
                         rounded-2xl
-                        bg-slate-100
-                        text-slate-400
+                        bg-slate-100 dark:bg-slate-800/60
+                        text-slate-400 dark:text-slate-500
                     "
                 >
 
@@ -925,7 +953,7 @@
                         mt-4
                         text-lg
                         font-bold
-                        text-slate-900
+                        text-slate-900 dark:text-slate-100
                     "
                 >
                     No highlighted services
@@ -936,7 +964,7 @@
                     class="
                         mt-1
                         text-sm
-                        text-slate-500
+                        text-slate-500 dark:text-slate-400 dark:text-slate-500
                     "
                 >
                     Services selected for the landing page will appear here.
@@ -992,7 +1020,7 @@
                                     class="
                                         text-xl
                                         font-extrabold
-                                        text-slate-900
+                                        text-slate-900 dark:text-slate-100
                                     "
                                 >
                                     {{ $category->name }}
@@ -1043,8 +1071,8 @@
                                             overflow-hidden
                                             rounded-2xl
                                             border
-                                            border-slate-200
-                                            bg-white
+                                            border-slate-200 dark:border-slate-700
+                                            bg-white dark:bg-slate-800
                                         "
                                     >
 
@@ -1054,7 +1082,7 @@
                                                 relative
                                                 aspect-[4/3]
                                                 overflow-hidden
-                                                bg-slate-100
+                                                bg-slate-100 dark:bg-slate-800/60
                                             "
                                         >
 
@@ -1083,7 +1111,7 @@
                                                         hidden
                                                         items-center
                                                         justify-center
-                                                        bg-slate-100
+                                                        bg-slate-100 dark:bg-slate-800/60
                                                         text-slate-300
                                                     "
                                                 >
@@ -1137,7 +1165,7 @@
                                                         text-base
                                                         font-extrabold
                                                         leading-6
-                                                        text-slate-900
+                                                        text-slate-900 dark:text-slate-100
                                                     "
                                                 >
                                                     {{ $service->name }}
@@ -1158,7 +1186,7 @@
                                                             <div
                                                                 class="
                                                                     text-xs
-                                                                    text-slate-400
+                                                                    text-slate-400 dark:text-slate-500
                                                                     line-through
                                                                 "
                                                             >
@@ -1194,7 +1222,7 @@
                                                         line-clamp-3
                                                         text-sm
                                                         leading-6
-                                                        text-slate-500
+                                                        text-slate-500 dark:text-slate-400 dark:text-slate-500
                                                     "
                                                 >
                                                     {{ $service->landing_description }}
@@ -1208,7 +1236,7 @@
                                                         line-clamp-3
                                                         text-sm
                                                         leading-6
-                                                        text-slate-500
+                                                        text-slate-500 dark:text-slate-400 dark:text-slate-500
                                                     "
                                                 >
                                                     {{ $service->description }}
@@ -1226,7 +1254,7 @@
                                                         flex
                                                         items-center
                                                         border-t
-                                                        border-slate-100
+                                                        border-slate-100 dark:border-slate-700/50
                                                         pt-4
                                                     "
                                                 >
@@ -1238,7 +1266,7 @@
                                                             gap-1.5
                                                             text-xs
                                                             font-semibold
-                                                            text-slate-500
+                                                            text-slate-500 dark:text-slate-400 dark:text-slate-500
                                                         "
                                                     >
 
@@ -1284,7 +1312,7 @@
      FOOTER
 ========================================================== --}}
 
-<footer class="border-t border-slate-200 bg-white">
+<footer class="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
 
     <div
         class="
@@ -1309,7 +1337,7 @@
                 class="
                     text-sm
                     font-extrabold
-                    text-slate-900
+                    text-slate-900 dark:text-slate-100
                 "
             >
                 Spa Alexandria
@@ -1320,7 +1348,7 @@
                 class="
                     mt-1
                     text-xs
-                    text-slate-500
+                    text-slate-500 dark:text-slate-400 dark:text-slate-500
                 "
             >
                 ZenFlow
@@ -1336,7 +1364,7 @@
                 gap-5
                 text-xs
                 font-semibold
-                text-slate-500
+                text-slate-500 dark:text-slate-400 dark:text-slate-500
             "
         >
 
@@ -1375,5 +1403,18 @@
     });
 </script>
 
+    <script>
+        lucide.createIcons();
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            const isDark = html.classList.toggle('dark');
+            localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
+        }
+        
+        // Initialize dark mode from local storage
+        if (localStorage.getItem('darkMode') === 'enabled') {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
 </body>
 </html>

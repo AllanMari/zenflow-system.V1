@@ -67,7 +67,7 @@ class Room extends Model
 
         $query = $this->appointments()
             ->whereDate('appointment_date', $dateStr)
-            ->whereIn('status', ['confirmed', 'completed'])
+            ->whereIn('status', ['confirmed', 'completed', 'pending'])
             // ── Correct overlap check (exclusive boundaries) ──
             // Overlap exists if: existing_start < new_end AND existing_end > new_start
             ->where(function ($q) use ($startStr, $endStr) {

@@ -84,7 +84,7 @@
 
                         {{-- Customer --}}
                         <div class="flex-1 lg:text-center">
-                            <p class="font-semibold text-gray-800 dark:text-gray-200 text-sm">{{ $appointment->customer->full_name }}</p>
+                            <p class="font-semibold text-gray-800 dark:text-gray-200 text-sm">{{ $appointment->customer->display_name }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">{{ $appointment->customer->phone_number }}</p>
                         </div>
 
@@ -138,7 +138,7 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ \Carbon\Carbon::parse($appointment->start_time)->format('g:i A') }}</p>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <p class="font-medium text-gray-800 dark:text-gray-200 text-sm truncate">{{ $appointment->customer->full_name }}</p>
+                    <p class="font-medium text-gray-800 dark:text-gray-200 text-sm truncate">{{ $appointment->customer->display_name }}</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $appointment->services->pluck('name')->join(', ') }}</p>
                 </div>
                 @if($appointment->customer && $appointment->customer->medical_notes)

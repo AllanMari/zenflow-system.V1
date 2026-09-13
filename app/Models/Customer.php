@@ -13,46 +13,88 @@ class Customer extends Model
         'user_id',
         'first_name',
         'last_name',
+        'nickname',
         'email',
         'phone_number',
         'customer_type',
-        'medical_notes'
+        'medical_notes',
     ];
 
     protected $casts = [
         'customer_type' => 'string',
     ];
 
-    // Link to user account (if registered)
+    /**
+     * Linked user account.
+     */
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // All appointments
+    /**
+     * All appointments.
+     */
     public function appointments()
     {
         return $this->hasMany(Appointment::class);
     }
 
-    // Check if guest (no user account)
+    /**
+     * Check if this is a guest customer.
+     */
     public function isGuest()
     {
         return is_null($this->user_id);
     }
 
-    // Get full name
-    public function getFullNameAttribute()
+    /**
+     * Get the customer's actual full name.
+     *
+     * Used for internal/admin/receptionist purposes.
+     */
+    public function getFullNameAttribute(): string
     {
-        return $this->first_name . ' ' . $this->last_name;
+        return trim(
+            ($this->first_name ?? '') . ' ' . ($this->last_name ?? '')
+        );
     }
 
-    // Get name from user if linked, otherwise from customer record
-    public function getNameAttribute()
+    /**
+     * Get the customer's preferred display name.
+     *
+     * If a nickname exists, use it.
+     * Otherwise fall back to the actual name.
+     */
+    public function getDisplayNameAttribute(): string
     {
-        if ($this->user) {
-            return $this->user->first_name . ' ' . $this->user->last_name;
+        if (!empty($this->nickname)) {
+            return $this->nickname;
         }
+
+        return $this->full_name;
+    }
+
+    /**
+     * Get the customer's name.
+     *
+     * Kept for compatibility with existing code.
+     *
+     * For registered customers, prefer the nickname if available.
+     */
+    public function getNameAttribute(): string
+    {
+        if (!empty($this->nickname)) {
+            return $this->nickname;
+        }
+
+        if ($this->user) {
+            return trim(
+                ($this->user->first_name ?? '') . ' ' .
+                ($this->user->last_name ?? '')
+            );
+        }
+
         return $this->full_name;
     }
 }
