@@ -99,7 +99,7 @@
     </div>
 
     <!-- 2. Weekly Summary Metrics -->
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
         <!-- Metric: Total Hours -->
         <div class="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-neutral-900 dark:border-neutral-700">
             <div class="p-4 md:p-5 flex items-center gap-x-4">
@@ -107,9 +107,39 @@
                     <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 </div>
                 <div>
-                    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Scheduled Hours</p>
+                    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Scheduled</p>
                     <h3 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-neutral-200">
                         {{ $totalHours }} <span class="text-sm font-medium text-gray-500 dark:text-neutral-500">hrs</span>
+                    </h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric: Worked Hours -->
+        <div class="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-neutral-900 dark:border-neutral-700">
+            <div class="p-4 md:p-5 flex items-center gap-x-4">
+                <div class="flex-shrink-0 flex justify-center items-center size-[46px] bg-indigo-100 text-indigo-600 rounded-lg dark:bg-indigo-900/30 dark:text-indigo-400">
+                    <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Worked</p>
+                    <h3 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-neutral-200">
+                        {{ $totalWorkedHours ?? 0 }} <span class="text-sm font-medium text-gray-500 dark:text-neutral-500">hrs</span>
+                    </h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric: Overtime Hours -->
+        <div class="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-neutral-900 dark:border-neutral-700">
+            <div class="p-4 md:p-5 flex items-center gap-x-4">
+                <div class="flex-shrink-0 flex justify-center items-center size-[46px] bg-rose-100 text-rose-600 rounded-lg dark:bg-rose-900/30 dark:text-rose-400">
+                    <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>
+                </div>
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Overtime</p>
+                    <h3 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-neutral-200">
+                        {{ $totalOvertime ?? 0 }} <span class="text-sm font-medium text-gray-500 dark:text-neutral-500">hrs</span>
                     </h3>
                 </div>
             </div>
@@ -255,8 +285,23 @@
                                 @php $hrs = $day['start_time'] && $day['end_time'] ? round(\Carbon\Carbon::parse($day['start_time'])->diffInMinutes(\Carbon\Carbon::parse($day['end_time']))/60, 1) : 0; @endphp
                                 @if($hrs > 0)
                                     <span class="mt-2 inline-flex items-center gap-x-1.5 py-1 px-2.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-800 dark:bg-neutral-800 dark:text-neutral-200">
-                                        {{ $hrs }} hours
+                                        {{ $hrs }} hrs
                                     </span>
+                                @endif
+
+                                @if(($day['worked_hours'] ?? 0) > 0)
+                                    <div class="mt-3 flex flex-col gap-1 w-full px-2">
+                                        <div class="flex justify-between items-center text-[11px]">
+                                            <span class="text-gray-500">Worked:</span>
+                                            <span class="font-bold text-gray-700 dark:text-neutral-300">{{ $day['worked_hours'] }} hrs</span>
+                                        </div>
+                                        @if(($day['overtime_hours'] ?? 0) > 0)
+                                        <div class="flex justify-between items-center text-[11px] bg-rose-50 text-rose-600 px-1.5 rounded-md dark:bg-rose-900/30 dark:text-rose-400">
+                                            <span class="font-medium">Overtime:</span>
+                                            <span class="font-bold">{{ $day['overtime_hours'] }} hrs</span>
+                                        </div>
+                                        @endif
+                                    </div>
                                 @endif
 
                                 @if(!empty($day['attendance']))
@@ -284,6 +329,21 @@
                                     <p class="text-[10px] text-gray-500 dark:text-neutral-400 mt-2 px-2 italic text-center leading-tight">
                                         "{{ $day['reason'] }}"
                                     </p>
+                                @endif
+
+                                @if(($day['worked_hours'] ?? 0) > 0)
+                                    <div class="mt-3 flex flex-col gap-1 w-full px-2">
+                                        <div class="flex justify-between items-center text-[11px]">
+                                            <span class="text-gray-500">Worked:</span>
+                                            <span class="font-bold text-gray-700 dark:text-neutral-300">{{ $day['worked_hours'] }} hrs</span>
+                                        </div>
+                                        @if(($day['overtime_hours'] ?? 0) > 0)
+                                        <div class="flex justify-between items-center text-[11px] bg-rose-50 text-rose-600 px-1.5 rounded-md dark:bg-rose-900/30 dark:text-rose-400">
+                                            <span class="font-medium">Overtime:</span>
+                                            <span class="font-bold">{{ $day['overtime_hours'] }} hrs</span>
+                                        </div>
+                                        @endif
+                                    </div>
                                 @endif
                             </div>
 
@@ -319,6 +379,20 @@
                                 <span class="text-sm font-bold text-gray-400 dark:text-neutral-500 uppercase tracking-wider">
                                     Day Off
                                 </span>
+                                @if(($day['worked_hours'] ?? 0) > 0)
+                                    <div class="mt-4 flex flex-col gap-1 w-full px-2">
+                                        <div class="flex justify-between items-center text-[11px]">
+                                            <span class="text-gray-500">Worked:</span>
+                                            <span class="font-bold text-gray-700 dark:text-neutral-300">{{ $day['worked_hours'] }} hrs</span>
+                                        </div>
+                                        @if(($day['overtime_hours'] ?? 0) > 0)
+                                        <div class="flex justify-between items-center text-[11px] bg-rose-50 text-rose-600 px-1.5 rounded-md dark:bg-rose-900/30 dark:text-rose-400">
+                                            <span class="font-medium">Overtime:</span>
+                                            <span class="font-bold">{{ $day['overtime_hours'] }} hrs</span>
+                                        </div>
+                                        @endif
+                                    </div>
+                                @endif
                             </div>
                         @endif
                     </div>

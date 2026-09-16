@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use App\Services\OllamaInsightService;
+use App\Models\Attendance;
 
 class SalesAnalyticsService
 {
@@ -222,6 +223,17 @@ class SalesAnalyticsService
             $periodAppts,
             $allPayments
         );
+        $staffEfficiency = $this->buildStaffEfficiency(
+            $periodAppts,
+            $allPayments,
+            $startDate,
+            $endDate
+        );
+        $customerRetention = $this->buildCustomerRetention(
+            $periodAppts,
+            $startDate
+        );
+        $revenueLoss = $this->buildRevenueLoss($periodAppts);
 
         /*
         |--------------------------------------------------------------------------
@@ -439,6 +451,11 @@ class SalesAnalyticsService
 
             'staffPerformance'       => $staffPerformance,
 
+            'staffEfficiency' => $staffEfficiency,
+
+            'customerRetention' => $customerRetention,
+
+            'revenueLoss' => $revenueLoss,
             'hourlyRevenue'          => $hourlyRevenue,
             'maxHourly'              => !empty($hourlyRevenue)
                 ? max($hourlyRevenue)
@@ -965,7 +982,343 @@ class SalesAnalyticsService
 
         return array_values($staff);
     }
+    private function buildStaffEfficiency(
+    Collection $appointments,
+    Collection $payments,
+    Carbon $startDate,
+    Carbon $endDate
+    ): array {
+        $staff = [];
 
+        foreach ($appointments as $appt) {
+            if (!$appt->staff) {
+                continue;
+            }
+
+            $staffId = $appt->staff->id;
+            $staffName = $appt->staff->full_name
+                ?? $appt->staff->name
+                ?? 'Unnamed Staff';
+
+            if (!isset($staff[$staffId])) {
+                $staff[$staffId] = [
+                    'id' => $staffId,
+                    'name' => $staffName,
+                    'appointments' => 0,
+                    'completed' => 0,
+                    'service_minutes' => 0,
+                    'clocked_minutes' => 0,
+                    'clocked_hours' => 0,
+                    'utilization' => 0,
+                    'revenue' => 0,
+                    'revenue_per_hour' => 0,
+                ];
+            }
+
+            $staff[$staffId]['appointments']++;
+
+            if ($appt->status !== 'completed') {
+                continue;
+            }
+
+            $staff[$staffId]['completed']++;
+
+            if (!$appt->start_time || !$appt->end_time) {
+                continue;
+            }
+
+            $start = Carbon::parse($appt->start_time);
+            $end = Carbon::parse($appt->end_time);
+
+            if ($end->lessThanOrEqualTo($start)) {
+                $end->addDay();
+            }
+
+            $staff[$staffId]['service_minutes'] +=
+                $start->diffInMinutes($end);
+        }
+
+        foreach ($payments as $payment) {
+            if (!in_array(
+                $payment->type,
+                self::REVENUE_PAYMENT_TYPES,
+                true
+            )) {
+                continue;
+            }
+
+            if ((float) $payment->amount <= 0) {
+                continue;
+            }
+
+            $appt = $payment->appointment;
+
+            if (!$appt || !$appt->staff) {
+                continue;
+            }
+
+            if ($appt->status !== 'completed') {
+                continue;
+            }
+
+            $staffId = $appt->staff->id;
+
+            if (!isset($staff[$staffId])) {
+                continue;
+            }
+
+            $staff[$staffId]['revenue'] +=
+                (float) $payment->amount;
+        }
+
+        $attendances = Attendance::with('user')
+            ->whereBetween('date', [
+                $startDate->toDateString(),
+                $endDate->toDateString(),
+            ])
+            ->whereIn('status', ['present', 'late'])
+            ->whereNotNull('check_in')
+            ->whereNotNull('check_out')
+            ->get();
+
+        foreach ($attendances as $attendance) {
+            if (!$attendance->user) {
+                continue;
+            }
+
+            $staffId = $attendance->user_id;
+
+            if (!isset($staff[$staffId])) {
+                $staff[$staffId] = [
+                    'id' => $staffId,
+                    'name' => $attendance->user->full_name
+                        ?? $attendance->user->name
+                        ?? 'Unnamed Staff',
+                    'appointments' => 0,
+                    'completed' => 0,
+                    'service_minutes' => 0,
+                    'clocked_minutes' => 0,
+                    'clocked_hours' => 0,
+                    'utilization' => 0,
+                    'revenue' => 0,
+                    'revenue_per_hour' => 0,
+                ];
+            }
+
+            $checkIn = Carbon::parse($attendance->check_in);
+            $checkOut = Carbon::parse($attendance->check_out);
+
+            if ($checkOut->lessThanOrEqualTo($checkIn)) {
+                $checkOut->addDay();
+            }
+
+            $staff[$staffId]['clocked_minutes'] +=
+                $checkIn->diffInMinutes($checkOut);
+        }
+
+        foreach ($staff as &$record) {
+            $record['clocked_hours'] =
+                round(
+                    $record['clocked_minutes'] / 60,
+                    2
+                );
+
+            $record['utilization'] =
+                $record['clocked_minutes'] > 0
+                    ? round(
+                        (
+                            $record['service_minutes']
+                            / $record['clocked_minutes']
+                        ) * 100,
+                        1
+                    )
+                    : 0;
+
+            $record['revenue_per_hour'] =
+                $record['clocked_hours'] > 0
+                    ? round(
+                        $record['revenue']
+                        / $record['clocked_hours'],
+                        2
+                    )
+                    : 0;
+
+            $record['service_hours'] =
+                round(
+                    $record['service_minutes'] / 60,
+                    2
+                );
+        }
+
+        unset($record);
+
+        uasort(
+            $staff,
+            fn ($a, $b) =>
+                $b['utilization'] <=> $a['utilization']
+        );
+
+        $rank = 1;
+
+        foreach ($staff as &$record) {
+            $record['rank'] = $rank++;
+        }
+
+        unset($record);
+
+        return array_values($staff);
+    }
+
+    private function buildRevenueLoss(Collection $appointments): array
+    {
+        $cancelledLoss = 0;
+        $noShowLoss = 0;
+
+        $cancelledCount = 0;
+        $noShowCount = 0;
+
+        $details = [];
+
+        foreach ($appointments as $appointment) {
+            if ($appointment->status !== 'cancelled') {
+                continue;
+            }
+
+            $serviceValue = $appointment->services->sum(function ($service) {
+                return (float) (
+                    $service->pivot->price_at_booking
+                    ?? $service->price
+                    ?? 0
+                );
+            });
+
+            if ($serviceValue <= 0) {
+                continue;
+            }
+
+            $isNoShow =
+                $appointment->cancellation_reason === 'customer_no_show';
+
+            $deposit = $appointment->payments
+                ->where('type', 'deposit')
+                ->where('amount', '>', 0)
+                ->sum('amount');
+
+            $refund = abs(
+                $appointment->payments
+                    ->where('type', 'refund')
+                    ->where('amount', '<', 0)
+                    ->sum('amount')
+            );
+
+            if ($isNoShow) {
+                $noShowCount++;
+
+                $retainedDeposit = $refund > 0
+                    ? 0
+                    : min((float) $deposit, $serviceValue);
+
+                $loss = max(
+                    0,
+                    $serviceValue - $retainedDeposit
+                );
+
+                $noShowLoss += $loss;
+            } else {
+                $cancelledCount++;
+
+                $loss = $serviceValue;
+
+                $cancelledLoss += $loss;
+            }
+
+            $details[] = [
+                'appointment_id' => $appointment->id,
+                'date' => $appointment->appointment_date,
+                'status' => $isNoShow
+                    ? 'customer_no_show'
+                    : 'cancelled',
+                'service_value' => round($serviceValue, 2),
+                'deposit' => round((float) $deposit, 2),
+                'refund' => round((float) $refund, 2),
+                'loss' => round($loss, 2),
+            ];
+        }
+
+        $totalLoss = $cancelledLoss + $noShowLoss;
+
+        $affectedCount = $cancelledCount + $noShowCount;
+
+        return [
+            'total_loss' => round($totalLoss, 2),
+            'cancelled_loss' => round($cancelledLoss, 2),
+            'no_show_loss' => round($noShowLoss, 2),
+            'cancelled_count' => $cancelledCount,
+            'no_show_count' => $noShowCount,
+            'affected_count' => $affectedCount,
+            'average_loss' => $affectedCount > 0
+                ? round($totalLoss / $affectedCount, 2)
+                : 0,
+            'details' => $details,
+        ];
+    }
+    private function buildCustomerRetention(
+    Collection $appointments,
+    Carbon $startDate
+    ): array {
+        $completedAppointments = $appointments->filter(
+            fn ($appointment) => $appointment->status === 'completed'
+        );
+
+        $customerIds = $completedAppointments
+            ->pluck('customer_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $customersServed = $customerIds->count();
+
+        if ($customersServed === 0) {
+            return [
+                'customers_served'    => 0,
+                'returning_customers' => 0,
+                'new_customers'       => 0,
+                'retention_rate'      => 0,
+            ];
+        }
+
+        $returningCustomerIds = Appointment::query()
+            ->whereIn('customer_id', $customerIds)
+            ->where('status', 'completed')
+            ->whereDate(
+                'appointment_date',
+                '<',
+                $startDate->toDateString()
+            )
+            ->distinct()
+            ->pluck('customer_id');
+
+        $returningCustomers = $returningCustomerIds->count();
+
+        $newCustomers = max(
+            0,
+            $customersServed - $returningCustomers
+        );
+
+        $retentionRate = $customersServed > 0
+            ? round(
+                ($returningCustomers / $customersServed) * 100,
+                1
+            )
+            : 0;
+
+        return [
+            'customers_served'    => $customersServed,
+            'returning_customers' => $returningCustomers,
+            'new_customers'       => $newCustomers,
+            'retention_rate'      => $retentionRate,
+        ];
+    }
     /*
     |--------------------------------------------------------------------------
     | NEW: Peak Business Hours

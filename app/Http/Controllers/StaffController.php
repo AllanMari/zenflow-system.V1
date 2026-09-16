@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
+use App\Models\Attendance;
 use App\Models\ScheduleException;
 use App\Models\ShiftTemplate;
 use App\Models\WorkSchedule;
@@ -309,6 +310,68 @@ class StaffController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | Overtime Tracking
+        |
+        | For each day in this week, compare attendance (check_in/check_out)
+        | against the scheduled shift to compute daily overtime.
+        |
+        | Overtime = Actual clocked hours − Scheduled hours (if positive).
+        |--------------------------------------------------------------------------
+        */
+
+        $weekAttendances = Attendance::where('user_id', $user->id)
+            ->whereBetween('date', [
+                $weekStart->toDateString(),
+                $weekEnd->toDateString(),
+            ])
+            ->get()
+            ->keyBy(fn ($a) => Carbon::parse($a->date)->toDateString());
+
+        $totalOvertime = 0;
+        $totalWorkedHours = 0;
+
+        foreach ($weeklySchedule as &$day) {
+            $att = $weekAttendances->get($day['date']);
+
+            $day['check_in']  = $att?->check_in;
+            $day['check_out'] = $att?->check_out;
+            $day['worked_hours'] = 0;
+            $day['overtime_hours'] = 0;
+
+            if ($att && $att->check_in && $att->check_out) {
+                $clockIn  = Carbon::parse($att->check_in);
+                $clockOut = Carbon::parse($att->check_out);
+
+                // Handle edge case: clock out next day
+                if ($clockOut->lessThanOrEqualTo($clockIn)) {
+                    $clockOut->addDay();
+                }
+
+                $workedMinutes = $clockIn->diffInMinutes($clockOut);
+                $workedHours = round($workedMinutes / 60, 2);
+                $day['worked_hours'] = $workedHours;
+                $totalWorkedHours += $workedHours;
+
+                // Calculate scheduled hours for this specific day
+                $scheduledHours = 0;
+                if ($day['start_time'] && $day['end_time']) {
+                    $scheduledHours = $this->calculateHours(
+                        $day['start_time'],
+                        $day['end_time']
+                    );
+                }
+
+                // Overtime = worked beyond scheduled (never negative)
+                $ot = round(max(0, $workedHours - $scheduledHours), 2);
+                $day['overtime_hours'] = $ot;
+                $totalOvertime += $ot;
+            }
+        }
+
+        unset($day); // break reference
+
+        /*
+        |--------------------------------------------------------------------------
         | Future exceptions
         |--------------------------------------------------------------------------
         */
@@ -372,6 +435,8 @@ class StaffController extends Controller
             'nextWeek',
             'totalHours',
             'daysWorking',
+            'totalOvertime',
+            'totalWorkedHours',
             'templateHint'
         ));
     }

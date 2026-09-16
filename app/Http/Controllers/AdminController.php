@@ -88,27 +88,36 @@ class AdminController extends Controller
 
     /* ─── USERS ─── */
 
-    public function index(Request $request)
-    {
-        $query = User::with('roles')
-            ->when($request->filled('search'), function($q) use ($request) {
-                $search = $request->search;
-                $q->where(function($sub) use ($search) {
-                    $sub->where('username', 'like', "%{$search}%")
-                        ->orWhere('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%");
-                });
-            })
-            ->when($request->filled('role'), function($q) use ($request) {
-                $q->whereHas('roles', fn($r) => $r->where('name', $request->role));
-            })
-            ->latest();
+public function index(Request $request)
+{
+    $query = User::with(['roles', 'services'])
+        ->when($request->filled('search'), function ($q) use ($request) {
+            $search = $request->search;
 
-        $users = $query->paginate(15)->withQueryString();
-        $roles = Role::all();
+            $q->where(function ($sub) use ($search) {
+                $sub->where('username', 'like', "%{$search}%")
+                    ->orWhere('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%");
+            });
+        })
+        ->when($request->filled('role'), function ($q) use ($request) {
+            $q->whereHas('roles', fn ($r) => $r->where('name', $request->role));
+        })
+        ->latest();
 
-        return view('admin.users', compact('users', 'roles'));
-    }
+    $users = $query->paginate(15)->withQueryString();
+
+    $roles = Role::all();
+
+    $services = Service::where('is_active', true)
+        ->where('is_package', false)
+        ->with('category')
+        ->orderBy('category_id')
+        ->orderBy('name')
+        ->get();
+
+    return view('admin.users', compact('users', 'roles', 'services'));
+}
 
     public function updateProfile(Request $request)
     {
@@ -200,6 +209,8 @@ class AdminController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'role' => 'required|in:admin,receptionist,staff,customer',
+            'service_ids' => ['nullable', 'array'],
+            'service_ids.*' => ['integer', 'exists:services,id'],
             'admin_password' => 'required|string',
         ];
 
@@ -254,6 +265,12 @@ class AdminController extends Controller
                 $user->update($updateData);
 
                 $user->roles()->sync([$role->id]);
+
+                if ($request->role === 'staff') {
+                    $user->services()->sync($request->input('service_ids', []));
+                } else {
+                    $user->services()->sync([]);
+                }
 
                 if ($role->name === 'customer') {
                     \App\Models\Customer::firstOrCreate(
@@ -1107,4 +1124,392 @@ class AdminController extends Controller
             $user->first_name . ' ' . $user->last_name . ' ' . $status . '.'
         );
     }
+
+public function skillGapAnalytics(Request $request)
+{
+    $request->validate([
+        'date_from' => ['nullable', 'date'],
+        'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+    ]);
+
+    $dateFrom = $request->filled('date_from')
+        ? Carbon::parse($request->date_from)->startOfDay()
+        : Carbon::now()->startOfMonth()->startOfDay();
+
+    $dateTo = $request->filled('date_to')
+        ? Carbon::parse($request->date_to)->endOfDay()
+        : Carbon::today()->endOfDay();
+
+    if (
+        $dateFrom->copy()->startOfDay()->diffInDays(
+            $dateTo->copy()->startOfDay()
+        ) > 366
+    ) {
+        return redirect()
+            ->route('admin.skill-gap', [
+                'date_from' => $dateFrom->toDateString(),
+                'date_to' => $dateFrom
+                    ->copy()
+                    ->addDays(366)
+                    ->toDateString(),
+            ])
+            ->with('error', 'The selected date range cannot exceed 366 days.');
+    }
+
+    $services = Service::query()
+        ->where('is_package', false)
+        ->where('is_active', true)
+        ->with([
+            'staff' => function ($query) {
+                $query
+                    ->where('users.is_active', true)
+                    ->whereHas('roles', function ($roleQuery) {
+                        $roleQuery->where('name', 'staff');
+                    })
+                    ->orderBy('first_name')
+                    ->orderBy('last_name');
+            }
+        ])
+        ->orderBy('name')
+        ->get();
+
+    $demandByService = DB::table('appointment_services')
+        ->join(
+            'appointments',
+            'appointments.id',
+            '=',
+            'appointment_services.appointment_id'
+        )
+        ->where('appointments.status', 'completed')
+        ->whereDate(
+            'appointments.appointment_date',
+            '>=',
+            $dateFrom->toDateString()
+        )
+        ->whereDate(
+            'appointments.appointment_date',
+            '<=',
+            $dateTo->toDateString()
+        )
+        ->select(
+            'appointment_services.service_id',
+            DB::raw(
+                'COUNT(DISTINCT appointment_services.appointment_id) as completed_demand'
+            )
+        )
+        ->groupBy('appointment_services.service_id')
+        ->pluck('completed_demand', 'service_id');
+
+    $staffIds = $services
+        ->flatMap(fn ($service) => $service->staff->pluck('id'))
+        ->unique()
+        ->values();
+
+    $schedules = WorkSchedule::query()
+        ->whereIn('user_id', $staffIds)
+        ->get()
+        ->groupBy('user_id');
+
+    $exceptions = ScheduleException::query()
+        ->whereIn('user_id', $staffIds)
+        ->whereBetween('exception_date', [
+            $dateFrom->toDateString(),
+            $dateTo->toDateString(),
+        ])
+        ->get()
+        ->groupBy(function ($exception) {
+            return $exception->user_id . '|' .
+                Carbon::parse($exception->exception_date)->toDateString();
+        });
+
+    /*
+     * Calculate each staff member's scheduled hours once.
+     * These values are reused by every service assigned to that staff member.
+     */
+    $staffScheduleSummary = [];
+
+    foreach ($staffIds as $staffId) {
+        $staffSchedules = $schedules
+            ->get($staffId, collect())
+            ->keyBy('day_of_week');
+
+        $scheduledHours = 0;
+
+        for (
+            $date = $dateFrom->copy()->startOfDay();
+            $date->lte($dateTo);
+            $date->addDay()
+        ) {
+            $dateString = $date->toDateString();
+            $dayOfWeek = $date->dayOfWeek;
+
+            $exception = $exceptions
+                ->get($staffId . '|' . $dateString)
+                ?->first();
+
+            if ($exception) {
+                if (
+                    $exception->type === 'custom_hours' &&
+                    $exception->start_time &&
+                    $exception->end_time
+                ) {
+                    $start = Carbon::parse($exception->start_time);
+                    $end = Carbon::parse($exception->end_time);
+
+                    if ($end->lessThan($start)) {
+                        $end->addDay();
+                    }
+
+                    $hours = $start->diffInMinutes($end) / 60;
+
+                    if ($hours > 0) {
+                        $scheduledHours += $hours;
+                    }
+                }
+
+                continue;
+            }
+
+            $schedule = $staffSchedules->get($dayOfWeek);
+
+            if (
+                !$schedule ||
+                $schedule->is_day_off ||
+                !$schedule->start_time ||
+                !$schedule->end_time
+            ) {
+                continue;
+            }
+
+            $start = Carbon::parse($schedule->start_time);
+            $end = Carbon::parse($schedule->end_time);
+
+            if ($end->lessThan($start)) {
+                $end->addDay();
+            }
+
+            $hours = $start->diffInMinutes($end) / 60;
+
+            if ($hours > 0) {
+                $scheduledHours += $hours;
+            }
+        }
+
+        $staffScheduleSummary[$staffId] = [
+            'hours' => round($scheduledHours, 2),
+            'has_hours' => $scheduledHours > 0,
+        ];
+    }
+
+    $analytics = $services->map(function ($service) use (
+        $demandByService,
+        $staffScheduleSummary
+    ) {
+        $demand = (int) ($demandByService[$service->id] ?? 0);
+
+        $assignedStaff = $service->staff->count();
+
+        $durationMinutes = (int) ($service->duration_minutes ?? 0);
+
+        $demandHours = $durationMinutes > 0
+            ? round(($demand * $durationMinutes) / 60, 2)
+            : 0;
+
+        $scheduledHours = 0;
+        $scheduledStaff = 0;
+
+        foreach ($service->staff as $staff) {
+            $staffSummary = $staffScheduleSummary[$staff->id] ?? [
+                'hours' => 0,
+                'has_hours' => false,
+            ];
+
+            $scheduledHours += $staffSummary['hours'];
+
+            if ($staffSummary['has_hours']) {
+                $scheduledStaff++;
+            }
+        }
+
+        $scheduledHours = round($scheduledHours, 2);
+
+        $demandPerStaff = $assignedStaff > 0
+            ? round($demand / $assignedStaff, 2)
+            : null;
+
+        $demandPerScheduledStaff = $scheduledStaff > 0
+            ? round($demand / $scheduledStaff, 2)
+            : null;
+
+        $scheduleGapHours = max(
+            0,
+            round($demandHours - $scheduledHours, 2)
+        );
+
+        if ($demand === 0) {
+            $gapStatus = 'No current demand';
+            $gapLevel = 'none';
+        } elseif ($assignedStaff === 0) {
+            $gapStatus = 'No staff assigned';
+            $gapLevel = 'critical';
+        } elseif ($scheduledStaff === 0) {
+            $gapStatus = 'No scheduled staff';
+            $gapLevel = 'critical';
+        } elseif ($demand <= $assignedStaff) {
+            $gapStatus = 'Covered';
+            $gapLevel = 'covered';
+        } elseif ($demandPerStaff <= 3) {
+            $gapStatus = 'Limited coverage';
+            $gapLevel = 'moderate';
+        } else {
+            $gapStatus = 'Bottleneck';
+            $gapLevel = 'high';
+        }
+
+        if ($demandHours <= 0) {
+            $scheduleStatus = 'No current demand';
+            $scheduleLevel = 'none';
+        } elseif ($scheduledHours <= 0) {
+            $scheduleStatus = 'No scheduled hours';
+            $scheduleLevel = 'critical';
+        } elseif ($demandHours > $scheduledHours) {
+            $scheduleStatus = 'Schedule gap';
+            $scheduleLevel = 'high';
+        } else {
+            $scheduleStatus = 'Within scheduled hours';
+            $scheduleLevel = 'covered';
+        }
+
+        return [
+            'id' => $service->id,
+            'name' => $service->name,
+            'demand' => $demand,
+            'assigned_staff' => $assignedStaff,
+            'scheduled_staff' => $scheduledStaff,
+            'duration_minutes' => $durationMinutes,
+            'demand_hours' => $demandHours,
+            'scheduled_hours' => $scheduledHours,
+            'schedule_gap_hours' => $scheduleGapHours,
+            'demand_per_staff' => $demandPerStaff,
+            'demand_per_scheduled_staff' => $demandPerScheduledStaff,
+            'gap_status' => $gapStatus,
+            'gap_level' => $gapLevel,
+            'schedule_status' => $scheduleStatus,
+            'schedule_level' => $scheduleLevel,
+            'staff' => $service->staff
+                ->map(fn ($staff) => $staff->full_name)
+                ->values()
+                ->all(),
+        ];
+    });
+
+    $priority = [
+        'critical' => 4,
+        'high' => 3,
+        'moderate' => 2,
+        'covered' => 1,
+        'none' => 0,
+    ];
+
+    $analytics = $analytics
+        ->sort(function ($a, $b) use ($priority) {
+            $levelA = $priority[$a['gap_level']] ?? 0;
+            $levelB = $priority[$b['gap_level']] ?? 0;
+
+            if ($levelA !== $levelB) {
+                return $levelB <=> $levelA;
+            }
+
+            if ($a['demand'] !== $b['demand']) {
+                return $b['demand'] <=> $a['demand'];
+            }
+
+            return ($b['schedule_gap_hours'] ?? 0)
+                <=> ($a['schedule_gap_hours'] ?? 0);
+        })
+        ->values();
+
+    $servicesWithDemand = $analytics->filter(
+        fn ($item) => $item['demand'] > 0
+    );
+
+    $summary = [
+        'total_services' => $analytics->count(),
+
+        'services_with_demand' => $servicesWithDemand->count(),
+
+        'services_without_staff' => $analytics
+            ->where('gap_level', 'critical')
+            ->where('assigned_staff', 0)
+            ->count(),
+
+        'bottleneck_services' => $analytics
+            ->where('gap_level', 'high')
+            ->count(),
+
+        'limited_coverage_services' => $analytics
+            ->where('gap_level', 'moderate')
+            ->count(),
+
+        'covered_services' => $analytics
+            ->where('gap_level', 'covered')
+            ->count(),
+
+        'schedule_gap_services' => $analytics
+            ->where('schedule_level', 'high')
+            ->count(),
+
+        'total_completed_demand' => $analytics->sum('demand'),
+
+        'total_demand_hours' => round(
+            $analytics->sum('demand_hours'),
+            2
+        ),
+
+        'total_scheduled_hours' => round(
+            $analytics->sum('scheduled_hours'),
+            2
+        ),
+
+        'total_schedule_gap_hours' => round(
+            $analytics->sum('schedule_gap_hours'),
+            2
+        ),
+
+        'total_assigned_staff' => $analytics->sum('assigned_staff'),
+
+        'average_demand' => round(
+            $servicesWithDemand->avg('demand') ?? 0,
+            2
+        ),
+
+        'average_demand_per_staff' => round(
+            $servicesWithDemand
+                ->filter(
+                    fn ($item) =>
+                        $item['demand_per_staff'] !== null
+                )
+                ->avg('demand_per_staff') ?? 0,
+            2
+        ),
+
+        'average_demand_hours' => round(
+            $servicesWithDemand->avg('demand_hours') ?? 0,
+            2
+        ),
+
+        'average_scheduled_hours' => round(
+            $servicesWithDemand->avg('scheduled_hours') ?? 0,
+            2
+        ),
+    ];
+
+    return view('admin.skill-gap', [
+        'analytics' => $analytics,
+        'summary' => $summary,
+        'dateFrom' => $dateFrom->toDateString(),
+        'dateTo' => $dateTo->toDateString(),
+    ]);
+}
+
 }

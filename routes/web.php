@@ -184,7 +184,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     
     Route::get('/room-tracking', [AdminController::class, 'roomTracking'])
     ->name('admin.room-tracking');
+
+    Route::get('/skill-gap', [AdminController::class, 'skillGapAnalytics'])
+    ->name('admin.skill-gap');
 });
+
+
 
 // ─── Admin Schedule Edit Routes ───
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {

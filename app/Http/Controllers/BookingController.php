@@ -20,15 +20,21 @@ use App\Models\ScheduleException;
 
 class BookingController extends Controller
 {
-
     private function timeToMinutes(string $time): int
     {
         [$h, $m] = explode(':', $time);
-        return (int)$h * 60 + (int)$m;
+
+        return (int) $h * 60 + (int) $m;
     }
 
-    private function isSlotValid($start, $end, int $duration, string $date, bool $requiresRoom, $services): bool
-    {
+    private function isSlotValid(
+        $start,
+        $end,
+        int $duration,
+        string $date,
+        bool $requiresRoom,
+        $services
+    ): bool {
         if ($start instanceof Carbon) {
             $slotStart = $start->copy();
         } else {
@@ -46,19 +52,28 @@ class BookingController extends Controller
         return $slotEnd->lte($windowEnd);
     }
 
-    private function buildSlot(Carbon $startTime, int $duration, string $date, $staff, bool $requiresRoom, $services): ?array
-    {
+    private function buildSlot(
+        Carbon $startTime,
+        int $duration,
+        string $date,
+        $staff,
+        bool $requiresRoom,
+        $services
+    ): ?array {
         $endTime = $startTime->copy()->addMinutes($duration);
 
         $freeRooms = [];
+
         if ($requiresRoom) {
-            $roomCategoryIds = $services->where('requires_room', true)
+            $roomCategoryIds = $services
+                ->where('requires_room', true)
                 ->whereNotNull('room_category_id')
                 ->pluck('room_category_id')
                 ->unique()
                 ->values();
 
-            $roomsQuery = Room::active()->where('status', '!=', 'maintenance');
+            $roomsQuery = Room::active()
+                ->where('status', '!=', 'maintenance');
 
             if ($roomCategoryIds->isNotEmpty()) {
                 $roomsQuery->where(function ($q) use ($roomCategoryIds) {
@@ -68,14 +83,16 @@ class BookingController extends Controller
             }
 
             foreach ($roomsQuery->get() as $room) {
-                if ($room->isAvailableFor(
-                    $date,
-                    $startTime->format('H:i:s'),
-                    $endTime->format('H:i:s')
-                )) {
+                if (
+                    $room->isAvailableFor(
+                        $date,
+                        $startTime->format('H:i:s'),
+                        $endTime->format('H:i:s')
+                    )
+                ) {
                     $freeRooms[] = [
                         'id' => $room->id,
-                        'name' => $room->name
+                        'name' => $room->name,
                     ];
                 }
             }
@@ -88,9 +105,12 @@ class BookingController extends Controller
         return [
             'time' => $startTime->format('H:i'),
             'end_time' => $endTime->format('H:i'),
-            'display' => $startTime->format('g:i A') . ' – ' . $endTime->format('g:i A'),
+            'display' => $startTime->format('g:i A')
+                . ' – '
+                . $endTime->format('g:i A'),
             'staff_id' => $staff->id,
-            'staff_name' => $staff->full_name ?? trim($staff->first_name . ' ' . $staff->last_name),
+            'staff_name' => $staff->full_name
+                ?? trim($staff->first_name . ' ' . $staff->last_name),
             'free_rooms' => $freeRooms,
         ];
     }
@@ -100,36 +120,42 @@ class BookingController extends Controller
     public function landing()
     {
         $hero = (object) [
-            'title'    => LandingSetting::where('key', 'hero_title')->value('value') ?? 'Spa Alexandria',
-            'subtitle' => LandingSetting::where('key', 'hero_subtitle')->value('value') ?? '',
-            'image'    => LandingSetting::where('key', 'hero_image')->value('value') ?? null,
+            'title' => LandingSetting::where('key', 'hero_title')
+                ->value('value')
+                ?? 'Spa Alexandria',
+            'subtitle' => LandingSetting::where('key', 'hero_subtitle')
+                ->value('value')
+                ?? '',
+            'image' => LandingSetting::where('key', 'hero_image')
+                ->value('value')
+                ?? null,
         ];
 
         $benefits = [
             [
-                'icon'  => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+                'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
                 'title' => 'Faster Booking',
-                'desc'  => 'Save your details and book in seconds.',
+                'desc' => 'Save your details and book in seconds.',
             ],
             [
-                'icon'  => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+                'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
                 'title' => 'Track History',
-                'desc'  => 'View past appointments and preferences.',
+                'desc' => 'View past appointments and preferences.',
             ],
             [
-                'icon'  => 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
+                'icon' => 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
                 'title' => 'Exclusive Offers',
-                'desc'  => 'Members get special discounts and perks.',
+                'desc' => 'Members get special discounts and perks.',
             ],
             [
-                'icon'  => 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+                'icon' => 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
                 'title' => 'Personalized Care',
-                'desc'  => 'We remember your favorite treatments.',
+                'desc' => 'We remember your favorite treatments.',
             ],
         ];
 
         $categories = ServiceCategory::with([
-            'services' => fn($q) => $q->orderBy('name')
+            'services' => fn($q) => $q->orderBy('name'),
         ])
             ->orderBy('name')
             ->get();
@@ -142,7 +168,10 @@ class BookingController extends Controller
     public function wizard(Request $request)
     {
         $categories = ServiceCategory::where('is_active', true)
-            ->whereHas('services', fn($q) => $q->where('is_active', true))
+            ->whereHas(
+                'services',
+                fn($q) => $q->where('is_active', true)
+            )
             ->with([
                 'services' => fn($q) => $q->where('is_active', true)
                     ->select(
@@ -161,7 +190,7 @@ class BookingController extends Controller
                         'landing_description',
                         'requires_room',
                         'room_category_id'
-                    )
+                    ),
             ])
             ->get();
 
@@ -180,7 +209,11 @@ class BookingController extends Controller
 
                         if ($ids) {
                             $included = Service::whereIn('id', $ids)
-                                ->select('id', 'name', 'duration_minutes')
+                                ->select(
+                                    'id',
+                                    'name',
+                                    'duration_minutes'
+                                )
                                 ->get()
                                 ->toArray();
                         }
@@ -205,11 +238,13 @@ class BookingController extends Controller
                         'deposit_percentage_min' => (float) $depMin,
                         'deposit_percentage_max' => (float) $depMax,
                         'description' => $s->description,
-                        'image' => $s->image ? asset($s->image) : null,
+                        'image' => $s->image
+                            ? asset($s->image)
+                            : null,
                         'requires_room' => $s->requires_room,
                         'room_category_id' => $s->room_category_id,
                     ];
-                })
+                }),
             ];
         })->toJson();
 
@@ -220,17 +255,15 @@ class BookingController extends Controller
 
         $user = auth()->user();
 
-        /*
-         * REGISTERED CUSTOMER:
-         * Use nickname for the booking name.
-         * Fall back to real first name if no nickname exists.
-         */
-        if ($user && $user->roles()->where('name', 'customer')->exists()) {
+        if (
+            $user &&
+            $user->roles()->where('name', 'customer')->exists()
+        ) {
             $customer = Customer::where('user_id', $user->id)->first();
 
             if ($customer) {
                 $defaultName = $customer->nickname
-                    ?: $customer->first_name
+                    ?: $customer->full_name
                     ?: $user->first_name
                     ?: '';
 
@@ -245,7 +278,10 @@ class BookingController extends Controller
             $query = Appointment::with('services')
                 ->where('id', $request->rebook_from);
 
-            if ($user && $user->roles()->where('name', 'customer')->exists()) {
+            if (
+                $user &&
+                $user->roles()->where('name', 'customer')->exists()
+            ) {
                 $query->whereHas(
                     'customer',
                     fn($q) => $q->where('user_id', $user->id)
@@ -257,17 +293,22 @@ class BookingController extends Controller
             $rebook = $query->first();
 
             if ($rebook) {
-                $preselectedIds = $rebook->services->pluck('id')->toArray();
+                $preselectedIds = $rebook->services
+                    ->pluck('id')
+                    ->toArray();
             }
         }
 
-        return view('booking.wizard', compact(
-            'categoriesJson',
-            'preselectedIds',
-            'defaultName',
-            'defaultPhone',
-            'customerMedicalNotes'
-        ));
+        return view(
+            'booking.wizard',
+            compact(
+                'categoriesJson',
+                'preselectedIds',
+                'defaultName',
+                'defaultPhone',
+                'customerMedicalNotes'
+            )
+        );
     }
 
     // ==================== RECEPTIONIST QUICK BOOK ====================
@@ -276,12 +317,18 @@ class BookingController extends Controller
     {
         $user = auth()->user();
 
-        if (!$user || !$user->roles()->where('name', 'receptionist')->exists()) {
+        if (
+            !$user ||
+            !$user->roles()->where('name', 'receptionist')->exists()
+        ) {
             abort(403);
         }
 
         $categories = ServiceCategory::where('is_active', true)
-            ->whereHas('services', fn($q) => $q->where('is_active', true))
+            ->whereHas(
+                'services',
+                fn($q) => $q->where('is_active', true)
+            )
             ->with([
                 'services' => fn($q) => $q->where('is_active', true)
                     ->select(
@@ -293,11 +340,10 @@ class BookingController extends Controller
                         'duration_minutes',
                         'requires_room',
                         'room_category_id'
-                    )
+                    ),
             ])
             ->get();
 
-        // Fetch ALL columns — restricting to first_name/last_name breaks accessors/full_name
         $staff = User::whereHas(
             'roles',
             fn($q) => $q->where('name', 'staff')
@@ -313,7 +359,7 @@ class BookingController extends Controller
         );
     }
 
-    // ==================== API: SLOTS (merged endpoint) ====================
+    // ==================== API: SLOTS ====================
 
     public function getSlots(Request $request)
     {
@@ -332,7 +378,9 @@ class BookingController extends Controller
             ? collect()
             : Service::whereIn('id', $serviceIds)->get();
 
-        $requiresRoom = $services->contains(fn($s) => $s->requires_room);
+        $requiresRoom = $services->contains(
+            fn($s) => $s->requires_room
+        );
 
         $rooms = collect();
         $roomAppointments = collect();
@@ -373,7 +421,11 @@ class BookingController extends Controller
         if ($requiresRoom && $rooms->isNotEmpty()) {
             $dateList = [];
 
-            for ($d = $startDate->copy(); $d->lte($endDate); $d->addDay()) {
+            for (
+                $d = $startDate->copy();
+                $d->lte($endDate);
+                $d->addDay()
+            ) {
                 if ($d->dayOfWeek !== Carbon::SUNDAY) {
                     $dateList[] = $d->format('Y-m-d');
                 }
@@ -384,16 +436,21 @@ class BookingController extends Controller
                     'appointment_date',
                     $dateList
                 )
-                    ->whereIn('status', ['confirmed', 'completed', 'pending'])
+                    ->whereIn(
+                        'status',
+                        ['confirmed', 'completed', 'pending']
+                    )
                     ->whereNotNull('room_id')
                     ->get([
                         'appointment_date',
                         'room_id',
                         'start_time',
-                        'end_time'
+                        'end_time',
                     ])
                     ->groupBy('appointment_date')
-                    ->map(fn($group) => $group->groupBy('room_id'));
+                    ->map(
+                        fn($group) => $group->groupBy('room_id')
+                    );
             }
         }
 
@@ -421,11 +478,15 @@ class BookingController extends Controller
 
             while ($open->lte($close)) {
                 $slotEnd = $open->copy()->addMinutes($duration);
-                $minLeadTime = $request->boolean('receptionist') ? 0 : 30;
+                $minLeadTime = $request->boolean('receptionist')
+                    ? 0
+                    : 30;
 
                 if (
                     $slotEnd->lte($close) &&
-                    $open->gt($now->copy()->addMinutes($minLeadTime))
+                    $open->gt(
+                        $now->copy()->addMinutes($minLeadTime)
+                    )
                 ) {
                     $roomAvailable = true;
                     $freeRooms = [];
@@ -433,24 +494,38 @@ class BookingController extends Controller
                     if ($requiresRoom) {
                         if ($rooms->isEmpty()) {
                             $roomAvailable = false;
-                        } elseif ($dayAppointments && $dayAppointments->isNotEmpty()) {
+                        } elseif (
+                            $dayAppointments &&
+                            $dayAppointments->isNotEmpty()
+                        ) {
                             $slotStartStr = $open->format('H:i:s');
                             $slotEndStr = $slotEnd->format('H:i:s');
 
                             foreach ($rooms as $room) {
-                                $apts = $dayAppointments[$room->id] ?? collect();
+                                $apts = $dayAppointments[$room->id]
+                                    ?? collect();
 
-                                $isFree = $apts->isEmpty() || !$apts->contains(
-                                    function ($apt) use ($slotStartStr, $slotEndStr) {
-                                        return ($slotStartStr < $apt->end_time)
-                                            && ($slotEndStr > $apt->start_time);
-                                    }
-                                );
+                                $isFree = $apts->isEmpty()
+                                    || !$apts->contains(
+                                        function ($apt) use (
+                                            $slotStartStr,
+                                            $slotEndStr
+                                        ) {
+                                            return (
+                                                $slotStartStr
+                                                < $apt->end_time
+                                            )
+                                                && (
+                                                    $slotEndStr
+                                                    > $apt->start_time
+                                                );
+                                        }
+                                    );
 
                                 if ($isFree) {
                                     $freeRooms[] = [
                                         'id' => $room->id,
-                                        'name' => $room->name
+                                        'name' => $room->name,
                                     ];
                                 }
                             }
@@ -458,10 +533,12 @@ class BookingController extends Controller
                             $roomAvailable = count($freeRooms) > 0;
                         } else {
                             $freeRooms = $rooms
-                                ->map(fn($r) => [
-                                    'id' => $r->id,
-                                    'name' => $r->name
-                                ])
+                                ->map(
+                                    fn($r) => [
+                                        'id' => $r->id,
+                                        'name' => $r->name,
+                                    ]
+                                )
                                 ->toArray();
                         }
                     }
@@ -491,7 +568,7 @@ class BookingController extends Controller
     public function customerLookup(Request $request)
     {
         $request->validate([
-            'phone' => 'required|string|min:6'
+            'phone' => 'required|string|min:6',
         ]);
 
         $customers = Customer::where(
@@ -505,15 +582,26 @@ class BookingController extends Controller
                 'first_name',
                 'last_name',
                 'phone_number',
-                'nickname'
+                'nickname',
+                'medical_notes',
+                'user_id',
             ]);
 
         return response()->json(
-            $customers->map(fn($c) => [
-                'id' => $c->id,
-                'name' => $c->nickname ?: $c->full_name,
-                'phone' => $c->phone_number,
-            ])
+            $customers->map(function ($customer) {
+                return [
+                    'id' => $customer->id,
+                    'name' => $customer->nickname
+                        ?: $customer->full_name,
+                    'real_name' => $customer->full_name,
+                    'nickname' => $customer->nickname,
+                    'phone' => $customer->phone_number,
+                    'medical_notes' => $customer->medical_notes ?? '',
+                    'is_registered' => !is_null(
+                        $customer->user_id
+                    ),
+                ];
+            })
         );
     }
 
@@ -538,15 +626,13 @@ class BookingController extends Controller
 
         $slots = $slotsRes['slots'];
 
-        $today = Carbon::today('Asia/Manila')->format('Y-m-d');
-
         $nextSlot = collect($slots)
             ->first(fn($s) => $s['room_available']);
 
         if (!$nextSlot) {
             return response()->json([
                 'slot' => null,
-                'message' => 'No slots available'
+                'message' => 'No slots available',
             ]);
         }
 
@@ -563,7 +649,6 @@ class BookingController extends Controller
                 $date,
                 $dayOfWeek,
                 $time,
-                $nextSlot,
                 $duration
             ) {
                 $schedule = $staff->workSchedules()
@@ -586,10 +671,22 @@ class BookingController extends Controller
                     return false;
                 }
 
-                $conflict = Appointment::where('user_id', $staff->id)
-                    ->where('appointment_date', $date)
-                    ->where('status', 'confirmed')
-                    ->where(function ($q) use ($time, $slotEndTime) {
+                $conflict = Appointment::where(
+                    'user_id',
+                    $staff->id
+                )
+                    ->where(
+                        'appointment_date',
+                        $date
+                    )
+                    ->where(
+                        'status',
+                        'confirmed'
+                    )
+                    ->where(function ($q) use (
+                        $time,
+                        $slotEndTime
+                    ) {
                         $q->whereBetween(
                             'start_time',
                             [$time, $slotEndTime]
@@ -618,10 +715,12 @@ class BookingController extends Controller
 
                 return !$conflict;
             })
-            ->map(fn($s) => [
-                'id' => $s->id,
-                'name' => $s->full_name
-            ])
+            ->map(
+                fn($s) => [
+                    'id' => $s->id,
+                    'name' => $s->full_name,
+                ]
+            )
             ->values();
 
         return response()->json([
@@ -685,16 +784,21 @@ class BookingController extends Controller
                     'appointment_date',
                     $dateList
                 )
-                    ->whereIn('status', ['confirmed', 'completed', 'pending'])
+                    ->whereIn(
+                        'status',
+                        ['confirmed', 'completed', 'pending']
+                    )
                     ->whereNotNull('room_id')
                     ->get([
                         'appointment_date',
                         'room_id',
                         'start_time',
-                        'end_time'
+                        'end_time',
                     ])
                     ->groupBy('appointment_date')
-                    ->map(fn($group) => $group->groupBy('room_id'));
+                    ->map(
+                        fn($group) => $group->groupBy('room_id')
+                    );
             }
         }
 
@@ -733,7 +837,9 @@ class BookingController extends Controller
 
                 if (
                     $slotEnd->lte($close) &&
-                    $open->gt($now->copy()->addMinutes($minLeadTime))
+                    $open->gt(
+                        $now->copy()->addMinutes($minLeadTime)
+                    )
                 ) {
                     $roomAvailable = true;
                     $freeRooms = [];
@@ -741,27 +847,38 @@ class BookingController extends Controller
                     if ($requiresRoom) {
                         if ($rooms->isEmpty()) {
                             $roomAvailable = false;
-                        } elseif ($dayAppointments && $dayAppointments->isNotEmpty()) {
+                        } elseif (
+                            $dayAppointments &&
+                            $dayAppointments->isNotEmpty()
+                        ) {
                             $slotStartStr = $open->format('H:i:s');
                             $slotEndStr = $slotEnd->format('H:i:s');
 
                             foreach ($rooms as $room) {
-                                $apts = $dayAppointments[$room->id] ?? collect();
+                                $apts = $dayAppointments[$room->id]
+                                    ?? collect();
 
-                                $isFree = $apts->isEmpty() || !$apts->contains(
-                                    function ($apt) use (
-                                        $slotStartStr,
-                                        $slotEndStr
-                                    ) {
-                                        return ($slotStartStr < $apt->end_time)
-                                            && ($slotEndStr > $apt->start_time);
-                                    }
-                                );
+                                $isFree = $apts->isEmpty()
+                                    || !$apts->contains(
+                                        function ($apt) use (
+                                            $slotStartStr,
+                                            $slotEndStr
+                                        ) {
+                                            return (
+                                                $slotStartStr
+                                                < $apt->end_time
+                                            )
+                                                && (
+                                                    $slotEndStr
+                                                    > $apt->start_time
+                                                );
+                                        }
+                                    );
 
                                 if ($isFree) {
                                     $freeRooms[] = [
                                         'id' => $room->id,
-                                        'name' => $room->name
+                                        'name' => $room->name,
                                     ];
                                 }
                             }
@@ -769,10 +886,12 @@ class BookingController extends Controller
                             $roomAvailable = count($freeRooms) > 0;
                         } else {
                             $freeRooms = $rooms
-                                ->map(fn($r) => [
-                                    'id' => $r->id,
-                                    'name' => $r->name
-                                ])
+                                ->map(
+                                    fn($r) => [
+                                        'id' => $r->id,
+                                        'name' => $r->name,
+                                    ]
+                                )
                                 ->toArray();
                         }
                     }
@@ -793,7 +912,7 @@ class BookingController extends Controller
         return [
             'slots' => $slots,
             'requires_room' => $requiresRoom,
-            'room_count' => $rooms->count()
+            'room_count' => $rooms->count(),
         ];
     }
 
@@ -804,7 +923,9 @@ class BookingController extends Controller
         Carbon $startTime,
         Carbon $endTime
     ): ?string {
-        if (Carbon::parse($date)->dayOfWeek === Carbon::SUNDAY) {
+        if (
+            Carbon::parse($date)->dayOfWeek === Carbon::SUNDAY
+        ) {
             return 'We are closed on Sundays. Please pick another date.';
         }
 
@@ -831,7 +952,10 @@ class BookingController extends Controller
     ): ?array {
         $dayOfWeek = Carbon::parse($date)->dayOfWeek;
 
-        $exception = ScheduleException::where('user_id', $staffId)
+        $exception = ScheduleException::where(
+            'user_id',
+            $staffId
+        )
             ->whereDate('exception_date', $date)
             ->first();
 
@@ -839,13 +963,21 @@ class BookingController extends Controller
             $exception &&
             in_array(
                 $exception->type,
-                ['day_off', 'holiday', 'sick_leave', 'urgent_leave']
+                [
+                    'day_off',
+                    'holiday',
+                    'sick_leave',
+                    'urgent_leave',
+                ]
             )
         ) {
             return null;
         }
 
-        $schedule = WorkSchedule::where('user_id', $staffId)
+        $schedule = WorkSchedule::where(
+            'user_id',
+            $staffId
+        )
             ->where('day_of_week', $dayOfWeek)
             ->where('is_day_off', false)
             ->first();
@@ -857,7 +989,10 @@ class BookingController extends Controller
         $start = $this->extractTime($schedule->start_time);
         $end = $this->extractTime($schedule->end_time);
 
-        if ($exception && $exception->type === 'custom_hours') {
+        if (
+            $exception &&
+            $exception->type === 'custom_hours'
+        ) {
             $start = $this->extractTime($exception->start_time);
             $end = $this->extractTime($exception->end_time);
         }
@@ -868,7 +1003,7 @@ class BookingController extends Controller
 
         return [
             'start' => $start,
-            'end' => $end
+            'end' => $end,
         ];
     }
 
@@ -878,7 +1013,10 @@ class BookingController extends Controller
         string $startTime,
         string $endTime
     ): bool {
-        $window = $this->getStaffWorkWindow($staffId, $date);
+        $window = $this->getStaffWorkWindow(
+            $staffId,
+            $date
+        );
 
         if (!$window) {
             return false;
@@ -887,16 +1025,25 @@ class BookingController extends Controller
         $start = substr($startTime, 0, 5);
         $end = substr($endTime, 0, 5);
 
-        // Slot must fit entirely inside the staff's shift
-        if ($start < $window['start'] || $end > $window['end']) {
+        if (
+            $start < $window['start'] ||
+            $end > $window['end']
+        ) {
             return false;
         }
 
-        // Overlap check against existing appointments
-        // confirmed AND pending, so two pending bookings can't grab the same staff slot
-        return !Appointment::where('user_id', $staffId)
-            ->where('appointment_date', $date)
-            ->whereIn('status', ['confirmed', 'pending', 'completed'])
+        return !Appointment::where(
+            'user_id',
+            $staffId
+        )
+            ->where(
+                'appointment_date',
+                $date
+            )
+            ->whereIn(
+                'status',
+                ['confirmed', 'pending', 'completed']
+            )
             ->where(function ($q) use ($start, $end) {
                 $q->whereBetween(
                     'start_time',
@@ -954,11 +1101,12 @@ class BookingController extends Controller
         );
     }
 
-    // ==================== STORE (shared by wizard + quick-book) ====================
+    // ==================== STORE ====================
 
     public function store(Request $request)
     {
         $request->validate([
+            'customer_id' => 'nullable|exists:customers,id',
             'services' => 'required|array|min:1',
             'services.*' => 'exists:services,id',
             'appointment_date' => 'required|date|after_or_equal:today',
@@ -990,7 +1138,7 @@ class BookingController extends Controller
             session([
                 'user_role' => strtolower(
                     $user->roles()->first()->name ?? 'customer'
-                )
+                ),
             ]);
         } else {
             session(['user_role' => 'guest']);
@@ -1002,7 +1150,9 @@ class BookingController extends Controller
         )->get();
 
         $startTime = Carbon::parse(
-            $request->appointment_date . ' ' . $request->start_time,
+            $request->appointment_date
+                . ' '
+                . $request->start_time,
             'Asia/Manila'
         );
 
@@ -1010,7 +1160,9 @@ class BookingController extends Controller
 
         $endTime = $request->end_time
             ? Carbon::parse(
-                $request->appointment_date . ' ' . $request->end_time,
+                $request->appointment_date
+                    . ' '
+                    . $request->end_time,
                 'Asia/Manila'
             )
             : $startTime->copy()->addMinutes($totalDuration);
@@ -1018,8 +1170,6 @@ class BookingController extends Controller
         $totalPrice = $services->sum(
             fn($s) => $s->discount_price ?? $s->price
         );
-
-        // ─── SERVER-SIDE CONFLICT PREVENTION ───
 
         $tz = 'Asia/Manila';
 
@@ -1038,7 +1188,7 @@ class BookingController extends Controller
             ) {
                 return response()->json([
                     'success' => false,
-                    'message' => $message
+                    'message' => $message,
                 ], 422);
             }
 
@@ -1047,7 +1197,6 @@ class BookingController extends Controller
                 ->with('error', $message);
         };
 
-        // 1. Business hours / closed days
         $bizError = $this->validateBusinessHours(
             $request->appointment_date,
             $startTime,
@@ -1058,9 +1207,6 @@ class BookingController extends Controller
             return $fail($bizError);
         }
 
-        // 2. Lead time
-        // Public customers need 30 min lead;
-        // receptionist walk-ins are instant.
         if (
             !$isReceptionist &&
             $startTime->lte(
@@ -1072,10 +1218,7 @@ class BookingController extends Controller
             );
         }
 
-        // 3. Staff validation
         if ($isReceptionist && $request->filled('staff_id')) {
-            // Receptionist picked a specific staff member.
-            // Make sure they're actually free.
             if (
                 !$this->isStaffAvailable(
                     (int) $request->staff_id,
@@ -1089,8 +1232,6 @@ class BookingController extends Controller
                 );
             }
         } else {
-            // Public booking with no staff picking.
-            // Require at least ONE available staff.
             $hasAvailableStaff = User::whereHas(
                 'roles',
                 fn($q) => $q->where('name', 'staff')
@@ -1113,11 +1254,8 @@ class BookingController extends Controller
             }
         }
 
-        // 4. Room validation
         if ($requiresRoom) {
             if ($request->filled('room_id')) {
-                // Caller requested a specific room.
-                // Verify it is actually free.
                 $room = Room::find($request->room_id);
 
                 if (
@@ -1133,8 +1271,6 @@ class BookingController extends Controller
                     );
                 }
             } else {
-                // No room chosen — auto-assign the first
-                // compatible free room, or reject.
                 $freeRoom = $this->findFreeRoom(
                     $services,
                     $request->appointment_date,
@@ -1149,57 +1285,68 @@ class BookingController extends Controller
                 }
 
                 $request->merge([
-                    'room_id' => $freeRoom->id
+                    'room_id' => $freeRoom->id,
                 ]);
             }
         }
 
         /*
-         * ============================================================
          * CUSTOMER HANDLING
-         * ============================================================
          *
-         * REGISTERED CUSTOMER:
-         * - Has a user account.
-         * - Keep their actual first_name/last_name.
-         * - guest_first_name is treated as their preferred name.
-         * - If they have no nickname yet, save guest_first_name as nickname.
+         * Receptionist:
+         * - If customer_id exists, use that existing customer.
+         * - Never replace their real first/last name with the alias.
          *
-         * GUEST:
-         * - Has no user account.
-         * - guest_first_name is their actual booking name.
-         * - Existing guest logic remains unchanged.
+         * Logged-in customer:
+         * - Use their own Customer record.
+         *
+         * Guest:
+         * - Find existing customer by phone or create a new one.
          */
 
-        if ($isCustomer) {
-            /*
-             * Find the registered customer's Customer record.
-             * Do NOT update first_name using guest_first_name.
-             */
+        if ($isReceptionist && $request->filled('customer_id')) {
+            $customer = Customer::find(
+                $request->customer_id
+            );
+
+            if (!$customer) {
+                return $fail(
+                    'The selected customer could not be found.'
+                );
+            }
+
+            if (
+                $request->filled('guest_phone') &&
+                $customer->phone_number !== $request->guest_phone
+            ) {
+                $customer->phone_number = $request->guest_phone;
+            }
+
+            if ($request->filled('medical_notes')) {
+                $customer->medical_notes =
+                    $request->medical_notes;
+            }
+
+            $customer->save();
+        } elseif ($isCustomer) {
             $customer = Customer::firstOrNew([
                 'user_id' => $user->id,
             ]);
 
-            /*
-             * If the Customer record does not exist yet,
-             * initialize it using the real account information.
-             */
             if (!$customer->exists) {
-                $customer->first_name = $user->first_name ?? '';
-                $customer->last_name = $user->last_name ?? '';
-                $customer->email = $user->email ?? null;
-                $customer->customer_type = 'regular';
+                $customer->first_name =
+                    $user->first_name ?? '';
+
+                $customer->last_name =
+                    $user->last_name ?? '';
+
+                $customer->email =
+                    $user->email ?? null;
+
+                $customer->customer_type =
+                    'regular';
             }
 
-            /*
-             * If the registered customer does not have a nickname yet,
-             * use the booking name as their nickname.
-             *
-             * If a nickname already exists, preserve it.
-             *
-             * IMPORTANT:
-             * This does NOT modify first_name.
-             */
             if (
                 empty($customer->nickname) &&
                 $request->filled('guest_first_name')
@@ -1209,26 +1356,32 @@ class BookingController extends Controller
                 );
             }
 
-            /*
-             * Keep the customer's phone number updated.
-             */
             if ($request->filled('guest_phone')) {
-                $customer->phone_number = $request->guest_phone;
+                $customer->phone_number =
+                    $request->guest_phone;
+            }
+
+            if ($request->filled('medical_notes')) {
+                $customer->medical_notes =
+                    $request->medical_notes;
             }
 
             $customer->save();
+        } else {
+            $existingCustomer = Customer::where(
+                'phone_number',
+                $request->guest_phone
+            )->first();
 
+            if ($existingCustomer) {
+                $customer = $existingCustomer;
+
+                if ($request->filled('medical_notes')) {
+                    $customer->medical_notes =
+                        $request->medical_notes;
+                    $customer->save();
+                }
             } else {
-                /*
-                * GUEST BOOKING:
-                * No account is required.
-                *
-                * The guest's entered name is used as their
-                * actual Customer first_name / last_name.
-                *
-                * If only one name is entered, do NOT add "Guest"
-                * as the last name.
-                */
                 $nameParts = preg_split(
                     '/\s+/',
                     trim($request->guest_first_name),
@@ -1238,34 +1391,18 @@ class BookingController extends Controller
                 $firstName = $nameParts[0] ?? '';
                 $lastName = $nameParts[1] ?? '';
 
-                $customer = Customer::firstOrCreate(
-                    ['phone_number' => $request->guest_phone],
-                    [
-                        'user_id' => null,
-                        'first_name' => $firstName,
-                        'last_name' => $lastName,
-                        'customer_type' => 'regular',
-                    ]
-                );
-
-                if (
-                    $customer->first_name !== $firstName ||
-                    $customer->last_name !== $lastName
-                ) {
-                    $customer->update([
-                        'first_name' => $firstName,
-                        'last_name' => $lastName,
-                    ]);
-                }
+                $customer = Customer::create([
+                    'user_id' => null,
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'customer_type' => 'regular',
+                    'phone_number' => $request->guest_phone,
+                    'medical_notes' => $request->medical_notes
+                        ?? null,
+                ]);
             }
-
-        if ($request->filled('medical_notes')) {
-            $customer->update([
-                'medical_notes' => $request->medical_notes
-            ]);
         }
 
-        // RECEPTIONIST = ALWAYS CONFIRMED, NEVER PENDING
         $status = 'pending';
         $confirmedAt = null;
 
@@ -1292,9 +1429,12 @@ class BookingController extends Controller
                 'customer_id' => $customer->id,
                 'user_id' => $request->staff_id,
                 'room_id' => $request->room_id,
-                'appointment_date' => $request->appointment_date,
-                'start_time' => $startTime->format('H:i:s'),
-                'end_time' => $endTime->format('H:i:s'),
+                'appointment_date' =>
+                    $request->appointment_date,
+                'start_time' =>
+                    $startTime->format('H:i:s'),
+                'end_time' =>
+                    $endTime->format('H:i:s'),
                 'status' => $status,
                 'total_price' => $totalPrice,
                 'created_by' => $user?->id,
@@ -1308,7 +1448,8 @@ class BookingController extends Controller
                 AppointmentService::create([
                     'appointment_id' => $appointment->id,
                     'service_id' => $service->id,
-                    'price_at_booking' => $service->discount_price
+                    'price_at_booking' =>
+                        $service->discount_price
                         ?? $service->price,
                 ]);
             }
@@ -1318,11 +1459,12 @@ class BookingController extends Controller
                 $request->payment_amount > 0
             ) {
                 $appointment->payments()->create([
-                    'payment_method' => $request->payment_method
-                        ?? 'cash',
-                    'amount' => $request->payment_amount,
-                    'type' => $request->payment_type
-                        ?? 'full',
+                    'payment_method' =>
+                        $request->payment_method ?? 'cash',
+                    'amount' =>
+                        $request->payment_amount,
+                    'type' =>
+                        $request->payment_type ?? 'full',
                     'paid_at' => now(),
                 ]);
             }
@@ -1331,57 +1473,64 @@ class BookingController extends Controller
                 $request->room_id &&
                 $request->boolean('walk_in_now')
             ) {
-                Room::where('id', $request->room_id)
-                    ->update(['status' => 'occupied']);
+                Room::where(
+                    'id',
+                    $request->room_id
+                )->update([
+                    'status' => 'occupied',
+                ]);
             }
         });
 
-        // Notify receptionists — they go to their own desk
-        $receptionists = \App\Models\User::whereHas(
-            'roles',
-            fn($q) => $q->where('name', 'receptionist')
-        )->get();
+        if (!$isReceptionist) {
+            $receptionists = User::whereHas(
+                'roles',
+                fn($q) => $q->where('name', 'receptionist')
+            )->get();
 
-        NotificationController::sendTo(
-            $receptionists,
-            'New Online Booking',
-            ($customer->display_name ?? 'A customer')
-                . ' booked for '
-                . $appointment->appointment_date->format('M j')
-                . ' at '
-                . \Carbon\Carbon::parse(
-                    $appointment->start_time
-                )->format('g:i A'),
-            'booking',
-            'info',
-            route('receptionist.pending'),
-            'View Pending'
-        );
+            NotificationController::sendTo(
+                $receptionists,
+                'New Online Booking',
+                ($customer->display_name ?? 'A customer')
+                    . ' booked for '
+                    . $appointment->appointment_date
+                        ->format('M j')
+                    . ' at '
+                    . Carbon::parse(
+                        $appointment->start_time
+                    )->format('g:i A'),
+                'booking',
+                'info',
+                route('receptionist.pending'),
+                'View Pending'
+            );
 
-        // Notify admins — they go to the admin summary page
-        $admins = \App\Models\User::whereHas(
-            'roles',
-            fn($q) => $q->where('name', 'admin')
-        )->get();
+            $admins = User::whereHas(
+                'roles',
+                fn($q) => $q->where('name', 'admin')
+            )->get();
 
-        NotificationController::sendTo(
-            $admins,
-            'New Online Booking',
-            ($customer->display_name ?? 'A customer')
-                . ' booked for '
-                . $appointment->appointment_date->format('M j')
-                . ' at '
-                . \Carbon\Carbon::parse(
-                    $appointment->start_time
-                )->format('g:i A'),
-            'booking',
-            'info',
-            route('admin.appointments', ['status' => 'pending']),
-            'Review'
-        );
+            NotificationController::sendTo(
+                $admins,
+                'New Online Booking',
+                ($customer->display_name ?? 'A customer')
+                    . ' booked for '
+                    . $appointment->appointment_date
+                        ->format('M j')
+                    . ' at '
+                    . Carbon::parse(
+                        $appointment->start_time
+                    )->format('g:i A'),
+                'booking',
+                'info',
+                route(
+                    'admin.appointments',
+                    ['status' => 'pending']
+                ),
+                'Review'
+            );
+        }
 
-        // JSON response for Quick Book / AJAX
-        // goes straight to active sessions
         if (
             $request->ajax() ||
             $request->wantsJson() ||
@@ -1389,10 +1538,13 @@ class BookingController extends Controller
         ) {
             return response()->json([
                 'success' => true,
-                'message' => 'Appointment confirmed for '
+                'message' =>
+                    'Appointment confirmed for '
                     . $customer->display_name,
-                'redirect' => route('receptionist.active'),
-                'appointment_id' => $appointment->id,
+                'redirect' =>
+                    route('receptionist.active'),
+                'appointment_id' =>
+                    $appointment->id,
             ]);
         }
 
@@ -1417,34 +1569,50 @@ class BookingController extends Controller
 
     public function confirmation(Appointment $appointment)
     {
-        $appointment->load('services', 'customer');
+        $appointment->load(
+            'services',
+            'customer'
+        );
 
         return view('booking.confirmation', [
             'appointment' => $appointment,
-            'role' => session('user_role', 'guest')
+            'role' => session(
+                'user_role',
+                'guest'
+            ),
         ]);
     }
 
     public function occupiedSlots(Request $request)
     {
         $request->validate([
-            'date' => 'required|date'
+            'date' => 'required|date',
         ]);
 
         $occupied = Appointment::where(
             'appointment_date',
             $request->date
         )
-            ->whereIn('status', ['pending', 'confirmed', 'completed'])
-            ->get(['start_time', 'end_time'])
-            ->map(fn($a) => [
-                'start_time' => Carbon::parse(
-                    $a->start_time
-                )->format('H:i'),
-                'end_time' => Carbon::parse(
-                    $a->end_time
-                )->format('H:i'),
-            ]);
+            ->whereIn(
+                'status',
+                ['pending', 'confirmed', 'completed']
+            )
+            ->get([
+                'start_time',
+                'end_time',
+            ])
+            ->map(
+                fn($a) => [
+                    'start_time' =>
+                        Carbon::parse(
+                            $a->start_time
+                        )->format('H:i'),
+                    'end_time' =>
+                        Carbon::parse(
+                            $a->end_time
+                        )->format('H:i'),
+                ]
+            );
 
         return response()->json($occupied);
     }
@@ -1457,7 +1625,8 @@ class BookingController extends Controller
             'staff_id' => 'required|exists:users,id',
             'services' => 'nullable|array',
             'services.*' => 'exists:services,id',
-            'buffer_minutes' => 'nullable|integer|min:0|max:60',
+            'buffer_minutes' =>
+                'nullable|integer|min:0|max:60',
         ]);
 
         $date = $request->date;
@@ -1469,7 +1638,10 @@ class BookingController extends Controller
 
         $services = empty($serviceIds)
             ? collect()
-            : Service::whereIn('id', $serviceIds)->get();
+            : Service::whereIn(
+                'id',
+                $serviceIds
+            )->get();
 
         $requiresRoom = $services->contains(
             fn($s) => $s->requires_room
@@ -1479,18 +1651,26 @@ class BookingController extends Controller
             'user_id',
             $staffId
         )
-            ->whereDate('exception_date', $date)
+            ->whereDate(
+                'exception_date',
+                $date
+            )
             ->first();
 
         if (
             $exception &&
             in_array(
                 $exception->type,
-                ['day_off', 'holiday', 'sick_leave', 'urgent_leave']
+                [
+                    'day_off',
+                    'holiday',
+                    'sick_leave',
+                    'urgent_leave',
+                ]
             )
         ) {
             return response()->json([
-                'gaps' => []
+                'gaps' => [],
             ]);
         }
 
@@ -1498,13 +1678,19 @@ class BookingController extends Controller
             'user_id',
             $staffId
         )
-            ->where('day_of_week', $dayOfWeek)
-            ->where('is_day_off', false)
+            ->where(
+                'day_of_week',
+                $dayOfWeek
+            )
+            ->where(
+                'is_day_off',
+                false
+            )
             ->first();
 
         if (!$schedule) {
             return response()->json([
-                'gaps' => []
+                'gaps' => [],
             ]);
         }
 
@@ -1531,7 +1717,7 @@ class BookingController extends Controller
 
         if (!$workStart || !$workEnd) {
             return response()->json([
-                'gaps' => []
+                'gaps' => [],
             ]);
         }
 
@@ -1539,10 +1725,19 @@ class BookingController extends Controller
             'user_id',
             $staffId
         )
-            ->where('appointment_date', $date)
-            ->whereIn('status', ['confirmed', 'completed', 'pending'])
+            ->where(
+                'appointment_date',
+                $date
+            )
+            ->whereIn(
+                'status',
+                ['confirmed', 'completed', 'pending']
+            )
             ->orderBy('start_time')
-            ->get(['start_time', 'end_time']);
+            ->get([
+                'start_time',
+                'end_time',
+            ]);
 
         $busy = [];
 
@@ -1604,9 +1799,8 @@ class BookingController extends Controller
             }
         }
 
-        // CRITICAL FIX:
-        // Always hide slots already in the past when booking today.
-        $isToday = $date === Carbon::today($tz)->format('Y-m-d');
+        $isToday =
+            $date === Carbon::today($tz)->format('Y-m-d');
 
         if ($isToday) {
             $nowTime = Carbon::now($tz)->format('H:i');
@@ -1619,8 +1813,6 @@ class BookingController extends Controller
             );
         }
 
-        // Additional buffer for walk-ins
-        // only when explicitly requested.
         $bufferMinutes = (int) $request->get(
             'buffer_minutes',
             0
@@ -1640,7 +1832,7 @@ class BookingController extends Controller
         }
 
         return response()->json([
-            'gaps' => $gaps
+            'gaps' => $gaps,
         ]);
     }
 
@@ -1709,7 +1901,8 @@ class BookingController extends Controller
             $gap = [
                 'time' => $timeStr,
                 'end_time' => $endStr,
-                'display' => $slotStart->format('g:i A')
+                'display' =>
+                    $slotStart->format('g:i A')
                     . ' – '
                     . $requiredEnd->format('g:i A'),
                 'free_rooms' => [],
@@ -1727,15 +1920,19 @@ class BookingController extends Controller
                     ->where('status', '!=', 'maintenance');
 
                 if ($roomCategoryIds->isNotEmpty()) {
-                    $roomsQuery->where(function ($q) use (
-                        $roomCategoryIds
-                    ) {
-                        $q->whereIn(
-                            'category_id',
+                    $roomsQuery->where(
+                        function ($q) use (
                             $roomCategoryIds
-                        )
-                            ->orWhereNull('category_id');
-                    });
+                        ) {
+                            $q->whereIn(
+                                'category_id',
+                                $roomCategoryIds
+                            )
+                                ->orWhereNull(
+                                    'category_id'
+                                );
+                        }
+                    );
                 }
 
                 foreach ($roomsQuery->get() as $room) {
@@ -1748,7 +1945,7 @@ class BookingController extends Controller
                     ) {
                         $gap['free_rooms'][] = [
                             'id' => $room->id,
-                            'name' => $room->name
+                            'name' => $room->name,
                         ];
                     }
                 }
@@ -1768,7 +1965,8 @@ class BookingController extends Controller
             'duration' => 'required|integer|min:15',
             'services' => 'nullable|array',
             'services.*' => 'exists:services,id',
-            'buffer_minutes' => 'nullable|integer|min:0|max:60',
+            'buffer_minutes' =>
+                'nullable|integer|min:0|max:60',
         ]);
 
         $date = $request->date;
@@ -1784,7 +1982,10 @@ class BookingController extends Controller
 
         $services = empty($serviceIds)
             ? collect()
-            : Service::whereIn('id', $serviceIds)->get();
+            : Service::whereIn(
+                'id',
+                $serviceIds
+            )->get();
 
         $requiresRoom = $services->contains(
             fn($s) => $s->requires_room
@@ -1805,14 +2006,22 @@ class BookingController extends Controller
                 'user_id',
                 $staff->id
             )
-                ->whereDate('exception_date', $date)
+                ->whereDate(
+                    'exception_date',
+                    $date
+                )
                 ->first();
 
             if (
                 $exception &&
                 in_array(
                     $exception->type,
-                    ['day_off', 'holiday', 'sick_leave', 'urgent_leave']
+                    [
+                        'day_off',
+                        'holiday',
+                        'sick_leave',
+                        'urgent_leave',
+                    ]
                 )
             ) {
                 continue;
@@ -1822,8 +2031,14 @@ class BookingController extends Controller
                 'user_id',
                 $staff->id
             )
-                ->where('day_of_week', $dayOfWeek)
-                ->where('is_day_off', false)
+                ->where(
+                    'day_of_week',
+                    $dayOfWeek
+                )
+                ->where(
+                    'is_day_off',
+                    false
+                )
                 ->first();
 
             if (!$schedule) {
@@ -1855,7 +2070,6 @@ class BookingController extends Controller
                 continue;
             }
 
-            // Build Carbon objects for work window
             $workStartCarbon = Carbon::parse(
                 $date . ' ' . $workStart,
                 $tz
@@ -1866,7 +2080,6 @@ class BookingController extends Controller
                 $tz
             );
 
-            // If today and shift already ended, skip
             if (
                 $isToday &&
                 $now->gte($workEndCarbon)
@@ -1874,38 +2087,57 @@ class BookingController extends Controller
                 continue;
             }
 
-            // Determine search start: now + buffer,
-            // clamped to work start
             $searchStart = $isToday
-                ? $now->copy()->addMinutes($bufferMinutes)
+                ? $now->copy()->addMinutes(
+                    $bufferMinutes
+                )
                 : $workStartCarbon->copy();
 
-            // Can't start before shift begins
-            if ($searchStart->lt($workStartCarbon)) {
-                $searchStart = $workStartCarbon->copy();
+            if (
+                $searchStart->lt(
+                    $workStartCarbon
+                )
+            ) {
+                $searchStart =
+                    $workStartCarbon->copy();
             }
 
             $appointments = Appointment::where(
                 'user_id',
                 $staff->id
             )
-                ->where('appointment_date', $date)
-                ->whereIn('status', ['confirmed', 'completed', 'pending'])
+                ->where(
+                    'appointment_date',
+                    $date
+                )
+                ->whereIn(
+                    'status',
+                    [
+                        'confirmed',
+                        'completed',
+                        'pending',
+                    ]
+                )
                 ->orderBy('start_time')
-                ->get(['start_time', 'end_time']);
+                ->get([
+                    'start_time',
+                    'end_time',
+                ]);
 
             $busy = [];
 
             foreach ($appointments as $apt) {
                 $busy[] = [
                     'start' => Carbon::parse(
-                        $date . ' ' . $this->extractTime(
+                        $date . ' ' .
+                        $this->extractTime(
                             $apt->start_time
                         ),
                         $tz
                     ),
                     'end' => Carbon::parse(
-                        $date . ' ' . $this->extractTime(
+                        $date . ' ' .
+                        $this->extractTime(
                             $apt->end_time
                         ),
                         $tz
@@ -1916,7 +2148,6 @@ class BookingController extends Controller
             $found = false;
 
             if (empty($busy)) {
-                // Entire shift is free.
                 if (
                     $this->isSlotValid(
                         $searchStart,
@@ -1927,11 +2158,13 @@ class BookingController extends Controller
                         $services
                     )
                 ) {
-                    $slot = $this->buildSlotQuick(
+                    $slot = $this->buildSlot(
                         $searchStart,
                         $duration,
                         $date,
-                        $staff
+                        $staff,
+                        $requiresRoom,
+                        $services
                     );
 
                     if ($slot) {
@@ -1940,16 +2173,20 @@ class BookingController extends Controller
                     }
                 }
             } else {
-                // Check gaps between appointments
                 $currentStart = $workStartCarbon;
 
                 foreach ($busy as $interval) {
-                    if ($currentStart->lt($interval['start'])) {
-                        // Gap exists — can we fit starting from
-                        // max(searchStart, currentStart)?
-                        $gapStart = $searchStart->gt($currentStart)
-                            ? $searchStart
-                            : $currentStart;
+                    if (
+                        $currentStart->lt(
+                            $interval['start']
+                        )
+                    ) {
+                        $gapStart =
+                            $searchStart->gt(
+                                $currentStart
+                            )
+                                ? $searchStart
+                                : $currentStart;
 
                         if (
                             $this->isSlotValid(
@@ -1978,19 +2215,26 @@ class BookingController extends Controller
                         }
                     }
 
-                    $currentStart = $interval['end']->gt($currentStart)
-                        ? $interval['end']
-                        : $currentStart;
+                    $currentStart =
+                        $interval['end']->gt(
+                            $currentStart
+                        )
+                            ? $interval['end']
+                            : $currentStart;
                 }
 
-                // Check gap after last appointment
                 if (
                     !$found &&
-                    $currentStart->lt($workEndCarbon)
+                    $currentStart->lt(
+                        $workEndCarbon
+                    )
                 ) {
-                    $gapStart = $searchStart->gt($currentStart)
-                        ? $searchStart
-                        : $currentStart;
+                    $gapStart =
+                        $searchStart->gt(
+                            $currentStart
+                        )
+                            ? $searchStart
+                            : $currentStart;
 
                     if (
                         $this->isSlotValid(
@@ -2026,13 +2270,19 @@ class BookingController extends Controller
                 ?: $a['staff_name'] <=> $b['staff_name']
         );
 
-        $slots = array_slice($allSlots, 0, 6);
+        $slots = array_slice(
+            $allSlots,
+            0,
+            6
+        );
 
-        // If nothing today, find tomorrow's earliest opening
         $nextDayHint = null;
         $nextOpenTime = null;
 
-        if (empty($slots) && $isToday) {
+        if (
+            empty($slots) &&
+            $isToday
+        ) {
             $tomorrow = $now->copy()->addDay();
             $tomorrowDow = $tomorrow->dayOfWeek;
 
@@ -2040,18 +2290,26 @@ class BookingController extends Controller
                 'user_id',
                 $staffMembers->pluck('id')
             )
-                ->where('day_of_week', $tomorrowDow)
-                ->where('is_day_off', false)
+                ->where(
+                    'day_of_week',
+                    $tomorrowDow
+                )
+                ->where(
+                    'is_day_off',
+                    false
+                )
                 ->get();
 
             if ($nextSchedules->isNotEmpty()) {
-                $nextDayHint = $tomorrow->format('Y-m-d');
+                $nextDayHint =
+                    $tomorrow->format('Y-m-d');
 
                 $earliest = $nextSchedules
                     ->map(
-                        fn($s) => $this->extractTime(
-                            $s->start_time
-                        )
+                        fn($s) =>
+                            $this->extractTime(
+                                $s->start_time
+                            )
                     )
                     ->filter()
                     ->sort()
@@ -2068,32 +2326,5 @@ class BookingController extends Controller
             'next_day_hint' => $nextDayHint,
             'next_open_time' => $nextOpenTime,
         ]);
-    }
-
-    private function buildSlotQuick(
-        Carbon $startTime,
-        int $duration,
-        string $date,
-        $staff
-    ): array {
-        $endTime = $startTime
-            ->copy()
-            ->addMinutes($duration);
-
-        return [
-            'time' => $startTime->format('H:i'),
-            'end_time' => $endTime->format('H:i'),
-            'display' => $startTime->format('g:i A')
-                . ' – '
-                . $endTime->format('g:i A'),
-            'staff_id' => $staff->id,
-            'staff_name' => $staff->full_name
-                ?? trim(
-                    $staff->first_name
-                    . ' '
-                    . $staff->last_name
-                ),
-            'free_rooms' => [],
-        ];
     }
 }

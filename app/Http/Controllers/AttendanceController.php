@@ -857,11 +857,127 @@ class AttendanceController extends Controller
             }
         }
 
+        // --------------------------------------------------------
+        // Calculate Overtime and Worked Hours for Summary
+        // --------------------------------------------------------
+        $totalWorkedHours = 0;
+        $totalOvertime = 0;
+        $staffOvertimeSummary = [];
+
+        $allAttendances = $base->get();
+        foreach ($allAttendances as $att) {
+            if (!$att->check_in || !$att->check_out) continue;
+
+            $cIn = Carbon::parse($att->check_in);
+            $cOut = Carbon::parse($att->check_out);
+            if ($cOut->lessThanOrEqualTo($cIn)) {
+                $cOut->addDay();
+            }
+
+            $worked = round($cIn->diffInMinutes($cOut) / 60, 2);
+            $totalWorkedHours += $worked;
+
+            $key = $att->user_id . '|' . Carbon::parse($att->date)->toDateString();
+            $exc = $exceptions->get($key)?->first();
+            $sched = $allStaff->firstWhere('id', $att->user_id)
+                ?->workSchedules->firstWhere('day_of_week', Carbon::parse($att->date)->dayOfWeek);
+
+            $scheduledHrs = 0;
+            if ($exc && $exc->type === 'custom_hours' && $exc->start_time && $exc->end_time) {
+                $s = Carbon::parse($exc->start_time);
+                $e = Carbon::parse($exc->end_time);
+                if ($e->lessThanOrEqualTo($s)) $e->addDay();
+                $scheduledHrs = round($s->diffInMinutes($e) / 60, 2);
+            } elseif ($sched && !$sched->is_day_off && $sched->start_time && $sched->end_time) {
+                $s = Carbon::parse($sched->start_time);
+                $e = Carbon::parse($sched->end_time);
+                if ($e->lessThanOrEqualTo($s)) $e->addDay();
+                $scheduledHrs = round($s->diffInMinutes($e) / 60, 2);
+            }
+
+            $ot = max(0, $worked - $scheduledHrs);
+            $totalOvertime += $ot;
+
+            // Accumulate per-staff
+            $uid = $att->user_id;
+            if (!isset($staffOvertimeSummary[$uid])) {
+                $staffMember = $allStaff->firstWhere('id', $uid);
+                $staffOvertimeSummary[$uid] = [
+                    'user_id'        => $uid,
+                    'name'           => ($staffMember->first_name ?? '?') . ' ' . ($staffMember->last_name ?? ''),
+                    'days_worked'    => 0,
+                    'scheduled_hours'=> 0,
+                    'worked_hours'   => 0,
+                    'overtime_hours' => 0,
+                ];
+            }
+            $staffOvertimeSummary[$uid]['days_worked']++;
+            $staffOvertimeSummary[$uid]['scheduled_hours'] += $scheduledHrs;
+            $staffOvertimeSummary[$uid]['worked_hours']    += $worked;
+            $staffOvertimeSummary[$uid]['overtime_hours']  += $ot;
+        }
+
+        // Round accumulated totals
+        foreach ($staffOvertimeSummary as &$row) {
+            $row['scheduled_hours'] = round($row['scheduled_hours'], 2);
+            $row['worked_hours']    = round($row['worked_hours'], 2);
+            $row['overtime_hours']  = round($row['overtime_hours'], 2);
+        }
+        unset($row);
+
+        // Sort by overtime desc so highest overtime shows first
+        usort($staffOvertimeSummary, fn ($a, $b) => $b['overtime_hours'] <=> $a['overtime_hours']);
+
+        // Calculate overtime for paginated records as well
+        foreach ($attendances as $att) {
+            $att->worked_hours = 0;
+            $att->overtime_hours = 0;
+            $att->scheduled_hours = 0;
+
+            if ($att->check_in && $att->check_out) {
+                $cIn = Carbon::parse($att->check_in);
+                $cOut = Carbon::parse($att->check_out);
+                if ($cOut->lessThanOrEqualTo($cIn)) {
+                    $cOut->addDay();
+                }
+
+                $worked = round($cIn->diffInMinutes($cOut) / 60, 2);
+                $att->worked_hours = $worked;
+
+                $key = $att->user_id . '|' . Carbon::parse($att->date)->toDateString();
+                $exc = $exceptions->get($key)?->first();
+                
+                // Fallback lookup if user not eager loaded
+                $userWorkSchedules = $allStaff->firstWhere('id', $att->user_id)?->workSchedules 
+                    ?? $att->user->workSchedules()->get();
+
+                $sched = $userWorkSchedules->firstWhere('day_of_week', Carbon::parse($att->date)->dayOfWeek);
+
+                $scheduledHrs = 0;
+                if ($exc && $exc->type === 'custom_hours' && $exc->start_time && $exc->end_time) {
+                    $s = Carbon::parse($exc->start_time);
+                    $e = Carbon::parse($exc->end_time);
+                    if ($e->lessThanOrEqualTo($s)) $e->addDay();
+                    $scheduledHrs = round($s->diffInMinutes($e) / 60, 2);
+                } elseif ($sched && !$sched->is_day_off && $sched->start_time && $sched->end_time) {
+                    $s = Carbon::parse($sched->start_time);
+                    $e = Carbon::parse($sched->end_time);
+                    if ($e->lessThanOrEqualTo($s)) $e->addDay();
+                    $scheduledHrs = round($s->diffInMinutes($e) / 60, 2);
+                }
+
+                $att->scheduled_hours = $scheduledHrs;
+                $att->overtime_hours = round(max(0, $worked - $scheduledHrs), 2);
+            }
+        }
+
         $summary = [
             'present' => $present,
             'absent' => $absent,
             'late' => $late,
             'on_leave' => $onLeave,
+            'worked_hours' => $totalWorkedHours,
+            'overtime' => $totalOvertime,
         ];
 
         $receptionists = User::whereHas(
@@ -881,7 +997,8 @@ class AttendanceController extends Controller
                 'receptionists',
                 'summary',
                 'startDate',
-                'endDate'
+                'endDate',
+                'staffOvertimeSummary'
             )
         );
     }
