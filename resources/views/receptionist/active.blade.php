@@ -1,812 +1,1845 @@
+
 @extends('layouts.receptionist')
 
 @section('title', 'Active Sessions')
 
-@php
-$calendarEvents = $appointments->map(function($a) {
-    $totalPaid = $a->payments->sum('amount');
-    $depositPaid = $a->payments->where('type', 'deposit')->sum('amount');
-    
-    $staffAbsent = false;
-    if ($a->appointment_date->isToday() && $a->user_id) {
-        $staffAbsent = \App\Models\Attendance::where('user_id', $a->user_id)
-            ->whereDate('date', today())
-            ->whereIn('status', ['absent', 'on_leave', 'holiday'])
-            ->exists();
+@push('styles')
+<style>
+    [x-cloak] {
+        display: none !important;
     }
 
-    $color = $staffAbsent ? '#ef4444' : (
-        $totalPaid >= $a->total_price ? '#22c55e' : (
-            $depositPaid > 0 ? '#f59e0b' : (
-                $totalPaid == 0 ? '#f97316' : '#3b82f6'
-            )
-        )
-    );
+    .active-session-scroll::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
 
-    return [
-        'id' => $a->id,
-        'title' => $a->customer->display_name,
-        'start' => $a->appointment_date->format('Y-m-d') . 'T' . $a->start_time,
-        'end' => $a->appointment_date->format('Y-m-d') . 'T' . $a->end_time,
-        'color' => $color,
-        'extendedProps' => [
-            'customer' => $a->customer->display_name,
-            'staff' => $a->staff->full_name ?? 'Unassigned',
-            'staffId' => $a->user_id,
-            'roomId' => $a->room_id,
-            'time' => date('g:i A', strtotime($a->start_time)) . ' - ' . date('g:i A', strtotime($a->end_time)),
-            'services' => $a->services->pluck('name')->join(', '),
-            'total' => $a->total_price,
-            'paid' => $totalPaid,
-            'cardId' => 'appt-card-' . $a->id,
-            'staffAbsent' => $staffAbsent,
-        ]
-    ];
-});
+    .active-session-scroll::-webkit-scrollbar-track {
+        background: transparent;
+    }
 
-$staffList = \App\Models\User::whereHas('roles', fn($q) => $q->where('name', 'staff'))
-    ->orderBy('last_name')
-    ->get(['id', 'first_name', 'last_name']);
+    .active-session-scroll::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, .35);
+        border-radius: 999px;
+    }
 
-$catalogServices = \App\Models\Service::where('is_active', true)
-    ->orderBy('name')
-    ->get(['id', 'name', 'price']);
+    .modal-backdrop {
+        background: rgba(15, 23, 42, .72);
+        backdrop-filter: blur(4px);
+    }
 
-$allRooms = \App\Models\Room::where('status', '!=', 'maintenance')
-    ->orderBy('name')
-    ->get(['id', 'name']);
-@endphp
+    .session-card {
+        transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+    }
+
+    .session-card:hover {
+        transform: translateY(-1px);
+    }
+
+    .dark .session-card:hover {
+        box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
+    }
+
+    .active-calendar {
+        min-width: 0;
+    }
+
+    .active-calendar .fc {
+        --fc-border-color: rgb(226 232 240);
+        --fc-page-bg-color: transparent;
+        --fc-neutral-bg-color: rgb(248 250 252);
+        --fc-list-event-hover-bg-color: rgb(241 245 249);
+        --fc-today-bg-color: rgba(20, 184, 166, .07);
+        --fc-page-text-color: rgb(15 23 42);
+        --fc-neutral-text-color: rgb(100 116 139);
+        --fc-small-font-size: .75rem;
+        font-family: Inter, system-ui, sans-serif;
+    }
+
+    .dark .active-calendar .fc {
+        --fc-border-color: rgb(51 65 85);
+        --fc-page-bg-color: transparent;
+        --fc-neutral-bg-color: rgb(15 23 42);
+        --fc-list-event-hover-bg-color: rgb(30 41 59);
+        --fc-today-bg-color: rgba(20, 184, 166, .09);
+        --fc-page-text-color: rgb(226 232 240);
+        --fc-neutral-text-color: rgb(148 163 184);
+    }
+
+    .active-calendar .fc-theme-standard td,
+    .active-calendar .fc-theme-standard th {
+        border-color: var(--fc-border-color);
+    }
+
+    .active-calendar .fc-scrollgrid {
+        border-radius: 14px;
+        overflow: hidden;
+        border-color: var(--fc-border-color);
+    }
+
+    .active-calendar .fc-col-header-cell {
+        background: rgb(248 250 252);
+    }
+
+    .dark .active-calendar .fc-col-header-cell {
+        background: rgb(15 23 42);
+    }
+
+    .active-calendar .fc-col-header-cell-cushion {
+        display: block;
+        padding: 12px 6px;
+        color: rgb(71 85 105);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+    }
+
+    .dark .active-calendar .fc-col-header-cell-cushion {
+        color: rgb(148 163 184);
+    }
+
+    .active-calendar .fc-daygrid-day-number {
+        padding: 9px 10px;
+        color: rgb(71 85 105);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .dark .active-calendar .fc-daygrid-day-number {
+        color: rgb(203 213 225);
+    }
+
+    .active-calendar .fc-day-today {
+        background: rgba(20, 184, 166, .06) !important;
+    }
+
+    .active-calendar .fc-day-today .fc-daygrid-day-number {
+        color: rgb(13 148 136);
+    }
+
+    .dark .active-calendar .fc-day-today .fc-daygrid-day-number {
+        color: rgb(45 212 191);
+    }
+
+    .active-calendar .fc-daygrid-day-frame {
+        min-height: 108px;
+    }
+
+    .active-calendar .fc-event {
+        border: 0 !important;
+        border-radius: 7px !important;
+        padding: 3px 5px !important;
+        margin: 2px 4px !important;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(15, 118, 110, .14);
+    }
+
+    .active-calendar .fc-event:hover {
+        filter: brightness(.96);
+        transform: translateY(-1px);
+    }
+
+    .active-calendar .fc-event-main {
+        padding: 0 !important;
+    }
+
+    .zen-calendar-event {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+        line-height: 1.2;
+    }
+
+    .zen-calendar-event-icon {
+        width: 13px;
+        height: 13px;
+        min-width: 13px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .zen-calendar-event-icon svg {
+        width: 13px !important;
+        height: 13px !important;
+        stroke-width: 2;
+    }
+
+    .zen-calendar-event-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .active-calendar .fc-timegrid-slot {
+        height: 44px;
+    }
+
+    .active-calendar .fc-timegrid-slot-label-cushion {
+        color: rgb(100 116 139);
+        font-size: 10px;
+        font-weight: 600;
+    }
+
+    .dark .active-calendar .fc-timegrid-slot-label-cushion {
+        color: rgb(148 163 184);
+    }
+
+    .active-calendar .fc-timegrid-axis-cushion {
+        font-size: 10px;
+    }
+
+    .active-calendar .fc-timegrid-event {
+        border-radius: 8px !important;
+        padding: 4px !important;
+    }
+
+    .active-calendar .fc-list {
+        border-color: var(--fc-border-color);
+        border-radius: 14px;
+        overflow: hidden;
+    }
+
+    .active-calendar .fc-list-day-cushion {
+        background: rgb(248 250 252);
+    }
+
+    .dark .active-calendar .fc-list-day-cushion {
+        background: rgb(15 23 42);
+    }
+
+    .active-calendar .fc-list-event:hover td {
+        background: var(--fc-list-event-hover-bg-color);
+    }
+
+    .active-calendar .fc-list-event-dot {
+        border-color: rgb(13 148 136) !important;
+    }
+
+    .active-calendar .fc-header-toolbar {
+        display: none !important;
+    }
+
+    .zen-calendar-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+    }
+
+    .zen-calendar-toolbar-left,
+    .zen-calendar-toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .zen-calendar-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        border: 1px solid rgb(226 232 240);
+        background: white;
+        color: rgb(71 85 105);
+        transition: all .18s ease;
+    }
+
+    .zen-calendar-icon-btn:hover {
+        background: rgb(248 250 252);
+        border-color: rgb(203 213 225);
+        color: rgb(15 118 110);
+    }
+
+    .zen-calendar-icon-btn svg {
+        width: 17px;
+        height: 17px;
+    }
+
+    .dark .zen-calendar-icon-btn {
+        background: rgb(15 23 42);
+        border-color: rgb(51 65 85);
+        color: rgb(203 213 225);
+    }
+
+    .dark .zen-calendar-icon-btn:hover {
+        background: rgb(30 41 59);
+        border-color: rgb(71 85 105);
+        color: rgb(45 212 191);
+    }
+
+    .zen-calendar-today {
+        height: 38px;
+        padding: 0 13px;
+        border-radius: 10px;
+        border: 1px solid rgb(226 232 240);
+        background: white;
+        color: rgb(51 65 85);
+        font-size: 12px;
+        font-weight: 700;
+        transition: all .18s ease;
+    }
+
+    .zen-calendar-today:hover {
+        background: rgb(248 250 252);
+        border-color: rgb(203 213 225);
+    }
+
+    .dark .zen-calendar-today {
+        background: rgb(15 23 42);
+        border-color: rgb(51 65 85);
+        color: rgb(226 232 240);
+    }
+
+    .dark .zen-calendar-today:hover {
+        background: rgb(30 41 59);
+    }
+
+    .zen-calendar-title {
+        min-width: 150px;
+        padding: 0 8px;
+        text-align: center;
+        color: rgb(15 23 42);
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: -.01em;
+    }
+
+    .dark .zen-calendar-title {
+        color: rgb(248 250 252);
+    }
+
+    .zen-calendar-views {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px;
+        border-radius: 11px;
+        background: rgb(241 245 249);
+        border: 1px solid rgb(226 232 240);
+    }
+
+    .dark .zen-calendar-views {
+        background: rgb(30 41 59);
+        border-color: rgb(51 65 85);
+    }
+
+    .zen-calendar-view-btn {
+        height: 30px;
+        padding: 0 10px;
+        border-radius: 8px;
+        border: 0;
+        background: transparent;
+        color: rgb(100 116 139);
+        font-size: 11px;
+        font-weight: 700;
+        transition: all .18s ease;
+    }
+
+    .zen-calendar-view-btn:hover {
+        color: rgb(15 118 110);
+    }
+
+    .zen-calendar-view-btn.active {
+        background: white;
+        color: rgb(13 148 136);
+        box-shadow: 0 1px 4px rgba(15, 23, 42, .10);
+    }
+
+    .dark .zen-calendar-view-btn {
+        color: rgb(148 163 184);
+    }
+
+    .dark .zen-calendar-view-btn.active {
+        background: rgb(51 65 85);
+        color: rgb(45 212 191);
+    }
+
+    @media (max-width: 640px) {
+        .zen-calendar-toolbar {
+            align-items: stretch;
+        }
+
+        .zen-calendar-toolbar-left,
+        .zen-calendar-toolbar-right {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .zen-calendar-title {
+            min-width: 0;
+            flex: 1;
+            font-size: 14px;
+        }
+
+        .zen-calendar-view-btn {
+            flex: 1;
+            padding: 0 8px;
+        }
+
+        .active-calendar .fc-daygrid-day-frame {
+            min-height: 82px;
+        }
+
+        .active-calendar .fc-col-header-cell-cushion {
+            font-size: 9px;
+            padding: 9px 2px;
+        }
+
+        .active-calendar .fc-daygrid-day-number {
+            font-size: 10px;
+            padding: 6px;
+        }
+    }
+</style>
+@endpush
 
 @section('content')
-<!-- Toast Container -->
-<div id="toastContainer" class="fixed top-5 right-5 z-[60] flex flex-col gap-3 pointer-events-none"></div>
+@php
+    $calendarEvents = $appointments->map(function ($appointment) {
+        $customerName = $appointment->customer?->nickname
+            ?: $appointment->customer?->full_name
+            ?: 'Walk-in Customer';
 
-@if(session('success'))
-    <div data-toast='{"type":"success","message":"{{ session('success') }}"}' class="hidden"></div>
-@endif
-@if(session('error'))
-    <div data-toast='{"type":"error","message":"{{ session('error') }}"}' class="hidden"></div>
-@endif
+        return [
+            'id' => (string) $appointment->id,
+            'title' => $customerName,
+            'start' => $appointment->appointment_date->format('Y-m-d') . 'T' . $appointment->start_time,
+            'end' => $appointment->appointment_date->format('Y-m-d') . 'T' . $appointment->end_time,
+            'backgroundColor' => '#0d9488',
+            'borderColor' => '#0d9488',
+            'textColor' => '#ffffff',
+            'extendedProps' => [
+                'appointmentId' => $appointment->id,
+                'customer' => $customerName,
+                'staff' => $appointment->staff?->full_name ?? 'Unassigned',
+                'room' => $appointment->room?->name ?? 'No room',
+            ],
+        ];
+    })->values();
 
-<!-- Page Header -->
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 animate-fade-in">
-    <div>
-        <h1 class="text-3xl font-bold text-teal-600 dark:text-teal-400 tracking-tight">Active Sessions</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage ongoing appointments and collect payments</p>
-    </div>
-    <div class="flex items-center gap-3">
-        <span class="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 px-4 py-2 rounded-full text-sm font-semibold shadow-sm">
-            {{ $appointments->count() }} active
-        </span>
-        <a href="{{ route('receptionist.pending') }}" class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition">
-            ← Back to Pending
-        </a>
-    </div>
-</div>
+    $todayCount = $appointments->filter(
+        fn($appointment) => $appointment->appointment_date->isToday()
+    )->count();
 
-<!-- Calendar View -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8 animate-fade-in">
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
-        <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <svg class="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-            </svg>
-            Appointment Calendar
-        </h2>
-        <div class="flex items-center gap-3 text-xs flex-wrap">
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-green-500"></span> Fully Paid</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span> Deposit</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-orange-500"></span> Cash on Site</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-red-500"></span> Staff Absent</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-500"></span> Partial</span>
+    $upcomingCount = $appointments->filter(
+        fn($appointment) => !$appointment->appointment_date->isToday()
+    )->count();
+@endphp
+
+<div
+    x-data="activeSessionsPage()"
+    x-init="init()"
+    class="space-y-5"
+>
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-wrap items-center gap-2">
+
+            <button
+                type="button"
+                @click="openCalendar()"
+                :class="showCalendar
+                    ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                    : 'bg-white text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'"
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition"
+            >
+                <i data-lucide="calendar-days" class="h-4 w-4 shrink-0"></i>
+                <span>Calendar</span>
+            </button>
+
+            <button
+                type="button"
+                @click="closeCalendar()"
+                :class="!showCalendar
+                    ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                    : 'bg-white text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'"
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition"
+            >
+                <i data-lucide="list" class="h-4 w-4 shrink-0"></i>
+                <span>Appointments</span>
+            </button>
+
+        </div>
+
+        <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span class="inline-flex items-center gap-1.5">
+                <span class="h-2 w-2 rounded-full bg-teal-500"></span>
+                {{ $todayCount }} today
+            </span>
+
+            <span class="text-slate-300 dark:text-slate-600">•</span>
+
+            <span>
+                {{ $upcomingCount }} upcoming
+            </span>
         </div>
     </div>
-    <div id="calendar" class="min-h-[500px]"></div>
-</div>
 
-@if($appointments->isEmpty())
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center animate-fade-in">
-        <div class="w-20 h-20 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-            <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-        </div>
-        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">No active sessions</h3>
-        <p class="text-gray-500 dark:text-gray-400 text-sm">All appointments are either pending or completed.</p>
-    </div>
-@else
-    <div class="space-y-5" id="appointmentsList">
-        @foreach($appointments as $appointment)
-        @php
-            $totalPaid = $appointment->payments->sum('amount');
-            $balanceDue = max($appointment->total_price - $totalPaid, 0);
-            $hasExtra = $appointment->services->contains('pivot.is_extra', true);
-            $depositPaid = $appointment->payments->where('type', 'deposit')->sum('amount');
-            $isFullyPaid = $balanceDue <= 0;
-            $isCashOnSite = $totalPaid == 0 && $balanceDue == $appointment->total_price;
-            
-            $staffAbsent = false;
-            if ($appointment->appointment_date->isToday() && $appointment->user_id) {
-                $staffAbsent = \App\Models\Attendance::where('user_id', $appointment->user_id)
-                    ->whereDate('date', today())
-                    ->whereIn('status', ['absent', 'on_leave', 'holiday'])
-                    ->exists();
-            }
+    <section
+        x-show="showCalendar"
+        x-cloak
+        x-transition
+        class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+    >
+        <div class="border-b border-slate-200 bg-gradient-to-r from-teal-50/60 to-sky-50/40 px-5 py-4 dark:border-slate-800 dark:from-teal-950/20 dark:to-slate-900">
 
-            $existingServicesJson = $appointment->services
-                ->where('pivot.is_extra', false)
-                ->map(fn($s) => ['id' => $s->id, 'name' => $s->name, 'price' => $s->pivot->price_at_booking])
-                ->values();
-        @endphp
+            <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
 
-        <div id="appt-card-{{ $appointment->id }}" 
-             data-appointment-id="{{ $appointment->id }}"
-             data-staff-id="{{ $appointment->user_id }}"
-             data-room-id="{{ $appointment->room_id }}"
-             data-duration="{{ $appointment->services->sum('duration_minutes') }}"
-             class="appointment-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border {{ $staffAbsent ? 'border-red-300 dark:border-red-700 ring-2 ring-red-100 dark:ring-red-900/30' : 'border-gray-200 dark:border-gray-700' }} overflow-hidden hover:shadow-md transition-all duration-300 animate-fade-in">
-            
-            <!-- Card Header -->
-            <div class="p-5 pb-0">
-                <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 mb-3 flex-wrap">
-                            <span class="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-xs px-2.5 py-1 rounded-full font-semibold tracking-wide uppercase">Confirmed</span>
-                            @if($staffAbsent)
-                            <span class="bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 text-xs px-2.5 py-1 rounded-full font-bold tracking-wide uppercase animate-pulse">⚠ Staff Absent</span>
-                            @endif
-                            @if($hasExtra)
-                            <span class="bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300 text-xs px-2.5 py-1 rounded-full font-bold tracking-wide uppercase">Extra Added</span>
-                            @endif
-                            @if($isFullyPaid)
-                            <span class="bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 text-xs px-2.5 py-1 rounded-full font-semibold tracking-wide uppercase">Fully Paid</span>
-                            @elseif($isCashOnSite)
-                            <span class="bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300 text-xs px-2.5 py-1 rounded-full font-semibold tracking-wide uppercase">Cash on Site</span>
-                            @elseif($depositPaid > 0)
-                            <span class="bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-xs px-2.5 py-1 rounded-full font-semibold tracking-wide uppercase">Deposit Paid</span>
-                            @endif
-                            <span class="text-gray-400 dark:text-gray-500 text-xs font-mono">#{{ $appointment->id }}</span>
-                        </div>
-
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-white truncate">{{ $appointment->customer->display_name }}</h3>
-                        
-                        <div class="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400 flex-wrap">
-                            <span class="flex items-center gap-1.5">
-                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                                {{ $appointment->customer->phone_number ?? 'N/A' }}
-                            </span>
-                            <span class="flex items-center gap-1.5">
-                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                                {{ $appointment->staff->full_name ?? 'Unassigned' }}
-                            </span>
-                            @if($appointment->room)
-                            <span class="flex items-center gap-1.5">
-                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                                {{ $appointment->room->name }}
-                            </span>
-                            @endif
-                        </div>
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400">
+                        <i data-lucide="calendar-check-2" class="h-5 w-5"></i>
                     </div>
 
-                    <div class="text-left lg:text-right shrink-0">
-                        <p class="text-lg font-bold text-teal-600 dark:text-teal-400">{{ $appointment->appointment_date->format('F d, Y') }}</p>
-                        <p class="text-gray-600 dark:text-gray-400 text-sm mt-0.5 flex items-center lg:justify-end gap-1.5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            {{ \Carbon\Carbon::parse($appointment->start_time)->format('g:i A') }} - {{ \Carbon\Carbon::parse($appointment->end_time)->format('g:i A') }}
-                        </p>
-                        <p class="text-xs text-gray-400 mt-1">{{ $appointment->services->sum('duration_minutes') }} minutes</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Services -->
-            <div class="px-5 py-4">
-                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Services</p>
-                <div class="flex flex-wrap gap-2" id="services-{{ $appointment->id }}">
-                    @foreach($appointment->services as $service)
-                    <span class="service-tag inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border {{ $service->pivot->is_extra ? 'bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-700 text-purple-700 dark:text-purple-300' : 'bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600 text-gray-700 dark:text-gray-300' }}">
-                        {{ $service->name }}
-                        <span class="font-semibold">₱{{ number_format($service->pivot->price_at_booking, 2) }}</span>
-                        @if($service->pivot->is_extra)
-                            <span class="text-[10px] bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-1.5 py-0.5 rounded font-bold uppercase">Extra</span>
-                        @endif
-                    </span>
-                    @endforeach
-                </div>
-
-                <!-- Financial Summary -->
-                <div class="mt-4 grid grid-cols-3 gap-3">
-                    <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
-                        <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Total</p>
-                        <p class="text-lg font-bold text-gray-800 dark:text-gray-200" id="total-{{ $appointment->id }}">₱{{ number_format($appointment->total_price, 2) }}</p>
-                    </div>
-                    <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
-                        <p class="text-[10px] text-green-600 dark:text-green-400 uppercase tracking-wider font-semibold">Paid</p>
-                        <p class="text-lg font-bold text-green-700 dark:text-green-400" id="paid-{{ $appointment->id }}">₱{{ number_format($totalPaid, 2) }}</p>
-                    </div>
-                    <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-center {{ $isFullyPaid ? 'opacity-50' : '' }}">
-                        <p class="text-[10px] text-amber-600 dark:text-amber-400 uppercase tracking-wider font-semibold">Balance</p>
-                        <p class="text-lg font-bold text-amber-700 dark:text-amber-400" id="balance-{{ $appointment->id }}">₱{{ number_format($balanceDue, 2) }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Action Bar -->
-            <div class="px-5 py-4 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2.5">
-                <button onclick="App.openExtra({{ $appointment->id }}, {{ $existingServicesJson }})"
-                        class="btn-action bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm font-medium shadow-sm hover:shadow">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                    Add Extra
-                </button>
-
-                @if($balanceDue > 0)
-                <button onclick="App.openComplete({{ $appointment->id }}, {{ $balanceDue }})"
-                        class="btn-action bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm font-medium shadow-sm hover:shadow">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    Complete (₱{{ number_format($balanceDue, 2) }})
-                </button>
-                @else
-                <form action="{{ route('receptionist.complete', $appointment) }}" method="POST" class="inline" onsubmit="App.setLoading(this)">
-                    @csrf
-                    <input type="hidden" name="payment_method" value="cash">
-                    <input type="hidden" name="payment_type" value="full">
-                    <button type="submit" class="btn-action bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm font-medium shadow-sm hover:shadow">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                        <span class="btn-text">Mark Complete</span>
-                        <svg class="btn-spinner w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    </button>
-                </form>
-                @endif
-
-                <button onclick="App.openReassign({{ $appointment->id }}, '{{ $appointment->staff->full_name ?? 'Unassigned' }}')"
-                        class="btn-action bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm font-medium shadow-sm">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                    Reassign
-                </button>
-
-                <button onclick="App.openReschedule({{ $appointment->id }}, '{{ $appointment->appointment_date }}', '{{ $appointment->start_time }}', {{ $appointment->services->sum('duration_minutes') }}, {{ $appointment->user_id ?? 'null' }}, {{ $appointment->room_id ?? 'null' }})"
-                        class="btn-action bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm font-medium shadow-sm">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    Reschedule
-                </button>
-
-                <button onclick="App.openNoShow({{ $appointment->id }}, {{ $totalPaid }})"
-                        class="btn-action ml-auto bg-red-50 hover:bg-red-100 active:bg-red-200 text-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/30 dark:text-red-300 px-4 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium border border-red-200 dark:border-red-800">
-                    No Show
-                </button>
-            </div>
-        </div>
-        @endforeach
-    </div>
-@endif
-
-<!-- ════════════════════════════════════════ -->
-<!-- ═══════════════ MODALS ═════════════════ -->
-<!-- ════════════════════════════════════════ -->
-
-<!-- Extra Service Modal -->
-<div id="modal-extra" class="modal-backdrop fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center opacity-0 transition-opacity duration-200">
-    <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 transform transition-all duration-200 scale-95 opacity-0">
-        <div class="p-6">
-            <div class="flex justify-between items-center mb-5">
-                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Add Extra Service</h3>
-                <button onclick="App.closeModal('modal-extra')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-            <form method="POST" action="" id="form-extra" onsubmit="App.setLoading(this)">
-                @csrf
-                <div class="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1 mb-5">
-                    <button type="button" onclick="App.setExtraTab('existing')" id="tab-existing" class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm">Existing Service</button>
-                    <button type="button" onclick="App.setExtraTab('custom')" id="tab-custom" class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">From Catalog</button>
-                </div>
-
-                <div id="extra-existing" class="space-y-2 max-h-64 overflow-y-auto pr-1">
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Click to add instantly:</p>
-                    <div id="extra-existing-list" class="space-y-2"></div>
-                    <input type="hidden" name="service_id" id="extra-service-id">
-                </div>
-
-                <div id="extra-custom" class="hidden">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Service</label>
-                    <select name="custom_service_id" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition">
-                        <option value="">-- Choose a service --</option>
-                        @foreach($catalogServices as $s)
-                            <option value="{{ $s->id }}">{{ $s->name }} — ₱{{ number_format($s->price, 2) }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button type="button" onclick="App.closeModal('modal-extra')" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-sm font-medium">Cancel</button>
-                    <button type="submit" id="extra-custom-submit" class="hidden px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition text-sm font-medium shadow-sm flex items-center gap-2">
-                        <span class="btn-text">Add Service</span>
-                        <svg class="btn-spinner w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Complete Payment Modal -->
-<div id="modal-complete" class="modal-backdrop fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center opacity-0 transition-opacity duration-200">
-    <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 transform transition-all duration-200 scale-95 opacity-0">
-        <div class="p-6">
-            <div class="flex justify-between items-center mb-5">
-                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Complete & Collect</h3>
-                <button onclick="App.closeModal('modal-complete')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-            <form method="POST" action="" id="form-complete" onsubmit="App.setLoading(this)">
-                @csrf
-                <div class="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
-                    <p class="text-xs text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wider mb-1">Balance Due</p>
-                    <p class="text-3xl font-bold text-amber-700 dark:text-amber-400" id="complete-balance">₱0.00</p>
-                </div>
-                <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Payment Method <span class="text-red-500">*</span></label>
-                        <select name="payment_method" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition">
+                        <h2 class="text-sm font-bold text-slate-900 dark:text-white">
+                            Appointment Calendar
+                        </h2>
+
+                        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            Confirmed spa sessions
+                        </p>
+                    </div>
+
+                </div>
+
+                <div class="hidden items-center gap-3 text-xs text-slate-500 dark:text-slate-400 sm:flex">
+                    <span class="inline-flex items-center gap-1.5">
+                        <span class="h-2.5 w-2.5 rounded-sm bg-teal-600"></span>
+                        Confirmed
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 md:p-5">
+
+            <div class="zen-calendar-toolbar">
+
+                <div class="zen-calendar-toolbar-left">
+
+                    <button
+                        type="button"
+                        class="zen-calendar-icon-btn"
+                        title="Previous"
+                        @click="calendarPrev()"
+                    >
+                        <i data-lucide="chevron-left"></i>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="zen-calendar-icon-btn"
+                        title="Next"
+                        @click="calendarNext()"
+                    >
+                        <i data-lucide="chevron-right"></i>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="zen-calendar-today"
+                        @click="calendarToday()"
+                    >
+                        Today
+                    </button>
+
+                </div>
+
+                <div class="zen-calendar-title" x-text="calendarTitle">
+                    Calendar
+                </div>
+
+                <div class="zen-calendar-toolbar-right">
+
+                    <div class="zen-calendar-views">
+
+                        <button
+                            type="button"
+                            class="zen-calendar-view-btn"
+                            :class="{ 'active': currentView === 'dayGridMonth' }"
+                            @click="changeCalendarView('dayGridMonth')"
+                        >
+                            Month
+                        </button>
+
+                        <button
+                            type="button"
+                            class="zen-calendar-view-btn"
+                            :class="{ 'active': currentView === 'timeGridWeek' }"
+                            @click="changeCalendarView('timeGridWeek')"
+                        >
+                            Week
+                        </button>
+
+                        <button
+                            type="button"
+                            class="zen-calendar-view-btn"
+                            :class="{ 'active': currentView === 'listWeek' }"
+                            @click="changeCalendarView('listWeek')"
+                        >
+                            List
+                        </button>
+
+                    </div>
+
+                </div>
+            </div>
+
+            <div
+                x-ref="calendar"
+                id="activeSessionsCalendar"
+                class="active-calendar"
+            ></div>
+
+        </div>
+    </section>
+
+    <section
+        x-show="!showCalendar"
+        x-cloak
+        x-transition
+        class="space-y-4"
+    >
+        @if($appointments->isEmpty())
+
+            <div class="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center dark:border-slate-700 dark:bg-slate-900">
+
+                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                    <i data-lucide="calendar-x-2" class="h-6 w-6 text-slate-400"></i>
+                </div>
+
+                <h3 class="mt-4 text-sm font-bold text-slate-900 dark:text-white">
+                    No active sessions
+                </h3>
+
+                <p class="mx-auto mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">
+                    There are no confirmed appointments scheduled for today or upcoming dates.
+                </p>
+
+            </div>
+
+        @else
+
+            @foreach($appointments as $appointment)
+
+                @php
+                    $totalPaid = max(0, (float) $appointment->payments->sum('amount'));
+                    $balance = max(0, (float) $appointment->total_price - $totalPaid);
+                    $fullyPaid = $balance <= 0;
+
+                    $customerName = $appointment->customer?->nickname
+                        ?: $appointment->customer?->full_name
+                        ?: 'Walk-in Customer';
+
+                    $phone = $appointment->customer?->phone_number;
+                    $isToday = $appointment->appointment_date->isToday();
+                    $services = $appointment->services;
+                @endphp
+
+                <article
+                    id="appointment-{{ $appointment->id }}"
+                    class="session-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                >
+
+                    <div class="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+
+                        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+
+                            <div class="flex min-w-0 items-center gap-3">
+
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ $isToday ? 'bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300' }}">
+                                    <i data-lucide="calendar-clock" class="h-5 w-5"></i>
+                                </div>
+
+                                <div class="min-w-0">
+
+                                    <div class="flex flex-wrap items-center gap-2">
+
+                                        <h3 class="truncate text-sm font-bold text-slate-900 dark:text-white">
+                                            {{ $customerName }}
+                                        </h3>
+
+                                        @if($isToday)
+
+                                            <span class="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">
+                                                Today
+                                            </span>
+
+                                        @else
+
+                                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                                Upcoming
+                                            </span>
+
+                                        @endif
+
+                                    </div>
+
+                                    <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+
+                                        <span class="inline-flex items-center gap-1">
+                                            <i data-lucide="calendar" class="h-3.5 w-3.5"></i>
+                                            {{ $appointment->appointment_date->format('M j, Y') }}
+                                        </span>
+
+                                        <span class="inline-flex items-center gap-1">
+                                            <i data-lucide="clock-3" class="h-3.5 w-3.5"></i>
+                                            {{ \Carbon\Carbon::parse($appointment->start_time)->format('g:i A') }}
+                                            –
+                                            {{ \Carbon\Carbon::parse($appointment->end_time)->format('g:i A') }}
+                                        </span>
+
+                                        @if($phone)
+
+                                            <span class="inline-flex items-center gap-1">
+                                                <i data-lucide="phone" class="h-3.5 w-3.5"></i>
+                                                {{ $phone }}
+                                            </span>
+
+                                        @endif
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                            <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                                <span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                                Confirmed
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="grid gap-4 p-4 lg:grid-cols-[1.4fr_1fr_1fr]">
+
+                        <div>
+
+                            <div class="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                <i data-lucide="sparkles" class="h-3.5 w-3.5"></i>
+                                Services
+                            </div>
+
+                            <div class="space-y-2">
+
+                                @forelse($services as $service)
+
+                                    <div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/70">
+
+                                        <div class="min-w-0">
+
+                                            <p class="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                                                {{ $service->pivot->service_name ?? $service->name }}
+                                            </p>
+
+                                            @if($service->pivot->is_extra)
+
+                                                <span class="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                                                    Extra service
+                                                </span>
+
+                                            @endif
+
+                                        </div>
+
+                                        <span class="shrink-0 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                            ₱{{ number_format((float) ($service->pivot->price_at_booking ?? $service->price ?? 0), 2) }}
+                                        </span>
+
+                                    </div>
+
+                                @empty
+
+                                    <p class="text-sm text-slate-500 dark:text-slate-400">
+                                        No services recorded.
+                                    </p>
+
+                                @endforelse
+
+                            </div>
+
+                        </div>
+
+                        <div>
+
+                            <div class="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                <i data-lucide="user-round" class="h-3.5 w-3.5"></i>
+                                Assignment
+                            </div>
+
+                            <div class="space-y-2">
+
+                                <div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+
+                                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                        Staff
+                                    </p>
+
+                                    <p class="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                        {{ $appointment->staff?->full_name ?? 'Unassigned' }}
+                                    </p>
+
+                                </div>
+
+                                <div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+
+                                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                        Room
+                                    </p>
+
+                                    <p class="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                        {{ $appointment->room?->name ?? 'No room assigned' }}
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div>
+
+                            <div class="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                <i data-lucide="wallet" class="h-3.5 w-3.5"></i>
+                                Payment
+                            </div>
+
+                            <div class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+
+                                <div class="flex items-center justify-between">
+
+                                    <span class="text-xs text-slate-500 dark:text-slate-400">
+                                        Total
+                                    </span>
+
+                                    <span class="text-sm font-bold text-slate-900 dark:text-white">
+                                        ₱{{ number_format((float) $appointment->total_price, 2) }}
+                                    </span>
+
+                                </div>
+
+                                <div class="mt-2 flex items-center justify-between">
+
+                                    <span class="text-xs text-slate-500 dark:text-slate-400">
+                                        Paid
+                                    </span>
+
+                                    <span class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                                        ₱{{ number_format($totalPaid, 2) }}
+                                    </span>
+
+                                </div>
+
+                                <div class="mt-2 flex items-center justify-between border-t border-slate-100 pt-2 dark:border-slate-700">
+
+                                    <span class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                        Balance
+                                    </span>
+
+                                    @if($fullyPaid)
+
+                                        <span class="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                                            Fully Paid
+                                        </span>
+
+                                    @else
+
+                                        <span class="text-sm font-bold text-amber-600 dark:text-amber-400">
+                                            ₱{{ number_format($balance, 2) }}
+                                        </span>
+
+                                    @endif
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/30">
+
+                        <button
+                            type="button"
+                            @click="openExtra({{ $appointment->id }})"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                            <i data-lucide="plus-circle" class="h-3.5 w-3.5"></i>
+                            Add Service
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="openReassign(
+                                {{ $appointment->id }},
+                                @js($appointment->staff?->id),
+                                @js(route('receptionist.reassign', $appointment->id))
+                            )"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                            <i data-lucide="user-round-cog" class="h-3.5 w-3.5"></i>
+                            Reassign
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="openReschedule(
+                                {{ $appointment->id }},
+                                @js($appointment->appointment_date->format('Y-m-d')),
+                                @js(\Carbon\Carbon::parse($appointment->start_time)->format('H:i')),
+                                @js($appointment->room_id),
+                                @js(route('receptionist.reschedule', $appointment->id))
+                            )"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                            <i data-lucide="calendar-clock" class="h-3.5 w-3.5"></i>
+                            Reschedule
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="openNoShow(
+                                {{ $appointment->id }},
+                                @js(route('receptionist.no-show', $appointment->id)),
+                                {{ $totalPaid > 0 ? 'true' : 'false' }},
+                                @js($customerName)
+                            )"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/60 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                        >
+                            <i data-lucide="user-x" class="h-3.5 w-3.5"></i>
+                            No-show
+                        </button>
+
+                        <div class="ml-auto">
+
+                            <button
+                                type="button"
+                                @click="openComplete(
+                                    {{ $appointment->id }},
+                                    @js(route('receptionist.complete', $appointment)),
+                                    {{ $fullyPaid ? 'true' : 'false' }},
+                                    @js($balance)
+                                )"
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-teal-700"
+                            >
+                                <i data-lucide="check-circle-2" class="h-3.5 w-3.5"></i>
+
+                                @if($fullyPaid)
+                                    Complete
+                                @else
+                                    Complete & Collect
+                                @endif
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </article>
+
+            @endforeach
+
+        @endif
+    </section>
+
+    {{-- Add Extra Service Modal --}}
+    <div
+        x-show="modal === 'extra'"
+        x-cloak
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        @keydown.escape.window="closeModal()"
+    >
+        <div class="absolute inset-0 modal-backdrop" @click="closeModal()"></div>
+
+        <div class="relative w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+
+                <div>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                        Add Extra Service
+                    </h3>
+
+                    <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        Add another catalog service to this appointment.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    @click="closeModal()"
+                    class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                >
+                    <i data-lucide="x" class="h-5 w-5"></i>
+                </button>
+
+            </div>
+
+            <form :action="extraUrl" method="POST">
+                @csrf
+
+                <div class="space-y-4 p-5">
+
+                    <div>
+
+                        <label class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            Service
+                        </label>
+
+                        <select
+                            name="custom_service_id"
+                            required
+                            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                            <option value="">Select a service</option>
+
+                            @foreach($catalogServices as $service)
+
+                                <option value="{{ $service->id }}">
+                                    {{ $service->name }} — ₱{{ number_format((float) $service->price, 2) }}
+                                </option>
+
+                            @endforeach
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+
+                    <button
+                        type="button"
+                        @click="closeModal()"
+                        class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700"
+                    >
+                        Add Service
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    {{-- Complete Modal --}}
+    <div
+        x-show="modal === 'complete'"
+        x-cloak
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        @keydown.escape.window="closeModal()"
+    >
+        <div class="absolute inset-0 modal-backdrop" @click="closeModal()"></div>
+
+        <div class="relative w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+
+            <div class="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+
+                <div class="flex items-center gap-3">
+
+                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400">
+                        <i data-lucide="check-circle-2" class="h-5 w-5"></i>
+                    </div>
+
+                    <div>
+
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                            Complete Appointment
+                        </h3>
+
+                        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            Record the remaining payment if needed.
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <form :action="completeUrl" method="POST">
+                @csrf
+
+                <input
+                    type="hidden"
+                    name="payment_type"
+                    :value="fullyPaid ? 'full' : 'completion'"
+                >
+
+                <div class="space-y-4 p-5">
+
+                    <div class="rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
+
+                        <div class="flex items-center justify-between">
+
+                            <span class="text-xs text-slate-500 dark:text-slate-400">
+                                Balance due
+                            </span>
+
+                            <span
+                                class="text-lg font-bold"
+                                :class="fullyPaid
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-amber-600 dark:text-amber-400'"
+                                x-text="fullyPaid
+                                    ? 'Fully Paid'
+                                    : '₱' + Number(balance).toLocaleString('en-PH', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    })"
+                            ></span>
+
+                        </div>
+
+                    </div>
+
+                    <div>
+
+                        <label class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            Payment Method
+                        </label>
+
+                        <select
+                            name="payment_method"
+                            required
+                            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
                             <option value="cash">Cash</option>
                             <option value="card">Card</option>
                             <option value="gcash">GCash</option>
                             <option value="paymaya">PayMaya</option>
                             <option value="bank_transfer">Bank Transfer</option>
                         </select>
+
                     </div>
+
                 </div>
-                <input type="hidden" name="payment_type" value="completion">
-                <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button type="button" onclick="App.closeModal('modal-complete')" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-sm font-medium">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition text-sm font-medium shadow-sm flex items-center gap-2">
-                        <span class="btn-text">Complete</span>
-                        <svg class="btn-spinner w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+
+                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+
+                    <button
+                        type="button"
+                        @click="closeModal()"
+                        class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        Cancel
                     </button>
+
+                    <button
+                        type="submit"
+                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700"
+                    >
+                        <span x-text="fullyPaid ? 'Complete Appointment' : 'Complete & Collect'"></span>
+                    </button>
+
                 </div>
+
             </form>
+
         </div>
     </div>
-</div>
 
-<!-- No Show Modal -->
-<div id="modal-noshow" class="modal-backdrop fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center opacity-0 transition-opacity duration-200">
-    <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 transform transition-all duration-200 scale-95 opacity-0">
-        <div class="p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold text-red-600 dark:text-red-400">Customer No Show</h3>
-                <button onclick="App.closeModal('modal-noshow')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-            <div id="noshow-info" class="mb-5"></div>
-            <form method="POST" action="" id="form-noshow" onsubmit="App.setLoading(this)">
-                @csrf
-                <div id="noshow-actions" class="space-y-3 mb-5 hidden">
-                    <label class="flex items-start gap-3 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/10 transition group">
-                        <input type="radio" name="action" value="forfeit" checked class="mt-1 text-red-600 focus:ring-red-500">
-                        <div>
-                            <p class="font-semibold text-gray-900 dark:text-white group-hover:text-red-700 dark:group-hover:text-red-400 transition">Forfeit Payment</p>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">Keep the payment as revenue</p>
-                        </div>
-                    </label>
-                    <label class="flex items-start gap-3 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer hover:border-orange-300 dark:hover:border-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition group">
-                        <input type="radio" name="action" value="refund" class="mt-1 text-orange-600 focus:ring-orange-500">
-                        <div>
-                            <p class="font-semibold text-gray-900 dark:text-white group-hover:text-orange-700 dark:group-hover:text-orange-400 transition">Refund Payment</p>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">Return payment to customer</p>
-                        </div>
-                    </label>
-                </div>
-                <input type="hidden" name="action" value="forfeit" id="noshow-default">
-                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button type="button" onclick="App.closeModal('modal-noshow')" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-sm font-medium">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition text-sm font-medium shadow-sm flex items-center gap-2">
-                        <span class="btn-text">Confirm No Show</span>
-                        <svg class="btn-spinner w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+    {{-- Reassign Staff Modal --}}
+    <div
+        x-show="modal === 'reassign'"
+        x-cloak
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        @keydown.escape.window="closeModal()"
+    >
+        <div class="absolute inset-0 modal-backdrop" @click="closeModal()"></div>
 
-<!-- Reassign Staff Modal -->
-<div id="modal-reassign" class="modal-backdrop fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center opacity-0 transition-opacity duration-200">
-    <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 transform transition-all duration-200 scale-95 opacity-0">
-        <div class="p-6">
-            <div class="flex justify-between items-center mb-5">
-                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Reassign Staff</h3>
-                <button onclick="App.closeModal('modal-reassign')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        <div class="relative w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+
+                <div>
+
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                        Reassign Staff
+                    </h3>
+
+                    <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        Select another available staff member.
+                    </p>
+
+                </div>
+
+                <button
+                    type="button"
+                    @click="closeModal()"
+                    class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                    <i data-lucide="x" class="h-5 w-5"></i>
                 </button>
+
             </div>
-            <form method="POST" action="" id="form-reassign" onsubmit="App.setLoading(this)">
+
+            <form :action="reassignUrl" method="POST">
                 @csrf
-                <div class="mb-5">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select New Staff <span class="text-red-500">*</span></label>
-                    <select name="staff_id" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition">
-                        <option value="">-- Choose staff --</option>
-                        @foreach($staffList as $s)
-                            <option value="{{ $s->id }}">{{ $s->full_name }}</option>
+
+                <div class="p-5">
+
+                    <label class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Staff
+                    </label>
+
+                    <select
+                        name="staff_id"
+                        x-model="reassignStaffId"
+                        required
+                        class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    >
+                        <option value="">Select staff</option>
+
+                        @foreach($allStaff as $staff)
+
+                            <option value="{{ $staff->id }}">
+                                {{ $staff->full_name }}
+                            </option>
+
                         @endforeach
+
                     </select>
+
+                    <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                        Staff availability will be validated when submitted.
+                    </p>
+
                 </div>
-                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button type="button" onclick="App.closeModal('modal-reassign')" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-sm font-medium">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition text-sm font-medium shadow-sm flex items-center gap-2">
-                        <span class="btn-text">Reassign</span>
-                        <svg class="btn-spinner w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+
+                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+
+                    <button
+                        type="button"
+                        @click="closeModal()"
+                        class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        Cancel
                     </button>
+
+                    <button
+                        type="submit"
+                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700"
+                    >
+                        Reassign Staff
+                    </button>
+
                 </div>
+
             </form>
+
         </div>
     </div>
-</div>
 
-<!-- Reschedule Modal -->
-<div id="modal-reschedule" class="modal-backdrop fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center opacity-0 transition-opacity duration-200">
-    <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-3xl mx-4 transform transition-all duration-200 scale-95 opacity-0">
-        <div class="p-6">
-            <div class="flex justify-between items-center mb-5">
-                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Reschedule Appointment</h3>
-                <button onclick="App.closeModal('modal-reschedule')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    {{-- Reschedule Modal --}}
+    <div
+        x-show="modal === 'reschedule'"
+        x-cloak
+        class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-4"
+        @keydown.escape.window="closeModal()"
+    >
+        <div class="absolute inset-0 modal-backdrop" @click="closeModal()"></div>
+
+        <div class="relative w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+
+                <div>
+
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                        Reschedule Appointment
+                    </h3>
+
+                    <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        The current staff must still be available at the new time.
+                    </p>
+
+                </div>
+
+                <button
+                    type="button"
+                    @click="closeModal()"
+                    class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                    <i data-lucide="x" class="h-5 w-5"></i>
                 </button>
+
             </div>
-            <form method="POST" action="" id="form-reschedule" onsubmit="App.setLoading(this)">
+
+            <form :action="rescheduleUrl" method="POST">
                 @csrf
-                
-                <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        1. Pick New Date <span class="text-red-500">*</span>
-                    </label>
-                    <div id="reschedule-calendar" class="min-h-[380px] rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600"></div>
-                    <input type="hidden" name="appointment_date" id="reschedule-date" required>
-                    <p id="reschedule-date-display" class="text-sm text-teal-600 dark:text-teal-400 mt-2 font-semibold"></p>
-                </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-2">
+                <div class="space-y-4 p-5">
+
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            2. Pick New Time <span class="text-red-500">*</span>
+
+                        <label class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            Date
                         </label>
-                        <div id="reschedule-slots" class="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-56 overflow-y-auto p-1">
-                            <p class="text-sm text-gray-400 col-span-full text-center py-8">Select a date to view slots</p>
-                        </div>
-                        <input type="hidden" name="start_time" id="reschedule-time" required>
+
+                        <input
+                            type="date"
+                            name="appointment_date"
+                            x-model="rescheduleDate"
+                            :min="today"
+                            required
+                            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
+
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            3. Choose Room
+
+                        <label class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            Start Time
                         </label>
-                        <select name="room_id" id="reschedule-room" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition">
-                            <option value="">No room / Remove room</option>
+
+                        <input
+                            type="time"
+                            name="start_time"
+                            x-model="rescheduleTime"
+                            required
+                            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
+
+                    </div>
+
+                    <div>
+
+                        <label class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            Room
+                        </label>
+
+                        <select
+                            name="room_id"
+                            x-model="rescheduleRoom"
+                            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                            <option value="">No room</option>
+
                             @foreach($allRooms as $room)
-                                <option value="{{ $room->id }}">{{ $room->name }}</option>
+
+                                <option value="{{ $room->id }}">
+                                    {{ $room->name }}
+                                </option>
+
                             @endforeach
+
                         </select>
-                        <p class="text-xs text-gray-400 mt-2">If you change the room, the old room will be freed automatically.</p>
+
+                        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                            Room availability is checked when the appointment is rescheduled.
+                        </p>
+
                     </div>
+
                 </div>
 
-                <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button type="button" onclick="App.closeModal('modal-reschedule')" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-sm font-medium">Cancel</button>
-                    <button type="submit" id="reschedule-submit" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition text-sm font-medium shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                        <span class="btn-text">Reschedule</span>
-                        <svg class="btn-spinner w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+
+                    <button
+                        type="button"
+                        @click="closeModal()"
+                        class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        Cancel
                     </button>
+
+                    <button
+                        type="submit"
+                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700"
+                    >
+                        Reschedule
+                    </button>
+
                 </div>
+
             </form>
+
+        </div>
+    </div>
+
+    {{-- No-show Modal --}}
+    <div
+        x-show="modal === 'no-show'"
+        x-cloak
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        @keydown.escape.window="closeModal()"
+    >
+        <div class="absolute inset-0 modal-backdrop" @click="closeModal()"></div>
+
+        <div class="relative w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+
+            <div class="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+
+                <div class="flex items-center gap-3">
+
+                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+                        <i data-lucide="user-x" class="h-5 w-5"></i>
+                    </div>
+
+                    <div>
+
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                            Mark as No-show
+                        </h3>
+
+                        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            <span x-text="noShowCustomer"></span>
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <form :action="noShowUrl" method="POST">
+                @csrf
+
+                <div class="p-5">
+
+                    <p class="text-sm text-slate-600 dark:text-slate-300">
+                        This will cancel the appointment and record it as a customer no-show.
+                    </p>
+
+                    <template x-if="noShowHasPayment">
+
+                        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
+
+                            <p class="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                                A payment exists for this appointment.
+                            </p>
+
+                            <div class="mt-3 grid gap-2 sm:grid-cols-2">
+
+                                <label class="cursor-pointer">
+
+                                    <input
+                                        type="radio"
+                                        name="action"
+                                        value="forfeit"
+                                        checked
+                                        class="peer sr-only"
+                                    >
+
+                                    <div class="rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-700 peer-checked:border-amber-500 peer-checked:ring-2 peer-checked:ring-amber-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                                        Forfeit payment
+                                    </div>
+
+                                </label>
+
+                                <label class="cursor-pointer">
+
+                                    <input
+                                        type="radio"
+                                        name="action"
+                                        value="refund"
+                                        class="peer sr-only"
+                                    >
+
+                                    <div class="rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-700 peer-checked:border-teal-500 peer-checked:ring-2 peer-checked:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                                        Refund payment
+                                    </div>
+
+                                </label>
+
+                            </div>
+
+                        </div>
+
+                    </template>
+
+                    <template x-if="!noShowHasPayment">
+
+                        <input
+                            type="hidden"
+                            name="action"
+                            value="forfeit"
+                        >
+
+                    </template>
+
+                </div>
+
+                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+
+                    <button
+                        type="button"
+                        @click="closeModal()"
+                        class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700"
+                    >
+                        Mark No-show
+                    </button>
+
+                </div>
+
+            </form>
+
         </div>
     </div>
 </div>
+@endsection
 
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+@push('scripts')
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.18/index.global.min.js"></script>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+
 <script>
-const App = {
-    mainCalendar: null,
-    rescheduleCalendar: null,
-    currentReschedule: { id: null, staffId: null, roomId: null, duration: 60 },
-    appointments: @json($calendarEvents),
+    function activeSessionsPage() {
+        return {
+            showCalendar: false,
 
-    init() {
-        this.initMainCalendar();
-        this.convertSessionFlashes();
-        this.bindGlobalEvents();
-    },
+            modal: null,
 
-    toast(message, type = 'success') {
-        const container = document.getElementById('toastContainer');
-        const el = document.createElement('div');
-        const colors = { success: 'bg-green-500', error: 'bg-red-500', warning: 'bg-amber-500', info: 'bg-blue-500' };
-        const icons = {
-            success: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
-            error: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>',
-            warning: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>',
-            info: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'
-        };
+            calendar: null,
+            calendarInitialized: false,
 
-        el.className = `${colors[type]} text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 transform transition-all duration-300 translate-x-full opacity-0 pointer-events-auto min-w-[300px]`;
-        el.innerHTML = `${icons[type]}<<span class="font-medium text-sm">${message}</span>`;
-        
-        container.appendChild(el);
-        requestAnimationFrame(() => el.classList.remove('translate-x-full', 'opacity-0'));
+            currentView: 'dayGridMonth',
+            calendarTitle: 'Calendar',
 
-        setTimeout(() => {
-            el.classList.add('translate-x-full', 'opacity-0');
-            setTimeout(() => el.remove(), 300);
-        }, 4000);
-    },
+            extraUrl: '',
+            completeUrl: '',
+            reassignUrl: '',
+            rescheduleUrl: '',
+            noShowUrl: '',
 
-    convertSessionFlashes() {
-        document.querySelectorAll('[data-toast]').forEach(el => {
-            const data = JSON.parse(el.dataset.toast);
-            this.toast(data.message, data.type);
-            el.remove();
-        });
-    },
+            fullyPaid: false,
+            balance: 0,
 
-    setLoading(form) {
-        const btn = form.querySelector('button[type="submit"]');
-        if (!btn) return;
-        btn.disabled = true;
-        const spinner = btn.querySelector('.btn-spinner');
-        const text = btn.querySelector('.btn-text');
-        if (spinner) spinner.classList.remove('hidden');
-        if (text) text.dataset.original = text.textContent;
-    },
+            reassignStaffId: '',
 
-    openModal(id) {
-        const backdrop = document.getElementById(id);
-        const content = backdrop.querySelector('.modal-content');
-        backdrop.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-        requestAnimationFrame(() => {
-            backdrop.classList.remove('opacity-0');
-            content.classList.remove('scale-95', 'opacity-0');
-            content.classList.add('scale-100', 'opacity-100');
-        });
-    },
+            rescheduleDate: '',
+            rescheduleTime: '',
+            rescheduleRoom: '',
 
-    closeModal(id) {
-        const backdrop = document.getElementById(id);
-        const content = backdrop.querySelector('.modal-content');
-        content.classList.remove('scale-100', 'opacity-100');
-        content.classList.add('scale-95', 'opacity-0');
-        backdrop.classList.add('opacity-0');
-        setTimeout(() => {
-            backdrop.classList.add('hidden');
-            document.body.style.overflow = '';
-            if (id === 'modal-reschedule' && this.rescheduleCalendar) {
-                this.rescheduleCalendar.destroy();
-                this.rescheduleCalendar = null;
-            }
-        }, 200);
-    },
+            noShowHasPayment: false,
+            noShowCustomer: '',
 
-    initMainCalendar() {
-        const el = document.getElementById('calendar');
-        if (!el) return;
-        this.mainCalendar = new FullCalendar.Calendar(el, {
-            initialView: 'dayGridMonth',
-            height: 'auto',
-            headerToolbar: { left: 'title', center: '', right: 'prev,next' },
-            events: this.appointments,
-            eventClick: (info) => {
-                const card = document.getElementById(info.event.extendedProps.cardId);
-                if (card) {
-                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    card.classList.add('ring-2', 'ring-teal-500', 'scale-[1.02]');
-                    setTimeout(() => card.classList.remove('ring-2', 'ring-teal-500', 'scale-[1.02]'), 2000);
-                }
+            today: @js(now()->format('Y-m-d')),
+            events: @js($calendarEvents),
+
+            init() {
+                this.$nextTick(() => {
+                    this.refreshIcons();
+                });
             },
-            eventContent: (arg) => ({
-                html: `<div class="px-2 py-1 text-xs font-bold truncate">${arg.event.title}</div><div class="px-2 text-[10px] opacity-90 truncate">${arg.event.extendedProps.time}</div>`
-            })
-        });
-        this.mainCalendar.render();
-    },
 
-    openReschedule(id, currentDate, currentTime, duration, staffId, roomId) {
-        this.currentReschedule = { id, staffId, roomId, duration };
-        document.getElementById('form-reschedule').action = `/receptionist/appointments/${id}/reschedule`;
-        document.getElementById('reschedule-submit').disabled = true;
-        document.getElementById('reschedule-date').value = '';
-        document.getElementById('reschedule-time').value = '';
-        document.getElementById('reschedule-date-display').textContent = '';
-        document.getElementById('reschedule-slots').innerHTML = '<p class="text-sm text-gray-400 col-span-full text-center py-8">Select a date to view slots</p>';
-        
-        const roomSelect = document.getElementById('reschedule-room');
-        if (roomSelect) roomSelect.value = roomId || '';
+            refreshIcons() {
+                this.$nextTick(() => {
+                    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                        window.lucide.createIcons();
+                    }
+                });
+            },
 
-        this.openModal('modal-reschedule');
-        setTimeout(() => this.initRescheduleCalendar(currentDate), 100);
-    },
+            openCalendar() {
+                this.showCalendar = true;
 
-    initRescheduleCalendar(currentDate) {
-        const el = document.getElementById('reschedule-calendar');
-        if (this.rescheduleCalendar) this.rescheduleCalendar.destroy();
+                this.$nextTick(() => {
+                    this.initCalendar();
 
-        const backgroundEvents = this.appointments
-            .filter(a => a.id !== this.currentReschedule.id)
-            .map(a => ({ start: a.start, end: a.end, display: 'background', color: '#fee2e2' }));
+                    if (this.calendar) {
+                        this.calendar.updateSize();
+                        this.updateCalendarState();
+                    }
 
-        this.rescheduleCalendar = new FullCalendar.Calendar(el, {
-            initialView: 'dayGridMonth',
-            height: 'auto',
-            headerToolbar: { left: 'title', center: '', right: 'prev,next' },
-            validRange: { start: new Date().toISOString().split('T')[0] },
-            events: backgroundEvents,
-            dateClick: (info) => {
-                document.getElementById('reschedule-date').value = info.dateStr;
-                const dateObj = new Date(info.dateStr + 'T00:00:00');
-                document.getElementById('reschedule-date-display').textContent = 'Selected: ' + dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                this.loadRescheduleSlots(info.dateStr);
+                    this.refreshIcons();
+                });
+            },
+
+            closeCalendar() {
+                this.showCalendar = false;
+            },
+
+            initCalendar() {
+                if (this.calendarInitialized) {
+                    return;
+                }
+
+                if (typeof FullCalendar === 'undefined') {
+                    console.error('FullCalendar failed to load.');
+                    return;
+                }
+
+                const element = this.$refs.calendar;
+
+                if (!element) {
+                    console.error('Calendar element was not found.');
+                    return;
+                }
+
+                this.calendar = new FullCalendar.Calendar(element, {
+
+                    initialView: 'dayGridMonth',
+
+                    height: 'auto',
+
+                    firstDay: 1,
+
+                    events: this.events,
+
+                    headerToolbar: false,
+
+                    dayMaxEvents: 4,
+
+                    navLinks: true,
+
+                    nowIndicator: true,
+
+                    editable: false,
+
+                    selectable: false,
+
+                    eventDisplay: 'block',
+
+                    eventContent: (arg) => {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'zen-calendar-event';
+
+                        const icon = document.createElement('span');
+                        icon.className = 'zen-calendar-event-icon';
+
+                        const iconElement = document.createElement('i');
+                        iconElement.setAttribute('data-lucide', 'sparkles');
+
+                        icon.appendChild(iconElement);
+
+                        const label = document.createElement('span');
+                        label.className = 'zen-calendar-event-label';
+                        label.textContent = arg.event.title;
+
+                        wrapper.appendChild(icon);
+                        wrapper.appendChild(label);
+
+                        return {
+                            domNodes: [wrapper]
+                        };
+                    },
+
+                    eventDidMount: (info) => {
+                        const staff = info.event.extendedProps.staff || 'Unassigned';
+                        const room = info.event.extendedProps.room || 'No room';
+
+                        info.el.title =
+                            info.event.title +
+                            ' — ' +
+                            staff +
+                            ' — ' +
+                            room;
+
+                        this.refreshIcons();
+                    },
+
+                    datesSet: () => {
+                        this.updateCalendarState();
+                        this.refreshIcons();
+                    },
+
+                    viewDidMount: () => {
+                        this.updateCalendarState();
+                        this.refreshIcons();
+                    },
+
+                    eventClick: (info) => {
+                        info.jsEvent.preventDefault();
+
+                        const id = info.event.extendedProps.appointmentId;
+
+                        const card = document.getElementById(
+                            'appointment-' + id
+                        );
+
+                        if (!card) {
+                            return;
+                        }
+
+                        this.showCalendar = false;
+
+                        this.$nextTick(() => {
+
+                            card.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'center'
+                            });
+
+                            card.classList.add(
+                                'ring-2',
+                                'ring-teal-500',
+                                'ring-offset-2',
+                                'dark:ring-offset-slate-950'
+                            );
+
+                            window.setTimeout(() => {
+
+                                card.classList.remove(
+                                    'ring-2',
+                                    'ring-teal-500',
+                                    'ring-offset-2',
+                                    'dark:ring-offset-slate-950'
+                                );
+
+                            }, 1800);
+
+                        });
+                    }
+
+                });
+
+                this.calendar.render();
+
+                this.calendarInitialized = true;
+
+                this.updateCalendarState();
+
+                this.refreshIcons();
+            },
+
+            updateCalendarState() {
+                if (!this.calendar) {
+                    return;
+                }
+
+                const view = this.calendar.view;
+
+                this.currentView = view.type;
+
+                this.calendarTitle = view.title;
+            },
+
+            calendarPrev() {
+                if (!this.calendar) {
+                    return;
+                }
+
+                this.calendar.prev();
+
+                this.updateCalendarState();
+
+                this.refreshIcons();
+            },
+
+            calendarNext() {
+                if (!this.calendar) {
+                    return;
+                }
+
+                this.calendar.next();
+
+                this.updateCalendarState();
+
+                this.refreshIcons();
+            },
+
+            calendarToday() {
+                if (!this.calendar) {
+                    return;
+                }
+
+                this.calendar.today();
+
+                this.updateCalendarState();
+
+                this.refreshIcons();
+            },
+
+            changeCalendarView(view) {
+                if (!this.calendar) {
+                    return;
+                }
+
+                this.calendar.changeView(view);
+
+                this.currentView = view;
+
+                this.updateCalendarState();
+
+                this.$nextTick(() => {
+                    this.calendar.updateSize();
+                    this.refreshIcons();
+                });
+            },
+
+            openExtra(id) {
+                this.extraUrl = @js(
+                    route('receptionist.add-extra', ['appointment' => '__ID__'])
+                ).replace('__ID__', id);
+
+                this.modal = 'extra';
+
+                this.refreshIcons();
+            },
+
+            openComplete(id, url, fullyPaid, balance) {
+                this.completeUrl = url;
+                this.fullyPaid = fullyPaid;
+                this.balance = Number(balance) || 0;
+                this.modal = 'complete';
+
+                this.refreshIcons();
+            },
+
+            openReassign(id, staffId, url) {
+                this.reassignUrl = url;
+                this.reassignStaffId = staffId ? String(staffId) : '';
+                this.modal = 'reassign';
+
+                this.refreshIcons();
+            },
+
+            openReschedule(id, date, time, roomId, url) {
+                this.rescheduleUrl = url;
+                this.rescheduleDate = date;
+                this.rescheduleTime = time;
+                this.rescheduleRoom = roomId ? String(roomId) : '';
+                this.modal = 'reschedule';
+
+                this.refreshIcons();
+            },
+
+            openNoShow(id, url, hasPayment, customer) {
+                this.noShowUrl = url;
+                this.noShowHasPayment = Boolean(hasPayment);
+                this.noShowCustomer = customer || 'Customer';
+                this.modal = 'no-show';
+
+                this.refreshIcons();
+            },
+
+            closeModal() {
+                this.modal = null;
             }
-        });
-        this.rescheduleCalendar.render();
-    },
-
-    async loadRescheduleSlots(dateStr) {
-        const container = document.getElementById('reschedule-slots');
-        const duration = this.currentReschedule.duration;
-
-        container.innerHTML = Array(8).fill(0).map(() => 
-            `<div class="h-12 bg-gray-100 dark:bg-gray-700 rounded-xl animate-pulse"></div>`
-        ).join('');
-
-        try {
-            const res = await fetch(`/api/booking/slots?date=${dateStr}&duration=${duration}`);
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Failed to load slots');
-
-            const slots = data.slots?.filter(s => s.date === dateStr && !s.occupied) || [];
-
-            if (slots.length === 0) {
-                container.innerHTML = '<div class="col-span-full text-center py-8"><p class="text-gray-400 text-sm">No available slots for this date</p><p class="text-xs text-gray-300 mt-1">Try a different date</p></div>';
-                return;
-            }
-
-            container.innerHTML = '';
-            slots.forEach(slot => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'time-slot py-3 px-2 rounded-xl border-2 text-sm font-bold text-center transition-all duration-200 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20';
-                btn.textContent = slot.display;
-                btn.onclick = () => {
-                    container.querySelectorAll('.time-slot').forEach(b => {
-                        b.classList.remove('bg-teal-600', 'text-white', 'border-teal-600', 'selected');
-                        b.classList.add('bg-white', 'dark:bg-gray-700', 'border-gray-200', 'dark:border-gray-600', 'text-gray-700', 'dark:text-gray-200');
-                    });
-                    btn.classList.remove('bg-white', 'dark:bg-gray-700', 'border-gray-200', 'dark:border-gray-600', 'text-gray-700', 'dark:text-gray-200');
-                    btn.classList.add('bg-teal-600', 'text-white', 'border-teal-600', 'selected');
-                    document.getElementById('reschedule-time').value = slot.time;
-                    document.getElementById('reschedule-submit').disabled = false;
-                };
-                container.appendChild(btn);
-            });
-        } catch (err) {
-            container.innerHTML = `
-                <div class="col-span-full text-center py-8">
-                    <p class="text-red-500 text-sm mb-2">Unable to load slots</p>
-                    <button onclick="App.loadRescheduleSlots('${dateStr}')" class="text-teal-600 text-xs font-semibold hover:underline">Retry</button>
-                </div>`;
-        }
-    },
-
-    openExtra(id, services) {
-        document.getElementById('form-extra').action = `/receptionist/appointments/${id}/add-extra`;
-        const list = document.getElementById('extra-existing-list');
-        list.innerHTML = '';
-
-        if (services.length === 0) {
-            list.innerHTML = '<p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No existing services to duplicate.</p>';
-        } else {
-            services.forEach(s => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'w-full text-left px-4 py-3 bg-gray-50 dark:bg-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 border border-gray-200 dark:border-gray-600 rounded-lg transition flex justify-between items-center group';
-                btn.innerHTML = `<span class="font-medium text-gray-800 dark:text-gray-200 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">${s.name}</span><span class="text-purple-600 dark:text-purple-400 font-bold">+ ₱${parseFloat(s.price).toFixed(2)}</span>`;
-                btn.onclick = () => {
-                    document.getElementById('extra-service-id').value = s.id;
-                    document.getElementById('form-extra').submit();
-                };
-                list.appendChild(btn);
-            });
-        }
-
-        document.getElementById('extra-service-id').value = '';
-        this.setExtraTab('existing');
-        this.openModal('modal-extra');
-    },
-
-    setExtraTab(tab) {
-        const existing = document.getElementById('extra-existing');
-        const custom = document.getElementById('extra-custom');
-        const submit = document.getElementById('extra-custom-submit');
-        const tabE = document.getElementById('tab-existing');
-        const tabC = document.getElementById('tab-custom');
-
-        const active = 'flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm';
-        const inactive = 'flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200';
-
-        if (tab === 'existing') {
-            existing.classList.remove('hidden'); custom.classList.add('hidden'); submit.classList.add('hidden');
-            tabE.className = active; tabC.className = inactive;
-        } else {
-            existing.classList.add('hidden'); custom.classList.remove('hidden'); submit.classList.remove('hidden');
-            tabE.className = inactive; tabC.className = active;
-        }
-    },
-
-    openComplete(id, balance) {
-        document.getElementById('form-complete').action = `/receptionist/appointments/${id}/complete`;
-        document.getElementById('complete-balance').textContent = '₱' + balance.toFixed(2);
-        this.openModal('modal-complete');
-    },
-
-    openNoShow(id, totalPaid) {
-        document.getElementById('form-noshow').action = `/receptionist/appointments/${id}/no-show`;
-        const hasPayments = totalPaid > 0;
-        const info = document.getElementById('noshow-info');
-
-        if (hasPayments) {
-            info.innerHTML = `<div class="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800"><p class="text-xs text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wider mb-1">Payment on File</p><p class="text-2xl font-bold text-amber-700 dark:text-amber-400">₱${totalPaid.toFixed(2)}</p><p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Choose how to handle this payment:</p></div>`;
-        } else {
-            info.innerHTML = `<div class="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-200 dark:border-gray-600"><p class="text-sm text-gray-600 dark:text-gray-400">No payment was collected. Mark as no-show?</p></div>`;
-        }
-
-        document.getElementById('noshow-actions').classList.toggle('hidden', !hasPayments);
-        document.getElementById('noshow-default').value = 'forfeit';
-        this.openModal('modal-noshow');
-    },
-
-    openReassign(id, currentStaffName) {
-        document.getElementById('form-reassign').action = `/receptionist/appointments/${id}/reassign`;
-        this.openModal('modal-reassign');
-    },
-
-    bindGlobalEvents() {
-        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-            backdrop.addEventListener('click', (e) => {
-                if (e.target === backdrop) this.closeModal(backdrop.id);
-            });
-        });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(m => this.closeModal(m.id));
-            }
-        });
+        };
     }
-};
-
-document.addEventListener('DOMContentLoaded', () => App.init());
 </script>
 
-<style>
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-
-.time-slot.selected {
-    background-color: rgb(13 148 136) !important;
-    color: white !important;
-    border-color: rgb(13 148 136) !important;
-}
-
-.dark ::-webkit-scrollbar { width: 8px; }
-.dark ::-webkit-scrollbar-track { background: rgb(55 65 81); }
-.dark ::-webkit-scrollbar-thumb { background: rgb(75 85 99); border-radius: 4px; }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgb(107 114 128); }
-
-.fc-event { transition: transform 0.1s; cursor: pointer; }
-.fc-event:hover { transform: scale(1.02); z-index: 10 !important; }
-
-.btn-action:disabled { opacity: 0.7; cursor: not-allowed; }
-</style>
-@endsection
+@endpush

@@ -11,6 +11,7 @@ use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\ServicePopularityController;
 
 
 // ==================== PUBLIC ROUTES (NO LOGIN REQUIRED) ====================
@@ -175,12 +176,20 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     // Appointments
     Route::get('/appointments', [AdminController::class, 'appointments'])->name('admin.appointments');
 
+    Route::get(
+    '/appointments/report-pdf',
+    [AdminController::class, 'appointmentReportPdf']
+)->name('admin.appointments.report-pdf');
+
     // ─── SCHEDULE VIEW ROUTES ───
     Route::get('/schedules', [ScheduleController::class, 'index'])->name('admin.schedules');
     Route::get('/shift-templates', [ScheduleController::class, 'templates'])->name('admin.shift-templates.index');
     Route::get('/api/staff/{staff}/schedule', [ScheduleController::class, 'staffScheduleApi'])->name('admin.api.staff.schedule');
 
     Route::get('/attendance', [AttendanceController::class, 'report'])->name('attendance.report');
+
+    Route::get('/attendance/report-pdf', [AttendanceController::class, 'attendanceReportPdf'])
+    ->name('attendance.report-pdf');
     
     Route::get('/room-tracking', [AdminController::class, 'roomTracking'])
     ->name('admin.room-tracking');
@@ -235,4 +244,28 @@ Route::middleware(['web', 'auth'])->prefix('api/notifications')->group(function 
     Route::get('/count', [NotificationController::class, 'count'])->name('api.notifications.count');
     Route::post('/{id}/read', [NotificationController::class, 'markAsRead'])->name('api.notifications.read');
     Route::post('/read-all', [NotificationController::class, 'markAllAsRead'])->name('api.notifications.read-all');
+});
+
+Route::middleware(['auth'])->group(function () {
+
+    Route::get('/admin/reports/service-popularity', [
+        ServicePopularityController::class,
+        'index'
+    ])->name('admin.service-popularity');
+
+    Route::get('/admin/reports/service-popularity/pdf', [
+        ServicePopularityController::class,
+        'pdf'
+    ])->name('admin.service-popularity.pdf');
+
+    Route::get('/receptionist/reports/service-popularity', [
+        ServicePopularityController::class,
+        'index'
+    ])->name('receptionist.service-popularity');
+
+    Route::get('/receptionist/reports/service-popularity/pdf', [
+        ServicePopularityController::class,
+        'pdf'
+    ])->name('receptionist.service-popularity.pdf');
+
 });

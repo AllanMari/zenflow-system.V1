@@ -201,7 +201,7 @@ class ReceptionistController extends Controller
                     $appointment->customer->user,
                     'Booking Confirmed',
                     'Your appointment on ' . Carbon::parse($appointment->appointment_date)->format('M j, Y') . ' is confirmed.',
-                    'booking', 'success', route('customer.index'), 'My Bookings'
+                    'booking', 'success', route('customer-dashboard'), 'My Bookings'
                 );
             }
             if ($appointment->staff) {
@@ -209,7 +209,7 @@ class ReceptionistController extends Controller
                     $appointment->staff,
                     'New Assignment',
                     ($appointment->customer->full_name ?? 'Walk-in') . ' — ' . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
-                    'booking', 'info', route('staff.index'), 'My Schedule'
+                    'booking', 'info', route('staff.dashboard'), 'My Schedule'
                 );
             }
 
@@ -235,7 +235,7 @@ class ReceptionistController extends Controller
                 $appointment->customer->user,
                 'Appointment Cancelled',
                 'Your appointment on ' . Carbon::parse($appointment->appointment_date)->format('M j, Y') . ' was cancelled. Reason: ' . ucfirst($reason),
-                'booking', 'warning', route('customer.index'), 'My Bookings'
+                'booking', 'warning', route('customer-dashboard'), 'My Bookings'
             );
         }
         if ($appointment->staff) {
@@ -243,7 +243,7 @@ class ReceptionistController extends Controller
                 $appointment->staff,
                 'Assignment Cancelled',
                 ($appointment->customer->full_name ?? 'Walk-in') . "'s appointment on " . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A') . ' was cancelled. Reason: ' . ucfirst($reason),
-                'booking', 'warning', route('staff.index'), 'My Schedule'
+                'booking', 'warning', route('staff.dashboard'), 'My Schedule'
             );
         }
         $admins = User::whereHas('roles', fn($q) => $q->where('name', 'admin'))->get();
@@ -469,7 +469,7 @@ class ReceptionistController extends Controller
                 $appointment->customer->user,
                 'Thank You!',
                 'Your appointment on ' . Carbon::parse($appointment->appointment_date)->format('M j') . ' is complete. We hope to see you again!',
-                'booking', 'success', route('customer.index'), 'My Bookings'
+                'booking', 'success', route('customer-dashboard'), 'My Bookings'
             );
         }
     }
@@ -513,17 +513,45 @@ class ReceptionistController extends Controller
         return back()->with('success', 'Payment of ₱' . number_format($totalPaid, 2) . ' refunded. Appointment marked as no-show.');
     }
 
-    public function active()
-    {
-        $appointments = Appointment::with(['customer', 'services', 'payments', 'staff', 'room'])
-            ->where('status', 'confirmed')
-            ->whereDate('appointment_date', '>=', today())
-            ->orderBy('appointment_date')
-            ->orderBy('start_time')
-            ->get();
+public function active()
+{
+    $appointments = Appointment::with([
+        'customer',
+        'services',
+        'payments',
+        'staff',
+        'room',
+    ])
+        ->where('status', 'confirmed')
+        ->whereDate('appointment_date', '>=', today())
+        ->orderBy('appointment_date')
+        ->orderBy('start_time')
+        ->get();
 
-        return view('receptionist.active', compact('appointments'));
-    }
+    $allStaff = User::whereHas('roles', function ($query) {
+        $query->where('name', 'staff');
+    })
+        ->where('is_active', true)
+        ->orderBy('last_name')
+        ->orderBy('first_name')
+        ->get();
+
+    $catalogServices = \App\Models\Service::where('is_active', true)
+        ->orderBy('name')
+        ->get();
+
+    $allRooms = Room::active()
+        ->where('status', '!=', 'maintenance')
+        ->orderBy('name')
+        ->get();
+
+    return view('receptionist.active', compact(
+        'appointments',
+        'allStaff',
+        'catalogServices',
+        'allRooms'
+    ));
+}
 
     public function reassignStaff(Request $request, int $appointmentId)
     {
@@ -614,7 +642,7 @@ class ReceptionistController extends Controller
                 $appointment->customer->user,
                 'Appointment Rescheduled',
                 'Moved to ' . Carbon::parse($appointment->appointment_date)->format('M j, Y') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
-                'booking', 'warning', route('customer.index'), 'My Bookings'
+                'booking', 'warning', route('customer-dashboard'), 'My Bookings'
             );
         }
         if ($appointment->staff) {
@@ -622,7 +650,7 @@ class ReceptionistController extends Controller
                 $appointment->staff,
                 'Appointment Rescheduled',
                 'An appointment was moved to ' . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
-                'booking', 'warning', route('staff.index'), 'My Schedule'
+                'booking', 'warning', route('staff.dashboard'), 'My Schedule'
             );
         }
 

@@ -181,8 +181,9 @@
     .dark .flatpickr-calendar .flatpickr-day.inRange {
         background: rgba(20, 184, 166, .18);
         border-color: transparent;
-        box-shadow: -5px 0 0 rgba(20, 184, 166, .18),
-                    5px 0 0 rgba(20, 184, 166, .18);
+        box-shadow:
+            -5px 0 0 rgba(20, 184, 166, .18),
+            5px 0 0 rgba(20, 184, 166, .18);
     }
 
     .dark .flatpickr-calendar .flatpickr-day.today {
@@ -255,6 +256,7 @@
                     <p class="text-xs font-medium text-gray-500 dark:text-slate-400">
                         Total Services
                     </p>
+
                     <p class="metric-value mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
                         {{ number_format($summary['total_services']) }}
                     </p>
@@ -272,6 +274,7 @@
                     <p class="text-xs font-medium text-gray-500 dark:text-slate-400">
                         With Demand
                     </p>
+
                     <p class="metric-value mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
                         {{ number_format($summary['services_with_demand']) }}
                     </p>
@@ -289,6 +292,7 @@
                     <p class="text-xs font-medium text-gray-500 dark:text-slate-400">
                         No Staff
                     </p>
+
                     <p class="metric-value mt-2 text-2xl font-semibold text-red-600 dark:text-red-400">
                         {{ number_format($summary['services_without_staff']) }}
                     </p>
@@ -306,6 +310,7 @@
                     <p class="text-xs font-medium text-gray-500 dark:text-slate-400">
                         Bottlenecks
                     </p>
+
                     <p class="metric-value mt-2 text-2xl font-semibold text-orange-600 dark:text-orange-400">
                         {{ number_format($summary['bottleneck_services']) }}
                     </p>
@@ -323,6 +328,7 @@
                     <p class="text-xs font-medium text-gray-500 dark:text-slate-400">
                         Demand Hours
                     </p>
+
                     <p class="metric-value mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
                         {{ number_format($summary['total_demand_hours'], 2) }}
                     </p>
@@ -340,6 +346,7 @@
                     <p class="text-xs font-medium text-gray-500 dark:text-slate-400">
                         Scheduled Hours
                     </p>
+
                     <p class="metric-value mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
                         {{ number_format($summary['total_scheduled_hours'], 2) }}
                     </p>
@@ -353,23 +360,256 @@
 
     </div>
 
+    @php
+        $skillOverview = collect();
+
+        foreach ($analytics as $item) {
+            foreach ($item['staff'] as $staffName) {
+                if (!$skillOverview->has($staffName)) {
+                    $skillOverview->put($staffName, collect());
+                }
+
+                $skillOverview[$staffName]->push($item['name']);
+            }
+        }
+
+        $skillOverview = $skillOverview
+            ->map(fn ($services) => $services->unique()->sort()->values())
+            ->sortKeys();
+    @endphp
+
     <div class="skill-gap-card overflow-hidden rounded-xl">
 
         <div class="border-b border-gray-200 px-4 py-4 dark:border-slate-700 sm:px-5">
+            <div class="flex items-center gap-2">
+                <i
+                    data-lucide="badge-check"
+                    class="size-5 text-teal-600 dark:text-teal-400"
+                ></i>
+
+                <div>
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
+                        Skill Overview
+                    </h2>
+
+                    <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                        Services each staff member is assigned and qualified to provide.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        @if($skillOverview->count())
+
+            <div class="hidden md:block">
+                <div class="table-scroll">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-900/50">
+
+                                <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400">
+                                    Staff
+                                </th>
+
+                                <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400">
+                                    Qualified Services
+                                </th>
+
+                                <th class="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400">
+                                    Total Services
+                                </th>
+
+                            </tr>
+                        </thead>
+
+                        <tbody class="divide-y divide-gray-100 dark:divide-slate-700/70">
+
+                            @foreach($skillOverview as $staffName => $services)
+
+                                @php
+                                    $staffInitials = collect(explode(' ', trim($staffName)))
+                                        ->filter()
+                                        ->take(2)
+                                        ->map(fn($part) => strtoupper(substr($part, 0, 1)))
+                                        ->implode('');
+                                @endphp
+
+                                <tr class="transition hover:bg-gray-50/70 dark:hover:bg-slate-800/50">
+
+                                    <td class="px-5 py-4">
+                                        <div class="flex items-center gap-3">
+
+                                            <span class="staff-avatar">
+                                                {{ $staffInitials ?: 'S' }}
+                                            </span>
+
+                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">
+                                                {{ $staffName }}
+                                            </span>
+
+                                        </div>
+                                    </td>
+
+                                    <td class="px-5 py-4">
+                                        <div class="flex flex-wrap gap-1.5">
+
+                                            @foreach($services as $serviceName)
+
+                                                <span class="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-medium text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+
+                                                    <i data-lucide="check" class="size-3"></i>
+
+                                                    {{ $serviceName }}
+
+                                                </span>
+
+                                            @endforeach
+
+                                        </div>
+                                    </td>
+
+                                    <td class="px-5 py-4 text-right">
+                                        <span class="text-sm font-semibold text-gray-900 dark:text-white">
+                                            {{ $services->count() }}
+                                        </span>
+                                    </td>
+
+                                </tr>
+
+                            @endforeach
+
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="md:hidden">
+
+                @foreach($skillOverview as $staffName => $services)
+
+                    @php
+                        $staffInitials = collect(explode(' ', trim($staffName)))
+                            ->filter()
+                            ->take(2)
+                            ->map(fn($part) => strtoupper(substr($part, 0, 1)))
+                            ->implode('');
+                    @endphp
+
+                    <div class="mobile-separator p-4">
+
+                        <div class="flex items-center justify-between gap-3">
+
+                            <div class="flex min-w-0 items-center gap-3">
+
+                                <span class="staff-avatar">
+                                    {{ $staffInitials ?: 'S' }}
+                                </span>
+
+                                <div class="min-w-0">
+
+                                    <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                                        {{ $staffName }}
+                                    </p>
+
+                                    <p class="mt-0.5 text-[11px] text-gray-500 dark:text-slate-500">
+                                        {{ $services->count() }}
+                                        qualified service{{ $services->count() !== 1 ? 's' : '' }}
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+                            <i
+                                data-lucide="chevron-right"
+                                class="size-4 shrink-0 text-gray-400 dark:text-slate-500"
+                            ></i>
+
+                        </div>
+
+                        <div class="mt-3 flex flex-wrap gap-1.5">
+
+                            @foreach($services as $serviceName)
+
+                                <span class="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-medium text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+
+                                    <i data-lucide="check" class="size-3"></i>
+
+                                    {{ $serviceName }}
+
+                                </span>
+
+                            @endforeach
+
+                        </div>
+
+                    </div>
+
+                @endforeach
+
+            </div>
+
+        @else
+
+            <div class="px-5 py-12 text-center">
+
+                <div class="mx-auto flex size-12 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-slate-800 dark:text-slate-500">
+                    <i data-lucide="user-round-search" class="size-6"></i>
+                </div>
+
+                <h3 class="mt-3 text-sm font-semibold text-gray-900 dark:text-white">
+                    No Staff Skills Assigned
+                </h3>
+
+                <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                    No active staff currently have services assigned to them.
+                </p>
+
+            </div>
+
+        @endif
+
+        <div class="border-t border-gray-200 px-4 py-3 dark:border-slate-700 sm:px-5">
+
+            <div class="flex items-center gap-2 text-[11px] text-gray-500 dark:text-slate-400">
+
+                <i data-lucide="info" class="size-3.5 shrink-0"></i>
+
+                <span>
+                    A qualified service is based on the services assigned to the staff member.
+                </span>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="skill-gap-card overflow-hidden rounded-xl">
+
+        <div class="border-b border-gray-200 px-4 py-4 dark:border-slate-700 sm:px-5">
+
             <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
 
                 <div>
+
                     <div class="flex items-center gap-2">
-                        <i data-lucide="scan-search" class="size-5 text-teal-600 dark:text-teal-400"></i>
+
+                        <i
+                            data-lucide="scan-search"
+                            class="size-5 text-teal-600 dark:text-teal-400"
+                        ></i>
 
                         <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
                             Service Skill Gap Analysis
                         </h2>
+
                     </div>
 
                     <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">
                         Completed service demand compared with assigned staff and their scheduled working hours.
                     </p>
+
                 </div>
 
                 <form
@@ -422,6 +662,7 @@
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
 
                         <div class="relative flex-1">
+
                             <i
                                 data-lucide="calendar-range"
                                 class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-gray-400 dark:text-slate-500"
@@ -448,6 +689,7 @@
                                 id="date_to"
                                 value="{{ $dateTo }}"
                             >
+
                         </div>
 
                         <button
@@ -471,13 +713,19 @@
                 </form>
 
             </div>
+
         </div>
 
         <div class="hidden md:block">
+
             <div class="table-scroll">
+
                 <table class="w-full min-w-[1450px]">
+
                     <thead>
+
                         <tr class="border-b border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-900/50">
+
                             <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400">
                                 Service
                             </th>
@@ -521,10 +769,13 @@
                             <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400">
                                 Assigned Staff
                             </th>
+
                         </tr>
+
                     </thead>
 
                     <tbody class="divide-y divide-gray-100 dark:divide-slate-700/70">
+
                         @forelse($analytics as $item)
 
                             @php
@@ -547,7 +798,9 @@
                             <tr class="transition hover:bg-gray-50/70 dark:hover:bg-slate-800/50">
 
                                 <td class="px-5 py-4">
+
                                     <div class="max-w-[220px]">
+
                                         <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">
                                             {{ $item['name'] }}
                                         </p>
@@ -555,83 +808,115 @@
                                         <p class="mt-0.5 text-[11px] text-gray-500 dark:text-slate-500">
                                             Service qualification
                                         </p>
+
                                     </div>
+
                                 </td>
 
                                 <td class="px-4 py-4 text-right">
+
                                     <span class="text-sm font-semibold text-gray-900 dark:text-white">
                                         {{ number_format($item['demand']) }}
                                     </span>
+
                                 </td>
 
                                 <td class="px-4 py-4 text-right">
+
                                     <span class="text-sm font-medium text-gray-700 dark:text-slate-300">
                                         {{ number_format($item['assigned_staff']) }}
                                     </span>
+
                                 </td>
 
                                 <td class="px-4 py-4 text-right">
+
                                     <span class="text-sm font-medium text-gray-700 dark:text-slate-300">
                                         {{ number_format($item['scheduled_staff']) }}
                                     </span>
+
                                 </td>
 
                                 <td class="px-4 py-4 text-right">
+
                                     <span class="text-sm text-gray-700 dark:text-slate-300">
                                         {{ $item['duration_minutes'] > 0 ? $item['duration_minutes'] . ' min' : '—' }}
                                     </span>
+
                                 </td>
 
                                 <td class="px-4 py-4 text-right">
+
                                     <span class="text-sm font-semibold text-gray-900 dark:text-white">
                                         {{ number_format($item['demand_hours'], 2) }}h
                                     </span>
+
                                 </td>
 
                                 <td class="px-4 py-4 text-right">
+
                                     <span class="text-sm font-medium text-gray-700 dark:text-slate-300">
                                         {{ number_format($item['scheduled_hours'], 2) }}h
                                     </span>
+
                                 </td>
 
                                 <td class="px-4 py-4 text-right">
+
                                     @if($item['schedule_gap_hours'] > 0)
+
                                         <span class="text-sm font-semibold text-orange-600 dark:text-orange-400">
                                             {{ number_format($item['schedule_gap_hours'], 2) }}h
                                         </span>
+
                                     @else
+
                                         <span class="text-sm text-gray-400 dark:text-slate-600">
                                             —
                                         </span>
+
                                     @endif
+
                                 </td>
 
                                 <td class="px-4 py-4 text-right">
+
                                     <span class="text-sm font-medium text-gray-700 dark:text-slate-300">
                                         {{ $item['demand_per_staff'] !== null ? number_format($item['demand_per_staff'], 2) : '—' }}
                                     </span>
+
                                 </td>
 
                                 <td class="px-4 py-4">
+
                                     <div class="flex flex-col gap-1.5">
+
                                         <div class="flex items-center gap-2">
+
                                             <span class="status-dot {{ $statusClass }}"></span>
 
                                             <span class="text-xs font-medium text-gray-700 dark:text-slate-300">
                                                 {{ $item['gap_status'] }}
                                             </span>
+
                                         </div>
 
                                         <span class="text-[11px] {{ $scheduleStatusClass }}">
                                             {{ $item['schedule_status'] }}
                                         </span>
+
                                     </div>
+
                                 </td>
 
                                 <td class="px-5 py-4">
+
                                     @if(count($item['staff']))
+
                                         <div class="flex max-w-[270px] flex-wrap gap-1.5">
+
                                             @foreach($item['staff'] as $staffName)
+
                                                 @php
                                                     $staffInitials = collect(explode(' ', trim($staffName)))
                                                         ->filter()
@@ -641,6 +926,7 @@
                                                 @endphp
 
                                                 <div class="flex items-center gap-1.5 rounded-full bg-gray-50 px-2 py-1 dark:bg-slate-800">
+
                                                     <span class="staff-avatar">
                                                         {{ $staffInitials ?: 'S' }}
                                                     </span>
@@ -648,14 +934,21 @@
                                                     <span class="max-w-[120px] truncate text-[11px] font-medium text-gray-700 dark:text-slate-300">
                                                         {{ $staffName }}
                                                     </span>
+
                                                 </div>
+
                                             @endforeach
+
                                         </div>
+
                                     @else
+
                                         <span class="text-xs text-gray-400 dark:text-slate-600">
                                             No staff assigned
                                         </span>
+
                                     @endif
+
                                 </td>
 
                             </tr>
@@ -663,8 +956,11 @@
                         @empty
 
                             <tr>
+
                                 <td colspan="11" class="px-5 py-16 text-center">
+
                                     <div class="mx-auto flex max-w-sm flex-col items-center">
+
                                         <div class="flex size-12 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-slate-800 dark:text-slate-500">
                                             <i data-lucide="search-x" class="size-6"></i>
                                         </div>
@@ -676,17 +972,25 @@
                                         <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">
                                             There are no active non-package services available for this report.
                                         </p>
+
                                     </div>
+
                                 </td>
+
                             </tr>
 
                         @endforelse
+
                     </tbody>
+
                 </table>
+
             </div>
+
         </div>
 
         <div class="md:hidden">
+
             @forelse($analytics as $item)
 
                 @php
@@ -707,9 +1011,11 @@
                 @endphp
 
                 <div class="mobile-separator p-4">
+
                     <div class="flex items-start justify-between gap-3">
 
                         <div class="min-w-0">
+
                             <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">
                                 {{ $item['name'] }}
                             </p>
@@ -717,14 +1023,17 @@
                             <p class="mt-0.5 text-[11px] text-gray-500 dark:text-slate-500">
                                 Service qualification
                             </p>
+
                         </div>
 
                         <div class="flex shrink-0 items-center gap-1.5">
+
                             <span class="status-dot {{ $statusClass }}"></span>
 
                             <span class="text-[11px] font-medium text-gray-600 dark:text-slate-300">
                                 {{ $item['gap_status'] }}
                             </span>
+
                         </div>
 
                     </div>
@@ -732,6 +1041,7 @@
                     <div class="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
 
                         <div>
+
                             <p class="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
                                 Demand
                             </p>
@@ -739,9 +1049,11 @@
                             <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
                                 {{ number_format($item['demand']) }}
                             </p>
+
                         </div>
 
                         <div>
+
                             <p class="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
                                 Assigned Staff
                             </p>
@@ -749,9 +1061,11 @@
                             <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
                                 {{ number_format($item['assigned_staff']) }}
                             </p>
+
                         </div>
 
                         <div>
+
                             <p class="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
                                 Scheduled Staff
                             </p>
@@ -759,9 +1073,11 @@
                             <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
                                 {{ number_format($item['scheduled_staff']) }}
                             </p>
+
                         </div>
 
                         <div>
+
                             <p class="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
                                 Duration
                             </p>
@@ -769,9 +1085,11 @@
                             <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
                                 {{ $item['duration_minutes'] > 0 ? $item['duration_minutes'] . ' min' : '—' }}
                             </p>
+
                         </div>
 
                         <div>
+
                             <p class="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
                                 Demand Hours
                             </p>
@@ -779,9 +1097,11 @@
                             <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
                                 {{ number_format($item['demand_hours'], 2) }}h
                             </p>
+
                         </div>
 
                         <div>
+
                             <p class="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
                                 Scheduled Hours
                             </p>
@@ -789,9 +1109,11 @@
                             <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
                                 {{ number_format($item['scheduled_hours'], 2) }}h
                             </p>
+
                         </div>
 
                         <div>
+
                             <p class="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
                                 Schedule Gap
                             </p>
@@ -799,9 +1121,11 @@
                             <p class="mt-1 text-sm font-semibold {{ $item['schedule_gap_hours'] > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white' }}">
                                 {{ $item['schedule_gap_hours'] > 0 ? number_format($item['schedule_gap_hours'], 2) . 'h' : '—' }}
                             </p>
+
                         </div>
 
                         <div>
+
                             <p class="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
                                 Demand / Staff
                             </p>
@@ -809,28 +1133,40 @@
                             <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
                                 {{ $item['demand_per_staff'] !== null ? number_format($item['demand_per_staff'], 2) : '—' }}
                             </p>
+
                         </div>
 
                     </div>
 
                     <div class="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+
                         <div class="flex items-center justify-between gap-3">
+
                             <div class="flex items-center gap-2">
-                                <i data-lucide="calendar-clock" class="size-4 text-gray-400 dark:text-slate-500"></i>
+
+                                <i
+                                    data-lucide="calendar-clock"
+                                    class="size-4 text-gray-400 dark:text-slate-500"
+                                ></i>
 
                                 <span class="text-xs font-medium text-gray-600 dark:text-slate-300">
                                     Schedule status
                                 </span>
+
                             </div>
 
                             <span class="text-xs font-medium {{ $scheduleStatusClass }}">
                                 {{ $item['schedule_status'] }}
                             </span>
+
                         </div>
+
                     </div>
 
                     <div class="mt-4">
+
                         <div class="mb-2 flex items-center justify-between">
+
                             <p class="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
                                 Assigned Staff
                             </p>
@@ -838,11 +1174,15 @@
                             <span class="text-[10px] text-gray-400 dark:text-slate-500">
                                 {{ count($item['staff']) }}
                             </span>
+
                         </div>
 
                         @if(count($item['staff']))
+
                             <div class="flex flex-wrap gap-1.5">
+
                                 @foreach($item['staff'] as $staffName)
+
                                     @php
                                         $staffInitials = collect(explode(' ', trim($staffName)))
                                             ->filter()
@@ -852,6 +1192,7 @@
                                     @endphp
 
                                     <div class="flex items-center gap-1.5 rounded-full bg-gray-50 px-2 py-1 dark:bg-slate-800">
+
                                         <span class="staff-avatar">
                                             {{ $staffInitials ?: 'S' }}
                                         </span>
@@ -859,14 +1200,21 @@
                                         <span class="max-w-[140px] truncate text-[11px] font-medium text-gray-700 dark:text-slate-300">
                                             {{ $staffName }}
                                         </span>
+
                                     </div>
+
                                 @endforeach
+
                             </div>
+
                         @else
+
                             <p class="text-xs text-gray-400 dark:text-slate-600">
                                 No staff assigned.
                             </p>
+
                         @endif
+
                     </div>
 
                 </div>
@@ -874,6 +1222,7 @@
             @empty
 
                 <div class="px-5 py-16 text-center">
+
                     <div class="mx-auto flex size-12 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-slate-800 dark:text-slate-500">
                         <i data-lucide="search-x" class="size-6"></i>
                     </div>
@@ -885,15 +1234,19 @@
                     <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">
                         There are no active non-package services available for this report.
                     </p>
+
                 </div>
 
             @endforelse
+
         </div>
 
         <div class="border-t border-gray-200 px-4 py-3 dark:border-slate-700 sm:px-5">
+
             <div class="flex flex-col gap-3 text-[11px] text-gray-500 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
 
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+
                     <div class="flex items-center gap-1.5">
                         <span class="status-dot status-covered"></span>
                         Covered
@@ -913,6 +1266,7 @@
                         <span class="status-dot status-critical"></span>
                         No staff / scheduled staff
                     </div>
+
                 </div>
 
                 <div>
@@ -923,6 +1277,7 @@
                 </div>
 
             </div>
+
         </div>
 
     </div>
@@ -937,6 +1292,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+
         if (window.lucide) {
             lucide.createIcons();
         }
@@ -956,18 +1312,23 @@
         }
 
         function setQuickRange(type) {
+
             const today = new Date();
 
             let from;
             let to;
 
             switch (type) {
+
                 case 'today':
+
                     from = new Date(today);
                     to = new Date(today);
+
                     break;
 
                 case 'week':
+
                     from = new Date(today);
                     to = new Date(today);
 
@@ -975,9 +1336,11 @@
 
                     from.setDate(today.getDate() - day);
                     to.setDate(today.getDate() + (6 - day));
+
                     break;
 
                 case 'month':
+
                     from = new Date(
                         today.getFullYear(),
                         today.getMonth(),
@@ -989,9 +1352,11 @@
                         today.getMonth() + 1,
                         0
                     );
+
                     break;
 
                 case 'year':
+
                     from = new Date(
                         today.getFullYear(),
                         0,
@@ -1003,6 +1368,7 @@
                         11,
                         31
                     );
+
                     break;
 
                 default:
@@ -1013,18 +1379,22 @@
             dateTo.value = formatDate(to);
 
             if (dateRange && dateRange._flatpickr) {
+
                 dateRange._flatpickr.setDate(
                     [from, to],
                     true
                 );
+
             }
 
             quickFilters.forEach(button => {
+
                 button.classList.remove('quick-filter-active');
 
                 if (button.dataset.range === type) {
                     button.classList.add('quick-filter-active');
                 }
+
             });
 
             if (form) {
@@ -1033,6 +1403,7 @@
         }
 
         if (dateRange && dateFrom && dateTo) {
+
             const fromValue = dateFrom.value;
             const toValue = dateTo.value;
 
@@ -1043,12 +1414,15 @@
                 altFormat: 'M d, Y',
                 defaultDate: [fromValue, toValue],
                 allowInput: false,
+
                 onChange: function (selectedDates) {
+
                     quickFilters.forEach(button => {
                         button.classList.remove('quick-filter-active');
                     });
 
                     if (selectedDates.length === 1) {
+
                         dateFrom.value = flatpickr.formatDate(
                             selectedDates[0],
                             'Y-m-d'
@@ -1058,9 +1432,11 @@
                             selectedDates[0],
                             'Y-m-d'
                         );
+
                     }
 
                     if (selectedDates.length === 2) {
+
                         dateFrom.value = flatpickr.formatDate(
                             selectedDates[0],
                             'Y-m-d'
@@ -1070,7 +1446,9 @@
                             selectedDates[1],
                             'Y-m-d'
                         );
+
                     }
+
                 }
             });
 
@@ -1080,10 +1458,14 @@
             const today = new Date();
 
             const weekStart = new Date(today);
-            weekStart.setDate(today.getDate() - today.getDay());
+            weekStart.setDate(
+                today.getDate() - today.getDay()
+            );
 
             const weekEnd = new Date(today);
-            weekEnd.setDate(today.getDate() + (6 - today.getDay()));
+            weekEnd.setDate(
+                today.getDate() + (6 - today.getDay())
+            );
 
             const monthStart = new Date(
                 today.getFullYear(),
@@ -1114,14 +1496,17 @@
                     formatDate(today),
                     formatDate(today)
                 ],
+
                 week: [
                     formatDate(weekStart),
                     formatDate(weekEnd)
                 ],
+
                 month: [
                     formatDate(monthStart),
                     formatDate(monthEnd)
                 ],
+
                 year: [
                     formatDate(yearStart),
                     formatDate(yearEnd)
@@ -1129,10 +1514,12 @@
             };
 
             Object.entries(quickRanges).forEach(([type, range]) => {
+
                 if (
                     currentFrom === range[0] &&
                     currentTo === range[1]
                 ) {
+
                     const button = document.querySelector(
                         `.quick-filter[data-range="${type}"]`
                     );
@@ -1140,35 +1527,58 @@
                     if (button) {
                         button.classList.add('quick-filter-active');
                     }
+
                 }
+
             });
+
         }
 
         quickFilters.forEach(button => {
+
             button.addEventListener('click', function () {
                 setQuickRange(this.dataset.range);
             });
+
         });
 
         const infoButton = document.getElementById('skillGapInfoBtn');
 
         if (infoButton) {
+
             infoButton.addEventListener('click', function () {
-                const isDark = document.documentElement.classList.contains('dark');
+
+                const isDark =
+                    document.documentElement.classList.contains('dark');
 
                 Swal.fire({
+
                     title: 'What Does This Report Show?',
+
                     html: `
                         <div style="text-align:left;font-size:14px;line-height:1.6;color:${isDark ? '#cbd5e1' : '#4b5563'}">
+
                             <p style="margin-bottom:12px">
-                                This report compares completed service demand with the staff assigned to each service and their scheduled working hours.
+                                This report shows the services assigned to each staff member and compares completed service demand with staff assignments and scheduled working hours.
                             </p>
 
                             <div style="display:flex;flex-direction:column;gap:12px">
+
+                                <div>
+                                    <strong style="color:${isDark ? '#f8fafc' : '#111827'}">
+                                        Skill Overview
+                                    </strong>
+
+                                    <p>
+                                        Shows the services each staff member is assigned and qualified to provide.
+                                    </p>
+                                </div>
+
                                 <div>
                                     <strong style="color:${isDark ? '#f8fafc' : '#111827'}">
                                         Completed Demand
                                     </strong>
+
                                     <p>
                                         Number of completed appointments containing the service within the selected date range.
                                     </p>
@@ -1178,6 +1588,7 @@
                                     <strong style="color:${isDark ? '#f8fafc' : '#111827'}">
                                         Demand Hours
                                     </strong>
+
                                     <p>
                                         Estimated service time represented by completed demand, based on the service duration.
                                     </p>
@@ -1187,6 +1598,7 @@
                                     <strong style="color:${isDark ? '#f8fafc' : '#111827'}">
                                         Assigned Staff
                                     </strong>
+
                                     <p>
                                         Active staff currently assigned to provide the service.
                                     </p>
@@ -1196,6 +1608,7 @@
                                     <strong style="color:${isDark ? '#f8fafc' : '#111827'}">
                                         Scheduled Hours
                                     </strong>
+
                                     <p>
                                         Working hours from the assigned staff's schedules during the selected period. Day-offs, leave, holidays, and custom schedule exceptions are considered.
                                     </p>
@@ -1205,6 +1618,7 @@
                                     <strong style="color:${isDark ? '#f8fafc' : '#111827'}">
                                         Schedule Gap
                                     </strong>
+
                                     <p>
                                         The difference when estimated demand hours are greater than scheduled hours.
                                     </p>
@@ -1214,25 +1628,34 @@
                                     <strong style="color:${isDark ? '#f8fafc' : '#111827'}">
                                         Gap Status
                                     </strong>
+
                                     <p>
                                         A service-level indicator based on completed demand and assigned staff. It is intended to identify potential workforce gaps, not to represent actual capacity utilization.
                                     </p>
                                 </div>
+
                             </div>
+
                         </div>
                     `,
+
                     confirmButtonText: 'Got it',
                     confirmButtonColor: '#0d9488',
                     background: isDark ? '#1e293b' : '#ffffff',
                     color: isDark ? '#f8fafc' : '#374151',
                     width: 620,
+
                     customClass: {
                         popup: 'rounded-xl',
                         confirmButton: 'rounded-lg px-4 py-2 text-sm font-medium'
                     }
+
                 });
+
             });
+
         }
+
     });
 </script>
 @endpush

@@ -1,4 +1,3 @@
-
 @php
     $statusLabel = match ($currentStatus) {
         'customer_no_show' => 'No Show',
@@ -21,12 +20,6 @@
 @endphp
 
 <style>
-    /*
-     * Transaction Log
-     * These styles restore the existing tx-* design classes.
-     * No layout redesign.
-     */
-
     .tx-spa-table {
         width: 100%;
         border-collapse: separate;
@@ -204,52 +197,95 @@
         color: #86efac;
     }
 
-    .tx-srv-dropdown {
-        position: relative;
-        display: inline-block;
+    .tx-service-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
     }
 
-    .tx-srv-menu {
-        position: absolute;
-        z-index: 50;
-        top: calc(100% + 5px);
-        left: 0;
-        min-width: 190px;
-        max-width: 280px;
-        padding: 5px 0;
-        background: white;
+    .tx-service-button:hover {
+        color: #0d9488;
+    }
+
+    .dark .tx-service-button:hover {
+        color: #2dd4bf;
+    }
+
+    .tx-service-arrow {
+        width: 12px;
+        height: 12px;
+        transition: transform 0.15s ease;
+    }
+
+    .tx-service-button.active .tx-service-arrow {
+        transform: rotate(180deg);
+    }
+
+    .tx-floating-service-menu {
+        position: fixed;
+        z-index: 999999;
+        min-width: 210px;
+        max-width: 320px;
+        padding: 4px 0;
+        background: #fff;
         border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-        display: none;
+        border-radius: 7px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
     }
 
-    .dark .tx-srv-menu {
+    .dark .tx-floating-service-menu {
         background: #1f2937;
         border-color: #374151;
     }
 
-    .tx-srv-dropdown:hover .tx-srv-menu {
-        display: block;
-    }
-
-    .tx-srv-menu-item {
-        padding: 5px 8px;
+    .tx-floating-service-item {
+        padding: 7px 10px;
         font-size: 9px;
+        line-height: 1.4;
         color: #374151;
         white-space: normal;
     }
 
-    .dark .tx-srv-menu-item {
+    .dark .tx-floating-service-item {
         color: #d1d5db;
     }
 
-    .tx-srv-menu-item:hover {
+    .tx-floating-service-item:hover {
         background: #f3f4f6;
     }
 
-    .dark .tx-srv-menu-item:hover {
+    .dark .tx-floating-service-item:hover {
         background: #374151;
+    }
+
+    .tx-table-scroll {
+        width: 100%;
+        overflow-x: auto;
+        position: relative;
+    }
+
+    .tx-table-scroll::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .tx-table-scroll::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .tx-table-scroll::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 9999px;
+    }
+
+    .dark .tx-table-scroll::-webkit-scrollbar-thumb {
+        background: #4b5563;
     }
 
     @media print {
@@ -262,20 +298,18 @@
             padding: 4px 5px;
         }
 
-        .tx-srv-menu {
+        .tx-floating-service-menu {
             display: none !important;
         }
     }
 </style>
 
 <div class="p-4 border-b dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 no-print">
-
     <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
         Transaction Log
     </h3>
 
     <div class="flex items-center gap-3">
-
         <span class="text-xs text-gray-500 dark:text-gray-400">
             {{ $totalFiltered }} unique transactions
         </span>
@@ -285,15 +319,15 @@
             onchange="updateStatusFilter()"
             class="border rounded p-1.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-xs"
         >
-            <option value="completed" {{ $currentStatus === 'completed' ? 'selected' : '' }}>
+            <option value="completed" {{ $currentStatus == 'completed' ? 'selected' : '' }}>
                 Completed
             </option>
 
-            <option value="cancelled" {{ $currentStatus === 'cancelled' ? 'selected' : '' }}>
+            <option value="cancelled" {{ $currentStatus == 'cancelled' ? 'selected' : '' }}>
                 Cancelled
             </option>
 
-            <option value="customer_no_show" {{ $currentStatus === 'customer_no_show' ? 'selected' : '' }}>
+            <option value="customer_no_show" {{ $currentStatus == 'customer_no_show' ? 'selected' : '' }}>
                 No Show
             </option>
         </select>
@@ -304,16 +338,13 @@
         >
             {{ $statusLabel }} ({{ $totalFiltered }})
         </span>
-
     </div>
 </div>
 
 @if(count($txRows) > 0)
 
-    <div class="overflow-x-auto p-2">
-
+    <div class="tx-table-scroll p-2">
         <table class="tx-spa-table" id="transactionTable">
-
             <thead>
                 <tr>
                     <th class="tx-num">#</th>
@@ -334,14 +365,8 @@
             </thead>
 
             <tbody>
-
                 @foreach($txRows as $row)
-
-                    <tr
-                        class="tx-row"
-                        data-status="{{ $row['filterKey'] }}"
-                    >
-
+                    <tr class="tx-row" data-status="{{ $row['filterKey'] }}">
                         <td class="tx-num">
                             {{ $row['rowNum'] }}
                         </td>
@@ -371,59 +396,34 @@
                         </td>
 
                         <td class="tx-srvc">
-
                             @if(count($row['serviceList']) > 0)
-
-                                <div class="tx-srv-dropdown">
-
-                                    <div class="inline-flex items-center gap-0.5 font-bold text-[10px] cursor-pointer">
-
-                                        {{ $row['serviceList'][0]['code'] }}
-
-                                        @if(count($row['serviceList']) > 1)
-
-                                            <svg
-                                                class="w-3 h-3 text-gray-500"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    stroke-width="2"
-                                                    d="M19 9l-7 7-7-7"
-                                                />
-                                            </svg>
-
-                                        @endif
-
-                                    </div>
+                                <button
+                                    type="button"
+                                    class="tx-service-button"
+                                    data-tx-service-button="1"
+                                    data-services="{{ base64_encode(json_encode($row['serviceList'])) }}"
+                                >
+                                    <span>{{ $row['serviceList'][0]['code'] }}</span>
 
                                     @if(count($row['serviceList']) > 1)
-
-                                        <div class="tx-srv-menu">
-
-                                            @foreach($row['serviceList'] as $s)
-
-                                                <div class="tx-srv-menu-item">
-                                                    {{ $s['code'] }} — {{ $s['name'] }}
-                                                </div>
-
-                                            @endforeach
-
-                                        </div>
-
+                                        <svg
+                                            class="tx-service-arrow"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M19 9l-7 7-7-7"
+                                            />
+                                        </svg>
                                     @endif
-
-                                </div>
-
+                                </button>
                             @else
-
                                 <span class="text-gray-400">-</span>
-
                             @endif
-
                         </td>
 
                         <td class="tx-gross">
@@ -434,36 +434,24 @@
                             class="tx-discount"
                             style="text-align:left; font-size:9px;"
                         >
-
                             @if($row['discountAmount'] && $row['discountPercent'])
-
                                 <span class="tx-discount-badge">
                                     {{ $row['discountPercent'] }}%
                                 </span>
-
                             @else
-
                                 —
-
                             @endif
-
                         </td>
 
                         <td
                             class="tx-discount"
                             style="text-align:right;"
                         >
-
                             @if($row['discountAmount'])
-
                                 {{ $row['discountAmount'] }}
-
                             @else
-
                                 —
-
                             @endif
-
                         </td>
 
                         <td class="tx-net">
@@ -471,22 +459,16 @@
                         </td>
 
                         <td class="tx-note">
-
                             @if($row['noteText'] && trim($row['noteText']) !== '')
-
                                 <span
                                     class="tx-com-badge"
                                     title="{{ $row['noteText'] }}"
                                 >
                                     ✓
                                 </span>
-
                             @else
-
                                 —
-
                             @endif
-
                         </td>
 
                         <td class="tx-pct">
@@ -496,17 +478,12 @@
                         <td class="tx-com">
                             {{ $row['therapistCom'] }}
                         </td>
-
                     </tr>
-
                 @endforeach
-
             </tbody>
 
             <tfoot>
-
                 <tr class="tx-total-row">
-
                     <td
                         colspan="8"
                         style="text-align:right; padding:6px 8px;"
@@ -544,19 +521,13 @@
                     >
                         {{ number_format($txGrandCom, 2) }}
                     </td>
-
                 </tr>
-
             </tfoot>
-
         </table>
-
     </div>
 
     @if($txPagination->lastPage() > 1)
-
         <div class="p-4 border-t dark:border-gray-700 no-print flex flex-col sm:flex-row justify-between items-center gap-2 text-xs">
-
             <span class="text-gray-500 dark:text-gray-400">
                 Showing
                 <strong class="text-gray-700 dark:text-gray-200">
@@ -570,93 +541,174 @@
             </span>
 
             <div class="flex items-center gap-1">
-
                 @if($txPagination->currentPage() > 1)
-
                     <button
                         onclick="fetchTxPage('{{ $txPagination->previousPageUrl() }}')"
                         class="text-teal-600 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 font-medium px-3 py-1.5 rounded hover:bg-teal-50 dark:hover:bg-teal-900/20 transition"
                     >
                         ← Prev
                     </button>
-
                 @else
-
                     <span class="text-gray-400 cursor-not-allowed px-3 py-1.5">
                         ← Prev
                     </span>
-
                 @endif
 
                 @for($i = 1; $i <= $txPagination->lastPage(); $i++)
-
                     @if($i == $txPagination->currentPage())
-
                         <span class="bg-teal-600 text-white px-3 py-1.5 rounded font-bold">
                             {{ $i }}
                         </span>
-
                     @else
-
                         <button
                             onclick="fetchTxPage('{{ $txPagination->url($i) }}')"
                             class="text-gray-600 hover:text-teal-600 dark:text-gray-400 dark:hover:text-teal-400 font-medium px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                         >
                             {{ $i }}
                         </button>
-
                     @endif
-
                 @endfor
 
                 @if($txPagination->currentPage() < $txPagination->lastPage())
-
                     <button
                         onclick="fetchTxPage('{{ $txPagination->nextPageUrl() }}')"
                         class="text-teal-600 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 font-medium px-3 py-1.5 rounded hover:bg-teal-50 dark:hover:bg-teal-900/20 transition"
                     >
                         Next →
                     </button>
-
                 @else
-
                     <span class="text-gray-400 cursor-not-allowed px-3 py-1.5">
                         Next →
                     </span>
-
                 @endif
-
             </div>
-
         </div>
-
     @else
-
         <div class="p-4 border-t dark:border-gray-700 no-print text-xs text-gray-500 dark:text-gray-400 text-center">
             Showing all {{ $totalFiltered }} transactions
         </div>
-
     @endif
 
 @else
 
     <div class="text-center py-12">
-
         <p class="text-gray-500 dark:text-gray-400 mb-2">
             No matching transactions found.
         </p>
 
         @if($txPagination->currentPage() > 1)
-
             <button
                 onclick="fetchTxPage('{{ $txPagination->url(1) }}')"
                 class="text-teal-600 hover:underline text-sm"
             >
                 ← Back to page 1
             </button>
-
         @endif
-
     </div>
 
 @endif
+
+<script>
+(function () {
+    if (window.zenflowTxDropdown) return;
+    window.zenflowTxDropdown = true;
+
+    let menu = null;
+    let activeButton = null;
+
+    function closeMenu() {
+        if (menu) {
+            menu.remove();
+            menu = null;
+        }
+
+        if (activeButton) {
+            activeButton.classList.remove('active');
+            activeButton = null;
+        }
+    }
+
+    function openMenu(button) {
+        closeMenu();
+
+        let services = [];
+
+        try {
+            services = JSON.parse(
+                atob(button.dataset.services)
+            );
+        } catch (e) {
+            return;
+        }
+
+        if (!Array.isArray(services) || services.length < 2) {
+            return;
+        }
+
+        menu = document.createElement('div');
+        menu.className = 'tx-floating-service-menu';
+
+        services.forEach(service => {
+            const item = document.createElement('div');
+
+            item.className = 'tx-floating-service-item';
+            item.textContent =
+                `${service.code || ''} — ${service.name || ''}`;
+
+            menu.appendChild(item);
+        });
+
+        document.body.appendChild(menu);
+
+        activeButton = button;
+        button.classList.add('active');
+
+        const rect = button.getBoundingClientRect();
+
+        let left = rect.left;
+        let top = rect.bottom + 5;
+
+        if (left + menu.offsetWidth > window.innerWidth - 8) {
+            left = window.innerWidth - menu.offsetWidth - 8;
+        }
+
+        if (top + menu.offsetHeight > window.innerHeight - 8) {
+            top = rect.top - menu.offsetHeight - 5;
+        }
+
+        menu.style.left = `${Math.max(8, left)}px`;
+        menu.style.top = `${Math.max(8, top)}px`;
+    }
+
+    document.addEventListener('click', function (event) {
+        const button = event.target.closest(
+            '[data-tx-service-button="1"]'
+        );
+
+        if (button) {
+            event.preventDefault();
+
+            if (button === activeButton) {
+                closeMenu();
+            } else {
+                openMenu(button);
+            }
+
+            return;
+        }
+
+        if (menu && !menu.contains(event.target)) {
+            closeMenu();
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeMenu();
+        }
+    });
+
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+})();
+</script>

@@ -9,6 +9,7 @@ use App\Models\Role;
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\Setting;
+use App\Services\ReportPdfService;
 use App\Models\WorkSchedule;
 use App\Models\ScheduleException;
 use App\Models\LandingSetting;
@@ -75,10 +76,8 @@ class AdminController extends Controller
 
         $todayNoShows = Appointment::whereDate('appointment_date', $today)
             ->where('status', 'cancelled')
-            ->where(function ($q) {
-                $q->where('cancellation_reason', 'customer_no_show')
-                  ->orWhereNull('cancellation_reason');
-            })->count();
+            ->where('cancellation_reason', 'customer_no_show')
+            ->count();
 
         return view('admin-dashboard', compact(
             'todayRevenue', 'todayAppointments', 'completedToday',
@@ -1017,19 +1016,7 @@ public function index(Request $request)
     {
         $today = Carbon::today();
 
-        $baseQuery = Appointment::with(['customer', 'services', 'staff', 'room', 'payments'])
-            ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
-            ->when($request->filled('search'), function($q) use ($request) {
-                $search = $request->search;
-                $q->whereHas('customer', fn($sq) =>
-                    $sq->where('first_name', 'like', "%{$search}%")
-                       ->orWhere('last_name', 'like', "%{$search}%")
-                       ->orWhere('phone_number', 'like', "%{$search}%")
-                );
-            })
-            ->when($request->filled('staff_id'), fn($q) => $q->where('user_id', $request->staff_id))
-            ->when($request->filled('date_from'), fn($q) => $q->whereDate('appointment_date', '>=', Carbon::parse($request->date_from)))
-            ->when($request->filled('date_to'), fn($q) => $q->whereDate('appointment_date', '<=', Carbon::parse($request->date_to)));
+        $baseQuery = $this->appointmentReportQuery($request);
 
         $appointments = (clone $baseQuery)
             ->orderBy('appointment_date', 'desc')
@@ -1039,23 +1026,494 @@ public function index(Request $request)
 
         $stats = [
             'total' => (clone $baseQuery)->count(),
-            'pending' => (clone $baseQuery)->where('status', 'pending')->count(),
-            'confirmed' => (clone $baseQuery)->where('status', 'confirmed')->count(),
-            'completed' => (clone $baseQuery)->where('status', 'completed')->count(),
-            'cancelled' => (clone $baseQuery)->where('status', 'cancelled')->count(),
-            'no_show' => (clone $baseQuery)->where('status', 'cancelled')->where('cancellation_reason', 'customer_no_show')->count(),
-            'today' => Appointment::whereDate('appointment_date', $today)->count(),
-            'today_revenue' => Payment::whereDate('paid_at', $today)
+
+            'pending' => (clone $baseQuery)
+                ->where('status', 'pending')
+                ->count(),
+
+            'confirmed' => (clone $baseQuery)
+                ->where('status', 'confirmed')
+                ->count(),
+
+            'completed' => (clone $baseQuery)
+                ->where('status', 'completed')
+                ->count(),
+
+            'cancelled' => (clone $baseQuery)
+                ->where('status', 'cancelled')
+                ->where(function ($q) {
+                    $q->whereNull('cancellation_reason')
+                        ->orWhere('cancellation_reason', '!=', 'customer_no_show');
+                })
+                ->count(),
+
+            'no_show' => (clone $baseQuery)
+                ->where('status', 'cancelled')
+                ->where('cancellation_reason', 'customer_no_show')
+                ->count(),
+
+            'today' => Appointment::whereDate(
+                'appointment_date',
+                $today
+            )->count(),
+
+            'today_revenue' => Payment::whereDate(
+                'paid_at',
+                $today
+            )
                 ->whereIn('type', ['completion', 'additional', 'full'])
                 ->sum('amount'),
         ];
 
-        $staffList = User::whereHas('roles', fn($q) => $q->where('name', 'staff'))
+        $staffList = User::whereHas(
+            'roles',
+            fn ($q) => $q->where('name', 'staff')
+        )
             ->orderBy('first_name')
             ->get(['id', 'first_name', 'last_name']);
 
-        return view('admin.appointments', compact('appointments', 'stats', 'staffList'));
+        return view(
+            'admin.appointments',
+            compact('appointments', 'stats', 'staffList')
+        );
     }
+
+    private function appointmentReportQuery(Request $request)
+{
+    return Appointment::with([
+        'customer',
+        'services',
+        'staff',
+        'room',
+        'payments',
+    ])
+        ->when(
+            $request->filled('status'),
+            function ($q) use ($request) {
+                $status = $request->status;
+
+                if ($status === 'no_show') {
+                    $q->where('status', 'cancelled')
+                        ->where(
+                            'cancellation_reason',
+                            'customer_no_show'
+                        );
+
+                    return;
+                }
+
+                if ($status === 'cancelled') {
+                    $q->where('status', 'cancelled')
+                        ->where(function ($sub) {
+                            $sub->whereNull('cancellation_reason')
+                                ->orWhere(
+                                    'cancellation_reason',
+                                    '!=',
+                                    'customer_no_show'
+                                );
+                        });
+
+                    return;
+                }
+
+                $q->where('status', $status);
+            }
+        )
+        ->when(
+            $request->filled('search'),
+            function ($q) use ($request) {
+                $search = trim($request->search);
+
+                $q->whereHas('customer', function ($sq) use ($search) {
+                    $sq->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('phone_number', 'like', "%{$search}%");
+                });
+            }
+        )
+        ->when(
+            $request->filled('staff_id'),
+            fn ($q) => $q->where(
+                'user_id',
+                $request->staff_id
+            )
+        )
+        ->when(
+            $request->filled('date_from'),
+            fn ($q) => $q->whereDate(
+                'appointment_date',
+                '>=',
+                Carbon::parse($request->date_from)->toDateString()
+            )
+        )
+        ->when(
+            $request->filled('date_to'),
+            fn ($q) => $q->whereDate(
+                'appointment_date',
+                '<=',
+                Carbon::parse($request->date_to)->toDateString()
+            )
+        );
+}
+public function appointmentReportPdf(
+    Request $request,
+    ReportPdfService $pdfService
+) {
+    $query = Appointment::with([
+        'customer',
+        'services',
+        'staff',
+        'room',
+        'payments',
+    ]);
+
+    $search = trim((string) $request->input('search', ''));
+    $status = $request->input('status');
+    $staffId = $request->input('staff_id');
+    $dateFrom = $request->input('date_from');
+    $dateTo = $request->input('date_to');
+
+    /*
+    |--------------------------------------------------------------------------
+    | STATUS FILTER
+    |--------------------------------------------------------------------------
+    */
+
+    if ($status === 'no_show') {
+
+        $query
+            ->where('status', 'cancelled')
+            ->where(
+                'cancellation_reason',
+                'customer_no_show'
+            );
+
+    } elseif ($status === 'cancelled') {
+
+        $query
+            ->where('status', 'cancelled')
+            ->where(function ($q) {
+                $q->whereNull('cancellation_reason')
+                    ->orWhere(
+                        'cancellation_reason',
+                        '!=',
+                        'customer_no_show'
+                    );
+            });
+
+    } elseif ($status) {
+
+        $query->where('status', $status);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | STAFF FILTER
+    |--------------------------------------------------------------------------
+    */
+
+    if ($staffId) {
+        $query->where('user_id', $staffId);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | DATE FILTER
+    |--------------------------------------------------------------------------
+    */
+
+    if ($dateFrom) {
+        $query->whereDate(
+            'appointment_date',
+            '>=',
+            Carbon::parse($dateFrom)->toDateString()
+        );
+    }
+
+    if ($dateTo) {
+        $query->whereDate(
+            'appointment_date',
+            '<=',
+            Carbon::parse($dateTo)->toDateString()
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CUSTOMER SEARCH
+    |--------------------------------------------------------------------------
+    */
+
+    if ($search !== '') {
+
+        $query->where(function ($q) use ($search) {
+
+            $q->whereHas('customer', function ($customerQuery) use ($search) {
+
+                $customerQuery
+                    ->where(
+                        'first_name',
+                        'like',
+                        "%{$search}%"
+                    )
+                    ->orWhere(
+                        'last_name',
+                        'like',
+                        "%{$search}%"
+                    )
+                    ->orWhere(
+                        'nickname',
+                        'like',
+                        "%{$search}%"
+                    )
+                    ->orWhere(
+                        'phone_number',
+                        'like',
+                        "%{$search}%"
+                    );
+            });
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET APPOINTMENTS
+    |--------------------------------------------------------------------------
+    */
+
+    $appointments = $query
+        ->orderByDesc('appointment_date')
+        ->orderByDesc('start_time')
+        ->get();
+
+    /*
+    |--------------------------------------------------------------------------
+    | STAFF
+    |--------------------------------------------------------------------------
+    */
+
+    $staff = null;
+
+    if ($staffId) {
+        $staff = User::find($staffId);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SUMMARY COUNTS
+    |--------------------------------------------------------------------------
+    */
+
+    $totalAppointments = $appointments->count();
+
+    $completed = $appointments
+        ->where('status', 'completed')
+        ->count();
+
+    $confirmed = $appointments
+        ->where('status', 'confirmed')
+        ->count();
+
+    $pending = $appointments
+        ->where('status', 'pending')
+        ->count();
+
+    /*
+    |--------------------------------------------------------------------------
+    | CANCELLED
+    |
+    | A cancelled appointment is only counted as Cancelled when it is
+    | NOT marked as customer_no_show.
+    |--------------------------------------------------------------------------
+    */
+
+    $cancelled = $appointments
+        ->where('status', 'cancelled')
+        ->filter(function ($appointment) {
+            return $appointment->cancellation_reason
+                !== 'customer_no_show';
+        })
+        ->count();
+
+    /*
+    |--------------------------------------------------------------------------
+    | NO-SHOW
+    |
+    | No-show appointments are stored as cancelled in the database,
+    | with cancellation_reason = customer_no_show.
+    |--------------------------------------------------------------------------
+    */
+
+    $noShow = $appointments
+        ->where('status', 'cancelled')
+        ->where(
+            'cancellation_reason',
+            'customer_no_show'
+        )
+        ->count();
+
+    /*
+    |--------------------------------------------------------------------------
+    | PAYMENT SUMMARY
+    |--------------------------------------------------------------------------
+    */
+
+    $recordedValue = $appointments->sum(function ($appointment) {
+        return (float) ($appointment->total_price ?? 0);
+    });
+
+    $paidValue = $appointments->sum(function ($appointment) {
+        return (float) $appointment->payments->sum('amount');
+    });
+
+    $outstandingValue = max(
+        0,
+        $recordedValue - $paidValue
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | DATE LABEL
+    |--------------------------------------------------------------------------
+    */
+
+    $dateLabel = 'All Dates';
+
+    if ($dateFrom && $dateTo) {
+
+        $dateLabel =
+            Carbon::parse($dateFrom)->format('F j, Y')
+            . ' – ' .
+            Carbon::parse($dateTo)->format('F j, Y');
+
+    } elseif ($dateFrom) {
+
+        $dateLabel =
+            'From ' .
+            Carbon::parse($dateFrom)->format('F j, Y');
+
+    } elseif ($dateTo) {
+
+        $dateLabel =
+            'Until ' .
+            Carbon::parse($dateTo)->format('F j, Y');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | STATUS LABEL
+    |--------------------------------------------------------------------------
+    */
+
+    $statusLabel = $status
+        ? ucwords(
+            str_replace('_', ' ', $status)
+        )
+        : 'All Statuses';
+
+    /*
+    |--------------------------------------------------------------------------
+    | STAFF LABEL
+    |--------------------------------------------------------------------------
+    */
+
+    $staffLabel = $staff
+        ? $staff->full_name
+        : 'All Staff';
+
+    /*
+    |--------------------------------------------------------------------------
+    | REPORT TITLE
+    |--------------------------------------------------------------------------
+    */
+
+    if ($status === 'no_show') {
+
+        $reportTitle = 'No-Show Appointments';
+
+    } elseif ($status) {
+
+        $reportTitle =
+            $statusLabel . ' Appointments';
+
+    } else {
+
+        $reportTitle = 'Appointment Report';
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | PDF DATA
+    |--------------------------------------------------------------------------
+    */
+
+    $pdfData = [
+        'appointments' => $appointments,
+
+        'reportTitle' => $reportTitle,
+        'dateLabel' => $dateLabel,
+        'statusLabel' => $statusLabel,
+        'staffLabel' => $staffLabel,
+        'search' => $search,
+
+        'totalAppointments' => $totalAppointments,
+        'completed' => $completed,
+        'confirmed' => $confirmed,
+        'pending' => $pending,
+        'cancelled' => $cancelled,
+        'noShow' => $noShow,
+
+        'recordedValue' => $recordedValue,
+        'paidValue' => $paidValue,
+        'outstandingValue' => $outstandingValue,
+
+        'preparedBy' =>
+            auth()->user()->full_name
+            ?? auth()->user()->name
+            ?? 'Administrator',
+
+        'generatedAt' =>
+            now()->format('F j, Y g:i A'),
+    ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | PDF FILE NAME
+    |--------------------------------------------------------------------------
+    */
+
+    $filename =
+        'appointment_report_' .
+        now()->format('Y-m-d_H-i-s') .
+        '.pdf';
+
+    /*
+    |--------------------------------------------------------------------------
+    | PREVIEW
+    |--------------------------------------------------------------------------
+    */
+
+    if ($request->get('action') === 'stream') {
+
+        return $pdfService->streamPdf(
+            'reports.appointments_report_pdf',
+            $pdfData,
+            $filename
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | DOWNLOAD
+    |--------------------------------------------------------------------------
+    */
+
+    return $pdfService->generatePdf(
+        'reports.appointments_report_pdf',
+        $pdfData,
+        $filename
+    );
+}
 
     private function authorizeRoomTracking(): void
     {

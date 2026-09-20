@@ -1574,91 +1574,120 @@ class SalesAnalyticsService
         ];
     }
 
-    private function getNoShowData(
-        Collection $noShowAppointments
-    ): array {
-        $forfeited = 0;
-        $refunded = 0;
-        $list = [];
+private function getNoShowData(
+    Collection $noShowAppointments
+): array {
+    $forfeited = 0;
+    $refunded = 0;
+    $list = [];
 
-        foreach ($noShowAppointments as $appt) {
-            $deposit = $appt->payments
-                ->where('type', 'deposit')
-                ->sum('amount');
+    foreach ($noShowAppointments as $appt) {
+        $deposit = $appt->payments
+            ->where('type', 'deposit')
+            ->where('amount', '>', 0)
+            ->sum('amount');
 
-            $refund = abs(
-                $appt->payments
-                    ->where('type', 'refund')
-                    ->sum('amount')
-            );
+        $refund = abs(
+            $appt->payments
+                ->where('type', 'refund')
+                ->where('amount', '<', 0)
+                ->sum('amount')
+        );
 
-            $wasRefunded = $refund > 0;
+        $wasRefunded = $refund > 0;
 
-            if ($wasRefunded) {
-                $refunded += $refund;
-            } else {
-                $forfeited += $deposit;
-            }
-
-            $phone =
-                $appt->customer->phone_number
-                ?? (
-                    $appt->customer->user->phone_number
-                    ?? 'N/A'
-                );
-
-            if (
-                $phone === 'N/A'
-                && !empty($appt->guest_phone)
-            ) {
-                $phone = $appt->guest_phone;
-            }
-
-            $list[] = [
-                'customer' =>
-                    $appt->customer->full_name
-                    ?? trim(
-                        ($appt->guest_first_name ?? '')
-                        . ' '
-                        . ($appt->guest_last_name ?? '')
-                    )
-                    ?: 'Walk-in',
-
-                'phone' => $phone,
-
-                'date' =>
-                    $appt->appointment_date,
-
-                'marked_at' =>
-                    $appt->updated_at,
-
-                'deposit' =>
-                    $deposit,
-
-                'refund' =>
-                    $refund,
-
-                'status' =>
-                    $wasRefunded
-                        ? 'Refunded'
-                        : 'Forfeited',
-            ];
+        if ($wasRefunded) {
+            $refunded += $refund;
+        } else {
+            $forfeited += $deposit;
         }
 
-        return [
-            'count' =>
-                $noShowAppointments->count(),
+        $customerName = 'Walk-in';
 
-            'forfeited' =>
-                $forfeited,
+        if ($appt->customer) {
+            $customerName =
+                $appt->customer->full_name
+                ?? trim(
+                    ($appt->customer->first_name ?? '')
+                    . ' '
+                    . ($appt->customer->last_name ?? '')
+                );
 
-            'refunded' =>
-                $refunded,
+            if (empty(trim($customerName))) {
+                $customerName = 'Walk-in';
+            }
+        } else {
+            $customerName = trim(
+                ($appt->guest_first_name ?? '')
+                . ' '
+                . ($appt->guest_last_name ?? '')
+            );
 
-            'list' =>
-                $list,
+            if ($customerName === '') {
+                $customerName = $appt->guest_name
+                    ?? 'Walk-in';
+            }
+        }
+
+        $phone = 'N/A';
+
+        if ($appt->customer) {
+            $phone =
+                $appt->customer->phone_number
+                ?? $appt->customer->user->phone_number
+                ?? 'N/A';
+        }
+
+        if (
+            ($phone === 'N/A' || empty($phone))
+            && !empty($appt->guest_phone)
+        ) {
+            $phone = $appt->guest_phone;
+        }
+
+        $list[] = [
+            'appointment_id' =>
+                $appt->id,
+
+            'customer' =>
+                $customerName,
+
+            'phone' =>
+                $phone,
+
+            'date' =>
+                $appt->appointment_date,
+
+            'marked_at' =>
+                $appt->updated_at,
+
+            'deposit' =>
+                (float) $deposit,
+
+            'refund' =>
+                (float) $refund,
+
+            'status' =>
+                $wasRefunded
+                    ? 'Refunded'
+                    : 'Forfeited',
         ];
     }
+
+    return [
+        'count' =>
+            $noShowAppointments->count(),
+
+        'forfeited' =>
+            $forfeited,
+
+        'refunded' =>
+            $refunded,
+
+        'list' =>
+            $list,
+    ];
+}
 
     /*
     |--------------------------------------------------------------------------

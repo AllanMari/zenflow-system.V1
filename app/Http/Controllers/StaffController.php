@@ -77,8 +77,12 @@ class StaffController extends Controller
 
     public function myAppointments(Request $request)
     {
+        $userId = Auth::id();
+
+        $status = $request->input('status', 'all');
+
         $query = Appointment::with(['customer', 'services'])
-            ->where('user_id', Auth::id());
+            ->where('user_id', $userId);
 
         if ($request->filled('date')) {
             $query->whereDate(
@@ -87,30 +91,91 @@ class StaffController extends Controller
             );
         }
 
+        switch ($status) {
+            case 'confirmed':
+                $query->where('status', 'confirmed');
+                break;
+
+            case 'pending':
+                $query->where('status', 'pending');
+                break;
+
+            case 'completed':
+                $query->where('status', 'completed');
+                break;
+
+            case 'cancelled':
+                $query->where('status', 'cancelled')
+                    ->where(function ($q) {
+                        $q->whereNull('cancellation_reason')
+                            ->orWhere('cancellation_reason', '!=', 'customer_no_show');
+                    });
+                break;
+
+            case 'no_show':
+                $query->where('status', 'cancelled')
+                    ->where('cancellation_reason', 'customer_no_show');
+                break;
+        }
+
         $appointments = $query
             ->orderBy('appointment_date', 'desc')
             ->orderBy('start_time')
             ->paginate(20)
             ->withQueryString();
 
+        $countBase = Appointment::query()
+            ->where('user_id', $userId);
+
+        if ($request->filled('date')) {
+            $countBase->whereDate(
+                'appointment_date',
+                $request->date
+            );
+        }
+
+        $counts = [
+            'all' => (clone $countBase)->count(),
+
+            'confirmed' => (clone $countBase)
+                ->where('status', 'confirmed')
+                ->count(),
+
+            'pending' => (clone $countBase)
+                ->where('status', 'pending')
+                ->count(),
+
+            'completed' => (clone $countBase)
+                ->where('status', 'completed')
+                ->count(),
+
+            'cancelled' => (clone $countBase)
+                ->where('status', 'cancelled')
+                ->where(function ($q) {
+                    $q->whereNull('cancellation_reason')
+                        ->orWhere('cancellation_reason', '!=', 'customer_no_show');
+                })
+                ->count(),
+
+            'no_show' => (clone $countBase)
+                ->where('status', 'cancelled')
+                ->where('cancellation_reason', 'customer_no_show')
+                ->count(),
+        ];
+
         return view(
             'staff.appointments',
-            compact('appointments')
+            compact(
+                'appointments',
+                'counts',
+                'status'
+            )
         );
     }
 
-    /**
-     * Display the logged-in staff member's weekly schedule.
-     */
     public function mySchedule(Request $request)
     {
         $user = Auth::user();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Determine selected week
-        |--------------------------------------------------------------------------
-        */
 
         $weekStart = $request->filled('week_start')
             ? Carbon::parse($request->week_start)->startOfWeek()
@@ -118,21 +183,9 @@ class StaffController extends Controller
 
         $weekEnd = $weekStart->copy()->endOfWeek();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Get recurring weekly schedule
-        |--------------------------------------------------------------------------
-        */
-
         $schedules = WorkSchedule::where('user_id', $user->id)
             ->get()
             ->keyBy('day_of_week');
-
-        /*
-        |--------------------------------------------------------------------------
-        | Get exceptions that affect this week
-        |--------------------------------------------------------------------------
-        */
 
         $weekExceptions = ScheduleException::where(
                 'user_id',
@@ -149,12 +202,6 @@ class StaffController extends Controller
                 )->toDateString();
             });
 
-        /*
-        |--------------------------------------------------------------------------
-        | Build final schedule
-        |--------------------------------------------------------------------------
-        */
-
         $weeklySchedule = [];
 
         $totalHours = 0;
@@ -163,35 +210,14 @@ class StaffController extends Controller
         for ($date = $weekStart->copy(); $date <= $weekEnd; $date->addDay()) {
 
             $dateString = $date->toDateString();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Laravel dayOfWeek:
-            | Sunday = 0
-            | Monday = 1
-            | ...
-            | Saturday = 6
-            |--------------------------------------------------------------------------
-            */
-
             $dayOfWeek = $date->dayOfWeek;
 
             $schedule = $schedules->get($dayOfWeek);
             $exception = $weekExceptions->get($dateString);
 
-            /*
-            |--------------------------------------------------------------------------
-            | Exception takes priority
-            |--------------------------------------------------------------------------
-            */
-
             if ($exception) {
 
                 $type = $exception->type;
-
-                /*
-                | Custom working hours
-                */
 
                 if ($type === 'custom_hours') {
 
@@ -209,13 +235,10 @@ class StaffController extends Controller
                     $weeklySchedule[] = [
                         'date' => $dateString,
                         'day_name' => $date->format('l'),
-
                         'type' => 'exception',
                         'exception_type' => 'custom_hours',
-
                         'start_time' => $startTime,
                         'end_time' => $endTime,
-
                         'reason' => $exception->reason ?? null,
                         'attendance' => null,
                     ];
@@ -223,37 +246,19 @@ class StaffController extends Controller
                     continue;
                 }
 
-                /*
-                | Full-day exception
-                | Example:
-                | holiday
-                | sick_leave
-                | urgent_leave
-                | day_off
-                */
-
                 $weeklySchedule[] = [
                     'date' => $dateString,
                     'day_name' => $date->format('l'),
-
                     'type' => 'exception',
                     'exception_type' => $type,
-
                     'start_time' => null,
                     'end_time' => null,
-
                     'reason' => $exception->reason ?? null,
                     'attendance' => null,
                 ];
 
                 continue;
             }
-
-            /*
-            |--------------------------------------------------------------------------
-            | Normal recurring schedule
-            |--------------------------------------------------------------------------
-            */
 
             if (
                 $schedule &&
@@ -273,13 +278,10 @@ class StaffController extends Controller
                 $weeklySchedule[] = [
                     'date' => $dateString,
                     'day_name' => $date->format('l'),
-
                     'type' => 'work',
                     'exception_type' => null,
-
                     'start_time' => $schedule->start_time,
                     'end_time' => $schedule->end_time,
-
                     'reason' => null,
                     'attendance' => null,
                 ];
@@ -287,37 +289,17 @@ class StaffController extends Controller
                 continue;
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Day off
-            |--------------------------------------------------------------------------
-            */
-
             $weeklySchedule[] = [
                 'date' => $dateString,
                 'day_name' => $date->format('l'),
-
                 'type' => 'off',
                 'exception_type' => null,
-
                 'start_time' => null,
                 'end_time' => null,
-
                 'reason' => null,
                 'attendance' => null,
             ];
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Overtime Tracking
-        |
-        | For each day in this week, compare attendance (check_in/check_out)
-        | against the scheduled shift to compute daily overtime.
-        |
-        | Overtime = Actual clocked hours − Scheduled hours (if positive).
-        |--------------------------------------------------------------------------
-        */
 
         $weekAttendances = Attendance::where('user_id', $user->id)
             ->whereBetween('date', [
@@ -325,35 +307,39 @@ class StaffController extends Controller
                 $weekEnd->toDateString(),
             ])
             ->get()
-            ->keyBy(fn ($a) => Carbon::parse($a->date)->toDateString());
+            ->keyBy(fn ($a) =>
+                Carbon::parse($a->date)->toDateString()
+            );
 
         $totalOvertime = 0;
         $totalWorkedHours = 0;
 
         foreach ($weeklySchedule as &$day) {
+
             $att = $weekAttendances->get($day['date']);
 
-            $day['check_in']  = $att?->check_in;
+            $day['check_in'] = $att?->check_in;
             $day['check_out'] = $att?->check_out;
             $day['worked_hours'] = 0;
             $day['overtime_hours'] = 0;
 
             if ($att && $att->check_in && $att->check_out) {
-                $clockIn  = Carbon::parse($att->check_in);
+
+                $clockIn = Carbon::parse($att->check_in);
                 $clockOut = Carbon::parse($att->check_out);
 
-                // Handle edge case: clock out next day
                 if ($clockOut->lessThanOrEqualTo($clockIn)) {
                     $clockOut->addDay();
                 }
 
                 $workedMinutes = $clockIn->diffInMinutes($clockOut);
                 $workedHours = round($workedMinutes / 60, 2);
+
                 $day['worked_hours'] = $workedHours;
                 $totalWorkedHours += $workedHours;
 
-                // Calculate scheduled hours for this specific day
                 $scheduledHours = 0;
+
                 if ($day['start_time'] && $day['end_time']) {
                     $scheduledHours = $this->calculateHours(
                         $day['start_time'],
@@ -361,20 +347,17 @@ class StaffController extends Controller
                     );
                 }
 
-                // Overtime = worked beyond scheduled (never negative)
-                $ot = round(max(0, $workedHours - $scheduledHours), 2);
+                $ot = round(
+                    max(0, $workedHours - $scheduledHours),
+                    2
+                );
+
                 $day['overtime_hours'] = $ot;
                 $totalOvertime += $ot;
             }
         }
 
-        unset($day); // break reference
-
-        /*
-        |--------------------------------------------------------------------------
-        | Future exceptions
-        |--------------------------------------------------------------------------
-        */
+        unset($day);
 
         $exceptions = ScheduleException::where(
                 'user_id',
@@ -388,12 +371,6 @@ class StaffController extends Controller
             ->orderBy('exception_date')
             ->get();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Optional template information
-        |--------------------------------------------------------------------------
-        */
-
         $templateHint = null;
 
         if ($schedules->isNotEmpty()) {
@@ -402,12 +379,6 @@ class StaffController extends Controller
                 true
             )->first()?->name;
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Week navigation
-        |--------------------------------------------------------------------------
-        */
 
         $prevWeek = $weekStart
             ->copy()
@@ -441,9 +412,6 @@ class StaffController extends Controller
         ));
     }
 
-    /**
-     * Calculate shift duration in hours.
-     */
     private function calculateHours(
         $startTime,
         $endTime
@@ -454,10 +422,6 @@ class StaffController extends Controller
 
         $start = Carbon::parse($startTime);
         $end = Carbon::parse($endTime);
-
-        /*
-        | Handle overnight shifts.
-        */
 
         if ($end->lessThanOrEqualTo($start)) {
             $end->addDay();

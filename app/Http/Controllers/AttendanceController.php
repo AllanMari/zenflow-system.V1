@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ReportPdfService;
 use App\Models\Attendance;
 use App\Models\AttendanceLog;
 use App\Models\User;
@@ -13,31 +14,18 @@ use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
-    /**
-     * Schedule exception types that mean the staff member
-     * is NOT working today.
-     */
     private const LEAVE_TYPES = [
-        'day_off',
-        'holiday',
         'sick_leave',
         'urgent_leave',
     ];
 
-    /**
-     * Staff can be considered PRESENT up to this many minutes
-     * after their scheduled start time.
-     *
-     * Example:
-     * 6:00 AM start
-     * 6:00 AM - 6:30 AM = Present
-     * After 6:30 AM = Late
-     */
+    private const NON_WORKING_TYPES = [
+        'day_off',
+        'holiday',
+    ];
+
     private const ATTENDANCE_TOLERANCE_MINUTES = 30;
 
-    // ============================================================
-    // Daily operational page (front-desk view)
-    // ============================================================
     public function today()
     {
         $user = auth()->user();
@@ -64,7 +52,10 @@ class AttendanceController extends Controller
             ->get()
             ->keyBy('user_id');
 
-        $exceptions = ScheduleException::whereDate('exception_date', $today)
+        $exceptions = ScheduleException::whereDate(
+                'exception_date',
+                $today
+            )
             ->get()
             ->keyBy('user_id');
 
@@ -76,10 +67,6 @@ class AttendanceController extends Controller
                 && (bool) $user->can_mark_attendance
             );
 
-        /*
-         * Single source of truth for the page.
-         * Both desktop and mobile layouts consume this state.
-         */
         $initialState = [];
 
         foreach ($staff as $member) {
@@ -90,7 +77,10 @@ class AttendanceController extends Controller
                 ->firstWhere('day_of_week', $dayOfWeek);
 
             $isOff = $exc
-                && in_array($exc->type, self::LEAVE_TYPES);
+                && (
+                    in_array($exc->type, self::LEAVE_TYPES)
+                    || in_array($exc->type, self::NON_WORKING_TYPES)
+                );
 
             $offLabel = null;
             $shift = null;
@@ -98,15 +88,13 @@ class AttendanceController extends Controller
             if ($isOff) {
                 $display = 'off_leave';
 
-                $offLabel = $exc->type === 'holiday'
-                    ? 'Holiday'
-                    : (
-                        $exc->type === 'day_off'
-                            ? 'Day Off'
-                            : ucwords(
-                                str_replace('_', ' ', $exc->type)
-                            )
-                    );
+                $offLabel = match ($exc->type) {
+                    'holiday' => 'Holiday',
+                    'day_off' => 'Day Off',
+                    default => ucwords(
+                        str_replace('_', ' ', $exc->type)
+                    ),
+                };
             } else {
                 $customHours = $exc
                     && $exc->type === 'custom_hours'
@@ -129,11 +117,13 @@ class AttendanceController extends Controller
                 }
 
                 if ($customHours) {
-                    $shift = Carbon::parse($exc->start_time)->format('g:i A')
+                    $shift =
+                        Carbon::parse($exc->start_time)->format('g:i A')
                         . ' – '
                         . Carbon::parse($exc->end_time)->format('g:i A');
                 } elseif ($working) {
-                    $shift = Carbon::parse($schedule->start_time)->format('g:i A')
+                    $shift =
+                        Carbon::parse($schedule->start_time)->format('g:i A')
                         . ' – '
                         . Carbon::parse($schedule->end_time)->format('g:i A');
                 }
@@ -181,10 +171,6 @@ class AttendanceController extends Controller
         ]);
     }
 
-    // ============================================================
-    // Immediate actions
-    // Server timestamp = source of truth
-    // ============================================================
     public function quickCheckIn(Request $request, User $staff)
     {
         $this->authorizeMarking();
@@ -197,12 +183,12 @@ class AttendanceController extends Controller
             $today
         );
 
-        // --------------------------------------------------------
-        // 1. Block leave / day-off / holiday
-        // --------------------------------------------------------
         if (
             $exception
-            && in_array($exception->type, self::LEAVE_TYPES)
+            && (
+                in_array($exception->type, self::LEAVE_TYPES)
+                || in_array($exception->type, self::NON_WORKING_TYPES)
+            )
         ) {
             return response()->json([
                 'message' => $staff->first_name
@@ -214,15 +200,9 @@ class AttendanceController extends Controller
             ], 403);
         }
 
-        // --------------------------------------------------------
-        // 2. Determine today's working hours
-        // --------------------------------------------------------
         $startTime = null;
         $endTime = null;
 
-        /*
-         * Custom hours override the normal work schedule.
-         */
         if (
             $exception
             && $exception->type === 'custom_hours'
@@ -258,9 +238,6 @@ class AttendanceController extends Controller
             $endTime = $schedule->end_time;
         }
 
-        // --------------------------------------------------------
-        // 3. Build today's shift start/end timestamps
-        // --------------------------------------------------------
         $shiftStart = Carbon::parse(
             $today->toDateString()
             . ' '
@@ -273,27 +250,6 @@ class AttendanceController extends Controller
             . $endTime
         );
 
-        // --------------------------------------------------------
-        // 4. EARLY CHECK-IN IS ALLOWED
-        // --------------------------------------------------------
-        /*
-         * We intentionally DO NOT reject check-ins before
-         * the scheduled start time.
-         *
-         * Example:
-         *
-         * Shift: 6:00 AM - 9:00 PM
-         * Check-in: 5:30 AM
-         *
-         * Result: PRESENT
-         *
-         * This is useful for staff who arrive early to prepare
-         * the spa, treatment rooms, equipment, etc.
-         */
-
-        // --------------------------------------------------------
-        // 5. Block quick check-in AFTER the shift ends
-        // --------------------------------------------------------
         if ($now->greaterThan($shiftEnd)) {
             return response()->json([
                 'message' => $staff->first_name
@@ -305,9 +261,6 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        // --------------------------------------------------------
-        // 6. Prevent duplicate check-in
-        // --------------------------------------------------------
         $attendance = Attendance::where(
                 'user_id',
                 $staff->id
@@ -326,9 +279,6 @@ class AttendanceController extends Controller
             ], 409);
         }
 
-        // --------------------------------------------------------
-        // 7. Determine Present vs Late
-        // --------------------------------------------------------
         $status = $this->deriveStatus(
             $staff,
             $today,
@@ -336,10 +286,7 @@ class AttendanceController extends Controller
             $exception
         );
 
-        // --------------------------------------------------------
-        // 8. Save attendance using SERVER time
-        // --------------------------------------------------------
-        $attendance = Attendance::updateOrCreate(
+        Attendance::updateOrCreate(
             [
                 'user_id' => $staff->id,
                 'date' => $today->toDateString(),
@@ -354,17 +301,12 @@ class AttendanceController extends Controller
 
         return response()->json([
             'success' => true,
-
             'status' => $status,
-
             'display_status' => $status === 'late'
                 ? 'late'
                 : 'checked_in',
-
             'check_in' => $now->format('g:i A'),
-
             'check_out' => null,
-
             'message' => $staff->first_name
                 . ' checked in'
                 . ($status === 'late' ? ' (late)' : '')
@@ -407,32 +349,21 @@ class AttendanceController extends Controller
 
         return response()->json([
             'success' => true,
-
             'display_status' => 'completed',
-
             'check_in' => Carbon::parse(
                 $attendance->check_in
             )->format('g:i A'),
-
             'check_out' => $now->format('g:i A'),
-
             'message' => $staff->first_name
                 . ' checked out at '
                 . $now->format('g:i A'),
         ]);
     }
 
-    // ============================================================
-    // Manual correction
-    // ALWAYS audited in attendance_logs
-    // ============================================================
     public function correct(
         Request $request,
         User $staff
     ) {
-        /*
-         * Receptionists need can_mark_attendance permission.
-         */
         $this->authorizeMarking(
             requirePermission: true
         );
@@ -450,12 +381,12 @@ class AttendanceController extends Controller
             $today
         );
 
-        // --------------------------------------------------------
-        // Block corrections for leave/day-off/holiday
-        // --------------------------------------------------------
         if (
             $exception
-            && in_array($exception->type, self::LEAVE_TYPES)
+            && (
+                in_array($exception->type, self::LEAVE_TYPES)
+                || in_array($exception->type, self::NON_WORKING_TYPES)
+            )
         ) {
             return response()->json([
                 'message' => $staff->first_name
@@ -475,9 +406,6 @@ class AttendanceController extends Controller
 
         $correctedTime = $data['time'] . ':00';
 
-        // --------------------------------------------------------
-        // Check-out validation
-        // --------------------------------------------------------
         if ($data['type'] === 'check_out') {
             if (!$attendance->check_in) {
                 return response()->json([
@@ -499,9 +427,6 @@ class AttendanceController extends Controller
             }
         }
 
-        // --------------------------------------------------------
-        // Save correction + audit trail atomically
-        // --------------------------------------------------------
         DB::transaction(
             function () use (
                 $attendance,
@@ -519,12 +444,6 @@ class AttendanceController extends Controller
                 if ($data['type'] === 'check_in') {
                     $attendance->check_in = $correctedTime;
 
-                    /*
-                     * Recalculate Present/Late based on the
-                     * CORRECTED check-in time.
-                     *
-                     * This also uses the 30-minute tolerance.
-                     */
                     $attendance->status = $this->deriveStatus(
                         $staff,
                         $today,
@@ -563,33 +482,17 @@ class AttendanceController extends Controller
 
                 $attendance->save();
 
-                /*
-                 * Audit trail.
-                 *
-                 * This makes it clear that the attendance was
-                 * manually corrected rather than punched in real time.
-                 */
                 AttendanceLog::create([
                     'attendance_id' => $attendance->id,
-
                     'user_id' => $staff->id,
-
                     'changed_by' => auth()->id(),
-
                     'old_status' => $old['status'],
-
                     'new_status' => $attendance->status,
-
                     'old_check_in' => $old['check_in'],
-
                     'new_check_in' => $attendance->check_in,
-
                     'old_check_out' => $old['check_out'],
-
                     'new_check_out' => $attendance->check_out,
-
                     'reason' => $data['reason'],
-
                     'changed_at' => now(),
                 ]);
             }
@@ -627,7 +530,7 @@ class AttendanceController extends Controller
     }
 
     // ============================================================
-    // Reporting & admin
+    // Attendance Report View
     // ============================================================
     public function report(Request $request)
     {
@@ -636,17 +539,148 @@ class AttendanceController extends Controller
             403
         );
 
+        $data = $this->buildReportData(
+            $request,
+            true
+        );
+
+        return view(
+            'reports.attendance-report',
+            $data
+        );
+    }
+
+    // ============================================================
+    // Attendance Report PDF
+    // ============================================================
+    public function attendanceReportPdf(
+        Request $request,
+        ReportPdfService $pdfService
+    ) {
+        abort_unless(
+            auth()->user()->roles->contains('name', 'admin'),
+            403
+        );
+
+        $data = $this->buildReportData(
+            $request,
+            false
+        );
+
+        $data['reportTitle'] = 'Attendance Report';
+
+        $data['generatedAt'] =
+            now('Asia/Manila')->format(
+                'M j, Y g:i A'
+            );
+
+        $data['preparedBy'] =
+            trim(
+                auth()->user()->first_name
+                . ' '
+                . auth()->user()->last_name
+            );
+
+        $filename =
+            'attendance-report-'
+            . (
+                $data['startDate']
+                    ? $data['startDate']->format('Y-m-d')
+                    : now('Asia/Manila')->format('Y-m-d')
+            )
+            . '.pdf';
+
+        if ($request->input('action') === 'download') {
+            return $pdfService->generatePdf(
+                'reports.attendance-report',
+                $data,
+                $filename,
+                'landscape'
+            );
+        }
+
+        return $pdfService->streamPdf(
+            'reports.attendance-report',
+            $data,
+            $filename,
+            'landscape'
+        );
+    }
+
+    // ============================================================
+    // Build Attendance Report Data
+    // ============================================================
+    private function buildReportData(
+        Request $request,
+        bool $paginate
+    ): array {
+        $timezone = 'Asia/Manila';
+
+$range = $request->input('range', 'week');
+
+$now = now($timezone);
+
+switch ($range) {
+    case 'today':
+        $startDate = $now->copy()->startOfDay();
+        $endDate = $now->copy()->endOfDay();
+        break;
+
+    case 'week':
+        $startDate = $now->copy()->startOfWeek();
+        $endDate = $now->copy()->endOfWeek();
+        break;
+
+    case 'month':
+        $startDate = $now->copy()->startOfMonth();
+        $endDate = $now->copy()->endOfMonth();
+        break;
+
+    case 'year':
+        $startDate = $now->copy()->startOfYear();
+        $endDate = $now->copy()->endOfYear();
+        break;
+
+    case 'custom':
         $startDate = $request->filled('start_date')
             ? Carbon::parse(
-                $request->start_date
+                $request->input('start_date'),
+                $timezone
             )->startOfDay()
-            : now()->startOfWeek();
+            : $now->copy()->startOfDay();
 
         $endDate = $request->filled('end_date')
             ? Carbon::parse(
-                $request->end_date
+                $request->input('end_date'),
+                $timezone
             )->endOfDay()
-            : $startDate->copy()->endOfWeek();
+            : $startDate->copy()->endOfDay();
+        break;
+
+    default:
+        $startDate = $now->copy()->startOfWeek();
+        $endDate = $now->copy()->endOfWeek();
+        break;
+}
+
+        if ($endDate->lt($startDate)) {
+            [$startDate, $endDate] = [
+                $endDate->copy()->startOfDay(),
+                $startDate->copy()->endOfDay(),
+            ];
+        }
+
+        $staffId = $request->filled('staff_id')
+            ? (int) $request->input('staff_id')
+            : null;
+
+        $search = trim(
+            (string) $request->input('search', '')
+        );
+
+        $statusFilter = trim(
+            (string) $request->input('status', '')
+        );
 
         $allStaff = User::whereHas(
                 'roles',
@@ -657,15 +691,48 @@ class AttendanceController extends Controller
             ->orderBy('first_name')
             ->get();
 
-        $staffId = $request->filled('staff_id')
-            ? (int) $request->staff_id
-            : null;
+        $searchStaffIds = $allStaff
+            ->filter(function ($staff) use ($search) {
+                if ($search === '') {
+                    return true;
+                }
 
-        // --------------------------------------------------------
-        // Paginated attendance records
-        // --------------------------------------------------------
-        $attendances = Attendance::with([
+                $needle = mb_strtolower($search);
+
+                $name = mb_strtolower(
+                    trim(
+                        $staff->first_name
+                        . ' '
+                        . $staff->last_name
+                    )
+                );
+
+                $username = mb_strtolower(
+                    (string) $staff->username
+                );
+
+                return str_contains($name, $needle)
+                    || str_contains($username, $needle);
+            })
+            ->pluck('id')
+            ->values();
+
+        if ($staffId) {
+            $searchStaffIds = $searchStaffIds
+                ->filter(
+                    fn ($id) => (int) $id === $staffId
+                )
+                ->values();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Attendance records
+        |--------------------------------------------------------------------------
+        */
+        $attendanceQuery = Attendance::with([
                 'user',
+                'user.workSchedules',
                 'marker',
             ])
             ->whereBetween(
@@ -683,21 +750,65 @@ class AttendanceController extends Controller
                 )
             )
             ->when(
-                $request->filled('status'),
+                $search !== '',
+                function ($q) use ($search) {
+                    $needle = '%' . $search . '%';
+
+                    $q->whereHas(
+                        'user',
+                        function ($userQuery) use ($needle) {
+                            $userQuery
+                                ->where(
+                                    'first_name',
+                                    'like',
+                                    $needle
+                                )
+                                ->orWhere(
+                                    'last_name',
+                                    'like',
+                                    $needle
+                                )
+                                ->orWhere(
+                                    'username',
+                                    'like',
+                                    $needle
+                                );
+                        }
+                    );
+                }
+            )
+            ->when(
+                $statusFilter !== ''
+                && !in_array(
+                    $statusFilter,
+                    [
+                        'absent',
+                        'on_leave',
+                        'day_off',
+                        'holiday',
+                    ]
+                ),
                 fn ($q) => $q->where(
                     'status',
-                    $request->status
+                    $statusFilter
                 )
             )
             ->orderBy('date', 'desc')
-            ->orderBy('user_id')
-            ->paginate(20)
-            ->appends($request->query());
+            ->orderBy('user_id');
 
-        // --------------------------------------------------------
-        // Summary
-        // --------------------------------------------------------
-        $base = Attendance::whereBetween(
+        $attendances = $paginate
+            ? $attendanceQuery
+                ->paginate(20)
+                ->appends($request->query())
+            : $attendanceQuery->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Base attendance query
+        |--------------------------------------------------------------------------
+        */
+        $base = Attendance::query()
+            ->whereBetween(
                 'date',
                 [
                     $startDate->toDateString(),
@@ -710,44 +821,20 @@ class AttendanceController extends Controller
                     'user_id',
                     $staffId
                 )
-            );
-
-        $present = (clone $base)
-            ->where('status', 'present')
-            ->count();
-
-        $late = (clone $base)
-            ->where('status', 'late')
-            ->count();
-
-        $onLeave = ScheduleException::whereIn(
-                'type',
-                self::LEAVE_TYPES
-            )
-            ->whereBetween(
-                'exception_date',
-                [
-                    $startDate->toDateString(),
-                    $endDate->toDateString(),
-                ]
             )
             ->when(
-                $staffId,
-                fn ($q) => $q->where(
+                $search !== '',
+                fn ($q) => $q->whereIn(
                     'user_id',
-                    $staffId
+                    $searchStaffIds
                 )
-            )
-            ->count();
+            );
 
-        // --------------------------------------------------------
-        // Determine absences
-        //
-        // Absent =
-        // scheduled working day
-        // + no attendance record
-        // + no leave exception
-        // --------------------------------------------------------
+        /*
+        |--------------------------------------------------------------------------
+        | Schedule exceptions
+        |--------------------------------------------------------------------------
+        */
         $exceptions = ScheduleException::whereBetween(
                 'exception_date',
                 [
@@ -762,50 +849,119 @@ class AttendanceController extends Controller
                     $staffId
                 )
             )
+            ->when(
+                $search !== '',
+                fn ($q) => $q->whereIn(
+                    'user_id',
+                    $searchStaffIds
+                )
+            )
+            ->orderBy('exception_date')
             ->get()
             ->groupBy(
                 fn ($e) =>
                     $e->user_id
                     . '|'
-                    . $e->exception_date->toDateString()
+                    . Carbon::parse(
+                        $e->exception_date
+                    )->toDateString()
             );
 
-        $attendanceDates = Attendance::whereBetween(
-                'date',
+        /*
+        |--------------------------------------------------------------------------
+        | Attendance status counts
+        |--------------------------------------------------------------------------
+        */
+        $present = (clone $base)
+            ->whereIn(
+                'status',
                 [
-                    $startDate->toDateString(),
-                    $endDate->toDateString(),
+                    'present',
+                    'completed',
+                    'checked_in',
                 ]
             )
-            ->when(
-                $staffId,
-                fn ($q) => $q->where(
-                    'user_id',
-                    $staffId
-                )
-            )
-            ->pluck('date')
-            ->map(
-                fn ($d) =>
-                    Carbon::parse($d)->toDateString()
+            ->count();
+
+        $late = (clone $base)
+            ->where('status', 'late')
+            ->count();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Exception counts
+        |--------------------------------------------------------------------------
+        */
+        $leave = 0;
+        $dayOff = 0;
+        $holiday = 0;
+
+        foreach ($exceptions as $group) {
+            $exception = $group->first();
+
+            if (!$exception) {
+                continue;
+            }
+
+            if (in_array(
+                $exception->type,
+                self::LEAVE_TYPES
+            )) {
+                $leave++;
+            } elseif ($exception->type === 'day_off') {
+                $dayOff++;
+            } elseif ($exception->type === 'holiday') {
+                $holiday++;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Determine absences
+        |--------------------------------------------------------------------------
+        */
+        $rangeStaff = $allStaff;
+
+        if ($staffId) {
+            $rangeStaff = $rangeStaff->where(
+                'id',
+                $staffId
+            );
+        }
+
+        if ($search !== '') {
+            $rangeStaff = $rangeStaff->whereIn(
+                'id',
+                $searchStaffIds
+            );
+        }
+
+        $attendanceMap = (clone $base)
+            ->get()
+            ->keyBy(
+                fn ($attendance) =>
+                    $attendance->user_id
+                    . '|'
+                    . Carbon::parse(
+                        $attendance->date
+                    )->toDateString()
             );
 
-        $absent = 0;
+        $absenceRecords = collect();
 
-        $rangeStaff = $staffId
-            ? $allStaff->where('id', $staffId)
-            : $allStaff;
+        $absent = 0;
 
         foreach ($rangeStaff as $member) {
             $scheduleMap = $member->workSchedules
                 ->keyBy('day_of_week');
 
             for (
-                $d = $startDate->copy();
+                $d = $startDate->copy()->startOfDay();
                 $d->lte($endDate);
                 $d->addDay()
             ) {
-                $key = $member->id
+                $key =
+                    $member->id
                     . '|'
                     . $d->toDateString();
 
@@ -813,12 +969,20 @@ class AttendanceController extends Controller
                     ->get($key)
                     ?->first();
 
-                // Leave/day off/holiday
+                /*
+                 * Leave, day off, and holiday are not absences.
+                 */
                 if (
                     $exc
-                    && in_array(
-                        $exc->type,
-                        self::LEAVE_TYPES
+                    && (
+                        in_array(
+                            $exc->type,
+                            self::LEAVE_TYPES
+                        )
+                        || in_array(
+                            $exc->type,
+                            self::NON_WORKING_TYPES
+                        )
                     )
                 ) {
                     continue;
@@ -841,166 +1005,552 @@ class AttendanceController extends Controller
                         && $sched->start_time
                     );
 
-                // Not scheduled
                 if (!$working) {
                     continue;
                 }
 
-                // No attendance record
-                if (
-                    !$attendanceDates->contains(
-                        $d->toDateString()
-                    )
-                ) {
+                $attendance = $attendanceMap->get($key);
+
+                if (!$attendance) {
                     $absent++;
+
+                    $absenceRecords->push([
+                        'user' => $member,
+                        'date' => $d->copy(),
+                        'type' => 'absent',
+                        'label' => 'Absent',
+                        'reason' => null,
+                    ]);
                 }
             }
         }
 
-        // --------------------------------------------------------
-        // Calculate Overtime and Worked Hours for Summary
-        // --------------------------------------------------------
+        /*
+        |--------------------------------------------------------------------------
+        | Build exception records for report
+        |--------------------------------------------------------------------------
+        */
+        $exceptionRecords = collect();
+
+        foreach ($exceptions as $group) {
+            $exception = $group->first();
+
+            if (!$exception) {
+                continue;
+            }
+
+            $member = $rangeStaff->firstWhere(
+                'id',
+                $exception->user_id
+            );
+
+            if (!$member) {
+                continue;
+            }
+
+            $label = match ($exception->type) {
+                'day_off' => 'Day Off',
+                'holiday' => 'Holiday',
+                'sick_leave' => 'Sick Leave',
+                'urgent_leave' => 'Urgent Leave',
+                default => ucwords(
+                    str_replace(
+                        '_',
+                        ' ',
+                        $exception->type
+                    )
+                ),
+            };
+
+            if (
+                in_array(
+                    $exception->type,
+                    [
+                        ...self::LEAVE_TYPES,
+                        ...self::NON_WORKING_TYPES,
+                    ]
+                )
+            ) {
+                $exceptionRecords->push([
+                    'user' => $member,
+                    'date' => Carbon::parse(
+                        $exception->exception_date
+                    ),
+                    'type' => $exception->type,
+                    'label' => $label,
+                    'reason' => $exception->reason,
+                ]);
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Filter synthetic status records if status filter is used
+        |--------------------------------------------------------------------------
+        */
+        if ($statusFilter === 'absent') {
+            $exceptionRecords = collect();
+        }
+
+        if ($statusFilter === 'on_leave') {
+            $absenceRecords = collect();
+
+            $exceptionRecords = $exceptionRecords
+                ->filter(
+                    fn ($row) =>
+                        in_array(
+                            $row['type'],
+                            self::LEAVE_TYPES
+                        )
+                )
+                ->values();
+        }
+
+        if ($statusFilter === 'day_off') {
+            $absenceRecords = collect();
+
+            $exceptionRecords = $exceptionRecords
+                ->filter(
+                    fn ($row) =>
+                        $row['type'] === 'day_off'
+                )
+                ->values();
+        }
+
+        if ($statusFilter === 'holiday') {
+            $absenceRecords = collect();
+
+            $exceptionRecords = $exceptionRecords
+                ->filter(
+                    fn ($row) =>
+                        $row['type'] === 'holiday'
+                )
+                ->values();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Worked hours and overtime
+        |--------------------------------------------------------------------------
+        */
         $totalWorkedHours = 0;
         $totalOvertime = 0;
         $staffOvertimeSummary = [];
 
-        $allAttendances = $base->get();
-        foreach ($allAttendances as $att) {
-            if (!$att->check_in || !$att->check_out) continue;
+        $allAttendances = (clone $base)->get();
 
-            $cIn = Carbon::parse($att->check_in);
-            $cOut = Carbon::parse($att->check_out);
+        foreach ($allAttendances as $att) {
+            if (
+                !$att->check_in
+                || !$att->check_out
+            ) {
+                continue;
+            }
+
+            $cIn = Carbon::parse(
+                $att->check_in
+            );
+
+            $cOut = Carbon::parse(
+                $att->check_out
+            );
+
             if ($cOut->lessThanOrEqualTo($cIn)) {
                 $cOut->addDay();
             }
 
-            $worked = round($cIn->diffInMinutes($cOut) / 60, 2);
+            $worked = round(
+                $cIn->diffInMinutes($cOut) / 60,
+                2
+            );
+
             $totalWorkedHours += $worked;
 
-            $key = $att->user_id . '|' . Carbon::parse($att->date)->toDateString();
-            $exc = $exceptions->get($key)?->first();
-            $sched = $allStaff->firstWhere('id', $att->user_id)
-                ?->workSchedules->firstWhere('day_of_week', Carbon::parse($att->date)->dayOfWeek);
+            $key =
+                $att->user_id
+                . '|'
+                . Carbon::parse(
+                    $att->date
+                )->toDateString();
+
+            $exc = $exceptions
+                ->get($key)
+                ?->first();
+
+            $staffMember =
+                $allStaff->firstWhere(
+                    'id',
+                    $att->user_id
+                );
+
+            $sched = $staffMember
+                ?->workSchedules
+                ->firstWhere(
+                    'day_of_week',
+                    Carbon::parse(
+                        $att->date
+                    )->dayOfWeek
+                );
 
             $scheduledHrs = 0;
-            if ($exc && $exc->type === 'custom_hours' && $exc->start_time && $exc->end_time) {
-                $s = Carbon::parse($exc->start_time);
-                $e = Carbon::parse($exc->end_time);
-                if ($e->lessThanOrEqualTo($s)) $e->addDay();
-                $scheduledHrs = round($s->diffInMinutes($e) / 60, 2);
-            } elseif ($sched && !$sched->is_day_off && $sched->start_time && $sched->end_time) {
-                $s = Carbon::parse($sched->start_time);
-                $e = Carbon::parse($sched->end_time);
-                if ($e->lessThanOrEqualTo($s)) $e->addDay();
-                $scheduledHrs = round($s->diffInMinutes($e) / 60, 2);
+
+            if (
+                $exc
+                && $exc->type === 'custom_hours'
+                && $exc->start_time
+                && $exc->end_time
+            ) {
+                $s = Carbon::parse(
+                    $exc->start_time
+                );
+
+                $e = Carbon::parse(
+                    $exc->end_time
+                );
+
+                if ($e->lessThanOrEqualTo($s)) {
+                    $e->addDay();
+                }
+
+                $scheduledHrs = round(
+                    $s->diffInMinutes($e) / 60,
+                    2
+                );
+            } elseif (
+                $sched
+                && !$sched->is_day_off
+                && $sched->start_time
+                && $sched->end_time
+            ) {
+                $s = Carbon::parse(
+                    $sched->start_time
+                );
+
+                $e = Carbon::parse(
+                    $sched->end_time
+                );
+
+                if ($e->lessThanOrEqualTo($s)) {
+                    $e->addDay();
+                }
+
+                $scheduledHrs = round(
+                    $s->diffInMinutes($e) / 60,
+                    2
+                );
             }
 
-            $ot = max(0, $worked - $scheduledHrs);
+            $ot = max(
+                0,
+                $worked - $scheduledHrs
+            );
+
             $totalOvertime += $ot;
 
-            // Accumulate per-staff
             $uid = $att->user_id;
-            if (!isset($staffOvertimeSummary[$uid])) {
-                $staffMember = $allStaff->firstWhere('id', $uid);
+
+            if (!isset(
+                $staffOvertimeSummary[$uid]
+            )) {
                 $staffOvertimeSummary[$uid] = [
-                    'user_id'        => $uid,
-                    'name'           => ($staffMember->first_name ?? '?') . ' ' . ($staffMember->last_name ?? ''),
-                    'days_worked'    => 0,
-                    'scheduled_hours'=> 0,
-                    'worked_hours'   => 0,
+                    'user_id' => $uid,
+
+                    'name' =>
+                        trim(
+                            (
+                                $staffMember->first_name
+                                ?? '?'
+                            )
+                            . ' '
+                            .
+                            (
+                                $staffMember->last_name
+                                ?? ''
+                            )
+                        ),
+
+                    'days_worked' => 0,
+
+                    'scheduled_hours' => 0,
+
+                    'worked_hours' => 0,
+
                     'overtime_hours' => 0,
                 ];
             }
+
             $staffOvertimeSummary[$uid]['days_worked']++;
-            $staffOvertimeSummary[$uid]['scheduled_hours'] += $scheduledHrs;
-            $staffOvertimeSummary[$uid]['worked_hours']    += $worked;
-            $staffOvertimeSummary[$uid]['overtime_hours']  += $ot;
+
+            $staffOvertimeSummary[$uid]['scheduled_hours'] +=
+                $scheduledHrs;
+
+            $staffOvertimeSummary[$uid]['worked_hours'] +=
+                $worked;
+
+            $staffOvertimeSummary[$uid]['overtime_hours'] +=
+                $ot;
         }
 
-        // Round accumulated totals
-        foreach ($staffOvertimeSummary as &$row) {
-            $row['scheduled_hours'] = round($row['scheduled_hours'], 2);
-            $row['worked_hours']    = round($row['worked_hours'], 2);
-            $row['overtime_hours']  = round($row['overtime_hours'], 2);
+        foreach (
+            $staffOvertimeSummary as &$row
+        ) {
+            $row['scheduled_hours'] =
+                round(
+                    $row['scheduled_hours'],
+                    2
+                );
+
+            $row['worked_hours'] =
+                round(
+                    $row['worked_hours'],
+                    2
+                );
+
+            $row['overtime_hours'] =
+                round(
+                    $row['overtime_hours'],
+                    2
+                );
         }
+
         unset($row);
 
-        // Sort by overtime desc so highest overtime shows first
-        usort($staffOvertimeSummary, fn ($a, $b) => $b['overtime_hours'] <=> $a['overtime_hours']);
+        usort(
+            $staffOvertimeSummary,
+            fn ($a, $b) =>
+                $b['overtime_hours']
+                <=>
+                $a['overtime_hours']
+        );
 
-        // Calculate overtime for paginated records as well
-        foreach ($attendances as $att) {
-            $att->worked_hours = 0;
-            $att->overtime_hours = 0;
-            $att->scheduled_hours = 0;
+        /*
+        |--------------------------------------------------------------------------
+        | Add calculated values to attendance rows
+        |--------------------------------------------------------------------------
+        */
+        $this->decorateAttendanceRecords(
+            $attendances,
+            $exceptions,
+            $allStaff
+        );
 
-            if ($att->check_in && $att->check_out) {
-                $cIn = Carbon::parse($att->check_in);
-                $cOut = Carbon::parse($att->check_out);
-                if ($cOut->lessThanOrEqualTo($cIn)) {
-                    $cOut->addDay();
-                }
-
-                $worked = round($cIn->diffInMinutes($cOut) / 60, 2);
-                $att->worked_hours = $worked;
-
-                $key = $att->user_id . '|' . Carbon::parse($att->date)->toDateString();
-                $exc = $exceptions->get($key)?->first();
-                
-                // Fallback lookup if user not eager loaded
-                $userWorkSchedules = $allStaff->firstWhere('id', $att->user_id)?->workSchedules 
-                    ?? $att->user->workSchedules()->get();
-
-                $sched = $userWorkSchedules->firstWhere('day_of_week', Carbon::parse($att->date)->dayOfWeek);
-
-                $scheduledHrs = 0;
-                if ($exc && $exc->type === 'custom_hours' && $exc->start_time && $exc->end_time) {
-                    $s = Carbon::parse($exc->start_time);
-                    $e = Carbon::parse($exc->end_time);
-                    if ($e->lessThanOrEqualTo($s)) $e->addDay();
-                    $scheduledHrs = round($s->diffInMinutes($e) / 60, 2);
-                } elseif ($sched && !$sched->is_day_off && $sched->start_time && $sched->end_time) {
-                    $s = Carbon::parse($sched->start_time);
-                    $e = Carbon::parse($sched->end_time);
-                    if ($e->lessThanOrEqualTo($s)) $e->addDay();
-                    $scheduledHrs = round($s->diffInMinutes($e) / 60, 2);
-                }
-
-                $att->scheduled_hours = $scheduledHrs;
-                $att->overtime_hours = round(max(0, $worked - $scheduledHrs), 2);
-            }
-        }
-
+        /*
+        |--------------------------------------------------------------------------
+        | Summary
+        |--------------------------------------------------------------------------
+        */
         $summary = [
-            'present' => $present,
-            'absent' => $absent,
-            'late' => $late,
-            'on_leave' => $onLeave,
-            'worked_hours' => $totalWorkedHours,
-            'overtime' => $totalOvertime,
+            'present' =>
+                $present,
+
+            'absent' =>
+                $absent,
+
+            'late' =>
+                $late,
+
+            'on_leave' =>
+                $leave,
+
+            'day_off' =>
+                $dayOff,
+
+            'holiday' =>
+                $holiday,
+
+            'worked_hours' =>
+                round(
+                    $totalWorkedHours,
+                    2
+                ),
+
+            'overtime' =>
+                round(
+                    $totalOvertime,
+                    2
+                ),
         ];
 
         $receptionists = User::whereHas(
                 'roles',
                 fn ($q) =>
-                    $q->where('name', 'receptionist')
+                    $q->where(
+                        'name',
+                        'receptionist'
+                    )
             )
-            ->where('is_active', true)
+            ->where(
+                'is_active',
+                true
+            )
             ->orderBy('first_name')
             ->get();
 
-        return view(
-            'admin.attendance-report',
-            compact(
-                'attendances',
-                'allStaff',
-                'receptionists',
-                'summary',
-                'startDate',
-                'endDate',
-                'staffOvertimeSummary'
-            )
-        );
+        return [
+            'attendances' =>
+                $attendances,
+
+            'allStaff' =>
+                $allStaff,
+
+            'receptionists' =>
+                $receptionists,
+
+            'summary' =>
+                $summary,
+
+            'startDate' =>
+                $startDate,
+
+            'endDate' =>
+                $endDate,
+
+            'staffOvertimeSummary' =>
+                $staffOvertimeSummary,
+
+            'absenceRecords' =>
+                $absenceRecords,
+
+            'exceptionRecords' =>
+                $exceptionRecords,
+        ];
+    }
+
+    // ============================================================
+    // Add calculated hours to attendance records
+    // ============================================================
+    private function decorateAttendanceRecords(
+        $attendances,
+        $exceptions,
+        $allStaff
+    ): void {
+        foreach ($attendances as $att) {
+            $att->worked_hours = 0;
+            $att->overtime_hours = 0;
+            $att->scheduled_hours = 0;
+
+            if (
+                !$att->check_in
+                || !$att->check_out
+            ) {
+                continue;
+            }
+
+            $cIn = Carbon::parse(
+                $att->check_in
+            );
+
+            $cOut = Carbon::parse(
+                $att->check_out
+            );
+
+            if ($cOut->lessThanOrEqualTo($cIn)) {
+                $cOut->addDay();
+            }
+
+            $worked = round(
+                $cIn->diffInMinutes($cOut) / 60,
+                2
+            );
+
+            $att->worked_hours = $worked;
+
+            $key =
+                $att->user_id
+                . '|'
+                . Carbon::parse(
+                    $att->date
+                )->toDateString();
+
+            $exc = $exceptions
+                ->get($key)
+                ?->first();
+
+            $staffMember =
+                $allStaff->firstWhere(
+                    'id',
+                    $att->user_id
+                );
+
+            $userWorkSchedules =
+                $staffMember
+                    ?->workSchedules
+                    ??
+                $att->user
+                    ?->workSchedules()
+                    ->get();
+
+            $sched =
+                $userWorkSchedules
+                    ?->firstWhere(
+                        'day_of_week',
+                        Carbon::parse(
+                            $att->date
+                        )->dayOfWeek
+                    );
+
+            $scheduledHrs = 0;
+
+            if (
+                $exc
+                && $exc->type === 'custom_hours'
+                && $exc->start_time
+                && $exc->end_time
+            ) {
+                $s = Carbon::parse(
+                    $exc->start_time
+                );
+
+                $e = Carbon::parse(
+                    $exc->end_time
+                );
+
+                if ($e->lessThanOrEqualTo($s)) {
+                    $e->addDay();
+                }
+
+                $scheduledHrs =
+                    round(
+                        $s->diffInMinutes($e) / 60,
+                        2
+                    );
+            } elseif (
+                $sched
+                && !$sched->is_day_off
+                && $sched->start_time
+                && $sched->end_time
+            ) {
+                $s = Carbon::parse(
+                    $sched->start_time
+                );
+
+                $e = Carbon::parse(
+                    $sched->end_time
+                );
+
+                if ($e->lessThanOrEqualTo($s)) {
+                    $e->addDay();
+                }
+
+                $scheduledHrs =
+                    round(
+                        $s->diffInMinutes($e) / 60,
+                        2
+                    );
+            }
+
+            $att->scheduled_hours =
+                $scheduledHrs;
+
+            $att->overtime_hours =
+                round(
+                    max(
+                        0,
+                        $worked - $scheduledHrs
+                    ),
+                    2
+                );
+        }
     }
 
     // ============================================================
@@ -1048,22 +1598,6 @@ class AttendanceController extends Controller
             ->first();
     }
 
-    /**
-     * Determine Present vs Late.
-     *
-     * Rules:
-     *
-     * - Early arrival = Present
-     * - On-time arrival = Present
-     * - Up to 30 minutes after scheduled start = Present
-     * - More than 30 minutes after scheduled start = Late
-     *
-     * The shift END time is NOT checked here.
-     *
-     * The shift END restriction belongs to quickCheckIn(),
-     * because it determines whether a real-time punch is
-     * still allowed at all.
-     */
     private function deriveStatus(
         User $staff,
         Carbon $today,
@@ -1072,7 +1606,6 @@ class AttendanceController extends Controller
     ): string {
         $expectedStart = null;
 
-        // Custom hours override normal schedule
         if (
             $exception
             && $exception->type === 'custom_hours'
@@ -1107,29 +1640,10 @@ class AttendanceController extends Controller
             }
         }
 
-        /*
-         * No schedule start found.
-         *
-         * This should normally be prevented by quickCheckIn(),
-         * but returning Present keeps the method safe for
-         * manual correction and other callers.
-         */
         if (!$expectedStart) {
             return 'present';
         }
 
-        /*
-         * 30-minute attendance tolerance.
-         *
-         * Example:
-         *
-         * Shift starts 6:00 AM
-         *
-         * 5:30 AM  -> Present
-         * 6:00 AM  -> Present
-         * 6:30 AM  -> Present
-         * 6:31 AM  -> Late
-         */
         return $time->greaterThan(
             $expectedStart->copy()->addMinutes(
                 self::ATTENDANCE_TOLERANCE_MINUTES
@@ -1144,14 +1658,12 @@ class AttendanceController extends Controller
     ): void {
         $user = auth()->user();
 
-        // Administrators can always mark/correct attendance.
         if (
             $user->roles->contains('name', 'admin')
         ) {
             return;
         }
 
-        // Receptionists require permission when requested.
         if (
             $user->roles->contains('name', 'receptionist')
             && (
@@ -1168,4 +1680,3 @@ class AttendanceController extends Controller
         );
     }
 }
-

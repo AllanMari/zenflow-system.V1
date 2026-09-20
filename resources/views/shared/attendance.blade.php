@@ -1,16 +1,30 @@
 @extends(auth()->user()->roles->contains('name', 'admin') ? 'layouts.admin' : 'layouts.receptionist')
 
-@section('title', 'Staff Attendance')
-
-{{-- Flash messages are handled by the master layout (session success/error -> Swal toast).
-     This page does NOT create a second flash component. SweetAlert2 here is used only
-     for AJAX success/error feedback and the correction confirmation, per spec. --}}
+@section('title', 'Daily Attendance')
 
 @push('styles')
-<style>[x-cloak] { display: none !important; }</style>
+<style>
+    [x-cloak] {
+        display: none !important;
+    }
+
+    .report-modal-scroll::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .report-modal-scroll::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .report-modal-scroll::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.5);
+        border-radius: 999px;
+    }
+</style>
 @endpush
 
 @section('content')
+
 @php
     $isAdmin = $isAdmin ?? auth()->user()->roles->contains('name', 'admin');
 @endphp
@@ -24,352 +38,1092 @@
             checkout: @js(route('attendance.quick-checkout', ['staff' => '__ID__'])),
             correct: @js(route('attendance.correct', ['staff' => '__ID__'])),
         },
+        reportUrl: @js(route('attendance.report-pdf')),
     })"
     x-cloak
-    class="max-w-[85rem] px-4 py-6 sm:px-6 lg:px-8 mx-auto"
+    class="max-w-[85rem] px-4 pb-6 sm:px-6 lg:px-8 mx-auto"
 >
-    <!-- ================= Header ================= -->
+
+    {{-- =========================================================
+         HEADER
+    ========================================================== --}}
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+
         <div>
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Daily Attendance</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1.5">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M8 7V3m8 4V3M4 9h16M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"/>
+                </svg>
+
                 {{ $today->format('l, F j, Y') }}
             </p>
         </div>
-        <div class="flex items-center gap-2">
-            <button type="button" onclick="window.location.reload()" title="Sync with server"
-                    class="py-2 px-3.5 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:bg-gray-50 transition dark:bg-slate-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-slate-800 active:scale-95">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+
+        <div class="flex flex-wrap items-center gap-2">
+
+            {{-- Refresh --}}
+            <button
+                type="button"
+                onclick="window.location.reload()"
+                class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 active:scale-[.98] dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200 dark:hover:bg-slate-800"
+            >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M20 11a8.1 8.1 0 00-14.9-4M4 5v4h4M4 13a8.1 8.1 0 0014.9 4M20 19v-4h-4"/>
+                </svg>
                 Refresh
             </button>
+
+            {{-- Generate Report --}}
             @if($isAdmin)
-            <a href="{{ route('attendance.report') }}"
-               class="py-2 px-3.5 inline-flex items-center gap-2 rounded-xl bg-gray-900 text-xs font-semibold text-white hover:bg-gray-800 transition dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 active:scale-95">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                View Report
-            </a>
-            @endif
-        </div>
-    </div>
-
-    <!-- ================= Compact Summary (replaces the 6-card dashboard) ================= -->
-    <div class="mb-6 flex flex-wrap items-center gap-2">
-        <span class="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">Today</span>
-        <button type="button" @click="setFilter('checked_in')" :class="pillCls('checked_in')"
-                class="transition active:scale-95">
-            <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
-            <span x-text="summary.checkedIn"></span> Checked In
-        </button>
-        <button type="button" @click="setFilter('late')" :class="pillCls('late')"
-                class="transition active:scale-95">
-            <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-            <span x-text="summary.late"></span> Late
-        </button>
-        <button type="button" @click="setFilter('pending')" :class="pillCls('pending')"
-                class="transition active:scale-95">
-            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-            <span x-text="summary.pending"></span> Pending
-        </button>
-        <button type="button" @click="setFilter('off_leave')" :class="pillCls('off_leave')"
-                class="transition active:scale-95">
-            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-            <span x-text="summary.off"></span> Off / Leave
-        </button>
-        <span class="ml-auto text-xs font-medium text-gray-400 dark:text-gray-500 hidden sm:inline">
-            <span x-text="summary.scheduled"></span> scheduled today
-        </span>
-    </div>
-
-    <!-- ================= Needs Attention ================= -->
-    <div x-show="attention.length > 0" class="mb-6 rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800/60 p-4">
-        <div class="flex items-center gap-2 mb-3">
-            <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-            <h2 class="text-sm font-bold text-amber-800 dark:text-amber-300">Needs Attention</h2>
-            <span class="text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded-full px-2 py-0.5" x-text="attention.length"></span>
-        </div>
-        <div class="flex flex-wrap gap-2">
-            <template x-for="s in attention" :key="'att-' + s.id">
-                <div class="flex items-center gap-2.5 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/50 rounded-xl pl-1.5 pr-2 py-1.5 shadow-sm">
-                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold dark:bg-amber-900/40 dark:text-amber-300" x-text="s.initials"></span>
-                    <div class="leading-tight">
-                        <p class="text-xs font-bold text-gray-800 dark:text-gray-200" x-text="s.name"></p>
-                        <p class="text-[10px] font-semibold" :class="s.display_status === 'late' ? 'text-red-500' : 'text-amber-500'"
-                           x-text="s.display_status === 'late' ? 'Late — checked in after schedule' : 'Not checked in yet'"></p>
-                    </div>
-                    <button type="button" x-show="s.display_status === 'pending'" @click="checkIn(s.id)" :disabled="busy[s.id]"
-                            class="ml-1 py-1.5 px-2.5 rounded-lg bg-brand-600 text-white text-[11px] font-bold hover:bg-brand-700 transition active:scale-95 disabled:opacity-60 inline-flex items-center gap-1">
-                        <svg x-show="busy[s.id]" class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
-                        Check In
-                    </button>
-                    <button type="button" x-show="s.display_status === 'late'" @click="jump(s.id)"
-                            class="ml-1 py-1.5 px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-[11px] font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800 transition active:scale-95">View</button>
-                </div>
-            </template>
-        </div>
-    </div>
-
-    <div x-show="attention.length === 0 && summary.scheduled > 0"
-         class="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/10 dark:border-emerald-800/60 px-4 py-3 flex items-center gap-2">
-        <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">All scheduled staff are accounted for.</p>
-    </div>
-
-    <!-- ================= Search + Status Filters ================= -->
-    <div class="flex flex-col sm:flex-row gap-3 mb-5">
-        <div class="relative sm:w-72">
-            <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none pl-3.5">
-                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            </div>
-            <input type="text" x-model.debounce.150ms="search" placeholder="Search staff…"
-                   class="py-2.5 pl-10 pr-4 block w-full border border-gray-200 rounded-xl text-sm focus:border-brand-500 focus:ring-brand-500 dark:bg-slate-900 dark:border-gray-700 dark:text-gray-200">
-        </div>
-        <div class="flex flex-wrap items-center gap-1.5">
-            <template x-for="[f, label] in filters" :key="f">
-                <button type="button" @click="filter = f"
-                        :class="filter === f
-                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-                            : 'bg-white text-gray-600 ring-1 ring-inset ring-gray-200 hover:bg-gray-50 dark:bg-slate-900 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-slate-800'"
-                        class="rounded-full px-3 py-1.5 text-xs font-semibold transition active:scale-95">
-                    <span x-text="label"></span>
-                    <span class="opacity-60 ml-0.5" x-text="count(f)"></span>
+                <button
+                    type="button"
+                    @click="openReportModal()"
+                    class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 active:scale-[.98] dark:bg-brand-500 dark:hover:bg-brand-600"
+                >
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M6 2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M14 2v6h6M8 13h8M8 17h6"/>
+                    </svg>
+                    Generate Report
                 </button>
-            </template>
+            @endif
+
         </div>
     </div>
 
-    <!-- ================= Staff List (ONE shared structure: cards on mobile, table rows on desktop) ================= -->
-    <div x-show="list.length === 0" class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
-        <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">No active staff members found.</p>
-    </div>
 
-    <div x-show="list.length > 0">
-        <!-- Desktop column headers -->
-        <div class="hidden md:grid grid-cols-12 gap-4 px-6 pb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-            <div class="col-span-4">Staff</div>
-            <div class="col-span-2">Shift</div>
-            <div class="col-span-2">Status</div>
-            <div class="col-span-2">Times</div>
-            <div class="col-span-2 text-right">Action</div>
-        </div>
+    {{-- =========================================================
+         NEEDS ATTENTION
+    ========================================================== --}}
+    <div
+        x-show="attention.length > 0"
+        x-transition
+        class="mb-6 rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/60 dark:bg-amber-950/20"
+    >
+        <div class="flex items-start gap-3">
 
-        <div class="space-y-3 md:space-y-0">
-            <template x-for="s in filtered" :key="s.id">
-                <div :id="'att-row-' + s.id"
-                     class="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 md:items-center px-4 md:px-6 py-4 rounded-2xl md:rounded-none transition-colors
-                            bg-white border border-gray-200 shadow-sm md:shadow-none md:border-0 md:border-b md:bg-transparent
-                            dark:bg-slate-900 dark:border-gray-800 md:dark:bg-transparent md:dark:border-gray-800
-                            hover:bg-gray-50/70 dark:hover:bg-slate-800/40">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/>
+                </svg>
+            </div>
 
-                    <!-- Staff -->
-                    <div class="md:col-span-4">
-                        <span class="md:hidden block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Staff</span>
-                        <div class="flex items-center gap-3">
-                            <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-brand-100 text-brand-800 text-sm font-bold ring-2 ring-white dark:ring-slate-900 dark:bg-brand-900/40 dark:text-brand-300 shrink-0" x-text="s.initials"></span>
+            <div class="min-w-0 flex-1">
+
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 class="text-sm font-bold text-amber-900 dark:text-amber-200">
+                            Needs Attention
+                        </h2>
+
+                        <p class="text-xs text-amber-800/80 dark:text-amber-300/80">
+                            Staff who are pending or currently marked late.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-3 space-y-2">
+                    <template x-for="s in attention" :key="'att-' + s.id">
+                        <div class="flex flex-col gap-3 rounded-lg border border-amber-200 bg-white/80 px-3 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900/50 dark:bg-slate-900/70">
+
                             <div class="min-w-0">
-                                <p class="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate" x-text="s.name"></p>
-                                <p class="text-xs text-gray-500 dark:text-gray-500 truncate" x-text="s.username"></p>
+                                <div class="flex items-center gap-2">
+                                    <p
+                                        class="truncate text-sm font-semibold text-gray-900 dark:text-white"
+                                        x-text="s.name"
+                                    ></p>
+
+                                    <span
+                                        class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset"
+                                        :class="badge(s).cls"
+                                        x-text="badge(s).label"
+                                    ></span>
+                                </div>
+
+                                <p
+                                    class="mt-0.5 text-xs text-gray-500 dark:text-gray-400"
+                                    x-text="s.shift || 'No shift assigned'"
+                                ></p>
                             </div>
+
+                            <div class="flex items-center gap-2">
+
+                                <button
+                                    x-show="s.display_status === 'pending'"
+                                    type="button"
+                                    @click="checkIn(s.id)"
+                                    class="inline-flex items-center justify-center rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-600"
+                                >
+                                    Check In
+                                </button>
+
+                                <button
+                                    x-show="s.display_status === 'late'"
+                                    type="button"
+                                    @click="jump(s.id)"
+                                    class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700"
+                                >
+                                    View
+                                </button>
+
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- All accounted for --}}
+    <div
+        x-show="attention.length === 0 && summary.scheduled > 0"
+        x-transition
+        class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900/60 dark:bg-emerald-950/20"
+    >
+        <div class="flex items-center gap-3">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+
+            <p class="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                All scheduled staff are accounted for.
+            </p>
+        </div>
+    </div>
+
+
+    {{-- =========================================================
+         STAFF ATTENDANCE
+    ========================================================== --}}
+    <section class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
+        {{-- Section header --}}
+        <div class="border-b border-gray-200 px-4 py-4 sm:px-5 dark:border-slate-800">
+
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
+                <div>
+                    <h2 class="text-base font-bold text-gray-900 dark:text-white">
+                        Staff Attendance
+                    </h2>
+
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                        Check staff in and out for today's scheduled shifts.
+                    </p>
+                </div>
+
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+
+                    {{-- Search --}}
+                    <div class="relative sm:w-64">
+                        <svg
+                            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                        >
+                            <circle cx="11" cy="11" r="7"/>
+                            <path stroke-linecap="round" d="m20 20-3.5-3.5"/>
+                        </svg>
+
+                        <input
+                            type="text"
+                            x-model.debounce.150ms="search"
+                            placeholder="Search staff..."
+                            class="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 dark:placeholder:text-gray-500"
+                        >
+                    </div>
+
+                </div>
+            </div>
+
+            {{-- Quick filters --}}
+            <div class="mt-4 flex flex-wrap items-center gap-1.5">
+                <template x-for="[f, label] in filters" :key="f">
+                    <button
+                        type="button"
+                        @click="filter = f"
+                        :class="pillCls(f)"
+                    >
+                        <span x-text="label"></span>
+
+                        <span
+                            class="rounded-full bg-black/5 px-1.5 py-0.5 text-[10px] dark:bg-white/10"
+                            x-text="count(f)"
+                        ></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+
+
+        {{-- Empty state --}}
+        <div
+            x-show="list.length === 0"
+            class="px-5 py-12 text-center"
+        >
+            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-slate-800 dark:text-gray-500">
+                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+                </svg>
+            </div>
+
+            <p class="mt-3 text-sm font-semibold text-gray-800 dark:text-gray-200">
+                No active staff members found.
+            </p>
+        </div>
+
+
+        {{-- Desktop table header --}}
+        <div
+            x-show="list.length > 0"
+            class="hidden border-b border-gray-200 bg-gray-50 px-5 py-3 md:grid md:grid-cols-12 md:gap-4 dark:border-slate-800 dark:bg-slate-950/40"
+        >
+            <div class="col-span-3 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Staff
+            </div>
+
+            <div class="col-span-2 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Shift
+            </div>
+
+            <div class="col-span-2 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Status
+            </div>
+
+            <div class="col-span-3 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Times
+            </div>
+
+            <div class="col-span-2 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Action
+            </div>
+        </div>
+
+
+        {{-- Staff rows --}}
+        <div
+            x-show="list.length > 0"
+            class="divide-y divide-gray-200 dark:divide-slate-800"
+        >
+
+            <template x-for="s in filtered" :key="s.id">
+
+                <div
+                    :id="'att-row-' + s.id"
+                    class="grid grid-cols-1 gap-4 px-4 py-4 transition md:grid-cols-12 md:items-center md:gap-4 md:px-5"
+                >
+
+                    {{-- Staff --}}
+                    <div class="md:col-span-3 min-w-0">
+                        <div class="flex items-center gap-3">
+
+                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
+                                <span
+                                    x-text="s.name
+                                        .split(' ')
+                                        .map(n => n[0])
+                                        .slice(0, 2)
+                                        .join('')
+                                        .toUpperCase()"
+                                ></span>
+                            </div>
+
+                            <div class="min-w-0">
+                                <p
+                                    class="truncate text-sm font-semibold text-gray-900 dark:text-white"
+                                    x-text="s.name"
+                                ></p>
+
+                                <p
+                                    class="truncate text-xs text-gray-500 dark:text-gray-400"
+                                    x-text="s.username"
+                                ></p>
+                            </div>
+
                         </div>
                     </div>
 
-                    <!-- Shift -->
+
+                    {{-- Shift --}}
                     <div class="md:col-span-2">
-                        <span class="md:hidden block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Shift</span>
-                        <template x-if="s.off">
-                            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-500/20 dark:bg-slate-800 dark:text-slate-300"
-                                  x-text="s.off_label"></span>
-                        </template>
-                        <template x-if="!s.off">
-                            <span class="text-sm text-gray-600 dark:text-gray-400 font-medium" x-text="s.shift ?? 'No schedule'"></span>
-                        </template>
-                        <p x-show="s.reason" class="text-[11px] text-gray-400 dark:text-gray-500 truncate mt-0.5 max-w-[220px]" x-text="s.reason"></p>
+                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 md:hidden">
+                            Shift
+                        </p>
+
+                        <p
+                            class="mt-0.5 text-sm text-gray-700 dark:text-gray-300"
+                            x-text="s.shift || 'No schedule'"
+                        ></p>
                     </div>
 
-                    <!-- Status (derived by the server — never selected by hand) -->
+
+                    {{-- Status --}}
                     <div class="md:col-span-2">
-                        <span class="md:hidden block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Status</span>
-                        <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
-                              :class="badge(s).cls">
-                            <span class="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
-                            <span x-text="badge(s).label"></span>
-                        </span>
+                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 md:hidden">
+                            Status
+                        </p>
+
+                        <span
+                            class="mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
+                            :class="badge(s).cls"
+                            x-text="badge(s).label"
+                        ></span>
                     </div>
 
-                    <!-- Times -->
-                    <div class="md:col-span-2">
-                        <span class="md:hidden block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Times</span>
-                        <span class="text-sm text-gray-600 dark:text-gray-400 tabular-nums">
-                            <span x-text="s.check_in ?? '—'"></span>
-                            <span class="text-gray-300 dark:text-gray-600 mx-0.5">→</span>
-                            <span x-text="s.check_out ?? '—'"></span>
-                        </span>
+
+                    {{-- Times --}}
+                    <div class="md:col-span-3">
+                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 md:hidden">
+                            Attendance Time
+                        </p>
+
+                        <div class="mt-1 space-y-0.5 text-xs text-gray-600 dark:text-gray-300">
+
+                            <div class="flex items-center gap-2">
+                                <span class="w-14 text-gray-400 dark:text-gray-500">
+                                    In
+                                </span>
+
+                                <span
+                                    class="font-medium"
+                                    x-text="s.check_in || '—'"
+                                ></span>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <span class="w-14 text-gray-400 dark:text-gray-500">
+                                    Out
+                                </span>
+
+                                <span
+                                    class="font-medium"
+                                    x-text="s.check_out || '—'"
+                                ></span>
+                            </div>
+
+                        </div>
                     </div>
 
-                    <!-- Action: exactly ONE primary button per row + overflow -->
-                    <div class="md:col-span-2 flex flex-wrap md:justify-end items-center gap-2">
-                        <template x-if="s.display_status === 'pending'">
-                            <button type="button" @click="checkIn(s.id)" :disabled="busy[s.id] || !canMark"
-                                    class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 shadow-sm transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
-                                <svg x-show="busy[s.id]" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
-                                <span x-text="busy[s.id] ? 'Saving…' : 'Check In'"></span>
+
+                    {{-- Actions --}}
+                    <div class="md:col-span-2 md:flex md:justify-end">
+
+                        <div class="flex flex-wrap items-center gap-2">
+
+                            <template x-if="s.display_status === 'pending'">
+                                <button
+                                    type="button"
+                                    @click="checkIn(s.id)"
+                                    class="inline-flex flex-1 items-center justify-center rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50 dark:bg-brand-500 dark:hover:bg-brand-600 sm:flex-none"
+                                >
+                                    Check In
+                                </button>
+                            </template>
+
+
+                            <template x-if="s.display_status === 'checked_in' || s.display_status === 'late'">
+                                <button
+                                    type="button"
+                                    @click="checkOut(s.id)"
+                                    class="inline-flex flex-1 items-center justify-center rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 sm:flex-none"
+                                >
+                                    Check Out
+                                </button>
+                            </template>
+
+
+                            <template x-if="s.display_status === 'completed'">
+                                <span class="inline-flex items-center rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                                    Done
+                                </span>
+                            </template>
+
+
+                            <template x-if="s.off || s.display_status === 'not_scheduled'">
+                                <span class="inline-flex items-center rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-500 dark:bg-slate-800 dark:text-gray-400">
+                                    No action needed
+                                </span>
+                            </template>
+
+
+                            <button
+                                x-show="canMark && !s.off && s.display_status !== 'not_scheduled'"
+                                type="button"
+                                @click="openCorrection(s)"
+                                class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800"
+                            >
+                                More
                             </button>
-                        </template>
-                        <template x-if="s.display_status === 'checked_in' || s.display_status === 'late'">
-                            <button type="button" @click="checkOut(s.id)" :disabled="busy[s.id] || !canMark"
-                                    class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-sm transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
-                                <svg x-show="busy[s.id]" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
-                                <span x-text="busy[s.id] ? 'Saving…' : 'Check Out'"></span>
-                            </button>
-                        </template>
-                        <template x-if="s.display_status === 'completed'">
-                            <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-900/20 dark:text-emerald-300">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                                Done
-                            </span>
-                        </template>
-                        <template x-if="s.off || s.display_status === 'not_scheduled'">
-                            <span class="text-xs text-gray-400 dark:text-gray-600 font-medium">No action needed</span>
-                        </template>
-                        <button type="button" x-show="canMark && !s.off && s.display_status !== 'not_scheduled'"
-                                @click="openCorrection(s)" title="Manual attendance correction"
-                                class="inline-flex items-center rounded-lg px-3 py-2 text-xs font-semibold text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-700 transition dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-slate-800 dark:hover:text-gray-200 active:scale-95">
-                            More
-                        </button>
+
+                        </div>
                     </div>
+
                 </div>
+
             </template>
 
-            <!-- Filtered-empty state -->
-            <div x-show="filtered.length === 0" class="py-14 text-center">
-                <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">No staff match your search or filter.</p>
-                <button type="button" @click="search = ''; filter = 'all'"
-                        class="mt-3 py-2 px-4 rounded-xl text-xs font-bold bg-gray-900 text-white hover:bg-gray-800 transition dark:bg-white dark:text-gray-900 active:scale-95">
+
+            {{-- No filtered results --}}
+            <div
+                x-show="filtered.length === 0"
+                class="px-5 py-12 text-center"
+            >
+                <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-slate-800 dark:text-gray-500">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <circle cx="11" cy="11" r="7"/>
+                        <path stroke-linecap="round" d="m20 20-3.5-3.5"/>
+                    </svg>
+                </div>
+
+                <p class="mt-3 text-sm font-semibold text-gray-800 dark:text-gray-200">
+                    No staff match your search or filter.
+                </p>
+
+                <button
+                    type="button"
+                    @click="search = ''; filter = 'all'"
+                    class="mt-2 text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                >
                     Clear filters
                 </button>
             </div>
+
         </div>
+    </section>
+
+
+    {{-- =========================================================
+         TODAY'S SUMMARY
+    ========================================================== --}}
+    <div class="mt-6">
+
+        <div class="mb-3">
+            <h2 class="text-sm font-bold text-gray-900 dark:text-white">
+                Today's Summary
+            </h2>
+
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                Current attendance status for today's schedule.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+
+            {{-- Checked In --}}
+            <button
+                type="button"
+                @click="setFilter('checked_in')"
+                class="rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-brand-300 hover:shadow dark:border-slate-800 dark:bg-slate-900 dark:hover:border-brand-700"
+            >
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Checked In
+                </p>
+
+                <p
+                    class="mt-1 text-2xl font-bold text-gray-900 dark:text-white"
+                    x-text="summary.checkedIn"
+                ></p>
+            </button>
+
+
+            {{-- Late --}}
+            <button
+                type="button"
+                @click="setFilter('late')"
+                class="rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-red-300 hover:shadow dark:border-slate-800 dark:bg-slate-900 dark:hover:border-red-800"
+            >
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Late
+                </p>
+
+                <p
+                    class="mt-1 text-2xl font-bold text-red-600 dark:text-red-400"
+                    x-text="summary.late"
+                ></p>
+            </button>
+
+
+            {{-- Pending --}}
+            <button
+                type="button"
+                @click="setFilter('pending')"
+                class="rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-300 hover:shadow dark:border-slate-800 dark:bg-slate-900 dark:hover:border-amber-800"
+            >
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Pending
+                </p>
+
+                <p
+                    class="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400"
+                    x-text="summary.pending"
+                ></p>
+            </button>
+
+
+            {{-- Off / Leave --}}
+            <button
+                type="button"
+                @click="setFilter('off_leave')"
+                class="rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-gray-300 hover:shadow dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+            >
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Off / Leave
+                </p>
+
+                <p
+                    class="mt-1 text-2xl font-bold text-gray-700 dark:text-gray-200"
+                    x-text="summary.off"
+                ></p>
+            </button>
+
+        </div>
+
+        <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            <span
+                class="font-semibold text-gray-700 dark:text-gray-300"
+                x-text="summary.scheduled"
+            ></span>
+            scheduled staff today.
+        </p>
+
     </div>
 
-    <!-- ================= Manual Correction Modal (Preline-style overlay, Alpine-driven) ================= -->
-    <div x-show="correctionOpen" x-transition.opacity @keydown.escape.window="correctionOpen = false"
-         class="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Manual attendance correction">
-        <div class="absolute inset-0 bg-gray-900/50 dark:bg-black/60 backdrop-blur-sm" @click="correctionOpen = false"></div>
 
-        <div x-show="correctionOpen" x-transition.scale.origin-center
-             class="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-            <!-- Header -->
-            <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-                <h3 class="text-base font-bold text-gray-900 dark:text-white">Manual Attendance Correction</h3>
-                <button type="button" @click="correctionOpen = false" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:hover:text-gray-200 transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
+    {{-- =========================================================
+         GENERATE ATTENDANCE REPORT MODAL
+    ========================================================== --}}
+    @if($isAdmin)
 
-            <!-- Body -->
-            <div class="px-5 py-4 space-y-4" x-show="correcting">
-                <!-- Audit warning -->
-                <div class="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/15 dark:border-amber-800/60 px-3.5 py-3">
-                    <svg class="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-                    <p class="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
-                        This is a <strong>manual correction</strong>, not a real-time check-in. It will be written to the
-                        audit log with your name, the time of correction, and the reason.
-                    </p>
-                </div>
+        <div
+            x-show="reportOpen"
+            x-cloak
+            x-transition.opacity
+            class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-sm"
+            @keydown.escape.window="reportOpen = false"
+        >
 
-                <!-- Staff context -->
-                <div class="rounded-xl bg-gray-50 dark:bg-slate-800/50 px-3.5 py-3 flex items-center justify-between gap-3">
-                    <div class="min-w-0">
-                        <p class="text-sm font-bold text-gray-800 dark:text-gray-100 truncate" x-text="correcting ? correcting.name : ''"></p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400" x-text="correcting ? (correcting.shift ?? 'No schedule') : ''"></p>
-                    </div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
-                        <span x-text="correcting && correcting.check_in ? correcting.check_in : '—'"></span>
-                        <span class="text-gray-300 dark:text-gray-600">→</span>
-                        <span x-text="correcting && correcting.check_out ? correcting.check_out : '—'"></span>
-                    </p>
-                </div>
+            <div
+                x-show="reportOpen"
+                x-transition:enter="ease-out duration-200"
+                x-transition:enter-start="opacity-0 translate-y-2 scale-[.98]"
+                x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                x-transition:leave="ease-in duration-150"
+                x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                x-transition:leave-end="opacity-0 translate-y-2 scale-[.98]"
+                @click.outside="reportOpen = false"
+                class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+            >
 
-                <form id="attCorrectionForm" @submit.prevent="submitCorrection" class="space-y-4">
-                    <div>
-                        <label class="block mb-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Correction Type</label>
-                        <select x-model="corr.type" required
-                                class="py-2.5 px-3 block w-full border border-gray-200 rounded-xl text-sm focus:border-brand-500 focus:ring-brand-500 dark:bg-slate-800 dark:border-gray-700 dark:text-gray-200">
-                            <template x-if="correcting && correcting.check_in">
-                                <option value="check_in">Adjust check-in time</option>
-                            </template>
-                            <template x-if="correcting && !correcting.check_in">
-                                <option value="check_in">Record missed check-in</option>
-                            </template>
-                            <template x-if="correcting && correcting.check_out">
-                                <option value="check_out">Adjust check-out time</option>
-                            </template>
-                            <template x-if="correcting && !correcting.check_out">
-                                <option value="check_out">Record missed check-out</option>
-                            </template>
-                        </select>
-                    </div>
+                {{-- Modal Header --}}
+                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-slate-800">
 
                     <div>
-                        <label class="block mb-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actual Time</label>
-                        <input type="time" x-model="corr.time" required
-                               class="py-2.5 px-3 block w-full border border-gray-200 rounded-xl text-sm focus:border-brand-500 focus:ring-brand-500 dark:bg-slate-800 dark:border-gray-700 dark:text-gray-200">
-                    </div>
+                        <h2 class="text-base font-bold text-gray-900 dark:text-white">
+                            Generate Attendance Report
+                        </h2>
 
-                    <div>
-                        <label class="block mb-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Reason</label>
-                        <select x-model="corr.reason" required
-                                class="py-2.5 px-3 block w-full border border-gray-200 rounded-xl text-sm focus:border-brand-500 focus:ring-brand-500 dark:bg-slate-800 dark:border-gray-700 dark:text-gray-200">
-                            <option value="" disabled>Select a reason…</option>
-                            <option>Forgot to check in</option>
-                            <option>Forgot to check out</option>
-                            <option>System or device issue</option>
-                            <option>Off-site work assignment</option>
-                            <option>Approved by manager</option>
-                            <option>Other</option>
-                        </select>
-                    </div>
-
-                    <div x-show="corr.reason === 'Other'">
-                        <label class="block mb-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Specify Reason</label>
-                        <input type="text" x-model="corr.reasonOther" maxlength="255" placeholder="Briefly describe the reason…"
-                               class="py-2.5 px-3 block w-full border border-gray-200 rounded-xl text-sm focus:border-brand-500 focus:ring-brand-500 dark:bg-slate-800 dark:border-gray-700 dark:text-gray-200">
-                    </div>
-
-                    <p x-show="corr.error" x-text="corr.error" class="text-xs font-semibold text-red-600 dark:text-red-400"></p>
-
-                    <div class="flex items-center justify-between gap-3 pt-1">
-                        <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-snug">
-                            Recorded by {{ auth()->user()->first_name }} {{ auth()->user()->last_name }}<br>in the audit trail.
+                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                            Choose the attendance type and date range.
                         </p>
-                        <div class="flex gap-2 shrink-0">
-                            <button type="button" @click="correctionOpen = false"
-                                    class="py-2.5 px-4 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition">
-                                Cancel
-                            </button>
-                            <button type="submit" :disabled="submitting"
-                                    class="py-2.5 px-5 inline-flex items-center gap-2 rounded-xl text-sm font-bold text-white bg-gray-900 hover:bg-gray-800 transition active:scale-95 disabled:opacity-60 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100">
-                                <svg x-show="submitting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
-                                <span x-text="submitting ? 'Saving…' : 'Save Correction'"></span>
-                            </button>
+                    </div>
+
+                    <button
+                        type="button"
+                        @click="reportOpen = false"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800 dark:hover:text-gray-200"
+                    >
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/>
+                        </svg>
+                    </button>
+
+                </div>
+
+
+                {{-- Modal Body --}}
+                <div class="report-modal-scroll overflow-y-auto px-5 py-5">
+
+                    {{-- Step 1: Attendance Type --}}
+                    <div>
+
+                        <label class="block text-sm font-semibold text-gray-900 dark:text-white">
+                            Attendance Type
+                        </label>
+
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Select which attendance records should appear in the report.
+                        </p>
+
+                        <div class="mt-3">
+
+                            <select
+                                x-model="report.status"
+                                class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
+                            >
+                                <option value="">All Attendance</option>
+                                <option value="present">Present</option>
+                                <option value="absent">Absent</option>
+                                <option value="late">Late</option>
+                                <option value="on_leave">Leave</option>
+                                <option value="day_off">Day Off</option>
+                                <option value="holiday">Holiday</option>
+                            </select>
+
                         </div>
                     </div>
-                </form>
+
+
+                    {{-- Step 2: Date --}}
+                    <div class="mt-6">
+
+                        <label class="block text-sm font-semibold text-gray-900 dark:text-white">
+                            Date
+                        </label>
+
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Select the period covered by the attendance report.
+                        </p>
+
+
+                        {{-- Date options --}}
+                        <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+
+                            <button
+                                type="button"
+                                @click="report.range = 'today'"
+                                :class="report.range === 'today'
+                                    ? 'border-brand-600 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-900/20 dark:text-brand-300'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-300 dark:hover:bg-slate-700'"
+                                class="rounded-lg border px-3 py-2.5 text-xs font-semibold transition"
+                            >
+                                Today
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="report.range = 'week'"
+                                :class="report.range === 'week'
+                                    ? 'border-brand-600 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-900/20 dark:text-brand-300'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-300 dark:hover:bg-slate-700'"
+                                class="rounded-lg border px-3 py-2.5 text-xs font-semibold transition"
+                            >
+                                This Week
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="report.range = 'month'"
+                                :class="report.range === 'month'
+                                    ? 'border-brand-600 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-900/20 dark:text-brand-300'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-300 dark:hover:bg-slate-700'"
+                                class="rounded-lg border px-3 py-2.5 text-xs font-semibold transition"
+                            >
+                                This Month
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="report.range = 'year'"
+                                :class="report.range === 'year'
+                                    ? 'border-brand-600 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-900/20 dark:text-brand-300'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-300 dark:hover:bg-slate-700'"
+                                class="rounded-lg border px-3 py-2.5 text-xs font-semibold transition"
+                            >
+                                This Year
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="report.range = 'custom'"
+                                :class="report.range === 'custom'
+                                    ? 'border-brand-600 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-900/20 dark:text-brand-300'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-300 dark:hover:bg-slate-700'"
+                                class="col-span-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition sm:col-span-1"
+                            >
+                                Custom
+                            </button>
+
+                        </div>
+
+
+                        {{-- Custom date range --}}
+                        <div
+                            x-show="report.range === 'custom'"
+                            x-transition
+                            class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/60"
+                        >
+
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                                {{-- Start Date --}}
+                                <div>
+
+                                    <label class="mb-1.5 block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                        Start Date
+                                    </label>
+
+                                    <div class="relative">
+
+                                        <input
+                                            id="attendanceReportStart"
+                                            type="text"
+                                            x-model="report.start_date"
+                                            placeholder="Select start date"
+                                            class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 pr-10 text-sm text-gray-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100"
+                                        >
+
+                                        <svg
+                                            class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.8"
+                                        >
+                                            <rect x="3" y="5" width="18" height="16" rx="2"/>
+                                            <path stroke-linecap="round" d="M8 3v4M16 3v4M3 10h18"/>
+                                        </svg>
+
+                                    </div>
+
+                                </div>
+
+
+                                {{-- End Date --}}
+                                <div>
+
+                                    <label class="mb-1.5 block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                        End Date
+                                    </label>
+
+                                    <div class="relative">
+
+                                        <input
+                                            id="attendanceReportEnd"
+                                            type="text"
+                                            x-model="report.end_date"
+                                            placeholder="Select end date"
+                                            class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 pr-10 text-sm text-gray-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100"
+                                        >
+
+                                        <svg
+                                            class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.8"
+                                        >
+                                            <rect x="3" y="5" width="18" height="16" rx="2"/>
+                                            <path stroke-linecap="round" d="M8 3v4M16 3v4M3 10h18"/>
+                                        </svg>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    {{-- Current selection --}}
+                    <div class="mt-5 rounded-lg bg-gray-50 px-3.5 py-3 dark:bg-slate-800/70">
+
+                        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                            Report Selection
+                        </p>
+
+                        <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+
+                            <span
+                                class="font-semibold text-gray-800 dark:text-gray-200"
+                                x-text="reportStatusLabel()"
+                            ></span>
+
+                            <span class="text-gray-400">•</span>
+
+                            <span
+                                class="text-gray-600 dark:text-gray-300"
+                                x-text="reportRangeLabel()"
+                            ></span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                {{-- Modal Footer --}}
+                <div class="border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/40">
+
+                    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+
+                        <button
+                            type="button"
+                            @click="reportOpen = false"
+                            class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700"
+                        >
+                            Cancel
+                        </button>
+
+
+                        {{-- Preview --}}
+                        <button
+                            type="button"
+                            @click="generateReport('stream')"
+                            class="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-600 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500 dark:bg-slate-900 dark:text-brand-300 dark:hover:bg-brand-900/20"
+                        >
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/>
+                                <circle cx="12" cy="12" r="2.5"/>
+                            </svg>
+
+                            Preview PDF
+                        </button>
+
+
+                        {{-- Download --}}
+                        <button
+                            type="button"
+                            @click="generateReport('download')"
+                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-600"
+                        >
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"/>
+                            </svg>
+
+                            Download PDF
+                        </button>
+
+                    </div>
+
+                </div>
+
             </div>
         </div>
+
+    @endif
+
+
+    {{-- =========================================================
+         MANUAL CORRECTION MODAL
+    ========================================================== --}}
+    <div
+        x-show="correctionOpen"
+        x-cloak
+        x-transition.opacity
+        class="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-sm"
+        @keydown.escape.window="correctionOpen = false"
+    >
+
+        <div
+            x-show="correctionOpen"
+            x-transition
+            @click.outside="correctionOpen = false"
+            class="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+        >
+
+            <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-slate-800">
+
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-white">
+                        Manual Attendance Correction
+                    </h3>
+
+                    <p
+                        class="mt-0.5 text-xs text-gray-500 dark:text-gray-400"
+                        x-text="correcting ? correcting.name : ''"
+                    ></p>
+                </div>
+
+                <button
+                    type="button"
+                    @click="correctionOpen = false"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800 dark:hover:text-gray-200"
+                >
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/>
+                    </svg>
+                </button>
+
+            </div>
+
+
+            <form
+                id="attCorrectionForm"
+                @submit.prevent="submitCorrection"
+                class="px-5 py-5"
+            >
+
+                {{-- Correction Type --}}
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        Correction Type
+                    </label>
+
+                    <select
+                        x-model="corr.type"
+                        class="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
+                    >
+                        <option value="check_in">Check In</option>
+                        <option value="check_out">Check Out</option>
+                    </select>
+                </div>
+
+
+                {{-- Actual Time --}}
+                <div class="mt-4">
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        Actual Time
+                    </label>
+
+                    <input
+                        type="time"
+                        x-model="corr.time"
+                        class="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
+                    >
+                </div>
+
+
+                {{-- Reason --}}
+                <div class="mt-4">
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        Reason
+                    </label>
+
+                    <select
+                        x-model="corr.reason"
+                        class="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
+                    >
+                        <option value="">Select a reason</option>
+                        <option value="Forgot to check in">Forgot to check in</option>
+                        <option value="Forgot to check out">Forgot to check out</option>
+                        <option value="System error">System error</option>
+                        <option value="Incorrect attendance record">Incorrect attendance record</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+
+                {{-- Other reason --}}
+                <div
+                    x-show="corr.reason === 'Other'"
+                    x-transition
+                    class="mt-4"
+                >
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        Specify Reason
+                    </label>
+
+                    <textarea
+                        x-model="corr.reasonOther"
+                        rows="3"
+                        placeholder="Enter the reason..."
+                        class="mt-1.5 w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
+                    ></textarea>
+                </div>
+
+
+                {{-- Error --}}
+                <div
+                    x-show="corr.error"
+                    x-transition
+                    class="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300"
+                    x-text="corr.error"
+                ></div>
+
+
+                {{-- Recorded by --}}
+                <div class="mt-5 rounded-lg bg-gray-50 px-3.5 py-3 dark:bg-slate-800/70">
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                        Recorded By
+                    </p>
+
+                    <p class="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+                        {{ auth()->user()->first_name }} {{ auth()->user()->last_name }}
+                    </p>
+                </div>
+
+
+                {{-- Buttons --}}
+                <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+
+                    <button
+                        type="button"
+                        @click="correctionOpen = false"
+                        class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        :disabled="submitting"
+                        class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-brand-500 dark:hover:bg-brand-600"
+                    >
+                        <svg
+                            x-show="submitting"
+                            class="h-4 w-4 animate-spin"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                        >
+                            <circle
+                                class="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                stroke-width="4"
+                            ></circle>
+
+                            <path
+                                class="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                            ></path>
+                        </svg>
+
+                        <span x-text="submitting ? 'Saving...' : 'Save Correction'"></span>
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
     </div>
+
 </div>
+
 @endsection
 
+
 @push('scripts')
+
 <script>
-/* SweetAlert2 is loaded globally by the master layout — no second include needed.
-   It is used ONLY for AJAX feedback + the correction confirmation. Normal flash
-   messages still flow through the layout's session('success')/session('error') toasts. */
-const ATT_CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const ATT_CSRF =
+    document.querySelector('meta[name="csrf-token"]')?.content || '';
 
 function attToast(message, type = 'success') {
     if (typeof Swal === 'undefined') return;
+
     Swal.fire({
         icon: type,
         title: message,
@@ -378,197 +1132,803 @@ function attToast(message, type = 'success') {
         showConfirmButton: false,
         toast: true,
         position: 'top-end',
-        background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
-        color: document.documentElement.classList.contains('dark') ? '#f8fafc' : '#1e293b',
+        background: document.documentElement.classList.contains('dark')
+            ? '#1e293b'
+            : '#ffffff',
+        color: document.documentElement.classList.contains('dark')
+            ? '#f8fafc'
+            : '#1e293b',
     });
 }
 
+
 document.addEventListener('alpine:init', () => {
+
     const BADGES = {
-        pending:       { label: 'Pending',     cls: 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-900/20 dark:text-amber-300' },
-        checked_in:    { label: 'Checked In',  cls: 'bg-teal-50 text-teal-700 ring-teal-600/20 dark:bg-teal-900/20 dark:text-teal-300' },
-        late:          { label: 'Late',        cls: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-900/20 dark:text-red-300' },
-        completed:     { label: 'Completed',   cls: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-900/20 dark:text-emerald-300' },
-        off_leave:     { label: 'Off / Leave', cls: 'bg-slate-100 text-slate-600 ring-slate-500/20 dark:bg-slate-800 dark:text-slate-300' },
-        not_scheduled: { label: 'No Schedule', cls: 'bg-gray-50 text-gray-500 ring-gray-400/20 dark:bg-slate-800/60 dark:text-slate-400' },
+        pending: {
+            label: 'Pending',
+            cls: 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-900/20 dark:text-amber-300'
+        },
+
+        checked_in: {
+            label: 'Checked In',
+            cls: 'bg-teal-50 text-teal-700 ring-teal-600/20 dark:bg-teal-900/20 dark:text-teal-300'
+        },
+
+        late: {
+            label: 'Late',
+            cls: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-900/20 dark:text-red-300'
+        },
+
+        completed: {
+            label: 'Completed',
+            cls: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-900/20 dark:text-emerald-300'
+        },
+
+        off_leave: {
+            label: 'Off / Leave',
+            cls: 'bg-slate-100 text-slate-600 ring-slate-500/20 dark:bg-slate-800 dark:text-slate-300'
+        },
+
+        not_scheduled: {
+            label: 'No Schedule',
+            cls: 'bg-gray-50 text-gray-500 ring-gray-400/20 dark:bg-slate-800/60 dark:text-slate-400'
+        },
     };
-    const FILTERS = [['all', 'All'], ['pending', 'Pending'], ['checked_in', 'Checked In'], ['late', 'Late'], ['completed', 'Completed'], ['off_leave', 'Off / Leave']];
+
+
+    const FILTERS = [
+        ['all', 'All'],
+        ['pending', 'Pending'],
+        ['checked_in', 'Checked In'],
+        ['late', 'Late'],
+        ['completed', 'Completed'],
+        ['off_leave', 'Off / Leave']
+    ];
+
 
     Alpine.data('attendanceBoard', (cfg) => ({
+
         staff: cfg.staff,
         urls: cfg.urls,
         canMark: cfg.canMark,
+
+        reportUrl: cfg.reportUrl,
+
         filters: FILTERS,
+
         search: '',
         filter: 'all',
+
         busy: {},
+
         correctionOpen: false,
         correcting: null,
-        corr: { type: 'check_in', time: '', reason: '', reasonOther: '', error: '' },
+
         submitting: false,
 
-        get list() { return Object.values(this.staff); },
+        corr: {
+            type: 'check_in',
+            time: '',
+            reason: '',
+            reasonOther: '',
+            error: ''
+        },
+
+
+        /*
+         * ========================================================
+         * REPORT STATE
+         *
+         * This is completely separate from the operational
+         * attendance list and today's attendance filters.
+         * ========================================================
+         */
+
+        reportOpen: false,
+
+        report: {
+            status: '',
+            range: 'today',
+            start_date: '',
+            end_date: ''
+        },
+
+
+        get list() {
+            return Object.values(this.staff);
+        },
+
+
         count(f) {
             return f === 'all'
-                ? this.list.filter(s => s.display_status !== 'not_scheduled').length
-                : this.list.filter(s => s.display_status === f).length;
+                ? this.list.filter(
+                    s => s.display_status !== 'not_scheduled'
+                ).length
+                : this.list.filter(
+                    s => s.display_status === f
+                ).length;
         },
+
+
         get filtered() {
+
             const q = this.search.trim().toLowerCase();
+
             return this.list.filter(s => {
-                if (this.filter !== 'all' && s.display_status !== this.filter) return false;
-                if (q && !s.name.toLowerCase().includes(q) && !s.username.toLowerCase().includes(q)) return false;
+
+                if (
+                    this.filter !== 'all' &&
+                    s.display_status !== this.filter
+                ) {
+                    return false;
+                }
+
+                if (
+                    q &&
+                    !s.name.toLowerCase().includes(q) &&
+                    !s.username.toLowerCase().includes(q)
+                ) {
+                    return false;
+                }
+
                 return true;
             });
         },
+
+
         get summary() {
-            const s = { scheduled: 0, checkedIn: 0, late: 0, pending: 0, off: 0 };
+
+            const s = {
+                scheduled: 0,
+                checkedIn: 0,
+                late: 0,
+                pending: 0,
+                off: 0
+            };
+
             for (const m of this.list) {
-                if (m.display_status === 'not_scheduled') continue;
+
+                if (m.display_status === 'not_scheduled') {
+                    continue;
+                }
+
                 s.scheduled++;
-                if (m.display_status === 'off_leave') s.off++;
-                else if (m.display_status === 'pending') s.pending++;
-                else { s.checkedIn++; if (m.display_status === 'late') s.late++; }
+
+                if (m.display_status === 'off_leave') {
+                    s.off++;
+                }
+
+                else if (m.display_status === 'pending') {
+                    s.pending++;
+                }
+
+                else {
+                    s.checkedIn++;
+
+                    if (m.display_status === 'late') {
+                        s.late++;
+                    }
+                }
             }
+
             return s;
         },
-        get attention() {
-            return this.list
-                .filter(m => m.display_status === 'late' || m.display_status === 'pending')
-                .sort((a, b) => a.display_status === b.display_status
-                    ? a.name.localeCompare(b.name)
-                    : (a.display_status === 'late' ? -1 : 1));
-        },
-        badge(m) { return BADGES[m.display_status] || BADGES.pending; },
-        pillCls(f) {
-            const base = 'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset transition active:scale-95 ';
-            return this.filter === f
-                ? base + 'bg-brand-600 text-white ring-brand-600 dark:bg-brand-500 dark:ring-brand-500'
-                : base + 'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50 dark:bg-slate-900 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-slate-800';
-        },
-        setFilter(f) { this.filter = this.filter === f ? 'all' : f; },
 
-        /* Shared POST helper — duplicate-click safe, surfaces the REAL server message. */
+
+        get attention() {
+
+            return this.list
+                .filter(m =>
+                    m.display_status === 'late' ||
+                    m.display_status === 'pending'
+                )
+                .sort((a, b) =>
+                    a.display_status === b.display_status
+                        ? a.name.localeCompare(b.name)
+                        : (
+                            a.display_status === 'late'
+                                ? -1
+                                : 1
+                        )
+                );
+        },
+
+
+        badge(m) {
+            return BADGES[m.display_status] || BADGES.pending;
+        },
+
+
+        pillCls(f) {
+
+            const base =
+                'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset transition active:scale-95 ';
+
+            return this.filter === f
+                ? base +
+                    'bg-brand-600 text-white ring-brand-600 dark:bg-brand-500 dark:ring-brand-500'
+                : base +
+                    'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50 dark:bg-slate-900 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-slate-800';
+        },
+
+
+        setFilter(f) {
+            this.filter = this.filter === f ? 'all' : f;
+        },
+
+
         async post(url, id) {
-            if (this.busy[id]) return null;
+
+            if (this.busy[id]) {
+                return null;
+            }
+
             this.busy[id] = true;
+
             try {
-                const res = await fetch(url.replace('__ID__', id), {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': ATT_CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                });
-                const data = await res.json().catch(() => ({}));
+
+                const res = await fetch(
+                    url.replace('__ID__', id),
+                    {
+                        method: 'POST',
+
+                        headers: {
+                            'X-CSRF-TOKEN': ATT_CSRF,
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+
+                const data =
+                    await res.json().catch(() => ({}));
+
                 if (!res.ok || data.success === false) {
-                    attToast(data.message || ('Request failed (' + res.status + '). Please try again.'), 'error');
+
+                    attToast(
+                        data.message ||
+                        (
+                            'Request failed (' +
+                            res.status +
+                            '). Please try again.'
+                        ),
+                        'error'
+                    );
+
                     return null;
                 }
+
                 return data;
+
             } catch (e) {
-                attToast('Network error — check your connection and try again.', 'error');
+
+                attToast(
+                    'Network error — check your connection and try again.',
+                    'error'
+                );
+
                 return null;
+
             } finally {
+
                 this.busy[id] = false;
             }
         },
 
+
         async checkIn(id) {
-            const data = await this.post(this.urls.checkin, id);
-            if (!data) return;
+
+            const data =
+                await this.post(this.urls.checkin, id);
+
+            if (!data) {
+                return;
+            }
+
             const m = this.staff[id];
+
             m.check_in = data.check_in;
             m.check_out = data.check_out;
             m.display_status = data.display_status;
+
             attToast(data.message, 'success');
         },
+
 
         async checkOut(id) {
-            const data = await this.post(this.urls.checkout, id);
-            if (!data) return;
+
+            const data =
+                await this.post(this.urls.checkout, id);
+
+            if (!data) {
+                return;
+            }
+
             const m = this.staff[id];
+
             m.check_in = data.check_in;
             m.check_out = data.check_out;
             m.display_status = data.display_status;
+
             attToast(data.message, 'success');
         },
 
+
         jump(id) {
+
             this.search = '';
             this.filter = 'all';
+
             this.$nextTick(() => {
-                const el = document.getElementById('att-row-' + id);
-                if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    el.classList.add('ring-2', 'ring-amber-400', 'dark:ring-amber-500');
-                    setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400', 'dark:ring-amber-500'), 2000);
+
+                const el =
+                    document.getElementById(
+                        'att-row-' + id
+                    );
+
+                if (!el) {
+                    return;
+                }
+
+                el.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+
+                el.classList.add(
+                    'ring-2',
+                    'ring-amber-400',
+                    'dark:ring-amber-500'
+                );
+
+                setTimeout(() => {
+
+                    el.classList.remove(
+                        'ring-2',
+                        'ring-amber-400',
+                        'dark:ring-amber-500'
+                    );
+
+                }, 2000);
+            });
+        },
+
+
+        /*
+         * ========================================================
+         * REPORT MODAL
+         * ========================================================
+         */
+
+        openReportModal() {
+
+            this.report = {
+                status: '',
+                range: 'today',
+                start_date: '',
+                end_date: ''
+            };
+
+            this.reportOpen = true;
+
+            this.$nextTick(() => {
+
+                if (
+                    typeof flatpickr !== 'undefined'
+                ) {
+
+                    const start =
+                        document.getElementById(
+                            'attendanceReportStart'
+                        );
+
+                    const end =
+                        document.getElementById(
+                            'attendanceReportEnd'
+                        );
+
+                    if (start) {
+
+                        if (start._flatpickr) {
+                            start._flatpickr.destroy();
+                        }
+
+                        flatpickr(start, {
+                            dateFormat: 'Y-m-d',
+                            altInput: true,
+                            altFormat: 'M j, Y',
+                            allowInput: true,
+                            onChange: (selectedDates, dateStr) => {
+                                this.report.start_date =
+                                    dateStr;
+                            }
+                        });
+                    }
+
+                    if (end) {
+
+                        if (end._flatpickr) {
+                            end._flatpickr.destroy();
+                        }
+
+                        flatpickr(end, {
+                            dateFormat: 'Y-m-d',
+                            altInput: true,
+                            altFormat: 'M j, Y',
+                            allowInput: true,
+                            onChange: (selectedDates, dateStr) => {
+                                this.report.end_date =
+                                    dateStr;
+                            }
+                        });
+                    }
                 }
             });
         },
 
-        openCorrection(m) {
-            if (!this.canMark) {
-                attToast('You are not allowed to record attendance corrections.', 'error');
+
+        reportStatusLabel() {
+
+            const labels = {
+                '': 'All Attendance',
+                present: 'Present',
+                absent: 'Absent',
+                late: 'Late',
+                on_leave: 'Leave',
+                day_off: 'Day Off',
+                holiday: 'Holiday'
+            };
+
+            return labels[this.report.status] ||
+                'All Attendance';
+        },
+
+
+        reportRangeLabel() {
+
+            const labels = {
+                today: 'Today',
+                week: 'This Week',
+                month: 'This Month',
+                year: 'This Year',
+                custom: 'Custom Date Range'
+            };
+
+            if (this.report.range === 'custom') {
+
+                if (
+                    this.report.start_date &&
+                    this.report.end_date
+                ) {
+                    return (
+                        this.report.start_date +
+                        ' to ' +
+                        this.report.end_date
+                    );
+                }
+
+                return 'Custom Date Range';
+            }
+
+            return labels[this.report.range] ||
+                'Today';
+        },
+
+
+        generateReport(action) {
+
+            if (this.report.range === 'custom') {
+
+                if (
+                    !this.report.start_date ||
+                    !this.report.end_date
+                ) {
+
+                    attToast(
+                        'Please select both a start date and end date.',
+                        'warning'
+                    );
+
+                    return;
+                }
+            }
+
+
+            const params =
+                new URLSearchParams();
+
+            params.set('action', action);
+
+            params.set(
+                'range',
+                this.report.range
+            );
+
+
+            if (this.report.status) {
+
+                params.set(
+                    'status',
+                    this.report.status
+                );
+            }
+
+
+            if (this.report.range === 'custom') {
+
+                params.set(
+                    'start_date',
+                    this.report.start_date
+                );
+
+                params.set(
+                    'end_date',
+                    this.report.end_date
+                );
+            }
+
+
+            const url =
+                this.reportUrl +
+                '?' +
+                params.toString();
+
+
+            if (action === 'stream') {
+
+                window.open(
+                    url,
+                    '_blank',
+                    'noopener'
+                );
+
                 return;
             }
-            this.correcting = m;
-            const pad = (n) => String(n).padStart(2, '0');
-            const now = new Date();
-            const type = m.check_in ? 'check_out' : 'check_in';
-            let time = pad(now.getHours()) + ':' + pad(now.getMinutes());
-            if (type === 'check_in' && m.shift) {
-                const start = m.shift.split('–')[0].trim();
-                const parsed = new Date('1970-01-01 ' + start);
-                if (!isNaN(parsed)) time = pad(parsed.getHours()) + ':' + pad(parsed.getMinutes());
+
+
+            window.location.href = url;
+        },
+
+
+        /*
+         * ========================================================
+         * MANUAL CORRECTION
+         * ========================================================
+         */
+
+        openCorrection(m) {
+
+            if (!this.canMark) {
+
+                attToast(
+                    'You are not allowed to record attendance corrections.',
+                    'error'
+                );
+
+                return;
             }
-            this.corr = { type: type, time: time, reason: '', reasonOther: '', error: '' };
+
+            this.correcting = m;
+
+            const pad =
+                n => String(n).padStart(2, '0');
+
+            const now = new Date();
+
+            const type =
+                m.check_in
+                    ? 'check_out'
+                    : 'check_in';
+
+            let time =
+                pad(now.getHours()) +
+                ':' +
+                pad(now.getMinutes());
+
+
+            if (type === 'check_in' && m.shift) {
+
+                const start =
+                    m.shift
+                        .split('–')[0]
+                        .trim();
+
+                const parsed =
+                    new Date(
+                        '1970-01-01 ' + start
+                    );
+
+                if (!isNaN(parsed)) {
+
+                    time =
+                        pad(parsed.getHours()) +
+                        ':' +
+                        pad(parsed.getMinutes());
+                }
+            }
+
+
+            this.corr = {
+                type: type,
+                time: time,
+                reason: '',
+                reasonOther: '',
+                error: ''
+            };
+
             this.correctionOpen = true;
         },
 
+
         async submitCorrection() {
+
             const m = this.correcting;
-            if (!m || this.submitting) return;
-            const reason = this.corr.reason === 'Other' ? this.corr.reasonOther.trim() : this.corr.reason;
-            if (!this.corr.time) { this.corr.error = 'Please specify the actual time.'; return; }
-            if (!reason) { this.corr.error = 'Please select a reason for this correction.'; return; }
-            if (this.corr.reason === 'Other' && !this.corr.reasonOther.trim()) { this.corr.error = 'Please specify the reason.'; return; }
+
+            if (!m || this.submitting) {
+                return;
+            }
+
+
+            const reason =
+                this.corr.reason === 'Other'
+                    ? this.corr.reasonOther.trim()
+                    : this.corr.reason;
+
+
+            if (!this.corr.time) {
+
+                this.corr.error =
+                    'Please specify the actual time.';
+
+                return;
+            }
+
+
+            if (!reason) {
+
+                this.corr.error =
+                    'Please select a reason for this correction.';
+
+                return;
+            }
+
+
+            if (
+                this.corr.reason === 'Other' &&
+                !this.corr.reasonOther.trim()
+            ) {
+
+                this.corr.error =
+                    'Please specify the reason.';
+
+                return;
+            }
+
+
             this.corr.error = '';
 
-            const confirm = await Swal.fire({
-                icon: 'warning',
-                title: 'Record manual correction?',
-                html: 'This will update <b>' + m.name + '</b>\'s attendance and be stored in the audit log.',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, save correction',
-                cancelButtonText: 'Cancel',
-                confirmButtonColor: '#0d9488',
-                background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
-                color: document.documentElement.classList.contains('dark') ? '#f8fafc' : '#1e293b',
-            });
-            if (!confirm.isConfirmed) return;
+
+            const confirm =
+                await Swal.fire({
+
+                    icon: 'warning',
+
+                    title:
+                        'Record manual correction?',
+
+                    html:
+                        'This will update <b>' +
+                        m.name +
+                        '</b>\'s attendance and be stored in the audit log.',
+
+                    showCancelButton: true,
+
+                    confirmButtonText:
+                        'Yes, save correction',
+
+                    cancelButtonText:
+                        'Cancel',
+
+                    confirmButtonColor:
+                        '#0d9488',
+
+                    background:
+                        document.documentElement.classList.contains('dark')
+                            ? '#1e293b'
+                            : '#ffffff',
+
+                    color:
+                        document.documentElement.classList.contains('dark')
+                            ? '#f8fafc'
+                            : '#1e293b',
+                });
+
+
+            if (!confirm.isConfirmed) {
+                return;
+            }
+
 
             this.submitting = true;
+
+
             try {
-                const res = await fetch(this.urls.correct.replace('__ID__', m.id), {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': ATT_CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: this.corr.type, time: this.corr.time, reason: reason }),
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok || data.success === false) {
-                    this.corr.error = data.message || 'The correction could not be saved. Please try again.';
+
+                const res =
+                    await fetch(
+                        this.urls.correct.replace(
+                            '__ID__',
+                            m.id
+                        ),
+                        {
+                            method: 'POST',
+
+                            headers: {
+                                'X-CSRF-TOKEN': ATT_CSRF,
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json'
+                            },
+
+                            body: JSON.stringify({
+                                type: this.corr.type,
+                                time: this.corr.time,
+                                reason: reason
+                            })
+                        }
+                    );
+
+
+                const data =
+                    await res.json().catch(() => ({}));
+
+
+                if (
+                    !res.ok ||
+                    data.success === false
+                ) {
+
+                    this.corr.error =
+                        data.message ||
+                        'The correction could not be saved. Please try again.';
+
                     return;
                 }
-                m.check_in = data.check_in;
-                m.check_out = data.check_out;
-                m.display_status = data.display_status;
-                this.correctionOpen = false;
-                attToast(data.message, 'success');
+
+
+                m.check_in =
+                    data.check_in;
+
+                m.check_out =
+                    data.check_out;
+
+                m.display_status =
+                    data.display_status;
+
+
+                this.correctionOpen =
+                    false;
+
+
+                attToast(
+                    data.message,
+                    'success'
+                );
+
+
             } catch (e) {
-                this.corr.error = 'Network error — check your connection and try again.';
+
+                this.corr.error =
+                    'Network error — check your connection and try again.';
+
             } finally {
+
                 this.submitting = false;
             }
         },
+
     }));
 });
 </script>
+
 @endpush
