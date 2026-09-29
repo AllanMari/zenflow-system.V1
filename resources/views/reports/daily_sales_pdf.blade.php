@@ -4,27 +4,25 @@
     <meta charset="UTF-8">
     <title>Daily Sales Report - {{ $dateDisplay }}</title>
     <style>
-        @page { margin: 20px; size: A4 portrait; }
+        @page { margin: 0; size: A4 portrait; } /* Changed margin to 0 */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             font-family: 'DejaVu Sans', 'Inter', Arial, sans-serif; 
             font-size: 11px; 
             color: #1f2937;
             line-height: 1.4;
-            padding: 20px;
+            /* Removed padding: 20px; */
+            margin: 0; /* Ensured margin is 0 */
         }
         
-        .header { text-align: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #0d9488; }
-        .header h1 { font-size: 20px; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px; }
-        .header .subtitle { font-size: 13px; font-weight: 700; margin-top: 4px; }
-        .header .date-line { margin-top: 10px; font-size: 12px; font-weight: 600; }
-        .header .date-line span { border-bottom: 1px solid #000; display: inline-block; min-width: 100px; text-align: center; padding: 0 8px; }
+        /* Removed .header styles */
         
         table.main-table { 
             width: 100%; 
             border-collapse: collapse; 
             font-size: 11px; 
             margin-top: 10px;
+            padding: 0 20px; /* Add horizontal padding for content */
         }
         table.main-table th { 
             background: #f3f4f6; 
@@ -49,13 +47,13 @@
         .total-row { background: #f3f4f6; font-weight: 800; }
         .total-row td { border-top: 2px solid #6b7280; border-bottom: 2px solid #6b7280; }
         
-        .signatures { margin-top: 30px; width: 100%; }
+        .signatures { margin-top: 30px; width: 100%; padding: 0 20px;} /* Add horizontal padding */
         .signatures td { width: 50%; padding: 0 20px; vertical-align: top; border: none; }
         .signatures .line { border-bottom: 1px solid #374151; height: 30px; }
         .signatures .label { font-size: 9px; text-align: center; text-transform: uppercase; font-weight: 700; margin-top: 3px; }
         .signatures .name { font-size: 10px; text-align: center; margin-top: 2px; }
         
-        .footer { margin-top: 16px; font-size: 9px; color: #9ca3af; text-align: right; }
+        .footer { margin-top: 16px; font-size: 9px; color: #9ca3af; text-align: right; padding: 0 20px;} /* Add horizontal padding */
         
         /* Hide ALL mobile/responsive elements */
         .no-print, .mobile-only, .md\\:hidden, .sm\\:hidden, 
@@ -65,13 +63,14 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>SPA ALEXANDRIA</h1>
-        <div class="subtitle">{{ $reportTitle }}</div>
-        <div class="date-line">
-            {{ $dateLabel }} <span>{{ $dateDisplay }}</span>
-        </div>
-    </div>
+    @include('partials.report_header', [
+        'tagline'       => 'ZenFlow Appointment & Workforce System',
+        'reportTypeLabel' => 'Report Type',
+        'reportTitle'   => $reportTitle,
+        'dateRange'     => $dateLabel . ' ' . $dateDisplay,
+        'generatedAt'   => $generatedAt,
+        'preparedBy'    => $preparedBy,
+    ])
 
     <table class="main-table">
         <thead>

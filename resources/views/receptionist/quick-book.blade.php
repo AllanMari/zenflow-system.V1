@@ -641,32 +641,42 @@
 
                         <div
                             x-show="!loadingNext && selectedServices.length > 0 && nextSlots.length === 0"
-                            class="rounded-xl border border-dashed border-gray-300 px-5 py-10 text-center dark:border-gray-700"
+                            class="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-5 py-10 text-center dark:border-amber-800/50 dark:bg-amber-900/10"
                         >
-                            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500">
+                            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-500 dark:bg-amber-900/30 dark:text-amber-400">
                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-width="1.7" d="M12 8v4l2.5 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
                             </div>
 
-                            <p class="mt-3 text-sm font-bold text-gray-700 dark:text-gray-200">
-                                No opening found right now
+                            <p class="mt-3 text-sm font-bold text-amber-800 dark:text-amber-300">
+                                No staff or room available right now
                             </p>
 
-                            <p
-                                x-show="nextDayHint"
-                                class="mx-auto mt-1 max-w-md text-xs text-gray-400"
-                                x-text="'Next opening: ' + nextDayHint"
-                            ></p>
+                            <p class="mx-auto mt-1 max-w-sm text-xs text-amber-700/80 dark:text-amber-400/80">
+                                All checked-in staff are busy or no room is free at this time.
+                                Please choose a different time slot using the <strong>Future</strong> tab, or wait for a slot to open.
+                            </p>
 
-                            <button
-                                type="button"
-                                x-show="nextDayRaw"
-                                @click="jumpToNextDay()"
-                                class="mt-4 rounded-xl bg-brand-500 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-600"
-                            >
-                                View next opening
-                            </button>
+                            <div class="mt-4 flex flex-wrap items-center justify-center gap-3">
+                                <button
+                                    type="button"
+                                    x-show="nextDayRaw"
+                                    @click="jumpToNextDay()"
+                                    class="rounded-xl bg-brand-500 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-600"
+                                >
+                                    View next opening
+                                    <span x-show="nextDayHint" x-text="'— ' + nextDayHint" class="ml-1 font-normal opacity-80"></span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    @click="mode = 'future'; selectedSlot = null; selectedRoom = ''; initCalendar();"
+                                    class="rounded-xl border border-brand-300 bg-white px-4 py-2.5 text-xs font-bold text-brand-600 transition hover:bg-brand-50 dark:border-brand-700 dark:bg-transparent dark:text-brand-400 dark:hover:bg-brand-900/20"
+                                >
+                                    Pick a future time slot
+                                </button>
+                            </div>
                         </div>
 
 
@@ -755,7 +765,8 @@
                             </div>
 
                             <input
-                                type="date"
+                                id="quickBookDateInput"
+                                type="text"
                                 x-model="selectedDate"
                                 @change="initCalendar(); loadGaps()"
                                 :min="today"
@@ -787,14 +798,6 @@
                                 @endforeach
                             </select>
 
-                        </div>
-
-
-                        <div
-                            x-show="calendarReady"
-                            class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50"
-                        >
-                            <div id="quickBookCalendar" class="p-2 sm:p-4"></div>
                         </div>
 
 
@@ -1472,116 +1475,41 @@
 </div>
 
 
-<link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css"
-/>
-
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
 <style>
-    [x-cloak] {
-        display: none !important;
+    /* Flatpickr dark mode overrides to match system if needed */
+    .dark .flatpickr-calendar {
+        background: #1e293b;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+        border: 1px solid #334155;
     }
-
-    .fc {
-        --fc-border-color: #e5e7eb;
-        --fc-button-bg-color: #14b8a6;
-        --fc-button-border-color: #14b8a6;
-        --fc-button-hover-bg-color: #0d9488;
-        --fc-button-hover-border-color: #0d9488;
-        --fc-button-active-bg-color: #0f766e;
-        --fc-button-active-border-color: #0f766e;
-        --fc-today-bg-color: rgba(20,184,166,.08);
-        --fc-neutral-bg-color: #f8fafc;
-        --fc-page-bg-color: transparent;
-        --fc-list-event-hover-bg-color: #f8fafc;
+    .dark .flatpickr-calendar .flatpickr-months,
+    .dark .flatpickr-calendar .flatpickr-weekdays {
+        background: #1e293b;
     }
-
-    .fc .fc-toolbar-title {
-        font-size: 1rem;
-        font-weight: 800;
-        color: #1f2937;
-    }
-
-    .fc .fc-button {
-        border-radius: .7rem;
-        box-shadow: none;
-        font-size: .75rem;
-        font-weight: 700;
-        padding: .45rem .7rem;
-    }
-
-    .fc .fc-daygrid-day-number {
-        font-size: .75rem;
-        font-weight: 700;
-        color: #64748b;
-    }
-
-    .fc .fc-col-header-cell-cushion {
-        font-size: .7rem;
-        font-weight: 800;
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: .05em;
-    }
-
-    .fc .fc-daygrid-day.fc-day-today {
-        background: rgba(20,184,166,.07);
-    }
-
-    .fc .fc-daygrid-day:hover {
-        background: rgba(20,184,166,.05);
-        cursor: pointer;
-    }
-
-    .dark .fc {
-        --fc-border-color: #334155;
-        --fc-neutral-bg-color: #1e293b;
-        --fc-list-event-hover-bg-color: #1e293b;
-        --fc-page-bg-color: transparent;
-    }
-
-    .dark .fc .fc-toolbar-title,
-    .dark .fc .fc-daygrid-day-number,
-    .dark .fc .fc-col-header-cell-cushion {
+    .dark .flatpickr-calendar .flatpickr-month,
+    .dark .flatpickr-calendar .flatpickr-weekday,
+    .dark .flatpickr-calendar .flatpickr-current-month,
+    .dark .flatpickr-calendar .flatpickr-current-month input.cur-year {
         color: #e2e8f0;
     }
-
-    .dark .fc .fc-button-primary {
+    .dark .flatpickr-calendar .flatpickr-day {
+        color: #cbd5e1;
+    }
+    .dark .flatpickr-calendar .flatpickr-day:hover,
+    .dark .flatpickr-calendar .flatpickr-day:focus {
+        background: #334155;
+        border-color: #334155;
+        color: #f8fafc;
+    }
+    .dark .flatpickr-calendar .flatpickr-day.selected,
+    .dark .flatpickr-calendar .flatpickr-day.startRange,
+    .dark .flatpickr-calendar .flatpickr-day.endRange {
         background: #0f766e;
         border-color: #0f766e;
-    }
-
-    .dark .fc .fc-button-primary:hover {
-        background: #0d9488;
-        border-color: #0d9488;
-    }
-
-    .dark .fc .fc-daygrid-day.fc-day-today {
-        background: rgba(20,184,166,.1);
-    }
-
-    .dark .fc .fc-scrollgrid,
-    .dark .fc td,
-    .dark .fc th {
-        border-color: #334155;
-    }
-
-    @media (max-width: 640px) {
-        .fc .fc-toolbar {
-            flex-direction: column;
-            gap: .75rem;
-        }
-
-        .fc .fc-toolbar-chunk {
-            display: flex;
-            justify-content: center;
-        }
-
-        .fc .fc-toolbar-title {
-            font-size: .9rem;
-        }
+        color: #fff;
     }
 </style>
 
@@ -1934,7 +1862,7 @@
                     });
 
                     const response = await fetch(
-                        `/api/customers/lookup?${params.toString()}`,
+                        `/receptionist/api/customers/lookup?${params.toString()}`,
                         {
                             headers: {
                                 'Accept': 'application/json'
@@ -2017,7 +1945,7 @@
                     });
 
                     const response = await fetch(
-                        `/api/booking/next-slots?${params.toString()}`,
+                        `/receptionist/api/booking/next-slots?${params.toString()}`,
                         {
                             headers: {
                                 'Accept': 'application/json'
@@ -2122,82 +2050,39 @@
 
                 this.$nextTick(() => {
 
-                    const element = document.getElementById('quickBookCalendar');
+                    const element = document.getElementById('quickBookDateInput');
 
                     if (!element) {
                         return;
                     }
 
-                    if (this.calendar) {
-                        this.calendar.destroy();
-                        this.calendar = null;
+                    if (element._flatpickr) {
+                        element._flatpickr.setDate(this.selectedDate || this.today);
+                        return;
                     }
 
-                    this.calendar = new FullCalendar.Calendar(
-                        element,
-                        {
-                            initialView: window.innerWidth < 640
-                                ? 'dayGridMonth'
-                                : 'dayGridMonth',
+                    const maxDate = new Date(this.today + 'T00:00:00');
+                    maxDate.setDate(maxDate.getDate() + 60);
 
-                            initialDate: this.selectedDate || this.today,
+                    flatpickr(element, {
+                        dateFormat: 'Y-m-d',
+                        minDate: this.today,
+                        maxDate: maxDate,
+                        defaultDate: this.selectedDate || this.today,
+                        disableMobile: true,
+                        onChange: (selectedDates, dateStr) => {
+                            if (dateStr < this.today) return;
 
-                            validRange: {
-                                start: this.today,
-                                end: (() => {
-                                    const date = new Date(
-                                        this.today + 'T00:00:00'
-                                    );
+                            this.selectedDate = dateStr;
+                            this.selectedSlot = null;
+                            this.selectedRoom = '';
+                            this.freeRooms = [];
 
-                                    date.setDate(date.getDate() + 60);
-
-                                    return date
-                                        .toISOString()
-                                        .split('T')[0];
-                                })()
-                            },
-
-                            height: 'auto',
-
-                            fixedWeekCount: false,
-
-                            showNonCurrentDates: false,
-
-                            headerToolbar: {
-                                left: 'prev,next',
-                                center: 'title',
-                                right: 'today'
-                            },
-
-                            dateClick: info => {
-
-                                if (info.dateStr < this.today) {
-                                    return;
-                                }
-
-                                this.selectedDate = info.dateStr;
-                                this.selectedSlot = null;
-                                this.selectedRoom = '';
-                                this.freeRooms = [];
-
-                                if (this.selectedStaff) {
-                                    this.loadGaps();
-                                }
-
-                                this.calendar?.gotoDate(info.dateStr);
-
-                            },
-
-                            datesSet: () => {
-                                this.calendarReady = true;
+                            if (this.selectedStaff) {
+                                this.loadGaps();
                             }
-
                         }
-                    );
-
-                    this.calendar.render();
-
-                    this.calendarReady = true;
+                    });
 
                 });
 

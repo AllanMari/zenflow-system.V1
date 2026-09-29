@@ -328,6 +328,23 @@
             </div>
         </section>
 
+        @if(!empty($activeNotice))
+            <div class="mb-8 rounded-2xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 p-4 text-amber-900 dark:text-amber-200 flex items-start gap-3 shadow-sm">
+                <div class="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5">
+                    <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h4 class="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                        <span>{{ $activeNotice['title'] }}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-800/60 text-amber-800 dark:text-amber-300 font-semibold lowercase">Notice</span>
+                    </h4>
+                    <p class="text-xs text-amber-800/90 dark:text-amber-300/90 mt-1 leading-relaxed">
+                        {{ $activeNotice['message'] ?? 'We have special operating hours or closure today.' }}
+                    </p>
+                </div>
+            </div>
+        @endif
+
 
         <!-- ========================================================
              STEP INDICATOR

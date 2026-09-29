@@ -141,6 +141,8 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
             'topServices'           => $data['topServices'],
             'topStaff'              => $data['topStaff'],
             'methodBreakdown'       => $data['methodBreakdown'],
+            'therapistRetentionData'=> $data['therapistRetentionData'] ?? [],
+            'peakBusinessHours'     => $data['peakBusinessHours'] ?? [],
             'preparedBy'            => Auth::user()->full_name ?? Auth::user()->name,
             'generatedAt'           => now()->format('F d, Y g:i A'),
             'safeNoShow'            => $data['noShowApptsInPeriod'],

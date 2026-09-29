@@ -12,6 +12,8 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ServicePopularityController;
+use App\Http\Controllers\BusinessScheduleController;
+use App\Http\Controllers\AppointmentInvoiceController;
 
 
 // ==================== PUBLIC ROUTES (NO LOGIN REQUIRED) ====================
@@ -93,11 +95,41 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
 
     // ─── SCHEDULE VIEW ROUTES (all receptionists can view) ───
     Route::get('/schedules', [ScheduleController::class, 'index'])->name('receptionist.schedules');
+    Route::get(
+    '/schedules/print',
+    [ScheduleController::class, 'printSchedule']
+    )->name('receptionist.schedules.print');
+
+    Route::get(
+        '/schedules/download',
+        [ScheduleController::class, 'downloadSchedule']
+    )->name('receptionist.schedules.download');
     Route::get('/shift-templates', [ScheduleController::class, 'templates'])->name('receptionist.shift-templates.index');
     Route::get('/api/staff/{staff}/schedule', [ScheduleController::class, 'staffScheduleApi'])->name('receptionist.api.staff.schedule');
 
     Route::get('/room-tracking', [AdminController::class, 'roomTracking'])
     ->name('receptionist.room-tracking');
+
+
+    Route::get(
+        '/appointment-invoice/{appointment?}',
+        [AppointmentInvoiceController::class, 'show']
+    )->name('receptionist.appointment-invoice');
+
+    Route::get(
+        '/appointments/{appointment}/invoice',
+        [AppointmentInvoiceController::class, 'show']
+    )->name('receptionist.invoice');
+
+    Route::get(
+        '/appointments/{appointment}/invoice/preview',
+        [AppointmentInvoiceController::class, 'preview']
+    )->name('receptionist.invoice.preview');
+
+    Route::get(
+        '/appointments/{appointment}/invoice/download',
+        [AppointmentInvoiceController::class, 'download']
+    )->name('receptionist.invoice.download');
 });
 
 // ─── Receptionist Schedule Edit Routes (requires can_manage_schedules) ───
@@ -166,6 +198,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
         '/receptionists/{user}/toggle-room-tracking',
         [AdminController::class, 'toggleRoomTrackingPermission']
     )->name('admin.receptionist.toggle-room-tracking');
+    // Business Hours permission
+    Route::put(
+        '/receptionists/{user}/toggle-business-hours',
+        [AdminController::class, 'toggleBusinessHoursPermission']
+    )->name('admin.receptionist.toggle-business-hours');
     // Sales
     Route::get('/sales', [SalesReportController::class, 'index'])->name('admin.sales');
     Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('admin.sales.tx-log');
@@ -183,6 +220,15 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
     // ─── SCHEDULE VIEW ROUTES ───
     Route::get('/schedules', [ScheduleController::class, 'index'])->name('admin.schedules');
+    Route::get(
+    '/schedules/print',
+    [ScheduleController::class, 'printSchedule']
+    )->name('admin.schedules.print');
+
+    Route::get(
+        '/schedules/download',
+        [ScheduleController::class, 'downloadSchedule']
+    )->name('admin.schedules.download');
     Route::get('/shift-templates', [ScheduleController::class, 'templates'])->name('admin.shift-templates.index');
     Route::get('/api/staff/{staff}/schedule', [ScheduleController::class, 'staffScheduleApi'])->name('admin.api.staff.schedule');
 
@@ -196,6 +242,26 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
     Route::get('/skill-gap', [AdminController::class, 'skillGapAnalytics'])
     ->name('admin.skill-gap');
+
+    Route::get(
+    '/appointment-invoice/{appointment?}',
+    [AppointmentInvoiceController::class, 'show']
+    )->name('admin.appointment-invoice');  
+
+    Route::get(
+        '/appointments/{appointment}/invoice',
+        [AppointmentInvoiceController::class, 'show']
+    )->name('admin.invoice');
+
+    Route::get(
+        '/appointments/{appointment}/invoice/preview',
+        [AppointmentInvoiceController::class, 'preview']
+    )->name('admin.invoice.preview');
+
+    Route::get(
+        '/appointments/{appointment}/invoice/download',
+        [AppointmentInvoiceController::class, 'download']
+    )->name('admin.invoice.download');
 });
 
 
@@ -221,6 +287,14 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
     // Bulk exception store for multi-cell grid edits
     Route::post('/schedule-exception/bulk-store', [ScheduleController::class, 'storeExceptionBulk'])->name('admin.schedule-exception.bulk-store');
+});
+
+// ==================== BUSINESS HOURS & HOLIDAYS (Admin + Authorized Receptionists) ====================
+Route::middleware(['auth'])->group(function () {
+    Route::get('/business-hours', [BusinessScheduleController::class, 'index'])->name('business-hours.index');
+    Route::post('/business-hours', [BusinessScheduleController::class, 'updateHours'])->name('business-hours.update');
+    Route::post('/business-exceptions', [BusinessScheduleController::class, 'storeException'])->name('business-exceptions.store');
+    Route::delete('/business-exceptions/{exception}', [BusinessScheduleController::class, 'destroyException'])->name('business-exceptions.destroy');
 });
 
 // ==================== LANDING EDITOR (Admin + Authorized Receptionists) ====================

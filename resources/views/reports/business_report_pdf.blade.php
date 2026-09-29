@@ -677,6 +677,51 @@
             </table>
         </div>
 
+        <!-- Therapist Retention & Loyalty -->
+        <div class="section-title">Therapist Retention &amp; Client Loyalty</div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">#</th>
+                        <th style="width: 27%;">Therapist</th>
+                        <th style="width: 17%;" class="text-right">Completed Visits</th>
+                        <th style="width: 17%;" class="text-right">Unique Clients</th>
+                        <th style="width: 17%;" class="text-right">Repeat Clients</th>
+                        <th style="width: 17%;" class="text-right">Retention Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($therapistRetentionData ?? [] as $index => $row)
+                    @php
+                        $rank = $index + 1;
+                        $rankClass = $rank === 1 ? 'gold' : ($rank === 2 ? 'silver' : ($rank === 3 ? 'bronze' : 'other'));
+                    @endphp
+                    <tr>
+                        <td><span class="rank {{ $rankClass }}">{{ $rank }}</span></td>
+                        <td><strong>{{ $row->therapist_name }}</strong></td>
+                        <td class="text-right">{{ $row->total_appointments }}</td>
+                        <td class="text-right">{{ $row->unique_clients }}</td>
+                        <td class="text-right" style="color: #0d9488; font-weight: 700;">{{ $row->repeat_clients }}</td>
+                        <td class="text-right">
+                            <strong style="color: #0f766e;">{{ number_format($row->retention_rate, 1) }}%</strong>
+                            <div class="bar-bg">
+                                <div class="bar-fill" style="width: {{ min($row->retention_rate, 100) }}%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">
+                            No therapist retention data available for this period.
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+
 
         <!-- Peak Business Hours -->
         <div class="section-title">Peak Business Hours</div>

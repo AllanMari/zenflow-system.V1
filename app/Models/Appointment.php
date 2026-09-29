@@ -32,6 +32,7 @@ class Appointment extends Model
         'rescheduled_at',
         'reminder_sent_at',
         'room_id',
+        'ip_address',
     ];
 
     protected $casts = [

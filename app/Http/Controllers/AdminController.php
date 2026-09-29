@@ -1583,6 +1583,31 @@ public function appointmentReportPdf(
         );
     }
 
+    public function toggleBusinessHoursPermission(User $user)
+    {
+        if (!auth()->user()->roles->contains('name', 'admin')) {
+            abort(403, 'Admin only');
+        }
+
+        if (!$user->roles()->where('name', 'receptionist')->exists()) {
+            return back()->with('error', 'User is not a receptionist.');
+        }
+
+        $user->update([
+            'can_manage_business_hours' => !$user->can_manage_business_hours,
+        ]);
+
+        $status = $user->can_manage_business_hours
+            ? 'can now manage Business Hours & Holidays'
+            : 'can no longer manage Business Hours & Holidays';
+
+        return back()->with(
+            'success',
+            $user->first_name . ' ' . $user->last_name . ' ' . $status . '.'
+        );
+    }
+
+
 public function skillGapAnalytics(Request $request)
 {
     $request->validate([

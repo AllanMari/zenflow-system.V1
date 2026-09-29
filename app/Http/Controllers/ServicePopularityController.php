@@ -15,18 +15,18 @@ class ServicePopularityController extends Controller
 {
     private string $timezone = 'Asia/Manila';
 
-public function index(Request $request)
-{
-    $data = $this->buildReportData($request);
+    public function index(Request $request)
+    {
+        $data = $this->buildReportData($request);
 
-    $data['routeName'] = Auth::user()->isAdmin()
-        ? 'admin.service-popularity'
-        : 'receptionist.service-popularity';
+        $data['routeName'] = Auth::user()->isAdmin()
+            ? 'admin.service-popularity'
+            : 'receptionist.service-popularity';
 
-    $data['reportTitle'] = 'SERVICE POPULARITY BREAKDOWN REPORT';
+        $data['reportTitle'] = 'SERVICE POPULARITY BREAKDOWN REPORT';
 
-    return view('shared.service-popularity', $data);
-}
+        return view('shared.service-popularity', $data);
+    }
 
     public function pdf(Request $request, ReportPdfService $pdfService)
     {
@@ -41,15 +41,19 @@ public function index(Request $request)
 
         $pdfData = [
             'reportTitle' => 'SERVICE POPULARITY BREAKDOWN REPORT',
-            'dateLabel' => $period === 'today' ? 'DATE:' : 'PERIOD:',
+            'dateLabel' => $period === 'today'
+                ? 'DATE:'
+                : 'PERIOD:',
             'dateDisplay' => $data['dateDisplay'],
             'selectedCategoryName' => $data['selectedCategoryName'],
             'summary' => $data['summary'],
             'serviceBreakdown' => $data['serviceBreakdown'],
             'packageBreakdown' => $data['packageBreakdown'],
             'categoryBreakdown' => $data['categoryBreakdown'],
-            'preparedBy' => Auth::user()->full_name ?? Auth::user()->name,
-            'generatedAt' => now($this->timezone)->format('F d, Y g:i A'),
+            'preparedBy' => Auth::user()->full_name
+                ?? Auth::user()->name,
+            'generatedAt' => now($this->timezone)
+                ->format('F d, Y g:i A'),
         ];
 
         $action = $request->get('action', 'download');
@@ -91,7 +95,10 @@ public function index(Request $request)
         */
 
         $appointmentServiceRows = AppointmentService::query()
-            ->whereHas('appointment', function ($query) use ($startDate, $endDate) {
+            ->whereHas('appointment', function ($query) use (
+                $startDate,
+                $endDate
+            ) {
                 $query->where('status', 'completed')
                     ->whereBetween('appointment_date', [
                         $startDate->toDateString(),
@@ -106,7 +113,7 @@ public function index(Request $request)
 
         /*
         |--------------------------------------------------------------------------
-        | Resolve package component services
+        | Resolve package component service IDs
         |--------------------------------------------------------------------------
         */
 
@@ -124,12 +131,36 @@ public function index(Request $request)
             }
         }
 
-        $componentServices = Service::query()
+        /*
+        |--------------------------------------------------------------------------
+        | Load the service catalog
+        |--------------------------------------------------------------------------
+        |
+        | Active individual services are needed so the report can show
+        | services even when they have no completed appointment records.
+        |
+        | Package component services are also loaded so package contents
+        | can still be resolved correctly.
+        |
+        */
+
+        $reportServices = Service::query()
             ->with('category')
-            ->whereIn(
-                'id',
-                $componentServiceIds->unique()->values()
-            )
+            ->where(function ($query) use ($componentServiceIds) {
+                $query->where(function ($query) {
+                    $query->where('is_package', false)
+                        ->where('is_active', true);
+                });
+
+                if ($componentServiceIds->isNotEmpty()) {
+                    $query->orWhereIn(
+                        'id',
+                        $componentServiceIds
+                            ->unique()
+                            ->values()
+                    );
+                }
+            })
             ->get()
             ->keyBy('id');
 
@@ -142,6 +173,51 @@ public function index(Request $request)
         $individualServices = collect();
         $packages = collect();
         $categories = collect();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Initialize every active individual service
+        |--------------------------------------------------------------------------
+        |
+        | This is the important part.
+        |
+        | The report no longer depends on an appointment record existing
+        | before a service can appear in Individual Service Popularity.
+        |
+        */
+
+        $reportServices
+            ->filter(function ($service) use ($categoryId) {
+                if (!$service->is_active) {
+                    return false;
+                }
+
+                if ($service->is_package) {
+                    return false;
+                }
+
+                if (
+                    $categoryId !== null &&
+                    (int) $service->category_id !== $categoryId
+                ) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->each(function ($service) use (&$individualServices) {
+                $individualServices->put($service->id, [
+                    'id' => $service->id,
+                    'name' => $service->name,
+                    'code' => $service->code,
+                    'category' => $service->category?->name
+                        ?? 'Uncategorized',
+                    'is_package' => false,
+                    'completed_count' => 0,
+                    'revenue' => 0,
+                    'share' => 0,
+                ]);
+            });
 
         /*
         |--------------------------------------------------------------------------
@@ -178,7 +254,9 @@ public function index(Request $request)
                     continue;
                 }
 
-                $reportAppointmentIds->push($row->appointment_id);
+                $reportAppointmentIds->push(
+                    $row->appointment_id
+                );
 
                 $price = (float) $row->price_at_booking;
 
@@ -209,7 +287,7 @@ public function index(Request $request)
 
             $includedServices = collect($includedIds)
                 ->map(
-                    fn ($id) => $componentServices->get((int) $id)
+                    fn ($id) => $reportServices->get((int) $id)
                 )
                 ->filter();
 
@@ -218,8 +296,9 @@ public function index(Request $request)
             | Category filter
             |--------------------------------------------------------------------------
             |
-            | The category filter applies to the individual services contained
-            | in the package, rather than only the package's own category.
+            | The category filter applies to the individual services
+            | contained in the package, rather than only the package's
+            | own category.
             |
             */
 
@@ -236,7 +315,9 @@ public function index(Request $request)
                 continue;
             }
 
-            $reportAppointmentIds->push($row->appointment_id);
+            $reportAppointmentIds->push(
+                $row->appointment_id
+            );
 
             /*
             |--------------------------------------------------------------------------
@@ -251,7 +332,8 @@ public function index(Request $request)
                     'id' => $service->id,
                     'name' => $service->name,
                     'code' => $service->code,
-                    'category' => $service->category?->name ?? 'Uncategorized',
+                    'category' => $service->category?->name
+                        ?? 'Uncategorized',
                     'completed_count' => 0,
                     'revenue' => 0,
                     'included_services' => [],
@@ -261,7 +343,9 @@ public function index(Request $request)
             $package = $packages->get($packageKey);
 
             $package['completed_count']++;
-            $package['revenue'] += (float) $row->price_at_booking;
+
+            $package['revenue'] +=
+                (float) $row->price_at_booking;
 
             foreach ($matchingComponents as $component) {
                 $package['included_services'][$component->id] = [
@@ -270,7 +354,10 @@ public function index(Request $request)
                 ];
             }
 
-            $packages->put($packageKey, $package);
+            $packages->put(
+                $packageKey,
+                $package
+            );
 
             /*
             |--------------------------------------------------------------------------
@@ -306,23 +393,37 @@ public function index(Request $request)
         |--------------------------------------------------------------------------
         */
 
-        $totalServices = $individualServices->sum('completed_count');
+        $totalServices = $individualServices
+            ->sum('completed_count');
 
-        $individualServiceRevenue = $individualServices->sum('revenue');
+        $individualServiceRevenue = $individualServices
+            ->sum('revenue');
 
         $serviceBreakdown = $individualServices
             ->sort(function ($a, $b) {
-                if ($a['completed_count'] === $b['completed_count']) {
-                    return strcasecmp($a['name'], $b['name']);
+                if (
+                    $a['completed_count'] ===
+                    $b['completed_count']
+                ) {
+                    return strcasecmp(
+                        $a['name'],
+                        $b['name']
+                    );
                 }
 
-                return $b['completed_count'] <=> $a['completed_count'];
+                return $b['completed_count']
+                    <=> $a['completed_count'];
             })
             ->values()
-            ->map(function ($service) use ($totalServices) {
+            ->map(function ($service) use (
+                $totalServices
+            ) {
                 $service['share'] = $totalServices > 0
                     ? round(
-                        ($service['completed_count'] / $totalServices) * 100,
+                        (
+                            $service['completed_count']
+                            / $totalServices
+                        ) * 100,
                         2
                     )
                     : 0;
@@ -339,11 +440,18 @@ public function index(Request $request)
 
         $packageBreakdown = $packages
             ->sort(function ($a, $b) {
-                if ($a['completed_count'] === $b['completed_count']) {
-                    return strcasecmp($a['name'], $b['name']);
+                if (
+                    $a['completed_count'] ===
+                    $b['completed_count']
+                ) {
+                    return strcasecmp(
+                        $a['name'],
+                        $b['name']
+                    );
                 }
 
-                return $b['completed_count'] <=> $a['completed_count'];
+                return $b['completed_count']
+                    <=> $a['completed_count'];
             })
             ->values()
             ->map(function ($package) {
@@ -365,11 +473,18 @@ public function index(Request $request)
 
         $categoryBreakdown = $categories
             ->sort(function ($a, $b) {
-                if ($a['completed_count'] === $b['completed_count']) {
-                    return strcasecmp($a['name'], $b['name']);
+                if (
+                    $a['completed_count'] ===
+                    $b['completed_count']
+                ) {
+                    return strcasecmp(
+                        $a['name'],
+                        $b['name']
+                    );
                 }
 
-                return $b['completed_count'] <=> $a['completed_count'];
+                return $b['completed_count']
+                    <=> $a['completed_count'];
             })
             ->values()
             ->all();
@@ -389,15 +504,21 @@ public function index(Request $request)
 
             'service_revenue' => $individualServiceRevenue,
 
-            'services_represented' => count($serviceBreakdown),
+            'services_represented' => count(
+                $serviceBreakdown
+            ),
 
-            'packages_booked' => collect($packageBreakdown)
-                ->sum('completed_count'),
+            'packages_booked' => collect(
+                $packageBreakdown
+            )->sum('completed_count'),
 
-            'package_revenue' => collect($packageBreakdown)
-                ->sum('revenue'),
+            'package_revenue' => collect(
+                $packageBreakdown
+            )->sum('revenue'),
 
-            'packages_represented' => count($packageBreakdown),
+            'packages_represented' => count(
+                $packageBreakdown
+            ),
         ];
 
         /*
@@ -510,10 +631,16 @@ public function index(Request $request)
                     : $startDate->copy()->endOfDay();
 
                 if ($endDate->lt($startDate)) {
-                    [$startDate, $endDate] = [$endDate, $startDate];
+                    [$startDate, $endDate] = [
+                        $endDate,
+                        $startDate,
+                    ];
                 }
 
-                return [$startDate, $endDate];
+                return [
+                    $startDate,
+                    $endDate,
+                ];
 
             default:
                 return [
@@ -523,8 +650,9 @@ public function index(Request $request)
         }
     }
 
-    private function getPackageServiceIds(Service $package): array
-    {
+    private function getPackageServiceIds(
+        Service $package
+    ): array {
         if (!$package->is_package) {
             return [];
         }
@@ -555,8 +683,12 @@ public function index(Request $request)
 
                 return null;
             })
-            ->filter(fn ($id) => is_numeric($id))
-            ->map(fn ($id) => (int) $id)
+            ->filter(
+                fn ($id) => is_numeric($id)
+            )
+            ->map(
+                fn ($id) => (int) $id
+            )
             ->unique()
             ->values()
             ->all();
@@ -575,7 +707,8 @@ public function index(Request $request)
                 'id' => $service->id,
                 'name' => $service->name,
                 'code' => $service->code,
-                'category' => $service->category?->name ?? 'Uncategorized',
+                'category' => $service->category?->name
+                    ?? 'Uncategorized',
                 'is_package' => false,
                 'completed_count' => 0,
                 'revenue' => 0,
@@ -588,7 +721,10 @@ public function index(Request $request)
         $row['completed_count'] += $count;
         $row['revenue'] += $revenue;
 
-        $collection->put($key, $row);
+        $collection->put(
+            $key,
+            $row
+        );
     }
 
     private function addCategory(
@@ -602,7 +738,8 @@ public function index(Request $request)
         if (!$collection->has($key)) {
             $collection->put($key, [
                 'id' => $service->category_id,
-                'name' => $service->category?->name ?? 'Uncategorized',
+                'name' => $service->category?->name
+                    ?? 'Uncategorized',
                 'completed_count' => 0,
                 'revenue' => 0,
             ]);
@@ -613,6 +750,9 @@ public function index(Request $request)
         $row['completed_count'] += $count;
         $row['revenue'] += $revenue;
 
-        $collection->put($key, $row);
+        $collection->put(
+            $key,
+            $row
+        );
     }
 }

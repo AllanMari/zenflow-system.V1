@@ -233,6 +233,11 @@ class SalesAnalyticsService
             $periodAppts,
             $startDate
         );
+        $therapistRetention = $this->buildTherapistRetention(
+            $periodAppts,
+            $startDate
+        );
+
         $revenueLoss = $this->buildRevenueLoss($periodAppts);
 
         /*
@@ -454,6 +459,7 @@ class SalesAnalyticsService
             'staffEfficiency' => $staffEfficiency,
 
             'customerRetention' => $customerRetention,
+            'therapistRetentionData' => $therapistRetention,
 
             'revenueLoss' => $revenueLoss,
             'hourlyRevenue'          => $hourlyRevenue,
@@ -1262,6 +1268,97 @@ class SalesAnalyticsService
             'details' => $details,
         ];
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | NEW: Therapist Retention Analytics
+    |--------------------------------------------------------------------------
+    */
+    private function buildTherapistRetention(
+        Collection $appointments,
+        Carbon $startDate
+    ): array {
+        $therapistData = [];
+
+        // 1. Group completed appointments by therapist
+        $therapistGroups = $appointments
+            ->where('status', 'completed')
+            ->groupBy('user_id');
+
+        foreach ($therapistGroups as $therapistId => $apptGroup) {
+            if (!$therapistId) {
+                continue;
+            }
+
+            $therapist = $apptGroup->first()->staff;
+            $therapistName = $therapist ? ($therapist->full_name ?? $therapist->name) : 'Unknown Staff';
+
+            // 2. Count Total Bookings
+            $totalAppts = $apptGroup->count();
+
+            // 3. Count Unique Clients in period
+            $customerIds = $apptGroup
+                ->pluck('customer_id')
+                ->filter()
+                ->unique()
+                ->values();
+
+            $uniqueClients = $customerIds->count();
+
+            if ($uniqueClients === 0) {
+                continue;
+            }
+
+            // 4. Repeat Clients: prior completed visits with this therapist OR multiple in period
+            $priorCustomerIds = Appointment::query()
+                ->where('user_id', $therapistId)
+                ->whereIn('customer_id', $customerIds)
+                ->where('status', 'completed')
+                ->whereDate('appointment_date', '<', $startDate->toDateString())
+                ->distinct()
+                ->pluck('customer_id')
+                ->toArray();
+
+            $periodRepeatCustomerIds = $apptGroup
+                ->groupBy('customer_id')
+                ->filter(fn ($clientGroup) => $clientGroup->count() > 1)
+                ->keys()
+                ->toArray();
+
+            $repeatCustomerIds = array_unique(array_merge($priorCustomerIds, $periodRepeatCustomerIds));
+            $repeatClientsCount = count($repeatCustomerIds);
+            $newClientsCount = max(0, $uniqueClients - $repeatClientsCount);
+
+            $repeatAppts = $apptGroup->whereIn('customer_id', $repeatCustomerIds)->count();
+
+            // 5. Calculate Retention Rate (repeat clients / total unique clients served)
+            $retentionRate = $uniqueClients > 0
+                ? round(($repeatClientsCount / $uniqueClients) * 100, 1)
+                : 0;
+
+            $therapistData[] = (object) [
+                'therapist_id'       => $therapistId,
+                'therapist_name'     => $therapistName,
+                'total_appointments' => $totalAppts,
+                'unique_clients'     => $uniqueClients,
+                'repeat_clients'     => $repeatClientsCount,
+                'new_clients'        => $newClientsCount,
+                'repeat_appointments'=> $repeatAppts,
+                'retention_rate'     => $retentionRate,
+            ];
+        }
+
+        // Sort by retention rate descending, then total appointments descending
+        usort($therapistData, function ($a, $b) {
+            if ($b->retention_rate === $a->retention_rate) {
+                return $b->total_appointments <=> $a->total_appointments;
+            }
+            return $b->retention_rate <=> $a->retention_rate;
+        });
+
+        return $therapistData;
+    }
+
     private function buildCustomerRetention(
     Collection $appointments,
     Carbon $startDate

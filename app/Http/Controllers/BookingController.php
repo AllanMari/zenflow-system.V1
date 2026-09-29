@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\AppointmentService;
+use App\Models\Attendance;
 use App\Models\Customer;
 use App\Models\Service;
 use App\Models\ServiceCategory;
@@ -160,7 +161,9 @@ class BookingController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('landing', compact('hero', 'benefits', 'categories'));
+        $activeNotice = \App\Services\BusinessScheduleService::getActiveNotice();
+
+        return view('landing', compact('hero', 'benefits', 'categories', 'activeNotice'));
     }
 
     // ==================== PUBLIC WIZARD ====================
@@ -299,6 +302,8 @@ class BookingController extends Controller
             }
         }
 
+        $activeNotice = \App\Services\BusinessScheduleService::getActiveNotice();
+
         return view(
             'booking.wizard',
             compact(
@@ -306,7 +311,8 @@ class BookingController extends Controller
                 'preselectedIds',
                 'defaultName',
                 'defaultPhone',
-                'customerMedicalNotes'
+                'customerMedicalNotes',
+                'activeNotice'
             )
         );
     }
@@ -347,15 +353,19 @@ class BookingController extends Controller
         $staff = User::whereHas(
             'roles',
             fn($q) => $q->where('name', 'staff')
-        )->get();
+        )
+            ->where('is_active', true)
+            ->get();
 
         $rooms = Room::active()
             ->where('status', '!=', 'maintenance')
             ->get();
 
+        $today = Carbon::today('Asia/Manila')->format('Y-m-d');
+
         return view(
             'receptionist.quick-book',
-            compact('categories', 'staff', 'rooms')
+            compact('categories', 'staff', 'rooms', 'today')
         );
     }
 
@@ -411,47 +421,68 @@ class BookingController extends Controller
         $slots = [];
 
         if ($specificDate) {
-            $startDate = Carbon::parse($specificDate, $tz);
+            $startDate = Carbon::parse($specificDate, $tz)->startOfDay();
             $endDate = $startDate->copy();
         } else {
             $startDate = Carbon::today($tz);
             $endDate = $startDate->copy()->addDays(14);
         }
 
-        if ($requiresRoom && $rooms->isNotEmpty()) {
-            $dateList = [];
+        /*
+         * Only load active staff because the available booking
+         * windows are now derived from actual staff schedules.
+         */
+        $staffMembers = User::whereHas(
+            'roles',
+            fn($q) => $q->where('name', 'staff')
+        )
+            ->where('is_active', true)
+            ->get();
 
-            for (
-                $d = $startDate->copy();
-                $d->lte($endDate);
-                $d->addDay()
-            ) {
-                if ($d->dayOfWeek !== Carbon::SUNDAY) {
-                    $dateList[] = $d->format('Y-m-d');
-                }
-            }
+        $dateList = [];
+        for (
+            $d = $startDate->copy();
+            $d->lte($endDate);
+            $d->addDay()
+        ) {
+            $dateList[] = $d->format('Y-m-d');
+        }
 
-            if (!empty($dateList)) {
-                $roomAppointments = Appointment::whereIn(
-                    'appointment_date',
-                    $dateList
+        $allStaffAppointments = collect();
+        if (!empty($dateList) && $staffMembers->isNotEmpty()) {
+            $allStaffAppointments = Appointment::whereIn('appointment_date', $dateList)
+                ->whereIn('status', ['confirmed', 'completed', 'pending'])
+                ->whereIn('user_id', $staffMembers->pluck('id'))
+                ->get(['appointment_date', 'user_id', 'start_time', 'end_time'])
+                ->groupBy('appointment_date')
+                ->map(fn($group) => $group->groupBy('user_id'));
+        }
+
+        /*
+         * Room appointments are loaded for the actual dates
+         * being searched. There is intentionally no Sunday
+         * exclusion here.
+         */
+        if ($requiresRoom && $rooms->isNotEmpty() && !empty($dateList)) {
+            $roomAppointments = Appointment::whereIn(
+                'appointment_date',
+                $dateList
+            )
+                ->whereIn(
+                    'status',
+                    ['confirmed', 'completed', 'pending']
                 )
-                    ->whereIn(
-                        'status',
-                        ['confirmed', 'completed', 'pending']
-                    )
-                    ->whereNotNull('room_id')
-                    ->get([
-                        'appointment_date',
-                        'room_id',
-                        'start_time',
-                        'end_time',
-                    ])
-                    ->groupBy('appointment_date')
-                    ->map(
-                        fn($group) => $group->groupBy('room_id')
-                    );
-            }
+                ->whereNotNull('room_id')
+                ->get([
+                    'appointment_date',
+                    'room_id',
+                    'start_time',
+                    'end_time',
+                ])
+                ->groupBy('appointment_date')
+                ->map(
+                    fn($group) => $group->groupBy('room_id')
+                );
         }
 
         for (
@@ -459,102 +490,257 @@ class BookingController extends Controller
             $date->lte($endDate);
             $date->addDay()
         ) {
-            if ($date->dayOfWeek === Carbon::SUNDAY) {
+            $dateStr = $date->format('Y-m-d');
+
+            /*
+             * Business operating hours check (outer boundary gatekeeper)
+             */
+            $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($dateStr);
+            if (!$bizWindow['is_open']) {
                 continue;
             }
 
-            $open = Carbon::parse(
-                $date->format('Y-m-d') . ' 10:00:00',
-                $tz
-            );
+            /*
+             * Build the operational windows from staff schedules.
+             *
+             * If multiple staff members are scheduled at different
+             * times, their windows are merged so the booking API
+             * exposes the actual available operational periods.
+             */
+            $windows = [];
+            $staffWindows = [];
 
-            $close = Carbon::parse(
-                $date->format('Y-m-d') . ' 20:00:00',
-                $tz
-            );
+            foreach ($staffMembers as $staff) {
+                $window = $this->getStaffWorkWindow(
+                    $staff->id,
+                    $dateStr
+                );
 
-            $dateStr = $date->format('Y-m-d');
-            $dayAppointments = $roomAppointments[$dateStr] ?? null;
-
-            while ($open->lte($close)) {
-                $slotEnd = $open->copy()->addMinutes($duration);
-                $minLeadTime = $request->boolean('receptionist')
-                    ? 0
-                    : 30;
-
-                if (
-                    $slotEnd->lte($close) &&
-                    $open->gt(
-                        $now->copy()->addMinutes($minLeadTime)
-                    )
-                ) {
-                    $roomAvailable = true;
-                    $freeRooms = [];
-
-                    if ($requiresRoom) {
-                        if ($rooms->isEmpty()) {
-                            $roomAvailable = false;
-                        } elseif (
-                            $dayAppointments &&
-                            $dayAppointments->isNotEmpty()
-                        ) {
-                            $slotStartStr = $open->format('H:i:s');
-                            $slotEndStr = $slotEnd->format('H:i:s');
-
-                            foreach ($rooms as $room) {
-                                $apts = $dayAppointments[$room->id]
-                                    ?? collect();
-
-                                $isFree = $apts->isEmpty()
-                                    || !$apts->contains(
-                                        function ($apt) use (
-                                            $slotStartStr,
-                                            $slotEndStr
-                                        ) {
-                                            return (
-                                                $slotStartStr
-                                                < $apt->end_time
-                                            )
-                                                && (
-                                                    $slotEndStr
-                                                    > $apt->start_time
-                                                );
-                                        }
-                                    );
-
-                                if ($isFree) {
-                                    $freeRooms[] = [
-                                        'id' => $room->id,
-                                        'name' => $room->name,
-                                    ];
-                                }
-                            }
-
-                            $roomAvailable = count($freeRooms) > 0;
-                        } else {
-                            $freeRooms = $rooms
-                                ->map(
-                                    fn($r) => [
-                                        'id' => $r->id,
-                                        'name' => $r->name,
-                                    ]
-                                )
-                                ->toArray();
-                        }
-                    }
-
-                    $slots[] = [
-                        'date' => $dateStr,
-                        'time' => $open->format('H:i'),
-                        'display' => $open->format('g:i A'),
-                        'room_available' => $roomAvailable,
-                        'free_rooms' => $freeRooms,
-                    ];
+                if (!$window) {
+                    continue;
                 }
 
-                $open->addMinutes(30);
+                $staffWindows[$staff->id] = $window;
+                
+                $windows[] = [
+                    'start' => $window['start'],
+                    'end' => $window['end'],
+                ];
+            }
+
+            if (empty($windows)) {
+                continue;
+            }
+
+            /*
+             * Merge overlapping/touching staff windows.
+             */
+            usort(
+                $windows,
+                fn($a, $b) => strcmp($a['start'], $b['start'])
+            );
+
+            $mergedWindows = [];
+
+            foreach ($windows as $window) {
+                if (empty($mergedWindows)) {
+                    $mergedWindows[] = $window;
+                    continue;
+                }
+
+                $lastIndex = count($mergedWindows) - 1;
+                $last = $mergedWindows[$lastIndex];
+
+                if ($window['start'] <= $last['end']) {
+                    if ($window['end'] > $last['end']) {
+                        $mergedWindows[$lastIndex]['end'] =
+                            $window['end'];
+                    }
+                } else {
+                    $mergedWindows[] = $window;
+                }
+            }
+
+            $dayAppointments = $roomAppointments[$dateStr] ?? null;
+
+            foreach ($mergedWindows as $window) {
+                $wStart = max($window['start'], $bizWindow['start'] ?? '00:00');
+                $wEnd = min($window['end'], $bizWindow['end'] ?? '23:59');
+
+                if ($wStart >= $wEnd) {
+                    continue;
+                }
+
+                $open = Carbon::parse(
+                    $dateStr . ' ' . $wStart,
+                    $tz
+                );
+
+                $close = Carbon::parse(
+                    $dateStr . ' ' . $wEnd,
+                    $tz
+                );
+
+                while ($open->lte($close)) {
+                    $slotEnd = $open->copy()->addMinutes($duration);
+
+                    $minLeadTime = $request->boolean('receptionist')
+                        ? 0
+                        : 30;
+
+                    $minimumStart = $now
+                        ->copy()
+                        ->addMinutes($minLeadTime);
+
+                    $isDateToday =
+                        $dateStr === $now->format('Y-m-d');
+
+                    $timeIsValid =
+                        !$isDateToday ||
+                        $open->gt($minimumStart);
+
+                    if (
+                        $slotEnd->lte($close) &&
+                        $timeIsValid
+                    ) {
+                        $roomAvailable = true;
+                        $freeRooms = [];
+
+                        $slotStartStr = $open->format('H:i:s');
+                        $slotEndStr = $slotEnd->format('H:i:s');
+
+                        $hasAvailableStaffForSlot = false;
+                        $dailyStaffApts = $allStaffAppointments[$dateStr] ?? collect();
+
+                        foreach ($staffWindows as $staffId => $windowData) {
+                            $startTimeStr = substr($slotStartStr, 0, 5);
+                            $endTimeStr = substr($slotEndStr, 0, 5);
+
+                            if ($startTimeStr < $windowData['start'] || $endTimeStr > $windowData['end']) {
+                                continue;
+                            }
+
+                            $apts = $dailyStaffApts[$staffId] ?? collect();
+                            $isFree = $apts->isEmpty() || !$apts->contains(function ($apt) use ($slotStartStr, $slotEndStr) {
+                                return ($slotStartStr < $apt->end_time) && ($slotEndStr > $apt->start_time);
+                            });
+
+                            if ($isFree) {
+                                $hasAvailableStaffForSlot = true;
+                                break;
+                            }
+                        }
+
+                        if (!$hasAvailableStaffForSlot) {
+                            $roomAvailable = false;
+                        }
+
+                        if ($requiresRoom && $roomAvailable) {
+                            if ($rooms->isEmpty()) {
+                                $roomAvailable = false;
+                            } elseif (
+                                $dayAppointments &&
+                                $dayAppointments->isNotEmpty()
+                            ) {
+                                $slotStartStr = $open->format('H:i:s');
+                                $slotEndStr = $slotEnd->format('H:i:s');
+
+                                foreach ($rooms as $room) {
+                                    $apts = $dayAppointments[$room->id]
+                                        ?? collect();
+
+                                    $isFree = $apts->isEmpty()
+                                        || !$apts->contains(
+                                            function ($apt) use (
+                                                $slotStartStr,
+                                                $slotEndStr
+                                            ) {
+                                                return (
+                                                    $slotStartStr
+                                                    < $apt->end_time
+                                                )
+                                                    && (
+                                                        $slotEndStr
+                                                        > $apt->start_time
+                                                    );
+                                            }
+                                        );
+
+                                    if ($isFree) {
+                                        $freeRooms[] = [
+                                            'id' => $room->id,
+                                            'name' => $room->name,
+                                        ];
+                                    }
+                                }
+
+                                $roomAvailable =
+                                    count($freeRooms) > 0;
+                            } else {
+                                $freeRooms = $rooms
+                                    ->map(
+                                        fn($r) => [
+                                            'id' => $r->id,
+                                            'name' => $r->name,
+                                        ]
+                                    )
+                                    ->toArray();
+                            }
+                        }
+
+                        $slots[] = [
+                            'date' => $dateStr,
+                            'time' => $open->format('H:i'),
+                            'display' => $open->format('g:i A'),
+                            'room_available' => $roomAvailable,
+                            'free_rooms' => $freeRooms,
+                        ];
+                    }
+
+                    $open->addMinutes(30);
+                }
             }
         }
+
+        /*
+         * Prevent duplicate times when multiple staff schedules
+         * overlap. Keep the first generated room information.
+         */
+        $uniqueSlots = [];
+
+        foreach ($slots as $slot) {
+            $key = $slot['date'] . '|' . $slot['time'];
+
+            if (!isset($uniqueSlots[$key])) {
+                $uniqueSlots[$key] = $slot;
+            } elseif (
+                !$uniqueSlots[$key]['room_available'] &&
+                $slot['room_available']
+            ) {
+                $uniqueSlots[$key] = $slot;
+            }
+        }
+
+        $slots = array_values($uniqueSlots);
+
+        usort(
+            $slots,
+            function ($a, $b) {
+                $dateCompare = strcmp(
+                    $a['date'],
+                    $b['date']
+                );
+
+                if ($dateCompare !== 0) {
+                    return $dateCompare;
+                }
+
+                return strcmp(
+                    $a['time'],
+                    $b['time']
+                );
+            }
+        );
 
         return response()->json([
             'slots' => $slots,
@@ -644,6 +830,7 @@ class BookingController extends Controller
             'roles',
             fn($q) => $q->where('name', 'staff')
         )
+            ->where('is_active', true)
             ->get()
             ->filter(function ($staff) use (
                 $date,
@@ -651,23 +838,27 @@ class BookingController extends Controller
                 $time,
                 $duration
             ) {
-                $schedule = $staff->workSchedules()
-                    ->where('day_of_week', $dayOfWeek)
-                    ->where('is_day_off', false)
-                    ->first();
+                /*
+                 * Use the same schedule/exception logic as the
+                 * rest of the booking system.
+                 */
+                $window = $this->getStaffWorkWindow(
+                    $staff->id,
+                    $date
+                );
 
-                if (!$schedule) {
+                if (!$window) {
                     return false;
                 }
-
-                $schStart = substr($schedule->start_time, 0, 5);
-                $schEnd = substr($schedule->end_time, 0, 5);
 
                 $slotEndTime = Carbon::parse($time)
                     ->addMinutes($duration)
                     ->format('H:i');
 
-                if ($time < $schStart || $slotEndTime > $schEnd) {
+                if (
+                    $time < $window['start'] ||
+                    $slotEndTime > $window['end']
+                ) {
                     return false;
                 }
 
@@ -679,37 +870,28 @@ class BookingController extends Controller
                         'appointment_date',
                         $date
                     )
-                    ->where(
+                    ->whereIn(
                         'status',
-                        'confirmed'
+                        [
+                            'confirmed',
+                            'pending',
+                            'completed',
+                        ]
                     )
                     ->where(function ($q) use (
                         $time,
                         $slotEndTime
                     ) {
-                        $q->whereBetween(
+                        $q->where(
                             'start_time',
-                            [$time, $slotEndTime]
+                            '<',
+                            $slotEndTime . ':00'
                         )
-                            ->orWhereBetween(
+                            ->where(
                                 'end_time',
-                                [$time, $slotEndTime]
-                            )
-                            ->orWhere(function ($sq) use (
-                                $time,
-                                $slotEndTime
-                            ) {
-                                $sq->where(
-                                    'start_time',
-                                    '<=',
-                                    $time
-                                )
-                                    ->where(
-                                        'end_time',
-                                        '>=',
-                                        $slotEndTime
-                                    );
-                            });
+                                '>',
+                                $time . ':00'
+                            );
                     })
                     ->exists();
 
@@ -734,6 +916,11 @@ class BookingController extends Controller
         array $serviceIds,
         bool $isReceptionist = false
     ) {
+        /*
+         * FIX:
+         * The previous code used whereIn($serviceIds), which is
+         * missing the column name.
+         */
         $services = empty($serviceIds)
             ? collect()
             : Service::whereIn('id', $serviceIds)->get();
@@ -764,9 +951,27 @@ class BookingController extends Controller
             }
 
             $rooms = $roomsQuery->get();
+        }
 
-            $startDate = Carbon::today('Asia/Manila');
-            $endDate = $startDate->copy()->addDays(14);
+        $tz = 'Asia/Manila';
+        $now = Carbon::now($tz);
+        $slots = [];
+
+        $startDate = Carbon::today($tz);
+        $endDate = $startDate->copy()->addDays(14);
+
+        /*
+         * Active staff schedules are now the source of the
+         * available booking windows.
+         */
+        $staffMembers = User::whereHas(
+            'roles',
+            fn($q) => $q->where('name', 'staff')
+        )
+            ->where('is_active', true)
+            ->get();
+
+        if ($requiresRoom && $rooms->isNotEmpty()) {
             $dateList = [];
 
             for (
@@ -774,9 +979,7 @@ class BookingController extends Controller
                 $d->lte($endDate);
                 $d->addDay()
             ) {
-                if ($d->dayOfWeek !== Carbon::SUNDAY) {
-                    $dateList[] = $d->format('Y-m-d');
-                }
+                $dateList[] = $d->format('Y-m-d');
             }
 
             if (!empty($dateList)) {
@@ -802,112 +1005,240 @@ class BookingController extends Controller
             }
         }
 
-        $tz = 'Asia/Manila';
-        $now = Carbon::now($tz);
-        $slots = [];
-
-        $startDate = Carbon::today($tz);
-        $endDate = $startDate->copy()->addDays(14);
-
         for (
             $date = $startDate->copy();
             $date->lte($endDate);
             $date->addDay()
         ) {
-            if ($date->dayOfWeek === Carbon::SUNDAY) {
+            $dateStr = $date->format('Y-m-d');
+
+            /*
+             * Business operating hours check (outer boundary gatekeeper)
+             */
+            $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($dateStr);
+            if (!$bizWindow['is_open']) {
                 continue;
             }
 
-            $open = Carbon::parse(
-                $date->format('Y-m-d') . ' 10:00:00',
-                $tz
-            );
+            /*
+             * Collect all staff schedule windows for this date.
+             */
+            $windows = [];
 
-            $close = Carbon::parse(
-                $date->format('Y-m-d') . ' 20:00:00',
-                $tz
-            );
+            foreach ($staffMembers as $staff) {
+                $window = $this->getStaffWorkWindow(
+                    $staff->id,
+                    $dateStr
+                );
 
-            $dateStr = $date->format('Y-m-d');
-            $dayAppointments = $roomAppointments[$dateStr] ?? null;
-
-            while ($open->lte($close)) {
-                $slotEnd = $open->copy()->addMinutes($duration);
-                $minLeadTime = $isReceptionist ? 0 : 30;
-
-                if (
-                    $slotEnd->lte($close) &&
-                    $open->gt(
-                        $now->copy()->addMinutes($minLeadTime)
-                    )
-                ) {
-                    $roomAvailable = true;
-                    $freeRooms = [];
-
-                    if ($requiresRoom) {
-                        if ($rooms->isEmpty()) {
-                            $roomAvailable = false;
-                        } elseif (
-                            $dayAppointments &&
-                            $dayAppointments->isNotEmpty()
-                        ) {
-                            $slotStartStr = $open->format('H:i:s');
-                            $slotEndStr = $slotEnd->format('H:i:s');
-
-                            foreach ($rooms as $room) {
-                                $apts = $dayAppointments[$room->id]
-                                    ?? collect();
-
-                                $isFree = $apts->isEmpty()
-                                    || !$apts->contains(
-                                        function ($apt) use (
-                                            $slotStartStr,
-                                            $slotEndStr
-                                        ) {
-                                            return (
-                                                $slotStartStr
-                                                < $apt->end_time
-                                            )
-                                                && (
-                                                    $slotEndStr
-                                                    > $apt->start_time
-                                                );
-                                        }
-                                    );
-
-                                if ($isFree) {
-                                    $freeRooms[] = [
-                                        'id' => $room->id,
-                                        'name' => $room->name,
-                                    ];
-                                }
-                            }
-
-                            $roomAvailable = count($freeRooms) > 0;
-                        } else {
-                            $freeRooms = $rooms
-                                ->map(
-                                    fn($r) => [
-                                        'id' => $r->id,
-                                        'name' => $r->name,
-                                    ]
-                                )
-                                ->toArray();
-                        }
-                    }
-
-                    $slots[] = [
-                        'date' => $dateStr,
-                        'time' => $open->format('H:i'),
-                        'display' => $open->format('g:i A'),
-                        'room_available' => $roomAvailable,
-                        'free_rooms' => $freeRooms,
-                    ];
+                if (!$window) {
+                    continue;
                 }
 
-                $open->addMinutes(30);
+                $windows[] = [
+                    'start' => $window['start'],
+                    'end' => $window['end'],
+                ];
+            }
+
+            if (empty($windows)) {
+                continue;
+            }
+
+            /*
+             * Merge overlapping/touching windows.
+             */
+            usort(
+                $windows,
+                fn($a, $b) => strcmp($a['start'], $b['start'])
+            );
+
+            $mergedWindows = [];
+
+            foreach ($windows as $window) {
+                if (empty($mergedWindows)) {
+                    $mergedWindows[] = $window;
+                    continue;
+                }
+
+                $lastIndex = count($mergedWindows) - 1;
+                $last = $mergedWindows[$lastIndex];
+
+                if ($window['start'] <= $last['end']) {
+                    if ($window['end'] > $last['end']) {
+                        $mergedWindows[$lastIndex]['end'] =
+                            $window['end'];
+                    }
+                } else {
+                    $mergedWindows[] = $window;
+                }
+            }
+
+            $dayAppointments =
+                $roomAppointments[$dateStr] ?? null;
+
+            foreach ($mergedWindows as $window) {
+                $wStart = max($window['start'], $bizWindow['start'] ?? '00:00');
+                $wEnd = min($window['end'], $bizWindow['end'] ?? '23:59');
+
+                if ($wStart >= $wEnd) {
+                    continue;
+                }
+
+                $open = Carbon::parse(
+                    $dateStr . ' ' . $wStart,
+                    $tz
+                );
+
+                $close = Carbon::parse(
+                    $dateStr . ' ' . $wEnd,
+                    $tz
+                );
+
+                while ($open->lte($close)) {
+                    $slotEnd =
+                        $open->copy()->addMinutes($duration);
+
+                    $minLeadTime =
+                        $isReceptionist ? 0 : 30;
+
+                    $minimumStart = $now
+                        ->copy()
+                        ->addMinutes($minLeadTime);
+
+                    $isToday =
+                        $dateStr === $now->format('Y-m-d');
+
+                    $timeIsValid =
+                        !$isToday ||
+                        $open->gt($minimumStart);
+
+                    if (
+                        $slotEnd->lte($close) &&
+                        $timeIsValid
+                    ) {
+                        $roomAvailable = true;
+                        $freeRooms = [];
+
+                        if ($requiresRoom) {
+                            if ($rooms->isEmpty()) {
+                                $roomAvailable = false;
+                            } elseif (
+                                $dayAppointments &&
+                                $dayAppointments->isNotEmpty()
+                            ) {
+                                $slotStartStr =
+                                    $open->format('H:i:s');
+
+                                $slotEndStr =
+                                    $slotEnd->format('H:i:s');
+
+                                foreach ($rooms as $room) {
+                                    $apts =
+                                        $dayAppointments[$room->id]
+                                        ?? collect();
+
+                                    $isFree =
+                                        $apts->isEmpty()
+                                        || !$apts->contains(
+                                            function ($apt)
+                                            use (
+                                                $slotStartStr,
+                                                $slotEndStr
+                                            ) {
+                                                return (
+                                                    $slotStartStr
+                                                    < $apt->end_time
+                                                )
+                                                    && (
+                                                        $slotEndStr
+                                                        > $apt->start_time
+                                                    );
+                                            }
+                                        );
+
+                                    if ($isFree) {
+                                        $freeRooms[] = [
+                                            'id' => $room->id,
+                                            'name' => $room->name,
+                                        ];
+                                    }
+                                }
+
+                                $roomAvailable =
+                                    count($freeRooms) > 0;
+                            } else {
+                                $freeRooms =
+                                    $rooms
+                                        ->map(
+                                            fn($r) => [
+                                                'id' => $r->id,
+                                                'name' => $r->name,
+                                            ]
+                                        )
+                                        ->toArray();
+                            }
+                        }
+
+                        $slots[] = [
+                            'date' => $dateStr,
+                            'time' => $open->format('H:i'),
+                            'display' =>
+                                $open->format('g:i A'),
+                            'room_available' =>
+                                $roomAvailable,
+                            'free_rooms' =>
+                                $freeRooms,
+                        ];
+                    }
+
+                    $open->addMinutes(30);
+                }
             }
         }
+
+        /*
+         * Remove duplicate date/time entries caused by
+         * overlapping staff schedules.
+         */
+        $uniqueSlots = [];
+
+        foreach ($slots as $slot) {
+            $key =
+                $slot['date'] .
+                '|' .
+                $slot['time'];
+
+            if (!isset($uniqueSlots[$key])) {
+                $uniqueSlots[$key] = $slot;
+            } elseif (
+                !$uniqueSlots[$key]['room_available'] &&
+                $slot['room_available']
+            ) {
+                $uniqueSlots[$key] = $slot;
+            }
+        }
+
+        $slots = array_values($uniqueSlots);
+
+        usort(
+            $slots,
+            function ($a, $b) {
+                $dateCompare = strcmp(
+                    $a['date'],
+                    $b['date']
+                );
+
+                if ($dateCompare !== 0) {
+                    return $dateCompare;
+                }
+
+                return strcmp(
+                    $a['time'],
+                    $b['time']
+                );
+            }
+        );
 
         return [
             'slots' => $slots,
@@ -923,24 +1254,22 @@ class BookingController extends Controller
         Carbon $startTime,
         Carbon $endTime
     ): ?string {
-        if (
-            Carbon::parse($date)->dayOfWeek === Carbon::SUNDAY
-        ) {
-            return 'We are closed on Sundays. Please pick another date.';
+        if ($endTime->lte($startTime)) {
+            return 'The appointment end time must be later than the start time.';
         }
 
-        $open = Carbon::parse(
-            $date . ' 10:00:00',
-            'Asia/Manila'
-        );
+        $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($date);
+        if (!$bizWindow['is_open']) {
+            return $bizWindow['reason'] ?: 'The spa is closed on this date.';
+        }
 
-        $close = Carbon::parse(
-            $date . ' 20:00:00',
-            'Asia/Manila'
-        );
+        if ($bizWindow['start'] && $bizWindow['end']) {
+            $bizOpen = Carbon::parse($date . ' ' . $bizWindow['start']);
+            $bizClose = Carbon::parse($date . ' ' . $bizWindow['end']);
 
-        if ($startTime->lt($open) || $endTime->gt($close)) {
-            return 'Appointments must be between 10:00 AM and 8:00 PM.';
+            if ($startTime->lt($bizOpen) || $endTime->gt($bizClose)) {
+                return 'The selected time (' . $startTime->format('g:i A') . ' - ' . $endTime->format('g:i A') . ') falls outside the business operating hours (' . $bizOpen->format('g:i A') . ' - ' . $bizClose->format('g:i A') . ').';
+            }
         }
 
         return null;
@@ -951,6 +1280,7 @@ class BookingController extends Controller
         string $date
     ): ?array {
         $dayOfWeek = Carbon::parse($date)->dayOfWeek;
+        $isCurrentlyCheckedIn = $this->isStaffCurrentlyCheckedIn($staffId, $date);
 
         $exception = ScheduleException::where(
             'user_id',
@@ -971,6 +1301,9 @@ class BookingController extends Controller
                 ]
             )
         ) {
+            if ($isCurrentlyCheckedIn) {
+                return ['start' => '00:00', 'end' => '23:59'];
+            }
             return null;
         }
 
@@ -982,12 +1315,13 @@ class BookingController extends Controller
             ->where('is_day_off', false)
             ->first();
 
-        if (!$schedule) {
-            return null;
-        }
+        $start = null;
+        $end = null;
 
-        $start = $this->extractTime($schedule->start_time);
-        $end = $this->extractTime($schedule->end_time);
+        if ($schedule) {
+            $start = $this->extractTime($schedule->start_time);
+            $end = $this->extractTime($schedule->end_time);
+        }
 
         if (
             $exception &&
@@ -998,7 +1332,14 @@ class BookingController extends Controller
         }
 
         if (!$start || !$end) {
+            if ($isCurrentlyCheckedIn) {
+                return ['start' => '00:00', 'end' => '23:59'];
+            }
             return null;
+        }
+
+        if ($isCurrentlyCheckedIn) {
+            $end = '23:59';
         }
 
         return [
@@ -1045,28 +1386,168 @@ class BookingController extends Controller
                 ['confirmed', 'pending', 'completed']
             )
             ->where(function ($q) use ($start, $end) {
-                $q->whereBetween(
+                $q->where(
                     'start_time',
-                    [$start . ':00', $end . ':00']
+                    '<',
+                    $end . ':00'
                 )
-                    ->orWhereBetween(
+                    ->where(
                         'end_time',
-                        [$start . ':00', $end . ':00']
-                    )
-                    ->orWhere(function ($sq) use ($start, $end) {
-                        $sq->where(
-                            'start_time',
-                            '<=',
-                            $start . ':00'
-                        )
-                            ->where(
-                                'end_time',
-                                '>=',
-                                $end . ':00'
-                            );
-                    });
+                        '>',
+                        $start . ':00'
+                    );
             })
             ->exists();
+    }
+
+    /**
+     * Determine whether the staff member is currently checked in.
+     *
+     * This is used only by Receptionist Quick Book / Right Now.
+     */
+    private function isStaffCurrentlyCheckedIn(
+        int $staffId,
+        string $date
+    ): bool {
+        $today = Carbon::today('Asia/Manila')->format('Y-m-d');
+
+        if ($date !== $today) {
+            return false;
+        }
+
+        /*
+         * Only count attendance records that belong to today in Manila time.
+         * The date column stores the Manila local date (not UTC-shifted),
+         * so we compare directly against today's Manila date.
+         */
+        $attendance = Attendance::where('user_id', $staffId)
+            ->whereNotNull('check_in')
+            ->whereNull('check_out')
+            ->whereDate('date', $today)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        return $attendance !== null;
+    }
+
+    /**
+     * Quick Book / Right Now staff availability.
+     *
+     * TODAY:
+     * - Staff must be scheduled.
+     * - Staff must have checked in.
+     * - Staff must not have checked out.
+     * - Leave/day-off/custom schedule rules remain respected.
+     * - Staff may continue receiving a Quick Book after the
+     *   scheduled shift has ended while they remain checked in.
+     * - Appointment conflicts still block the slot.
+     *
+     * FUTURE:
+     * - Normal schedule-based availability is used.
+     *
+     * This helper does NOT affect staffGaps().
+     */
+    private function isQuickBookStaffAvailable(
+        int $staffId,
+        string $date,
+        string $startTime,
+        string $endTime
+    ): bool {
+        $tz = 'Asia/Manila';
+
+        $dateCarbon = Carbon::parse($date, $tz);
+        $today = Carbon::today($tz);
+
+        $isToday = $dateCarbon->isSameDay($today);
+
+        /*
+         * Future bookings continue using the normal schedule.
+         */
+        if (!$isToday) {
+            return $this->isStaffAvailable(
+                $staffId,
+                $date,
+                $startTime,
+                $endTime
+            );
+        }
+
+        /*
+         * A Quick Book / Right Now appointment requires
+         * an active check-in with no checkout.
+         */
+        if (!$this->isStaffCurrentlyCheckedIn($staffId, $date)) {
+            return false;
+        }
+
+        /*
+         * getStaffWorkWindow() also handles:
+         * - day off
+         * - holiday
+         * - sick leave
+         * - urgent leave
+         * - custom hours
+         */
+        $window = $this->getStaffWorkWindow(
+            $staffId,
+            $date
+        );
+
+        if (!$window) {
+            return false;
+        }
+
+        /*
+         * Once the staff member is checked in, their scheduled
+         * end does not independently block a Right Now booking.
+         */
+        $start = substr($startTime, 0, 5);
+        $end = substr($endTime, 0, 5);
+
+        /*
+         * Do not allow a Quick Book appointment in the past.
+         */
+        $now = Carbon::now($tz);
+
+        $appointmentStart = Carbon::parse(
+            $date . ' ' . $start,
+            $tz
+        );
+
+        if ($appointmentStart->lt($now)) {
+            return false;
+        }
+
+        /*
+         * Existing appointment conflicts remain blocking.
+         */
+        $hasConflict = Appointment::where(
+            'user_id',
+            $staffId
+        )
+            ->where(
+                'appointment_date',
+                $date
+            )
+            ->whereIn(
+                'status',
+                ['confirmed', 'pending', 'completed']
+            )
+            ->where(function ($q) use ($start, $end) {
+                $q->where(
+                    'start_time',
+                    '<',
+                    $end . ':00'
+                )
+                    ->where(
+                        'end_time',
+                        '>',
+                        $start . ':00'
+                    );
+            })
+            ->exists();
+
+        return !$hasConflict;
     }
 
     private function findFreeRoom(
@@ -1109,19 +1590,30 @@ class BookingController extends Controller
             'customer_id' => 'nullable|exists:customers,id',
             'services' => 'required|array|min:1',
             'services.*' => 'exists:services,id',
-            'appointment_date' => 'required|date|after_or_equal:today',
+            'appointment_date' =>
+                'required|date|after_or_equal:today',
             'start_time' => 'required',
             'end_time' => 'nullable',
-            'guest_first_name' => 'required|string|max:255',
-            'guest_phone' => 'required|string|regex:/^09\d{9}$/',
-            'medical_notes' => 'nullable|string|max:2000',
-            'staff_id' => 'nullable|exists:users,id',
-            'room_id' => 'nullable|exists:rooms,id',
-            'payment_method' => 'nullable|in:cash,card,gcash,paymaya,bank_transfer',
-            'payment_amount' => 'nullable|numeric|min:0',
-            'payment_type' => 'nullable|in:full,deposit',
-            'walk_in_now' => 'nullable|boolean',
-            'source' => 'nullable|in:public,receptionist',
+            'guest_first_name' =>
+                'required|string|max:255',
+            'guest_phone' =>
+                'required|string|regex:/^09\d{9}$/',
+            'medical_notes' =>
+                'nullable|string|max:2000',
+            'staff_id' =>
+                'nullable|exists:users,id',
+            'room_id' =>
+                'nullable|exists:rooms,id',
+            'payment_method' =>
+                'nullable|in:cash,card,gcash,paymaya,bank_transfer',
+            'payment_amount' =>
+                'nullable|numeric|min:0',
+            'payment_type' =>
+                'nullable|in:full,deposit',
+            'walk_in_now' =>
+                'nullable|boolean',
+            'source' =>
+                'nullable|in:public,receptionist',
         ]);
 
         $user = auth()->user();
@@ -1134,6 +1626,8 @@ class BookingController extends Controller
 
         $source = $request->get('source', 'public');
 
+        $walkInNow = $request->boolean('walk_in_now');
+
         if ($user) {
             session([
                 'user_role' => strtolower(
@@ -1141,7 +1635,9 @@ class BookingController extends Controller
                 ),
             ]);
         } else {
-            session(['user_role' => 'guest']);
+            session([
+                'user_role' => 'guest',
+            ]);
         }
 
         $services = Service::whereIn(
@@ -1156,7 +1652,8 @@ class BookingController extends Controller
             'Asia/Manila'
         );
 
-        $totalDuration = $services->sum('duration_minutes');
+        $totalDuration =
+            $services->sum('duration_minutes');
 
         $endTime = $request->end_time
             ? Carbon::parse(
@@ -1165,7 +1662,15 @@ class BookingController extends Controller
                     . $request->end_time,
                 'Asia/Manila'
             )
-            : $startTime->copy()->addMinutes($totalDuration);
+            : $startTime
+                ->copy()
+                ->addMinutes($totalDuration);
+
+        // If the parsed end time is earlier than the start time, 
+        // it means the appointment crossed midnight into the next day.
+        if ($endTime->lt($startTime)) {
+            $endTime->addDay();
+        }
 
         $totalPrice = $services->sum(
             fn($s) => $s->discount_price ?? $s->price
@@ -1177,8 +1682,11 @@ class BookingController extends Controller
             fn($s) => $s->requires_room
         );
 
-        $startTimeStr = $startTime->format('H:i:s');
-        $endTimeStr = $endTime->format('H:i:s');
+        $startTimeStr =
+            $startTime->format('H:i:s');
+
+        $endTimeStr =
+            $endTime->format('H:i:s');
 
         $fail = function (string $message) use ($request) {
             if (
@@ -1218,45 +1726,117 @@ class BookingController extends Controller
             );
         }
 
-        if ($isReceptionist && $request->filled('staff_id')) {
-            if (
-                !$this->isStaffAvailable(
+        /*
+         * RECEPTIONIST STAFF VALIDATION
+         *
+         * Quick Book / Right Now:
+         * - use attendance-aware availability
+         *
+         * Future receptionist appointment:
+         * - use normal schedule-based availability
+         */
+        if (
+            $isReceptionist &&
+            $request->filled('staff_id')
+        ) {
+            $appointmentDate = Carbon::parse(
+                $request->appointment_date,
+                $tz
+            )->format('Y-m-d');
+
+            $isQuickBookToday =
+                $walkInNow &&
+                $appointmentDate ===
+                    Carbon::today($tz)->format('Y-m-d');
+
+            $staffAvailable = $isQuickBookToday
+                ? $this->isQuickBookStaffAvailable(
                     (int) $request->staff_id,
-                    $request->appointment_date,
+                    $appointmentDate,
                     $startTimeStr,
                     $endTimeStr
                 )
-            ) {
+                : $this->isStaffAvailable(
+                    (int) $request->staff_id,
+                    $appointmentDate,
+                    $startTimeStr,
+                    $endTimeStr
+                );
+
+            if (!$staffAvailable) {
                 return $fail(
-                    'Selected staff is not available at this time (off-shift, on leave, or has another appointment).'
+                    $isQuickBookToday
+                        ? 'Selected staff is not currently available. The staff member must be checked in, not checked out, and free of another appointment.'
+                        : 'Selected staff is not available at this time (off-shift, on leave, or has another appointment).'
                 );
             }
         } else {
-            $hasAvailableStaff = User::whereHas(
-                'roles',
-                fn($q) => $q->where('name', 'staff')
-            )
-                ->where('is_active', true)
-                ->get()
-                ->contains(
-                    fn($s) => $this->isStaffAvailable(
-                        $s->id,
-                        $request->appointment_date,
-                        $startTimeStr,
-                        $endTimeStr
-                    )
-                );
+            /*
+             * If no specific staff was selected, retain the
+             * normal behavior for regular bookings.
+             *
+             * For Quick Book / Right Now, search only
+             * currently checked-in staff.
+             */
+            $appointmentDate = Carbon::parse(
+                $request->appointment_date,
+                $tz
+            )->format('Y-m-d');
+
+            $isQuickBookToday =
+                $isReceptionist &&
+                $walkInNow &&
+                $appointmentDate ===
+                    Carbon::today($tz)->format('Y-m-d');
+
+            if ($isQuickBookToday) {
+                $hasAvailableStaff = User::whereHas(
+                    'roles',
+                    fn($q) => $q->where('name', 'staff')
+                )
+                    ->where('is_active', true)
+                    ->get()
+                    ->contains(
+                        fn($s) =>
+                            $this->isQuickBookStaffAvailable(
+                                $s->id,
+                                $appointmentDate,
+                                $startTimeStr,
+                                $endTimeStr
+                            )
+                    );
+            } else {
+                $hasAvailableStaff = User::whereHas(
+                    'roles',
+                    fn($q) => $q->where('name', 'staff')
+                )
+                    ->where('is_active', true)
+                    ->get()
+                    ->contains(
+                        fn($s) =>
+                            $this->isStaffAvailable(
+                                $s->id,
+                                $request->appointment_date,
+                                $startTimeStr,
+                                $endTimeStr
+                            )
+                    );
+            }
 
             if (!$hasAvailableStaff) {
                 return $fail(
-                    'Sorry — no available staff at this hour (all staff are occupied or off-shift). Please choose a different time slot.'
+                    $isQuickBookToday
+                        ? 'Sorry — no staff member is currently checked in and available for this walk-in.'
+                        : 'Sorry — no available staff at this hour (all staff are occupied or off-shift). Please choose a different time slot.'
                 );
             }
         }
 
         if ($requiresRoom) {
             if ($request->filled('room_id')) {
-                $room = Room::find($request->room_id);
+                $room = Room::find(
+                    $request->room_id
+                );
 
                 if (
                     !$room ||
@@ -1292,19 +1872,11 @@ class BookingController extends Controller
 
         /*
          * CUSTOMER HANDLING
-         *
-         * Receptionist:
-         * - If customer_id exists, use that existing customer.
-         * - Never replace their real first/last name with the alias.
-         *
-         * Logged-in customer:
-         * - Use their own Customer record.
-         *
-         * Guest:
-         * - Find existing customer by phone or create a new one.
          */
-
-        if ($isReceptionist && $request->filled('customer_id')) {
+        if (
+            $isReceptionist &&
+            $request->filled('customer_id')
+        ) {
             $customer = Customer::find(
                 $request->customer_id
             );
@@ -1317,9 +1889,11 @@ class BookingController extends Controller
 
             if (
                 $request->filled('guest_phone') &&
-                $customer->phone_number !== $request->guest_phone
+                $customer->phone_number !==
+                    $request->guest_phone
             ) {
-                $customer->phone_number = $request->guest_phone;
+                $customer->phone_number =
+                    $request->guest_phone;
             }
 
             if ($request->filled('medical_notes')) {
@@ -1351,9 +1925,10 @@ class BookingController extends Controller
                 empty($customer->nickname) &&
                 $request->filled('guest_first_name')
             ) {
-                $customer->nickname = trim(
-                    $request->guest_first_name
-                );
+                $customer->nickname =
+                    trim(
+                        $request->guest_first_name
+                    );
             }
 
             if ($request->filled('guest_phone')) {
@@ -1379,6 +1954,7 @@ class BookingController extends Controller
                 if ($request->filled('medical_notes')) {
                     $customer->medical_notes =
                         $request->medical_notes;
+
                     $customer->save();
                 }
             } else {
@@ -1388,17 +1964,22 @@ class BookingController extends Controller
                     2
                 );
 
-                $firstName = $nameParts[0] ?? '';
-                $lastName = $nameParts[1] ?? '';
+                $firstName =
+                    $nameParts[0] ?? '';
+
+                $lastName =
+                    $nameParts[1] ?? '';
 
                 $customer = Customer::create([
                     'user_id' => null,
                     'first_name' => $firstName,
                     'last_name' => $lastName,
                     'customer_type' => 'regular',
-                    'phone_number' => $request->guest_phone,
-                    'medical_notes' => $request->medical_notes
-                        ?? null,
+                    'phone_number' =>
+                        $request->guest_phone,
+                    'medical_notes' =>
+                        $request->medical_notes
+                            ?? null,
                 ]);
             }
         }
@@ -1439,15 +2020,19 @@ class BookingController extends Controller
                 'total_price' => $totalPrice,
                 'created_by' => $user?->id,
                 'confirmed_at' => $confirmedAt,
-                'notes' => $request->medical_notes
+                'notes' =>
+                    $request->medical_notes
                     ?? $request->notes
                     ?? null,
+                'ip_address' => $request->ip(), // Added IP address tracking
             ]);
 
             foreach ($services as $service) {
                 AppointmentService::create([
-                    'appointment_id' => $appointment->id,
-                    'service_id' => $service->id,
+                    'appointment_id' =>
+                        $appointment->id,
+                    'service_id' =>
+                        $service->id,
                     'price_at_booking' =>
                         $service->discount_price
                         ?? $service->price,
@@ -1460,11 +2045,13 @@ class BookingController extends Controller
             ) {
                 $appointment->payments()->create([
                     'payment_method' =>
-                        $request->payment_method ?? 'cash',
+                        $request->payment_method
+                        ?? 'cash',
                     'amount' =>
                         $request->payment_amount,
                     'type' =>
-                        $request->payment_type ?? 'full',
+                        $request->payment_type
+                        ?? 'full',
                     'paid_at' => now(),
                 ]);
             }
@@ -1485,15 +2072,21 @@ class BookingController extends Controller
         if (!$isReceptionist) {
             $receptionists = User::whereHas(
                 'roles',
-                fn($q) => $q->where('name', 'receptionist')
+                fn($q) =>
+                    $q->where(
+                        'name',
+                        'receptionist'
+                    )
             )->get();
 
             NotificationController::sendTo(
                 $receptionists,
                 'New Online Booking',
-                ($customer->display_name ?? 'A customer')
+                ($customer->display_name
+                    ?? 'A customer')
                     . ' booked for '
-                    . $appointment->appointment_date
+                    . $appointment
+                        ->appointment_date
                         ->format('M j')
                     . ' at '
                     . Carbon::parse(
@@ -1507,15 +2100,21 @@ class BookingController extends Controller
 
             $admins = User::whereHas(
                 'roles',
-                fn($q) => $q->where('name', 'admin')
+                fn($q) =>
+                    $q->where(
+                        'name',
+                        'admin'
+                    )
             )->get();
 
             NotificationController::sendTo(
                 $admins,
                 'New Online Booking',
-                ($customer->display_name ?? 'A customer')
+                ($customer->display_name
+                    ?? 'A customer')
                     . ' booked for '
-                    . $appointment->appointment_date
+                    . $appointment
+                        ->appointment_date
                         ->format('M j')
                     . ' at '
                     . Carbon::parse(
@@ -1567,8 +2166,9 @@ class BookingController extends Controller
         );
     }
 
-    public function confirmation(Appointment $appointment)
-    {
+    public function confirmation(
+        Appointment $appointment
+    ) {
         $appointment->load(
             'services',
             'customer'
@@ -1617,6 +2217,8 @@ class BookingController extends Controller
         return response()->json($occupied);
     }
 
+    // ==================== FUTURE STAFF GAPS ====================
+
     public function staffGaps(Request $request)
     {
         $request->validate([
@@ -1647,75 +2249,26 @@ class BookingController extends Controller
             fn($s) => $s->requires_room
         );
 
-        $exception = ScheduleException::where(
-            'user_id',
-            $staffId
-        )
-            ->whereDate(
-                'exception_date',
-                $date
-            )
-            ->first();
+        $window = $this->getStaffWorkWindow($staffId, $date);
 
-        if (
-            $exception &&
-            in_array(
-                $exception->type,
-                [
-                    'day_off',
-                    'holiday',
-                    'sick_leave',
-                    'urgent_leave',
-                ]
-            )
-        ) {
+        if (!$window) {
             return response()->json([
                 'gaps' => [],
             ]);
         }
 
-        $schedule = WorkSchedule::where(
-            'user_id',
-            $staffId
-        )
-            ->where(
-                'day_of_week',
-                $dayOfWeek
-            )
-            ->where(
-                'is_day_off',
-                false
-            )
-            ->first();
-
-        if (!$schedule) {
+        $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($date);
+        
+        if (!$bizWindow['is_open']) {
             return response()->json([
                 'gaps' => [],
             ]);
         }
 
-        $workStart = $this->extractTime(
-            $schedule->start_time
-        );
+        $workStart = max($window['start'], $bizWindow['start'] ?? '00:00');
+        $workEnd = min($window['end'], $bizWindow['end'] ?? '23:59');
 
-        $workEnd = $this->extractTime(
-            $schedule->end_time
-        );
-
-        if (
-            $exception &&
-            $exception->type === 'custom_hours'
-        ) {
-            $workStart = $this->extractTime(
-                $exception->start_time
-            );
-
-            $workEnd = $this->extractTime(
-                $exception->end_time
-            );
-        }
-
-        if (!$workStart || !$workEnd) {
+        if ($workStart >= $workEnd) {
             return response()->json([
                 'gaps' => [],
             ]);
@@ -1800,33 +2353,30 @@ class BookingController extends Controller
         }
 
         $isToday =
-            $date === Carbon::today($tz)->format('Y-m-d');
+            $date ===
+            Carbon::today($tz)->format('Y-m-d');
 
         if ($isToday) {
-            $nowTime = Carbon::now($tz)->format('H:i');
-
-            $gaps = array_values(
-                array_filter(
-                    $gaps,
-                    fn($g) => $g['time'] > $nowTime
-                )
+            $bufferMinutes = (int) $request->get(
+                'buffer_minutes',
+                0
             );
-        }
 
-        $bufferMinutes = (int) $request->get(
-            'buffer_minutes',
-            0
-        );
-
-        if ($isToday && $bufferMinutes > 0) {
-            $minTime = Carbon::now($tz)
-                ->addMinutes($bufferMinutes)
-                ->format('H:i');
+            $minCarbon = Carbon::now($tz)->addMinutes($bufferMinutes);
 
             $gaps = array_values(
                 array_filter(
                     $gaps,
-                    fn($g) => $g['time'] >= $minTime
+                    function($g) use ($minCarbon, $date, $tz) {
+                        $timeStr = $g['time'];
+                        $slotCarbon = Carbon::parse($date . ' ' . $timeStr, $tz);
+                        
+                        if ($timeStr < '05:00') {
+                            $slotCarbon->addDay();
+                        }
+                        
+                        return $slotCarbon->gte($minCarbon);
+                    }
                 )
             );
         }
@@ -1836,8 +2386,9 @@ class BookingController extends Controller
         ]);
     }
 
-    private function extractTime($value): ?string
-    {
+    private function extractTime(
+        $value
+    ): ?string {
         if (empty($value)) {
             return null;
         }
@@ -1890,13 +2441,23 @@ class BookingController extends Controller
             $date . ' ' . $end
         );
 
+        if ($end === '23:59') {
+            $isReceptionist = auth()->user() && auth()->user()->roles()->where('name', 'receptionist')->exists();
+            if ($isReceptionist) {
+                $windowEnd->addHours(3);
+            }
+        }
+
         $requiredEnd = $slotStart
             ->copy()
             ->addMinutes($duration);
 
         while ($requiredEnd->lte($windowEnd)) {
-            $timeStr = $slotStart->format('H:i');
-            $endStr = $requiredEnd->format('H:i');
+            $timeStr =
+                $slotStart->format('H:i');
+
+            $endStr =
+                $requiredEnd->format('H:i');
 
             $gap = [
                 'time' => $timeStr,
@@ -1917,13 +2478,16 @@ class BookingController extends Controller
                     ->values();
 
                 $roomsQuery = Room::active()
-                    ->where('status', '!=', 'maintenance');
+                    ->where(
+                        'status',
+                        '!=',
+                        'maintenance'
+                    );
 
                 if ($roomCategoryIds->isNotEmpty()) {
                     $roomsQuery->where(
-                        function ($q) use (
-                            $roomCategoryIds
-                        ) {
+                        function ($q)
+                        use ($roomCategoryIds) {
                             $q->whereIn(
                                 'category_id',
                                 $roomCategoryIds
@@ -1935,7 +2499,10 @@ class BookingController extends Controller
                     );
                 }
 
-                foreach ($roomsQuery->get() as $room) {
+                foreach (
+                    $roomsQuery->get()
+                    as $room
+                ) {
                     if (
                         $room->isAvailableFor(
                             $date,
@@ -1958,155 +2525,218 @@ class BookingController extends Controller
         }
     }
 
+    // ==================== QUICK BOOK: NEXT RIGHT-NOW SLOTS ====================
+
     public function nextSlots(Request $request)
     {
-        $request->validate([
-            'date' => 'required|date',
-            'duration' => 'required|integer|min:15',
-            'services' => 'nullable|array',
-            'services.*' => 'exists:services,id',
-            'buffer_minutes' =>
-                'nullable|integer|min:0|max:60',
+        $validated = $request->validate([
+            'date' => [
+                'required',
+                'date',
+            ],
+            'duration' => [
+                'required',
+                'integer',
+                'min:1',
+            ],
+            'services' => [
+                'required',
+                'array',
+                'min:1',
+            ],
+            'services.*' => [
+                'integer',
+                'exists:services,id',
+            ],
+            'buffer_minutes' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
         ]);
 
-        $date = $request->date;
-        $duration = (int) $request->duration;
-        $serviceIds = $request->get('services', []);
-        $bufferMinutes = (int) $request->get(
-            'buffer_minutes',
-            5
-        );
-
-        $dayOfWeek = Carbon::parse($date)->dayOfWeek;
         $tz = 'Asia/Manila';
 
-        $services = empty($serviceIds)
-            ? collect()
-            : Service::whereIn(
-                'id',
-                $serviceIds
-            )->get();
+        $date = Carbon::parse(
+            $validated['date'],
+            $tz
+        )->format('Y-m-d');
 
-        $requiresRoom = $services->contains(
-            fn($s) => $s->requires_room
+        $duration =
+            (int) $validated['duration'];
+
+        $bufferMinutes = (int) (
+            $validated['buffer_minutes']
+            ?? 5
         );
 
-        $staffMembers = User::whereHas(
-            'roles',
-            fn($q) => $q->where('name', 'staff')
-        )->get();
+        $services = Service::whereIn(
+            'id',
+            $validated['services']
+        )
+            ->where(
+                'is_active',
+                true
+            )
+            ->get();
+
+        if ($services->isEmpty()) {
+            return response()->json([
+                'slots' => [],
+                'nextDayHint' => null,
+            ]);
+        }
+
+        $requiresRoom = $services->contains(
+            fn($service) =>
+                (bool) $service->requires_room
+        );
+
+        $isToday =
+            $date ===
+            Carbon::today($tz)->format('Y-m-d');
 
         $now = Carbon::now($tz);
-        $isToday = $date === $now->format('Y-m-d');
 
-        $allSlots = [];
+        /*
+         * No fixed Sunday rule.
+         *
+         * Whether a date is operational is determined by
+         * staff WorkSchedule / ScheduleException.
+         */
+        $staffMembers = User::where(
+            'is_active',
+            true
+        )
+            ->whereHas(
+                'roles',
+                fn($query) =>
+                    $query->where(
+                        'name',
+                        'staff'
+                    )
+            )
+            ->get();
+
+        $slots = [];
+        $isReceptionist = auth()->user() && auth()->user()->roles()->where('name', 'receptionist')->exists();
 
         foreach ($staffMembers as $staff) {
-            $exception = ScheduleException::where(
-                'user_id',
-                $staff->id
-            )
-                ->whereDate(
-                    'exception_date',
+            /*
+             * Individual staff schedule remains the source
+             * of normal availability.
+             */
+            $workWindow =
+                $this->getStaffWorkWindow(
+                    $staff->id,
                     $date
-                )
-                ->first();
-
-            if (
-                $exception &&
-                in_array(
-                    $exception->type,
-                    [
-                        'day_off',
-                        'holiday',
-                        'sick_leave',
-                        'urgent_leave',
-                    ]
-                )
-            ) {
-                continue;
-            }
-
-            $schedule = WorkSchedule::where(
-                'user_id',
-                $staff->id
-            )
-                ->where(
-                    'day_of_week',
-                    $dayOfWeek
-                )
-                ->where(
-                    'is_day_off',
-                    false
-                )
-                ->first();
-
-            if (!$schedule) {
-                continue;
-            }
-
-            $workStart = $this->extractTime(
-                $schedule->start_time
-            );
-
-            $workEnd = $this->extractTime(
-                $schedule->end_time
-            );
-
-            if (
-                $exception &&
-                $exception->type === 'custom_hours'
-            ) {
-                $workStart = $this->extractTime(
-                    $exception->start_time
                 );
 
-                $workEnd = $this->extractTime(
-                    $exception->end_time
-                );
-            }
-
-            if (!$workStart || !$workEnd) {
+            if (!$workWindow) {
                 continue;
             }
 
             $workStartCarbon = Carbon::parse(
-                $date . ' ' . $workStart,
+                $date . ' ' .
+                $workWindow['start'],
                 $tz
             );
 
             $workEndCarbon = Carbon::parse(
-                $date . ' ' . $workEnd,
+                $date . ' ' .
+                $workWindow['end'],
                 $tz
             );
 
+            /*
+             * TODAY:
+             *
+             * Right Now requires active attendance.
+             */
+            $attendanceOpen = false;
+
+            if ($isToday) {
+                $attendanceOpen = $this->isStaffCurrentlyCheckedIn($staff->id, $date);
+
+                if (!$attendanceOpen) {
+                    continue;
+                }
+            }
+
+            $availabilityStartCarbon =
+                $workStartCarbon->copy();
+
+            $availabilityEndCarbon =
+                $workEndCarbon->copy();
+
+            /*
+             * A checked-in staff member can continue receiving
+             * a Right Now booking after the scheduled shift end.
+             *
+             * There is intentionally no fixed 8 PM rule here.
+             */
             if (
                 $isToday &&
-                $now->gte($workEndCarbon)
+                $attendanceOpen
+            ) {
+                $endLimit = $now->copy()->endOfDay();
+                
+                if ($isReceptionist) {
+                    $endLimit->addHours(3);
+                }
+
+                if (
+                    $availabilityEndCarbon
+                        ->lt($endLimit)
+                ) {
+                    $availabilityEndCarbon =
+                        $endLimit->copy();
+                }
+            }
+
+            /*
+             * Determine where to begin searching.
+             */
+            if ($isToday) {
+                $searchStartCarbon = $now
+                    ->copy()
+                    ->addMinutes(
+                        $bufferMinutes
+                    );
+
+                if (
+                    $searchStartCarbon
+                        ->lt(
+                            $availabilityStartCarbon
+                        )
+                ) {
+                    $searchStartCarbon =
+                        $availabilityStartCarbon
+                            ->copy();
+                }
+            } else {
+                $searchStartCarbon =
+                    $availabilityStartCarbon
+                        ->copy();
+            }
+
+            if (
+                $searchStartCarbon
+                    ->gte(
+                        $availabilityEndCarbon
+                    )
             ) {
                 continue;
             }
 
-            $searchStart = $isToday
-                ? $now->copy()->addMinutes(
-                    $bufferMinutes
-                )
-                : $workStartCarbon->copy();
-
-            if (
-                $searchStart->lt(
-                    $workStartCarbon
-                )
-            ) {
-                $searchStart =
-                    $workStartCarbon->copy();
-            }
-
+            /*
+             * Existing appointments for this staff member.
+             */
             $appointments = Appointment::where(
                 'user_id',
                 $staff->id
             )
-                ->where(
+                ->whereDate(
                     'appointment_date',
                     $date
                 )
@@ -2114,140 +2744,158 @@ class BookingController extends Controller
                     'status',
                     [
                         'confirmed',
-                        'completed',
                         'pending',
+                        'completed',
                     ]
                 )
                 ->orderBy('start_time')
-                ->get([
-                    'start_time',
-                    'end_time',
-                ]);
+                ->get();
 
-            $busy = [];
+            $currentStart =
+                $searchStartCarbon->copy();
 
-            foreach ($appointments as $apt) {
-                $busy[] = [
-                    'start' => Carbon::parse(
+            /*
+             * Find gaps before appointments.
+             */
+            foreach ($appointments as $appointment) {
+                $appointmentStart =
+                    Carbon::parse(
                         $date . ' ' .
                         $this->extractTime(
-                            $apt->start_time
+                            $appointment->start_time
                         ),
                         $tz
-                    ),
-                    'end' => Carbon::parse(
-                        $date . ' ' .
-                        $this->extractTime(
-                            $apt->end_time
-                        ),
-                        $tz
-                    ),
-                ];
-            }
-
-            $found = false;
-
-            if (empty($busy)) {
-                if (
-                    $this->isSlotValid(
-                        $searchStart,
-                        $workEndCarbon,
-                        $duration,
-                        $date,
-                        $requiresRoom,
-                        $services
-                    )
-                ) {
-                    $slot = $this->buildSlot(
-                        $searchStart,
-                        $duration,
-                        $date,
-                        $staff,
-                        $requiresRoom,
-                        $services
                     );
 
-                    if ($slot) {
-                        $allSlots[] = $slot;
-                        $found = true;
-                    }
-                }
-            } else {
-                $currentStart = $workStartCarbon;
+                $appointmentEnd =
+                    Carbon::parse(
+                        $date . ' ' .
+                        $this->extractTime(
+                            $appointment->end_time
+                        ),
+                        $tz
+                    );
 
-                foreach ($busy as $interval) {
-                    if (
-                        $currentStart->lt(
-                            $interval['start']
-                        )
-                    ) {
-                        $gapStart =
-                            $searchStart->gt(
-                                $currentStart
+                if (
+                    $appointmentEnd
+                        ->lte($currentStart)
+                ) {
+                    continue;
+                }
+
+                if (
+                    $appointmentStart
+                        ->gt($currentStart)
+                ) {
+                    $gapEnd =
+                        $appointmentStart->copy();
+
+                    while (
+                        $currentStart
+                            ->copy()
+                            ->addMinutes(
+                                $duration
                             )
-                                ? $searchStart
-                                : $currentStart;
+                            ->lte($gapEnd)
+                        &&
+                        $currentStart
+                            ->copy()
+                            ->addMinutes(
+                                $duration
+                            )
+                            ->lte(
+                                $availabilityEndCarbon
+                            )
+                    ) {
+                        $slotEnd =
+                            $currentStart
+                                ->copy()
+                                ->addMinutes(
+                                    $duration
+                                );
 
                         if (
                             $this->isSlotValid(
-                                $gapStart,
-                                $interval['start'],
+                                $currentStart,
+                                $slotEnd,
                                 $duration,
                                 $date,
                                 $requiresRoom,
                                 $services
                             )
                         ) {
-                            $slot = $this->buildSlot(
-                                $gapStart,
-                                $duration,
-                                $date,
-                                $staff,
-                                $requiresRoom,
-                                $services
-                            );
+                            $slot =
+                                $this->buildSlot(
+                                    $currentStart,
+                                    $duration,
+                                    $date,
+                                    $staff,
+                                    $requiresRoom,
+                                    $services
+                                );
 
                             if ($slot) {
-                                $allSlots[] = $slot;
-                                $found = true;
-                                break;
+                                if (isset($isReceptionist) && $isReceptionist && $isToday && $currentStart->format('H:i') === $searchStartCarbon->format('H:i')) {
+                                    $slot['display'] = 'Start Now (' . $slot['display'] . ')';
+                                }
+                                $slots[] = $slot;
                             }
                         }
-                    }
 
-                    $currentStart =
-                        $interval['end']->gt(
-                            $currentStart
-                        )
-                            ? $interval['end']
-                            : $currentStart;
+                        $currentStart->addMinutes(30);
+
+                    }
                 }
 
                 if (
-                    !$found &&
-                    $currentStart->lt(
-                        $workEndCarbon
+                    $appointmentEnd
+                        ->gt($currentStart)
+                ) {
+                    $currentStart =
+                        $appointmentEnd->copy();
+                }
+
+                if (
+                    $currentStart
+                        ->gte(
+                            $availabilityEndCarbon
+                        )
+                ) {
+                    break;
+                }
+            }
+
+            /*
+             * Search the final gap after the last appointment.
+             */
+            while (
+                $currentStart
+                    ->copy()
+                    ->addMinutes($duration)
+                    ->lte(
+                        $availabilityEndCarbon
+                    )
+            ) {
+                $slotEnd =
+                    $currentStart
+                        ->copy()
+                        ->addMinutes(
+                            $duration
+                        );
+
+                if (
+                    $this->isSlotValid(
+                        $currentStart,
+                        $slotEnd,
+                        $duration,
+                        $date,
+                        $requiresRoom,
+                        $services
                     )
                 ) {
-                    $gapStart =
-                        $searchStart->gt(
-                            $currentStart
-                        )
-                            ? $searchStart
-                            : $currentStart;
-
-                    if (
-                        $this->isSlotValid(
-                            $gapStart,
-                            $workEndCarbon,
-                            $duration,
-                            $date,
-                            $requiresRoom,
-                            $services
-                        )
-                    ) {
-                        $slot = $this->buildSlot(
-                            $gapStart,
+                    $slot =
+                        $this->buildSlot(
+                            $currentStart,
                             $duration,
                             $date,
                             $staff,
@@ -2255,76 +2903,126 @@ class BookingController extends Controller
                             $services
                         );
 
-                        if ($slot) {
-                            $allSlots[] = $slot;
+                    if ($slot) {
+                        if (isset($isReceptionist) && $isReceptionist && $isToday && $currentStart->format('H:i') === $searchStartCarbon->format('H:i')) {
+                            $slot['display'] = 'Start Now (' . $slot['display'] . ')';
                         }
+                        $slots[] = $slot;
                     }
                 }
+
+                $currentStart->addMinutes(30);
             }
         }
 
+        /*
+         * Sort returned slots chronologically.
+         */
         usort(
-            $allSlots,
-            fn($a, $b) =>
-                $a['time'] <=> $b['time']
-                ?: $a['staff_name'] <=> $b['staff_name']
+            $slots,
+            function ($a, $b) {
+                $timeA = $a['time'];
+                $timeB = $b['time'];
+                
+                // If one is early morning (next day) and the other is evening, early morning comes AFTER
+                $isNextDayA = $timeA < '05:00';
+                $isNextDayB = $timeB < '05:00';
+                
+                if ($isNextDayA !== $isNextDayB) {
+                    return $isNextDayA ? 1 : -1;
+                }
+
+                return strcmp($timeA, $timeB);
+            }
         );
 
         $slots = array_slice(
-            $allSlots,
+            $slots,
             0,
-            6
+            12
         );
 
+        /*
+         * If there are no slots, find the next date on which
+         * at least one active staff member has a valid schedule.
+         *
+         * No Sunday assumption is used.
+         */
         $nextDayHint = null;
-        $nextOpenTime = null;
 
-        if (
-            empty($slots) &&
-            $isToday
-        ) {
-            $tomorrow = $now->copy()->addDay();
-            $tomorrowDow = $tomorrow->dayOfWeek;
+        if (empty($slots)) {
+            for (
+                $offset = 1;
+                $offset <= 14;
+                $offset++
+            ) {
+                $candidate =
+                    $now->copy()
+                        ->addDays($offset);
 
-            $nextSchedules = WorkSchedule::whereIn(
-                'user_id',
-                $staffMembers->pluck('id')
-            )
-                ->where(
-                    'day_of_week',
-                    $tomorrowDow
-                )
-                ->where(
-                    'is_day_off',
-                    false
-                )
-                ->get();
+                $candidateDate =
+                    $candidate->format('Y-m-d');
 
-            if ($nextSchedules->isNotEmpty()) {
-                $nextDayHint =
-                    $tomorrow->format('Y-m-d');
+                $earliestStart = null;
 
-                $earliest = $nextSchedules
-                    ->map(
-                        fn($s) =>
-                            $this->extractTime(
-                                $s->start_time
-                            )
-                    )
-                    ->filter()
-                    ->sort()
-                    ->first();
+                foreach (
+                    $staffMembers as $staff
+                ) {
+                    $candidateWindow =
+                        $this->getStaffWorkWindow(
+                            $staff->id,
+                            $candidateDate
+                        );
 
-                $nextOpenTime = $earliest;
+                    if (!$candidateWindow) {
+                        continue;
+                    }
+
+                    $candidateStart =
+                        Carbon::parse(
+                            $candidateDate . ' ' .
+                            $candidateWindow['start'],
+                            $tz
+                        );
+
+                    if (
+                        $earliestStart === null ||
+                        $candidateStart
+                            ->lt($earliestStart)
+                    ) {
+                        $earliestStart =
+                            $candidateStart;
+                    }
+                }
+
+                if ($earliestStart) {
+                    $nextDayHint = [
+                        'date' =>
+                            $candidateDate,
+
+                        'display_date' =>
+                            $candidate
+                                ->format(
+                                    'F j, Y'
+                                ),
+
+                        'time' =>
+                            $earliestStart
+                                ->format('H:i'),
+
+                        'display_time' =>
+                            $earliestStart
+                                ->format('g:i A'),
+                    ];
+
+                    break;
+                }
             }
         }
 
         return response()->json([
             'slots' => $slots,
-            'requires_room' => $requiresRoom,
-            'is_today' => $isToday,
-            'next_day_hint' => $nextDayHint,
-            'next_open_time' => $nextOpenTime,
+            'nextDayHint' => $nextDayHint,
         ]);
     }
 }

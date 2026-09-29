@@ -466,6 +466,23 @@
 
         <div class="max-w-2xl">
 
+            @if(!empty($activeNotice))
+                <div class="mb-6 rounded-2xl border border-amber-300/40 bg-amber-500/20 backdrop-blur-md p-4 text-amber-100 flex items-start gap-3 shadow-lg">
+                    <div class="p-2 rounded-xl bg-amber-500/30 text-amber-200 shrink-0 mt-0.5">
+                        <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <span>{{ $activeNotice['title'] }}</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/30 text-amber-200 font-semibold lowercase">Special Notice</span>
+                        </h4>
+                        <p class="text-xs text-amber-100/90 mt-1 leading-relaxed">
+                            {{ $activeNotice['message'] ?? 'We have special operating hours or closure today.' }}
+                        </p>
+                    </div>
+                </div>
+            @endif
+
             @if(!empty($hero->subtitle))
 
                 <p

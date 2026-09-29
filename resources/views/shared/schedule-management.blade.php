@@ -302,7 +302,7 @@ $todayStr = now()->toDateString();
                       @php
                         $isWork = $cell['type'] === 'work';
                         $isExc  = $cell['type'] === 'exception';
-                        $isCustom = ($cell['exception_type'] ?? '') === 'custom';
+                        $isCustom = ($cell['exception_type'] ?? '') === 'custom' || ($cell['exception_type'] ?? '') === 'custom_hours';
                         $exId = $cell['exception']['id'] ?? null;
                         $cellKey = $s->id . '|' . $cell['date'];
                         $isPast = $cell['date'] < $todayStr;
@@ -395,7 +395,8 @@ $todayStr = now()->toDateString();
                 $isPast = $date < $todayStr;
                 $attendanceStatus = $row['attendance']?->status ?? null;
               @endphp
-              <div class="flex items-stretch border-b border-gray-100 dark:border-slate-700 last:border-b-0 {{ $isPast ? 'cell-past' : '' }}" x-show="staffMatchesFilter(@json($s->first_name.' '.$s->last_name)) && (selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))">
+              <div class="flex items-stretch border-b border-gray-100 dark:border-slate-700 last:border-b-0 {{ $isPast ? 'cell-past' : ($canEdit ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/30' : '') }}" x-show="staffMatchesFilter(@json($s->first_name.' '.$s->last_name)) && (selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))"
+                @if($canEdit && !$isPast) @click="handleCellClick($event, {{ $s->id }}, '{{ $date }}', {{ \Carbon\Carbon::parse($date)->dayOfWeek }}, '{{ $block['start_time'] ?? '' }}', '{{ $block['end_time'] ?? '' }}', '{{ $block['type'] ?? 'off' }}', '{{ $block['exception_type'] ?? '' }}', {{ $block['exception_id'] ?? 'null' }})" @endif>
                 <div class="w-52 shrink-0 flex items-center gap-3 px-4 py-4 bg-gray-50 dark:bg-slate-800/50 border-r border-gray-200 dark:border-slate-700">
                   <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm" style="background: {{ $colors[$loop->index % 8] }};">{{ $initials }}</div>
                   <div class="min-w-0">
@@ -406,7 +407,7 @@ $todayStr = now()->toDateString();
                 <div class="flex-1 p-4 flex items-center">
                   @if($block && $block['type'] !== 'off')
                     <div class="px-4 py-2.5 rounded-lg border text-sm
-                      {{ $block['type'] === 'custom' ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300' : 'bg-brand-50 dark:bg-brand-900/10 border-brand-200 dark:border-brand-800 text-brand-800 dark:text-brand-300' }}">
+                      {{ ($block['type'] === 'custom' || $block['type'] === 'custom_hours') ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300' : 'bg-brand-50 dark:bg-brand-900/10 border-brand-200 dark:border-brand-800 text-brand-800 dark:text-brand-300' }}">
                       <div class="font-bold">{{ $block['label'] }}</div>
                       @if(!empty($block['reason']))
                         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $block['reason'] }}</div>
@@ -571,8 +572,8 @@ $todayStr = now()->toDateString();
               <select x-model="popover.data.exceptionType" class="w-full px-3 py-2.5 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
                 <option value="day_off">Day off</option>
                 <option value="holiday">Holiday</option>
-                <option value="sick_leave">Sick leave</option>
-                <option value="urgent_leave">Urgent leave</option>
+
+
                 <option value="custom_hours">Custom hours</option>
               </select>
             </div>
@@ -788,8 +789,8 @@ $todayStr = now()->toDateString();
               <select x-model="popover.data.exceptionType" class="w-full px-3 py-2.5 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
                 <option value="day_off">Day off</option>
                 <option value="holiday">Holiday</option>
-                <option value="sick_leave">Sick leave</option>
-                <option value="urgent_leave">Urgent leave</option>
+
+
                 <option value="custom_hours">Custom hours</option>
               </select>
             </div>
@@ -946,32 +947,32 @@ function timePicker(model, property) {
             return { am: opts.filter(o => o.amPm === 'AM'), pm: opts.filter(o => o.amPm === 'PM') };
         },
         toggle($el) {
-            this.open = !this.open;
-            this.search = '';
             if (this.open) {
-                this.$nextTick(() => {
-                    const rect = $el.getBoundingClientRect();
-                    const dropdownHeight = 320;
-                    const dropdownWidth = 220; // comfortable fixed width
-
-                    // Vertical placement
-                    let top = rect.bottom + 6;
-                    if (top + dropdownHeight > window.innerHeight - 12) {
-                        top = rect.top - dropdownHeight - 6;
-                    }
-
-                    // Horizontal: center under trigger, but keep inside viewport
-                    let left = rect.left + (rect.width / 2) - (dropdownWidth / 2);
-                    if (left < 12) left = 12;
-                    if (left + dropdownWidth > window.innerWidth - 12) {
-                        left = window.innerWidth - dropdownWidth - 12;
-                    }
-
-                    this.dropdownTop = top;
-                    this.dropdownLeft = left;
-                    this.dropdownWidth = dropdownWidth;
-                });
+                this.open = false;
+                return;
             }
+            const rect = $el.getBoundingClientRect();
+            const dropdownHeight = 320;
+            const dropdownWidth = 220; // comfortable fixed width
+
+            // Vertical placement
+            let top = rect.bottom + 6;
+            if (top + dropdownHeight > window.innerHeight - 12) {
+                top = rect.top - dropdownHeight - 6;
+            }
+
+            // Horizontal: center under trigger, but keep inside viewport
+            let left = rect.left + (rect.width / 2) - (dropdownWidth / 2);
+            if (left < 12) left = 12;
+            if (left + dropdownWidth > window.innerWidth - 12) {
+                left = window.innerWidth - dropdownWidth - 12;
+            }
+
+            this.dropdownTop = top;
+            this.dropdownLeft = left;
+            this.dropdownWidth = dropdownWidth;
+            this.search = '';
+            this.open = true;
         },
         select(t) { this.model[this.property] = t; this.open = false; },
         close() { this.open = false; }
@@ -1117,38 +1118,35 @@ function schedApp() {
     },
 
     openEdit(userId, date, dow, start, end, type, exType, exId) {
-      this.popover = {
-        open: true,
-        mode: 'edit',
-        data: {
-          userId, date, dow,
-          start: start || '09:00',
-          end: end || '18:00',
-          status: type === 'exception' ? 'exception' : (type === 'work' ? 'work' : 'off'),
-          exceptionType: exType || 'day_off',
-          reason: '',
-          exceptionId: exId
-        }
-      };
+      this.popover.open = false;
+      setTimeout(() => {
+        this.popover.mode = 'edit';
+        this.popover.data.userId = userId;
+        this.popover.data.date = date;
+        this.popover.data.dow = dow;
+        this.popover.data.start = start || '09:00';
+        this.popover.data.end = end || '18:00';
+        this.popover.data.status = type === 'exception' ? 'exception' : (type === 'work' ? 'work' : 'off');
+        this.popover.data.exceptionType = (exType === 'custom' || exType === 'custom_hours') ? 'custom_hours' : (exType || 'day_off');
+        this.popover.data.reason = '';
+        this.popover.data.exceptionId = exId;
+        this.popover.open = true;
+      }, 50);
     },
 
     openBulkEdit() {
       if (Object.keys(this.selectedCells).length === 0) return;
-      this.popover = {
-        open: true,
-        mode: 'bulk',
-        data: { 
-          status: 'work', 
-          start: '09:00', 
-          end: '18:00', 
-          exceptionType: 'day_off', 
-          reason: '',
-          userId: '',
-          date: '',
-          dow: '',
-          exceptionId: null
-        }
-      };
+      this.popover.mode = 'bulk';
+      this.popover.data.status = 'work';
+      this.popover.data.start = '09:00';
+      this.popover.data.end = '18:00';
+      this.popover.data.exceptionType = 'day_off';
+      this.popover.data.reason = '';
+      this.popover.data.userId = '';
+      this.popover.data.date = '';
+      this.popover.data.dow = '';
+      this.popover.data.exceptionId = null;
+      this.popover.open = true;
     },
 
     closePopover() { 
@@ -1156,20 +1154,10 @@ function schedApp() {
     },
 
     buildPayload(d, userId, date) {
-      let exceptionType, startTime, endTime;
-      if (d.status === 'work') {
-        exceptionType = 'custom_hours';
-        startTime = d.start;
-        endTime = d.end;
-      } else if (d.status === 'off') {
-        exceptionType = 'day_off';
-        startTime = null;
-        endTime = null;
-      } else {
-        exceptionType = d.exceptionType;
-        startTime = d.exceptionType === 'custom_hours' ? d.start : null;
-        endTime = d.exceptionType === 'custom_hours' ? d.end : null;
-      }
+      const status = d.status;
+      let exceptionType = status === 'exception' ? d.exceptionType : (status === 'off' ? 'day_off' : 'custom_hours');
+      const startTime = (status === 'work' || (status === 'exception' && d.exceptionType === 'custom_hours')) ? d.start : null;
+      const endTime = (status === 'work' || (status === 'exception' && d.exceptionType === 'custom_hours')) ? d.end : null;
       return {
         user_id: userId,
         exception_type: exceptionType,
@@ -1239,6 +1227,7 @@ function schedApp() {
         if (d.success) {
           toast(d.message || 'Schedules updated');
           this.selectedCells = {};
+          this.lastSelected = null;
           this.closePopover();
           setTimeout(() => location.reload(), 300);
         } else {

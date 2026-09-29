@@ -23,6 +23,7 @@
 
     $revenueLoss = $revenueLoss ?? [];
     $customerRetention = $customerRetention ?? [];
+    $therapistRetentionData = collect($therapistRetentionData ?? []);
     $peakBusinessHours = $peakBusinessHours ?? [];
 
     /*
@@ -157,6 +158,19 @@
                 <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
             </svg>
             Retention
+        </a>
+
+        <a
+            href="#therapist-retention"
+            class="inline-flex shrink-0 items-center gap-x-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-white"
+        >
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>
+                <path d="M16 3.5a4 4 0 0 1 0 7.5"/>
+                <path d="M19 15a4 4 0 0 1 3 4v2"/>
+            </svg>
+            Therapist Loyalty
         </a>
 
         <a
@@ -1119,6 +1133,87 @@
 
 </section>
 
+
+{{-- =========================================================
+     THERAPIST RETENTION ANALYTICS (1/2)
+========================================================= --}}
+<section id="therapist-retention" class="mt-8 scroll-mt-24">
+    <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+        <div class="border-b border-gray-200 px-5 py-5 dark:border-neutral-700">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-start gap-3">
+                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-600 dark:bg-teal-500/10 dark:text-teal-400">
+                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.5a4 4 0 0 1 0 7.5"/><path d="M19 15a4 4 0 0 1 3 4v2"/></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Therapist Retention &amp; Client Loyalty</h2>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">Repeat booking and client loyalty rates for each therapist.</p>
+                    </div>
+                </div>
+                <span class="inline-flex w-fit items-center rounded-full bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+                    {{ $therapistRetentionData->count() }} {{ $therapistRetentionData->count() === 1 ? 'therapist tracked' : 'therapists tracked' }}
+                </span>
+            </div>
+        </div>
+        @if ($therapistRetentionData->isNotEmpty())
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-neutral-700">
+                    <thead class="bg-gray-50 dark:bg-neutral-800/80">
+                        <tr>
+                            <th class="whitespace-nowrap px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-neutral-400">Rank</th>
+                            <th class="whitespace-nowrap px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-neutral-400">Therapist</th>
+                            <th class="whitespace-nowrap px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-neutral-400">Visits</th>
+                            <th class="whitespace-nowrap px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-neutral-400">Unique Clients</th>
+                            <th class="whitespace-nowrap px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-neutral-400">Repeat Clients</th>
+                            <th class="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-neutral-400">Retention Rate</th>
+{{-- =========================================================
+     THERAPIST RETENTION ANALYTICS (2/2)
+========================================================= --}}
+                        @foreach ($therapistRetentionData as $index => $therapist)
+                            @php
+                                $therapistRank = $index + 1;
+                                $tRate = (float) ($therapist->retention_rate ?? 0);
+                            @endphp
+                            <tr class="transition hover:bg-gray-50 dark:hover:bg-neutral-700/40">
+                                <td class="whitespace-nowrap px-5 py-4">
+                                    <span class="inline-flex size-7 items-center justify-center rounded-full text-xs font-bold {{ $therapistRank === 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400' : ($therapistRank === 2 ? 'bg-slate-200 text-slate-700 dark:bg-neutral-700 dark:text-neutral-300' : ($therapistRank === 3 ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400' : 'bg-gray-100 text-gray-600 dark:bg-neutral-700 dark:text-neutral-300')) }}">
+                                        {{ $therapistRank }}
+                                    </span>
+                                </td>
+                                <td class="whitespace-nowrap px-5 py-4 font-semibold text-gray-900 dark:text-white">
+                                    {{ $therapist->therapist_name }}
+                                </td>
+                                <td class="whitespace-nowrap px-5 py-4 text-center text-sm font-semibold text-gray-900 dark:text-white">
+                                    {{ $therapist->total_appointments }}
+                                </td>
+                                <td class="whitespace-nowrap px-5 py-4 text-center text-sm text-gray-600 dark:text-neutral-300">
+                                    {{ $therapist->unique_clients }}
+                                </td>
+                                <td class="whitespace-nowrap px-5 py-4 text-center text-sm font-semibold text-teal-600 dark:text-teal-400">
+                                    {{ $therapist->repeat_clients ?? 0 }}
+                                </td>
+                                <td class="whitespace-nowrap px-5 py-4 text-right">
+                                    <span class="text-sm font-bold text-teal-600 dark:text-teal-400">{{ $formatPercent($tRate) }}</span>
+                                    <div class="mt-1 h-1.5 w-24 ml-auto overflow-hidden rounded-full bg-gray-100 dark:bg-neutral-700">
+                                        <div class="h-full rounded-full bg-teal-500 transition-all" style="width: {{ min($tRate, 100) }}%"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @else
+            <div class="p-8 text-center">
+                <div class="mx-auto flex size-11 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-neutral-700 dark:text-neutral-400">
+                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>
+                </div>
+                <h3 class="mt-4 text-sm font-semibold text-gray-900 dark:text-white">No therapist retention data</h3>
+                <p class="mx-auto mt-1 max-w-sm text-sm text-gray-500 dark:text-neutral-400">No completed appointments found for therapists in this period.</p>
+            </div>
+        @endif
+    </div>
+</section>
 
 {{-- =========================================================
      PEAK BUSINESS HOURS

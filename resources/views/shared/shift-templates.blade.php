@@ -68,12 +68,22 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 
 .time-picker-group-label {
     padding: 0.375rem 0.75rem;
-    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.05em; color: #9ca3af;
-    position: sticky; top: 0; background: inherit;
-    z-index: 1;
+    font-size: 0.65rem; 
+    font-weight: 700; 
+    text-transform: uppercase;
+    letter-spacing: 0.05em; 
+    color: #9ca3af;
+    position: sticky; 
+    top: 0; 
+    background: white;
+    z-index: 10;
+    box-shadow: 0 1px 0 #f3f4f6;
 }
-.dark .time-picker-group-label { color: #64748b; }
+.dark .time-picker-group-label { 
+    color: #64748b; 
+    background: #1e293b;
+    box-shadow: 0 1px 0 #334155;
+}
 
 .time-picker-option {
     padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.875rem;
@@ -732,8 +742,27 @@ function timePicker(model, property) {
             if (this.open) {
                 this.$nextTick(() => {
                     const rect = $el.getBoundingClientRect();
-                    const dropdownHeight = 320;
-                    const dropdownWidth = 220; // comfortable fixed width
+                    
+                    // Create temporary dropdown to measure actual dimensions
+                    const tempDropdown = document.createElement('div');
+                    tempDropdown.className = 'time-picker-dropdown';
+                    tempDropdown.style.visibility = 'hidden';
+                    tempDropdown.style.position = 'fixed';
+                    tempDropdown.style.top = '-9999px';
+                    
+                    // Add search and scroll content to measure
+                    tempDropdown.innerHTML = `
+                        <div class="time-picker-search"><input type="text" placeholder="Find time…"></div>
+                        <div class="time-picker-scroll">
+                            ${this.groupedOptions.am.length ? '<div><div class="time-picker-group-label">Morning</div>' + this.groupedOptions.am.map(() => '<div class="time-picker-option"><span>12:00 AM</span></div>').join('') + '</div>' : ''}
+                            ${this.groupedOptions.pm.length ? '<div><div class="time-picker-group-label">Afternoon / Evening</div>' + this.groupedOptions.pm.map(() => '<div class="time-picker-option"><span>12:00 PM</span></div>').join('') + '</div>' : ''}
+                        </div>
+                    `;
+                    document.body.appendChild(tempDropdown);
+                    
+                    const dropdownHeight = tempDropdown.scrollHeight;
+                    const dropdownWidth = Math.max(tempDropdown.scrollWidth, 180);
+                    document.body.removeChild(tempDropdown);
 
                     // Vertical placement
                     let top = rect.bottom + 6;
