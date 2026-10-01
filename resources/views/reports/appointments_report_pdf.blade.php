@@ -7,7 +7,8 @@
 
     <style>
         @page {
-            margin: 35px 35px 40px 35px;
+            margin: 35px;
+            size: A4 portrait;
         }
 
         * {
@@ -244,18 +245,9 @@
 
 <body>
 
-    <div class="header">
-        <div class="brand">ZenFlow System</div>
-        <div class="spa-name">Spa Alexandria</div>
-
-        <div class="report-title">
-            {{ $reportTitle }}
-        </div>
-
-        <div class="generated">
-            Generated: {{ $generatedAt }}
-        </div>
-    </div>
+    @include('partials.report_header', [
+        'reportTitle' => $reportTitle
+    ])
 
     <div class="filter-box">
         <div class="filter-title">
@@ -502,6 +494,17 @@
                             <span class="status {{ $statusClass }}">
                                 {{ $statusText }}
                             </span>
+                                @if($appointment->status === 'cancelled')
+                                    <div class="muted" style="font-size: 8px; margin-top: 4px;">
+                                        Reason: {{ $appointment->cancellation_reason ? ucwords(str_replace('_', ' ', $appointment->cancellation_reason)) : 'No reason provided' }}
+                                    </div>
+                                @endif
+
+                                @if($appointment->status === 'no_show')
+                                    <div class="muted" style="font-size: 8px; margin-top: 4px;">
+                                        Reason: {{ $appointment->no_show_reason ? ucwords(str_replace('_', ' ', $appointment->no_show_reason)) : 'No reason provided' }}
+                                    </div>
+                                @endif
                         </td>
                     </tr>
 

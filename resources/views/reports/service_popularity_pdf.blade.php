@@ -1,4 +1,3 @@
-```blade
 <!DOCTYPE html>
 <html lang="en">
 
@@ -12,7 +11,8 @@
     <style>
 
         @page {
-            margin: 35px 35px 40px 35px;
+            margin: 35px;
+            size: A4 portrait;
         }
 
         * {
@@ -313,25 +313,9 @@
          HEADER
     ====================================================== --}}
 
-    <div class="header">
-
-        <div class="brand">
-            ZenFlow System
-        </div>
-
-        <div class="spa-name">
-            Spa Alexandria
-        </div>
-
-        <div class="report-title">
-            {{ $reportTitle }}
-        </div>
-
-        <div class="generated">
-            Generated: {{ $generatedAt }}
-        </div>
-
-    </div>
+    @include('partials.report_header', [
+        'reportTitle' => $reportTitle ?? 'Service & Package Popularity'
+    ])
 
 
     {{-- =====================================================

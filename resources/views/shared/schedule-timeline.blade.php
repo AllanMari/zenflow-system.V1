@@ -562,8 +562,8 @@ function schedApp() {
       this.applyTemplateToUsers(userIds);
     },
 
-    applyTemplateToUsers(userIds) {
-      if (!confirm(`Apply template to ${userIds.length} staff?`)) return;
+    async applyTemplateToUsers(userIds) {
+      if (!await swalConfirmAsync(`Apply template to ${userIds.length} staff?`)) return;
       this.saving = true;
       fetch('{{ $templateApplyRoute }}/bulk', {
         method: 'POST',
@@ -580,8 +580,8 @@ function schedApp() {
       .finally(() => this.saving = false);
     },
 
-    removeException(id) {
-      if (!confirm('Remove this block?')) return;
+    async removeException(id) {
+      if (!await swalConfirmAsync('Remove this block?')) return;
       const form = document.createElement('form');
       form.method = 'POST';
       form.action = '{{ $exceptionRoute }}/' + id;

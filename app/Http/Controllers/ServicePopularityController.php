@@ -41,19 +41,15 @@ class ServicePopularityController extends Controller
 
         $pdfData = [
             'reportTitle' => 'SERVICE POPULARITY BREAKDOWN REPORT',
-            'dateLabel' => $period === 'today'
-                ? 'DATE:'
-                : 'PERIOD:',
-            'dateDisplay' => $data['dateDisplay'],
-            'selectedCategoryName' => $data['selectedCategoryName'],
+            'dateRange' => $data['dateDisplay'],
+            'preparedBy' => Auth::user()->full_name ?? Auth::user()->name,
+            'generatedAt' => now($this->timezone)->format('F d, Y g:i A'),
+            'referenceNumber' => 'SP-' . now()->format('YmdHis'),
+
             'summary' => $data['summary'],
             'serviceBreakdown' => $data['serviceBreakdown'],
             'packageBreakdown' => $data['packageBreakdown'],
             'categoryBreakdown' => $data['categoryBreakdown'],
-            'preparedBy' => Auth::user()->full_name
-                ?? Auth::user()->name,
-            'generatedAt' => now($this->timezone)
-                ->format('F d, Y g:i A'),
         ];
 
         $action = $request->get('action', 'download');

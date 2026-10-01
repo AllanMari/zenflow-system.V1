@@ -912,8 +912,8 @@ function templateApp() {
         .finally(() => this.templateManager.saving = false);
       };
 
-      this.templateManager.deleteTemplate = (id) => {
-        if (!confirm('Delete this template? This cannot be undone.')) return;
+      this.templateManager.deleteTemplate = async (id) => {
+        if (!await swalConfirmAsync('Delete this template? This cannot be undone.')) return;
         fetch('{{ $templateDeleteRoute }}' + '/' + id, {
           method: 'DELETE',
           headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'}
@@ -1042,8 +1042,8 @@ function templateApp() {
       .finally(() => this.saving = false);
     },
 
-    deleteException(id) {
-      if (!confirm('Remove this exception?')) return;
+    async deleteException(id) {
+      if (!await swalConfirmAsync('Remove this exception?')) return;
       const url = '{{ $isAdmin ? url("/admin/schedule-exception") : url("/receptionist/schedule-exception") }}' + '/' + id;
       fetch(url, {
         method: 'DELETE',

@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <title>Daily Sales Report - {{ $dateDisplay }}</title>
     <style>
-        @page { margin: 0; size: A4 portrait; } /* Changed margin to 0 */
+        @page {
+            margin: 35px;
+            size: A4 portrait;
+        } /* Changed margin to 0 */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             font-family: 'DejaVu Sans', 'Inter', Arial, sans-serif; 
@@ -64,12 +67,7 @@
 </head>
 <body>
     @include('partials.report_header', [
-        'tagline'       => 'ZenFlow Appointment & Workforce System',
-        'reportTypeLabel' => 'Report Type',
-        'reportTitle'   => $reportTitle,
-        'dateRange'     => $dateLabel . ' ' . $dateDisplay,
-        'generatedAt'   => $generatedAt,
-        'preparedBy'    => $preparedBy,
+        'reportTitle' => $reportTitle ?? 'Daily Sales Report'
     ])
 
     <table class="main-table">

@@ -208,11 +208,13 @@ class ScheduleController extends Controller
                 . ' - '
                 . $weekStart->copy()->endOfWeek()->format('F j, Y'),
 
+            'referenceNumber' => 'SCH-' . $weekStart->format('Ymd') . '-' . strtoupper(substr(uniqid(), -5)),
+
             'timeRange' => $timeRange,
 
             'preparedBy' => auth()->user()?->full_name ?? 'System User',
 
-            'generatedAt' => now('Asia/Manila'),
+            'generatedAt' => now('Asia/Manila')->format('F d, Y g:i A'),
         ];
     }
 

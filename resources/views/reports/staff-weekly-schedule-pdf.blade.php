@@ -15,8 +15,8 @@
         */
 
         @page {
-            size: A4 landscape;
-            margin: 8mm;
+            margin: 35px;
+            size: A4 portrait;
         }
 
         * {
@@ -1184,57 +1184,9 @@
 <div class="page">
 
 
-    {{-- =========================================================
-         HEADER
-    ========================================================== --}}
-
-    <div class="header">
-
-        <table class="header-table">
-
-            <tr>
-
-                <td class="header-left">
-
-                    <div class="brand">
-                        ZenFlow System
-                    </div>
-
-                    <div class="organization">
-                        Spa Alexandria
-                    </div>
-
-                </td>
-
-
-                <td class="header-center">
-
-                    <div class="document-title">
-                        Staff Weekly Schedule
-                    </div>
-
-                    <div class="week-label">
-                        Week of {{ $weekLabel }}
-                    </div>
-
-                </td>
-
-
-                <td class="header-right">
-
-                    <div class="document-meta">
-                        Schedule Management
-                        <br>
-                        Posting Copy
-                    </div>
-
-                </td>
-
-            </tr>
-
-        </table>
-
-    </div>
+    @include('partials.report_header', [
+        'reportTitle' => 'Staff Weekly Schedule'
+    ])
 
 
 

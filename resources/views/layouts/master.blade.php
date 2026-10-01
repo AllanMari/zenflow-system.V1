@@ -443,6 +443,20 @@ function saveSettingsState(){const d=document.documentElement.classList.contains
 function updateToggle(){const d=document.documentElement.classList.contains('dark'),c=document.getElementById('toggleCircle'),t=document.getElementById('darkToggle');if(c)c.style.transform=d?'translateX(20px)':'translateX(0px)';if(t){t.classList.toggle('bg-brand-600',d);t.classList.toggle('bg-gray-300',!d)}}
 updateToggle();
 
+function swalConfirmAsync(text) {
+    return Swal.fire({
+        title: 'Are you sure?',
+        text: text,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes',
+        background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
+        color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151'
+    }).then(r => r.isConfirmed);
+}
+
 @if(session('success'))
 Swal.fire({icon:'success',title:'Success',text:@json(session('success')),timer:3000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1e293b':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
 @endif

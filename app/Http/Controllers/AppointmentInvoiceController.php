@@ -222,6 +222,8 @@ class AppointmentInvoiceController extends Controller
                 '0',
                 STR_PAD_LEFT
             ),
+            'reportTitle' => 'APPOINTMENT INVOICE',
+            'dateRange' => null,
             'preparedBy' => auth()->user(),
 
             'generatedAt' => now('Asia/Manila'),

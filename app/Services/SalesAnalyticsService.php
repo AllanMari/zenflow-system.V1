@@ -9,6 +9,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use App\Services\OllamaInsightService;
 use App\Models\Attendance;
+use App\Models\WorkSchedule;
+use App\Models\ScheduleException;
+use App\Models\User;
 
 class SalesAnalyticsService
 {
@@ -425,10 +428,20 @@ class SalesAnalyticsService
 
         /*
         |--------------------------------------------------------------------------
+        | Absenteeism & Vacancy Analytics
+        |--------------------------------------------------------------------------
+        */
+        $absenteeismVacancyAnalytics = $this->getAbsenteeismVacancyAnalytics(
+            $startDate,
+            $endDate
+        );
+
+        /*
+        |--------------------------------------------------------------------------
         | Return dashboard data
         |--------------------------------------------------------------------------
         */
-        return [
+        return array_merge([
             'totalRevenue'           => $totalRevenue,
             'grossSales'             => $grossSales,
             'refundTotal'            => $refundTotal,
@@ -437,6 +450,7 @@ class SalesAnalyticsService
             'deposits'               => $deposits,
             'uniqueCustomers'        => $uniqueCustomers,
             'revPerCompletedAppt'    => $revPerCompletedAppt,
+
 
             'noShowData'             => $noShowData,
             'methodBreakdown'        => $methodBreakdown,
@@ -504,7 +518,7 @@ class SalesAnalyticsService
             'serviceCodeMap'         => self::SERVICE_CODE_MAP,
 
             'insightPayload'         => $insightPayload,
-        ];
+        ], $absenteeismVacancyAnalytics);
     }
 
     /*
@@ -1357,6 +1371,131 @@ class SalesAnalyticsService
         });
 
         return $therapistData;
+    }
+    /*
+    |--------------------------------------------------------------------------
+    | NEW: Absenteeism & Vacancy Analytics
+    |--------------------------------------------------------------------------
+    */
+    private function getAbsenteeismVacancyAnalytics(
+        Carbon $startDate,
+        Carbon $endDate
+    ): array {
+        // Fetch all active staff with role 'staff'
+        $staffMembers = User::whereHas('roles', function ($query) {
+                $query->where('name', 'staff');
+            })
+            ->where('is_active', true)
+            ->with('workSchedules')
+            ->get();
+
+        // Fetch all attendances within the period, grouped by user_id
+        $attendances = Attendance::query()
+            ->whereBetween('date', [$startDate, $endDate])
+            ->get()
+            ->groupBy('user_id');
+
+        // Fetch all schedule exceptions within the period, grouped by user_id
+        $exceptions = ScheduleException::query()
+            ->whereBetween('exception_date', [$startDate, $endDate])
+            ->get()
+            ->groupBy('user_id');
+
+        $totalScheduledShifts = 0;
+        $totalAbsentShifts = 0;
+        $staffAbsenteeismData = [];
+
+        $leaveTypes = ['sick_leave', 'urgent_leave'];
+        $nonWorkingTypes = ['day_off', 'holiday'];
+
+        foreach ($staffMembers as $staff) {
+            $staffScheduled = 0;
+            $staffAbsent = 0;
+
+            $current = $startDate->copy();
+            while ($current->lte($endDate)) {
+                $dateStr = $current->toDateString();
+                $dayOfWeek = $current->dayOfWeek;
+
+                // Check exception for this date
+                $staffExceptions = $exceptions->get($staff->id, collect());
+                $exc = $staffExceptions->first(fn($e) => $e->exception_date->toDateString() === $dateStr);
+
+                $isOff = false;
+                $isWorking = false;
+
+                if ($exc) {
+                    if (in_array($exc->type, $leaveTypes) || in_array($exc->type, $nonWorkingTypes)) {
+                        $isOff = true;
+                    } elseif ($exc->type === 'custom_hours' && $exc->start_time) {
+                        $isWorking = true;
+                    }
+                } else {
+                    // Check regular work schedule
+                    $schedule = $staff->workSchedules->firstWhere('day_of_week', $dayOfWeek);
+                    if ($schedule && !$schedule->is_day_off && $schedule->start_time) {
+                        $isWorking = true;
+                    }
+                }
+
+                if ($isWorking && !$isOff) {
+                    $staffScheduled++;
+                    $totalScheduledShifts++;
+
+                    // Check attendance
+                    $staffAttendances = $attendances->get($staff->id, collect());
+                    $att = $staffAttendances->first(fn($a) => Carbon::parse($a->date)->toDateString() === $dateStr);
+
+                    // True absence = scheduled working day with no attendance record AND no schedule exception, OR attendance status = 'absent'
+                    if (!$att || $att->status === 'absent') {
+                        $staffAbsent++;
+                        $totalAbsentShifts++;
+                    }
+                }
+
+                $current->addDay();
+            }
+
+            $rate = $staffScheduled > 0 ? ($staffAbsent / $staffScheduled) * 100 : 0;
+            $fullName = trim($staff->first_name . ' ' . $staff->last_name);
+
+            $staffAbsenteeismData[] = [
+                'id'               => $staff->id,
+                'name'             => $fullName,
+                'first_name'       => $staff->first_name,
+                'last_name'        => $staff->last_name,
+                'username'         => $staff->username,
+                'avatar'           => $staff->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($fullName) . '&color=7F9CF5&background=EBF4FF',
+                'absent_shifts'    => $staffAbsent,
+                'scheduled_shifts' => $staffScheduled,
+                'absenteeism_rate' => round($rate, 1),
+            ];
+        }
+
+        $overallAbsenteeismRate = $totalScheduledShifts > 0
+            ? ($totalAbsentShifts / $totalScheduledShifts) * 100
+            : 0;
+
+        // Sort by absenteeism rate descending
+        usort($staffAbsenteeismData, fn($a, $b) => $b['absenteeism_rate'] <=> $a['absenteeism_rate']);
+
+        // Vacancy Rate
+        $totalStaffCapacity = 10;
+        $currentActiveStaff = $staffMembers->count();
+        $openPositions = max(0, $totalStaffCapacity - $currentActiveStaff);
+
+        $vacancyRate = $totalStaffCapacity > 0
+            ? ($openPositions / $totalStaffCapacity) * 100
+            : 0;
+
+        return [
+            'overallAbsenteeismRate' => round($overallAbsenteeismRate, 1),
+            'totalAbsentShifts'      => $totalAbsentShifts,
+            'totalScheduledShifts'   => $totalScheduledShifts,
+            'vacancyRate'            => round($vacancyRate, 1),
+            'openPositions'          => $openPositions,
+            'absenteeismByStaff'     => collect($staffAbsenteeismData),
+        ];
     }
 
     private function buildCustomerRetention(

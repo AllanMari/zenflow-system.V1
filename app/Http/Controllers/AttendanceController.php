@@ -568,6 +568,8 @@ class AttendanceController extends Controller
         );
 
         $data['reportTitle'] = 'Attendance Report';
+        $data['referenceNumber'] = 'ATT-' . now()->format('YmdHis');
+        $data['dateRange'] = ($data['startDate'] ? $data['startDate']->format('M d, Y') : '') . ' - ' . ($data['endDate'] ? $data['endDate']->format('M d, Y') : '');
 
         $data['generatedAt'] =
             now('Asia/Manila')->format(

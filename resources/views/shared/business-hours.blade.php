@@ -378,10 +378,10 @@
                                     {{ $exc->notice_message ?: '—' }}
                                 </td>
                                 <td class="p-3.5 text-right">
-                                    <form method="POST" action="{{ route('business-exceptions.destroy', $exc) }}" onsubmit="return confirm('Remove this exception?')">
+                                    <form id="delete-exception-{{ $exc->id }}" method="POST" action="{{ route('business-exceptions.destroy', $exc) }}">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-800 dark:text-red-400 text-xs font-semibold">Delete</button>
+                                        <button type="button" class="text-red-600 hover:text-red-800 dark:text-red-400 text-xs font-semibold" onclick="swalConfirmAsync('Remove this exception?').then(confirmed => { if (confirmed) document.getElementById('delete-exception-{{ $exc->id }}').submit() })">Delete</button>
                                     </form>
                                 </td>
                             </tr>
@@ -539,4 +539,5 @@ function formatTime(t, fallback = '') {
     return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 </script>
+
 @endpush

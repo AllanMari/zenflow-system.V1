@@ -106,6 +106,7 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
             'pTotalDiscount'      => collect($data['printServiceSummary'] ?? [])->sum('discount'),
             'pTotalCount'         => collect($data['printServiceSummary'] ?? [])->sum('count'),
             'reportTitle'         => $reportTitle,
+            'referenceNumber'     => 'SAL-' . strtoupper($period) . '-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -5)),
             'dateLabel'           => $period === 'daily' ? 'DATE:' : 'PERIOD:',
             'dateDisplay'         => $dateDisplay,
             'preparedBy'          => Auth::user()->full_name ?? Auth::user()->name,
@@ -124,6 +125,8 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
         $filename = 'business-report-' . strtolower($data['label']) . '-' . now()->format('Y-m-d') . '.pdf';
 
         $pdfData = [
+            'reportTitle'           => 'BUSINESS INTELLIGENCE REPORT',
+            'referenceNumber'       => 'BUS-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -5)),
             'startDate'             => $data['startDate'],
             'endDate'               => $data['endDate'],
             'safeTotalRevenue'      => $data['totalRevenue'],

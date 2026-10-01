@@ -420,61 +420,13 @@
     {{-- HEADER --}}
     {{-- ========================================================= --}}
 
-    <table>
-
-        <tr>
-
-            <td class="business-cell">
-
-                <div class="business-name">
-                    SPA ALEXANDRIA
-                </div>
-
-                <div class="business-subtitle">
-                    ZenFlow Appointment & Workforce System
-                </div>
-
-                <div class="business-location">
-                    Bacolod City
-                </div>
-
-            </td>
-
-
-            <td class="meta-cell">
-
-                <div class="invoice-title">
-                    APPOINTMENT INVOICE
-                </div>
-
-                <div class="meta-line">
-
-                    Appointment Reference:
-
-                    <span class="meta-value">
-                        {{ $referenceNumber }}
-                    </span>
-
-                </div>
-
-                <div class="meta-line">
-
-                    Date Issued:
-
-                    <span class="meta-value">
-                        {{ $generatedAt->format('F d, Y') }}
-                    </span>
-
-                </div>
-
-            </td>
-
-        </tr>
-
-    </table>
-
-
-    <div class="header-line"></div>
+    @include('partials.report_header', [
+        'reportTitle' => 'Appointment Invoice',
+        'referenceNumber' => $referenceNumber,
+        'dateRange' => $appointmentDate,
+        'generatedAt' => $generatedAt->format('F d, Y h:i A'),
+        'preparedBy' => $preparedBy ?? 'System Administrator'
+    ])
 
 
     {{-- ========================================================= --}}

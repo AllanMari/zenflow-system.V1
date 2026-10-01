@@ -1268,6 +1268,24 @@
 
                                 </span>
 
+                                @if($appt->status === 'cancelled' && $appt->cancellation_reason !== 'customer_no_show')
+                                    <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
+                                        Reason: {{ $appt->cancellation_reason ? ucwords(str_replace('_', ' ', $appt->cancellation_reason)) : 'No reason provided' }}
+                                    </div>
+                                @endif
+
+                                @if($appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show')
+                                    <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
+                                        Reason: {{ $appt->no_show_reason ? ucwords(str_replace('_', ' ', $appt->no_show_reason)) : 'No reason provided' }}
+                                    </div>
+                                @endif
+
+                                @if($appt->status === 'no_show')
+                                    <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
+                                        Reason: {{ $appt->no_show_reason ? ucwords(str_replace('_', ' ', $appt->no_show_reason)) : 'No reason provided' }}
+                                    </div>
+                                @endif
+
                             </td>
 
                         </tr>

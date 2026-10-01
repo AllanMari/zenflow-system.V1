@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <title>Business Intelligence Report - {{ $startDate->format('F d, Y') }}</title>
     <style>
-        @page { 
-            margin: 0; 
-            size: A4 portrait; 
+        @page {
+            margin: 35px;
+            size: A4 portrait;
         }
         * { 
             margin: 0; 
@@ -371,24 +371,9 @@
     </style>
 </head>
 <body>
-    <!-- ===== HERO HEADER ===== -->
-    <div class="hero-header">
-        <div class="hero-top">
-            <div class="brand">
-                <h1>Spa Alexandria</h1>
-                <div class="tagline">Business Intelligence Report</div>
-            </div>
-            <div class="report-badge">
-                <div class="label">Report Type</div>
-                <div class="value">Executive Summary</div>
-            </div>
-        </div>
-        <div class="hero-period">
-            <div class="date-range">{{ $startDate->format('F d, Y') }} — {{ $endDate->format('F d, Y') }}</div>
-            <div class="meta">Generated {{ $generatedAt }} &bull; Prepared by {{ $preparedBy }}</div>
-        </div>
-        <div class="gold-line"></div>
-    </div>
+    @include('partials.report_header', [
+        'reportTitle' => 'Business Intelligence Report'
+    ])
 
     <!-- ===== STATS BAR ===== -->
     <table class="stats-bar">

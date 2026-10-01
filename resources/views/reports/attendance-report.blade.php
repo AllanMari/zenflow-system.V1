@@ -382,26 +382,13 @@
 
 <body>
 
-    {{-- HEADER --}}
-    <div class="header">
-
-        <div class="brand">
-            ZenFlow System
-        </div>
-
-        <div class="spa-name">
-            Spa Alexandria
-        </div>
-
-        <div class="report-title">
-            {{ $reportTitle }}
-        </div>
-
-        <div class="generated">
-            Generated: {{ $generatedAt }}
-        </div>
-
-    </div>
+    @include('partials.report_header', [
+        'reportTitle' => $reportTitle,
+        'referenceNumber' => $referenceNumber,
+        'dateRange' => $dateRange,
+        'generatedAt' => $generatedAt,
+        'preparedBy' => $preparedBy
+    ])
 
 
     {{-- FILTERS --}}

@@ -157,20 +157,20 @@
                 <path d="m7 23-4-4 4-4"/>
                 <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
             </svg>
-            Retention
+            Retention & Loyalty
         </a>
 
         <a
-            href="#therapist-retention"
+            href="#absenteeism-vacancy-analytics"
             class="inline-flex shrink-0 items-center gap-x-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-white"
         >
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
                 <circle cx="9" cy="7" r="4"/>
-                <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>
-                <path d="M16 3.5a4 4 0 0 1 0 7.5"/>
-                <path d="M19 15a4 4 0 0 1 3 4v2"/>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
-            Therapist Loyalty
+            Absenteeism
         </a>
 
         <a
@@ -1362,6 +1362,212 @@
     </div>
 
 </section>
+
+
+{{-- =========================================================
+     ABSENTEEISM & VACANCY ANALYTICS
+ ========================================================= --}}
+
+<div id="absenteeism-vacancy-analytics" class="mb-10">
+
+    <div class="flex items-center justify-between gap-4">
+        <h2 class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
+            Absenteeism & Vacancy Analytics
+        </h2>
+    </div>
+
+    <div class="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+
+        {{-- Overall Absenteeism Rate --}}
+        <div class="rounded-xl border border-gray-200 p-4 dark:border-neutral-700">
+
+            <div class="flex items-center justify-between gap-3">
+
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-neutral-400">
+                    Overall Absenteeism Rate
+                </p>
+
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path d="M12 2v10"/>
+                        <path d="M12 19V12"/>
+                        <circle cx="12" cy="19" r="2"/>
+                        <path d="M12 12V5"/>
+                        <circle cx="12" cy="5" r="2"/>
+                    </svg>
+                </span>
+
+            </div>
+
+            <p class="mt-2 text-xl font-bold text-gray-900 dark:text-white">
+                {{ $formatPercent($overallAbsenteeismRate ?? 0) }}
+            </p>
+
+            <p class="mt-1 text-xs text-gray-500 dark:text-neutral-500">
+                Based on {{ $totalScheduledShifts ?? 0 }} scheduled shifts
+            </p>
+
+        </div>
+
+        {{-- Total Absent Shifts --}}
+        <div class="rounded-xl border border-gray-200 p-4 dark:border-neutral-700">
+
+            <div class="flex items-center justify-between gap-3">
+
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-neutral-400">
+                    Total Absent Shifts
+                </p>
+
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                </span>
+
+            </div>
+
+            <p class="mt-2 text-xl font-bold text-gray-900 dark:text-white">
+                {{ $totalAbsentShifts ?? 0 }}
+            </p>
+
+            <p class="mt-1 text-xs text-gray-500 dark:text-neutral-500">
+                Out of {{ $totalScheduledShifts ?? 0 }} total shifts
+            </p>
+
+        </div>
+
+        {{-- Vacancy Rate --}}
+        <div class="rounded-xl border border-gray-200 p-4 dark:border-neutral-700">
+
+            <div class="flex items-center justify-between gap-3">
+
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-neutral-400">
+                    Vacancy Rate
+                </p>
+
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path d="M22 12H4"/>
+                        <path d="M10 18L4 12L10 6"/>
+                    </svg>
+                </span>
+
+            </div>
+
+            <p class="mt-2 text-xl font-bold text-gray-900 dark:text-white">
+                {{ $formatPercent($vacancyRate ?? 0) }}
+            </p>
+
+            <p class="mt-1 text-xs text-gray-500 dark:text-neutral-500">
+                {{ $openPositions ?? 0 }} open positions
+            </p>
+
+        </div>
+
+    </div>
+
+    {{-- Absenteeism by Staff Card --}}
+    <div class="mt-6">
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+                    Absenteeism by Staff
+                </h3>
+            </div>
+
+            @if ($absenteeismByStaff->isNotEmpty())
+                <div class="mt-4 flow-root">
+                    <div class="-my-4 overflow-x-auto">
+                        <div class="inline-block min-w-full py-2 align-middle">
+                            <div class="relative overflow-hidden">
+                                <table class="min-w-full divide-y divide-gray-300 text-sm dark:divide-neutral-700">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col" class="py-3 pl-4 pr-3 text-left font-semibold text-gray-900 dark:text-white">
+                                                Staff Member
+                                            </th>
+                                            <th scope="col" class="px-3 py-3 text-left font-semibold text-gray-900 dark:text-white">
+                                                Absent Shifts
+                                            </th>
+                                            <th scope="col" class="px-3 py-3 text-left font-semibold text-gray-900 dark:text-white">
+                                                Scheduled Shifts
+                                            </th>
+                                            <th scope="col" class="px-3 py-3 text-left font-semibold text-gray-900 dark:text-white">
+                                                Absenteeism Rate
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200 dark:divide-neutral-700">
+                                        @foreach ($absenteeismByStaff as $staff)
+                                            <tr>
+                                                <td class="whitespace-nowrap py-4 pl-4 pr-3">
+                                                    <div class="flex items-center">
+                                                        <div class="h-9 w-9 flex-shrink-0">
+                                                            @php
+                                                                $firstName = $staff['first_name'] ?? '';
+                                                                $lastName = $staff['last_name'] ?? '';
+                                                                if (!$firstName && !$lastName && !empty($staff['name'])) {
+                                                                    $nameParts = explode(' ', $staff['name']);
+                                                                    $firstName = $nameParts[0] ?? '';
+                                                                    $lastName = $nameParts[1] ?? '';
+                                                                }
+                                                                $initials = strtoupper(substr($firstName, 0, 1) . substr($lastName, 0, 1));
+                                                            @endphp
+                                                            <div class="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                                                {{ $initials ?: 'ST' }}
+                                                            </div>
+                                                        </div>
+                                                        <div class="ml-4">
+                                                            <div class="font-medium text-gray-900 dark:text-white">
+                                                                {{ $staff['name'] }}
+                                                            </div>
+                                                            @if (!empty($staff['username']))
+                                                                <div class="text-xs text-gray-500 dark:text-neutral-400">
+                                                                    {{ '@' . $staff['username'] }}
+                                                                </div>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="whitespace-nowrap px-3 py-4 text-gray-500 dark:text-neutral-400">
+                                                    {{ $staff['absent_shifts'] }}
+                                                </td>
+                                                <td class="whitespace-nowrap px-3 py-4 text-gray-500 dark:text-neutral-400">
+                                                    {{ $staff['scheduled_shifts'] }}
+                                                </td>
+                                                <td class="whitespace-nowrap px-3 py-4">
+                                                    @php
+                                                        $rate = $staff['absenteeism_rate'];
+                                                        $badgeClass = $rate > 15
+                                                            ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                                            : ($rate > 5
+                                                                ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                                                : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300');
+                                                    @endphp
+                                                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {{ $badgeClass }}">
+                                                        {{ $formatPercent($rate) }}
+                                                    </span>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @else
+                <div class="p-5 text-center text-sm text-gray-500 dark:text-neutral-400">
+                    No absenteeism data available for the selected period.
+                </div>
+            @endif
+        </div>
+    </div>
+
+</div>
 
 
 {{-- =========================================================
