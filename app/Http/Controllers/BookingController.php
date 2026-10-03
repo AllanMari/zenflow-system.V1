@@ -2070,6 +2070,18 @@ class BookingController extends Controller
         });
 
         if (!$isReceptionist) {
+            if ($customer && $customer->user) {
+                NotificationController::sendTo(
+                    $customer->user,
+                    'Booking Request Submitted',
+                    'Your booking request for ' . $appointment->appointment_date->format('M j, Y') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A') . ' has been received and is awaiting confirmation.',
+                    'booking',
+                    'info',
+                    route('customer.bookings'),
+                    'View Bookings'
+                );
+            }
+
             $receptionists = User::whereHas(
                 'roles',
                 fn($q) =>

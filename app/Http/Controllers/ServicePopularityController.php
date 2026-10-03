@@ -34,10 +34,7 @@ class ServicePopularityController extends Controller
 
         $period = $data['range'];
 
-        $filename = 'service-popularity-' .
-            strtolower($period) . '-' .
-            now($this->timezone)->format('Y-m-d') .
-            '.pdf';
+        $filename = 'service-popularity-report.pdf';
 
         $pdfData = [
             'reportTitle' => 'SERVICE POPULARITY BREAKDOWN REPORT',

@@ -244,8 +244,7 @@ $roleStyles = [
                                         @json($user->username),
                                         @json($user->first_name),
                                         @json($user->last_name),
-                                        @json($primaryRole),
-                                        @json($user->services->pluck('id')->values())
+                                        @json($primaryRole)
                                     )'
                                     class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-blue-900/20 dark:hover:text-blue-300"
                                 >
@@ -1056,57 +1055,6 @@ EDIT MODAL
 
                 </div>
 
-                {{-- Qualified Services --}}
-                <div id="editQualifiedServicesWrapper" class="hidden sm:col-span-2">
-                    <div class="mb-2">
-                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-200">
-                            Qualified Services
-                        </label>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            Select the services this staff member is qualified to handle.
-                        </p>
-                    </div>
-
-                    <div
-                        id="editQualifiedServices"
-                        class="grid grid-cols-1 gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:grid-cols-2 dark:border-gray-700 dark:bg-gray-800/60"
-                    >
-                        @forelse($services as $service)
-                            <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent bg-white p-3 transition hover:border-brand-200 hover:bg-brand-50 dark:bg-gray-800 dark:hover:border-brand-700 dark:hover:bg-gray-700/60">
-                                <input
-                                    type="checkbox"
-                                    name="service_ids[]"
-                                    value="{{ $service->id }}"
-                                    data-qualified-service
-                                    class="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
-                                >
-                                <span class="min-w-0">
-                                    <span class="block text-sm font-medium text-gray-800 dark:text-gray-100">
-                                        {{ $service->name }}
-                                    </span>
-                                    @if($service->category)
-                                        <span class="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                                            {{ $service->category->name }}
-                                        </span>
-                                    @endif
-                                </span>
-                            </label>
-                        @empty
-                            <p class="col-span-full text-sm text-gray-500 dark:text-gray-400">
-                                No active non-package services are available.
-                            </p>
-                        @endforelse
-                    </div>
-
-                    @error('service_ids')
-                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
-                    @enderror
-
-                    @error('service_ids.*')
-                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
-                    @enderror
-                </div>
-
                 {{-- Authorization --}}
                 <div class="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/40 dark:bg-red-900/10">
 
@@ -1306,13 +1254,7 @@ SHARED CONFIRMATION MODAL
         'confirmModal'
     ];
 
-    const editRoleInput = document.getElementById('editRole');
 
-    if (editRoleInput) {
-        editRoleInput.addEventListener('change', function () {
-            toggleQualifiedServices(this.value);
-        });
-    }
 
     function openModal(modalId, focusId) {
         const modal = document.getElementById(modalId);
@@ -1380,35 +1322,9 @@ SHARED CONFIRMATION MODAL
         );
     }
 
-    function toggleQualifiedServices(role) {
-        const wrapper = document.getElementById('editQualifiedServicesWrapper');
 
-        if (!wrapper) {
-            return;
-        }
 
-        const isStaff = String(role || '').toLowerCase() === 'staff';
-
-        wrapper.classList.toggle('hidden', !isStaff);
-
-        if (!isStaff) {
-            wrapper.querySelectorAll('[data-qualified-service]').forEach(function (checkbox) {
-                checkbox.checked = false;
-            });
-        }
-    }
-
-    function setQualifiedServices(serviceIds) {
-        const selectedIds = Array.isArray(serviceIds)
-            ? serviceIds.map(String)
-            : [];
-
-        document.querySelectorAll('[data-qualified-service]').forEach(function (checkbox) {
-            checkbox.checked = selectedIds.includes(String(checkbox.value));
-        });
-    }
-
-    function openEditModal(id, username, firstName, lastName, role, serviceIds = []) {
+    function openEditModal(id, username, firstName, lastName, role) {
         setUserAction('editForm', id);
 
         const usernameInput = document.getElementById('editUsername');
@@ -1434,9 +1350,6 @@ SHARED CONFIRMATION MODAL
         if (roleInput) {
             roleInput.value = role || '';
         }
-
-        setQualifiedServices(serviceIds);
-        toggleQualifiedServices(role);
 
         if (passwordInput) {
             passwordInput.value = '';
@@ -1674,8 +1587,7 @@ SHARED CONFIRMATION MODAL
                 @json($editUser->username),
                 @json($editUser->first_name),
                 @json($editUser->last_name),
-                @json($editUser->roles->first()->name ?? ''),
-                @json(old('service_ids', $editUser->services->pluck('id')->values()))
+                @json($editUser->roles->first()->name ?? '')
             );
         @endif
     @elseif(session('edit_user_id'))
@@ -1689,8 +1601,7 @@ SHARED CONFIRMATION MODAL
                 @json($editUser->username),
                 @json($editUser->first_name),
                 @json($editUser->last_name),
-                @json($editUser->roles->first()->name ?? ''),
-                @json(old('service_ids', $editUser->services->pluck('id')->values()))
+                @json($editUser->roles->first()->name ?? '')
             );
         @endif
     @endif

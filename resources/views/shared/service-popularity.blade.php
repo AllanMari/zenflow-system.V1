@@ -216,21 +216,6 @@ SIDEBAR
     </a>
 
 
-    <a
-        href="{{ route('admin.skill-gap') }}"
-        data-label="Skill Gap Analytics"
-        class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-    >
-        <i
-            data-lucide="chart-no-axes-combined"
-            class="h-[18px] w-[18px] shrink-0"
-        ></i>
-
-        <span class="nav-text whitespace-nowrap">
-            Skill Gap Analytics
-        </span>
-    </a>
-
 @endif
 
 
@@ -330,18 +315,6 @@ MOBILE SIDEBAR
         Room Tracking
     </a>
 
-
-    <a
-        href="{{ route('admin.skill-gap') }}"
-        class="mb-1 flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold text-gray-600 dark:text-gray-400"
-    >
-        <i
-            data-lucide="chart-no-axes-combined"
-            class="h-[18px] w-[18px]"
-        ></i>
-
-        Skill Gap Analytics
-    </a>
 
 @endif
 

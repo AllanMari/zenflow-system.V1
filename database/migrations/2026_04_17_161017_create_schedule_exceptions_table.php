@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->date('exception_date');
-            $table->enum('type', ['day_off', 'custom_hours', 'holiday']);
+            $table->enum('type', ['day_off', 'custom_hours', 'holiday', 'sick_leave', 'urgent_leave']);
             $table->time('start_time')->nullable();
             $table->time('end_time')->nullable();
             $table->string('reason')->nullable();

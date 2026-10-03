@@ -257,6 +257,22 @@
     </style>
 </head>
 
+@php
+    $backRoute = url('/');
+    $backLabel = 'Back to Home';
+    if (auth()->check()) {
+        $role = auth()->user()->roles->first()->name ?? 'customer';
+        $backRoute = match ($role) {
+            'admin' => route('admin-dashboard'),
+            'receptionist' => route('receptionist.dashboard'),
+            'staff' => route('staff.dashboard'),
+            'customer' => route('customer-dashboard'),
+            default => url('/'),
+        };
+        $backLabel = 'Back to Dashboard';
+    }
+@endphp
+
 <body class="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased">
 
     <!-- ============================================================
@@ -266,7 +282,7 @@
     <header class="sticky top-0 z-50 border-b border-slate-200/80 dark:border-slate-700/80 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl">
         <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
-            <a href="{{ url('/') }}" class="flex items-center gap-3">
+            <a href="{{ $backRoute }}" class="flex items-center gap-3">
                 <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-zen-600 text-white shadow-sm">
                     <i data-lucide="sparkles" class="h-5 w-5"></i>
                 </div>
@@ -290,12 +306,12 @@
                 </button>
 
                 <a
-                    href="{{ url('/') }}"
+                    href="{{ $backRoute }}"
                     class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
                 >
                     <i data-lucide="arrow-left" class="h-4 w-4"></i>
-                    <span class="hidden sm:inline">Back to Home</span>
-                    <span class="sm:hidden">Home</span>
+                    <span class="hidden sm:inline">{{ $backLabel }}</span>
+                    <span class="sm:hidden">{{ auth()->check() ? 'Dashboard' : 'Home' }}</span>
                 </a>
             </div>
         </div>

@@ -1,5 +1,6 @@
 <?php
 namespace App\Models;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -13,6 +14,6 @@ class Attendance extends Model
 
     public static function todayFor(int $userId): ?self
     {
-        return self::where('user_id', $userId)->whereDate('date', today())->first();
+        return self::where('user_id', $userId)->whereDate('date', Carbon::today('Asia/Manila'))->first();
     }
 }

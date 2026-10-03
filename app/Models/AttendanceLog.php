@@ -13,12 +13,15 @@ class AttendanceLog extends Model
         'attendance_id',
         'user_id',
         'changed_by',
+        'change_type',
         'old_status',
         'new_status',
         'old_check_in',
         'new_check_in',
         'old_check_out',
         'new_check_out',
+        'schedule_exception_id',
+        'exception_type',
         'reason',
         'changed_at',
     ];
@@ -40,5 +43,10 @@ class AttendanceLog extends Model
     public function changedBy()
     {
         return $this->belongsTo(User::class, 'changed_by');
+    }
+
+    public function scheduleException()
+    {
+        return $this->belongsTo(ScheduleException::class);
     }
 }

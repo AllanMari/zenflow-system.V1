@@ -235,6 +235,6 @@ class AppointmentInvoiceController extends Controller
      */
     protected function invoiceFilename(Appointment $appointment): string
     {
-        return 'zenflow-invoice-' . $appointment->id . '.pdf';
+        return 'appointment-invoice-' . $appointment->id . '.pdf';
     }
 }

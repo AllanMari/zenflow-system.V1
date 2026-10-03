@@ -97,7 +97,7 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
             default   => $data['startDate']->format('n/j/Y') . ' — ' . $data['endDate']->format('n/j/Y'),
         };
 
-        $filename = strtolower(str_replace(' ', '-', $period)) . '-sales-report-' . now()->format('Y-m-d') . '.pdf';
+        $filename = strtolower(str_replace(' ', '-', $period)) . '-sales-report.pdf';
 
         $pdfData = [
             'printServiceSummary' => $data['printServiceSummary'] ?? [],
@@ -122,7 +122,7 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
     public function businessReportPdf(Request $request, ReportPdfService $pdfService)
     {
         $data = $this->analyticsService->getDashboardData($request);
-        $filename = 'business-report-' . strtolower($data['label']) . '-' . now()->format('Y-m-d') . '.pdf';
+        $filename = 'business-report.pdf';
 
         $pdfData = [
             'reportTitle'           => 'BUSINESS INTELLIGENCE REPORT',

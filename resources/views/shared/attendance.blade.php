@@ -508,7 +508,7 @@
     {{-- =========================================================
          TODAY'S SUMMARY
     ========================================================== --}}
-    <div class="mt-6">
+    <div class="mt-6" id="audit-section">
 
         <div class="mb-3">
             <h2 class="text-sm font-bold text-gray-900 dark:text-white">
@@ -603,6 +603,137 @@
 
 
     {{-- =========================================================
+         ATTENDANCE & LEAVE AUDIT LOGS
+    ========================================================== --}}
+    <div class="mt-6" id="audit-section">
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            if (window.location.search.length > 0 || window.location.hash === '#audit-section') {
+                const el = document.getElementById('audit-section');
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+        });
+    </script>
+
+
+        <div class="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+                <h2 class="text-sm font-bold text-gray-900 dark:text-white">
+                    Attendance & Leave Audit Logs
+                </h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                    Recorded changes to attendance and leave records.
+                </p>
+            </div>
+        </div>
+
+        {{-- Audit filters --}}
+        <div class="mb-4 flex flex-wrap items-center gap-2">
+            <a href="{{ route('attendance.today') }}#audit-section" class="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold {{ empty($auditFilter) ? 'bg-brand-600 text-white' : 'bg-white text-gray-700 border border-gray-200 dark:bg-slate-800 dark:text-gray-300 dark:border-slate-700' }}">
+                All
+            </a>
+            <a href="{{ route('attendance.today', ['audit_filter' => 'attendance']) }}#audit-section" class="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold {{ ($auditFilter ?? '') === 'attendance' ? 'bg-brand-600 text-white' : 'bg-white text-gray-700 border border-gray-200 dark:bg-slate-800 dark:text-gray-300 dark:border-slate-700' }}">
+                Attendance
+            </a>
+            <a href="{{ route('attendance.today', ['audit_filter' => 'leave']) }}#audit-section" class="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold {{ ($auditFilter ?? '') === 'leave' ? 'bg-brand-600 text-white' : 'bg-white text-gray-700 border border-gray-200 dark:bg-slate-800 dark:text-gray-300 dark:border-slate-700' }}">
+                Leave
+            </a>
+            <a href="{{ route('attendance.today', ['audit_filter' => 'corrections']) }}#audit-section" class="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold {{ ($auditFilter ?? '') === 'corrections' ? 'bg-brand-600 text-white' : 'bg-white text-gray-700 border border-gray-200 dark:bg-slate-800 dark:text-gray-300 dark:border-slate-700' }}">
+                Corrections
+            </a>
+        </div>
+
+        @if(isset($attendanceLogs) && $attendanceLogs->count())
+            @php
+                $statusBadge = function($status) {
+                    return match(strtolower($status ?? '')) {
+                        'present', 'completed', 'checked_in' => 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/50',
+                        'late' => 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/50',
+                        'on_leave', 'leave', 'sick_leave', 'urgent_leave' => 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/50',
+                        'absent' => 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300 border border-red-200/60 dark:border-red-800/50',
+                        default => 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-gray-400 border border-gray-200 dark:border-slate-700',
+                    };
+                };
+            @endphp
+            <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-50 text-xs font-semibold text-gray-700 dark:bg-slate-800 dark:text-gray-300">
+                        <tr>
+                            <th class="px-4 py-3">Date & Time</th>
+                            <th class="px-4 py-3">Change Type</th>
+                            <th class="px-4 py-3">Staff</th>
+                            <th class="px-4 py-3">Status Change</th>
+                            <th class="px-4 py-3">Reason / Notes</th>
+                            <th class="px-4 py-3">Changed By</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-slate-800">
+                        @foreach($attendanceLogs as $log)
+                            <tr class="text-xs text-gray-700 dark:text-gray-300 transition hover:bg-gray-50/50 dark:hover:bg-slate-800/50">
+                                <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900 dark:text-white" title="{{ $log->changed_at->format('M j, Y g:i A') }}">
+                                    {{ $log->changed_at->format('M j, Y g:i A') }}
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/50">
+                                        {{ $log->change_type ?? ($log->schedule_exception_id ? 'Leave / Exception' : 'Attendance Log') }}
+                                    </span>
+                                    @if($log->scheduleException && $log->scheduleException->exception_date)
+                                        <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 font-medium">
+                                            Effective: {{ $log->scheduleException->exception_date->format('M j, Y') }}
+                                        </span>
+                                    @endif
+                                    @if($log->old_check_in || $log->new_check_in || $log->old_check_out || $log->new_check_out)
+                                        <span class="block text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 font-medium">
+                                            @if($log->old_check_in || $log->new_check_in)
+                                                In: {{ $log->old_check_in ? \Carbon\Carbon::parse($log->old_check_in)->format('g:i A') : '—' }} → {{ $log->new_check_in ? \Carbon\Carbon::parse($log->new_check_in)->format('g:i A') : '—' }}
+                                            @endif
+                                            @if($log->old_check_out || $log->new_check_out)
+                                                <br>Out: {{ $log->old_check_out ? \Carbon\Carbon::parse($log->old_check_out)->format('g:i A') : '—' }} → {{ $log->new_check_out ? \Carbon\Carbon::parse($log->new_check_out)->format('g:i A') : '—' }}
+                                            @endif
+                                        </span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 font-semibold">
+                                    {{ $log->user->full_name ?? 'Unknown' }}
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <div class="inline-flex items-center gap-1.5">
+                                        <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold {{ $statusBadge($log->old_status) }}">
+                                            {{ ucfirst(str_replace('_', ' ', $log->old_status ?? 'None')) }}
+                                        </span>
+                                        <svg class="h-3 w-3 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                        <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold {{ $statusBadge($log->new_status) }}">
+                                            {{ ucfirst(str_replace('_', ' ', $log->new_status)) }}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 max-w-[200px] truncate" title="{{ $log->reason }}">
+                                    {{ $log->reason ?? '—' }}
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400">
+                                    {{ $log->changedBy->full_name ?? 'System' }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+                <div class="mt-4">
+                    {{ $attendanceLogs->links() }}
+                </div>
+        @else
+            <div class="rounded-xl border border-gray-200 bg-gray-50/50 p-6 text-center text-xs text-gray-500 dark:border-slate-800 dark:bg-slate-900/40 dark:text-gray-400">
+                No recent attendance or leave logs found.
+            </div>
+        @endif
+
+    </div>
+
+    {{-- =========================================================
          GENERATE ATTENDANCE REPORT MODAL
     ========================================================== --}}
     @if($isAdmin)
@@ -687,7 +818,7 @@
 
 
                     {{-- Step 2: Date --}}
-                    <div class="mt-6">
+                    <div class="mt-6" id="audit-section">
 
                         <label class="block text-sm font-semibold text-gray-900 dark:text-white">
                             Date

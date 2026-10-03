@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+﻿@extends('layouts.admin')
 
 @section('title', 'Service Catalog')
 
@@ -673,6 +673,7 @@
     function switchTab(tab) {
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
         document.getElementById('panel-' + tab).classList.remove('hidden');
+
         document.querySelectorAll('.tab-btn').forEach(b => {
             b.classList.remove('border-teal-600', 'text-teal-600', 'bg-white', 'dark:bg-gray-800', 'dark:text-teal-400');
             b.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400', 'dark:hover:text-gray-200');
@@ -1021,5 +1022,6 @@
         if (event.target === document.getElementById('statusModal')) closeStatusModal();
         if (event.target === document.getElementById('categoryCreateModal')) closeCategoryCreateModal();
     });
-</script>
+
+    </script>
 @endpush

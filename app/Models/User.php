@@ -62,11 +62,6 @@ class User extends Authenticatable
         return $this->hasOne(Customer::class, 'user_id');
     }
 
-    public function services()
-    {
-        return $this->belongsToMany(Service::class, 'service_staff', 'user_id', 'service_id');
-    }
-
     public function workSchedules()
     {
         return $this->hasMany(WorkSchedule::class, 'user_id');

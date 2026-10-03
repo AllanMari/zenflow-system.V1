@@ -26,7 +26,7 @@ class AttendanceController extends Controller
 
     private const ATTENDANCE_TOLERANCE_MINUTES = 30;
 
-    public function today()
+    public function today(Request $request)
     {
         $user = auth()->user();
 
@@ -36,7 +36,7 @@ class AttendanceController extends Controller
             403
         );
 
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Manila');
         $dayOfWeek = $today->dayOfWeek;
 
         $staff = User::whereHas(
@@ -163,11 +163,32 @@ class AttendanceController extends Controller
             ];
         }
 
+        $auditFilter = $request->get('audit_filter');
+
+        $attendanceLogs = AttendanceLog::with(['attendance', 'user', 'changedBy', 'scheduleException'])
+            ->when($auditFilter === 'attendance', fn($q) => $q->where(function($query) {
+                $query->whereIn('change_type', ['Check In', 'Check Out'])
+                      ->orWhere(fn($sub) => $sub->whereNull('change_type')->whereNotNull('attendance_id')->whereNull('schedule_exception_id'));
+            }))
+            ->when($auditFilter === 'leave', fn($q) => $q->where(function($query) {
+                $query->whereIn('change_type', ['Leave Added', 'Leave Updated', 'Leave Removed', 'Day Off/Holiday Change'])
+                      ->orWhere(fn($sub) => $sub->whereNull('change_type')->whereNotNull('schedule_exception_id'));
+            }))
+            ->when($auditFilter === 'corrections', fn($q) => $q->where(function($query) {
+                $query->where('change_type', 'Attendance Correction')
+                      ->orWhere(fn($sub) => $sub->whereNull('change_type')->whereNull('attendance_id')->whereNull('schedule_exception_id'));
+            }))
+            ->orderBy('changed_at', 'desc')
+            ->paginate(20)
+            ->appends($request->query());
+
         return view('shared.attendance', [
             'today' => $today,
             'initialState' => $initialState,
             'isAdmin' => $isAdmin,
             'canMark' => $canMark,
+            'attendanceLogs' => $attendanceLogs,
+            'auditFilter' => $auditFilter,
         ]);
     }
 
@@ -175,7 +196,7 @@ class AttendanceController extends Controller
     {
         $this->authorizeMarking();
 
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Manila');
         $now = now();
 
         $exception = $this->todayException(
@@ -286,7 +307,7 @@ class AttendanceController extends Controller
             $exception
         );
 
-        Attendance::updateOrCreate(
+        $attendance = Attendance::updateOrCreate(
             [
                 'user_id' => $staff->id,
                 'date' => $today->toDateString(),
@@ -298,6 +319,19 @@ class AttendanceController extends Controller
                 'marked_by' => auth()->id(),
             ]
         );
+
+        AttendanceLog::create([
+            'attendance_id' => $attendance->id,
+            'user_id' => $staff->id,
+            'changed_by' => auth()->id(),
+            'change_type' => 'Check In',
+            'old_status' => null,
+            'new_status' => $status,
+            'old_check_in' => null,
+            'new_check_in' => $now->format('H:i:s'),
+            'reason' => 'Staff checked in',
+            'changed_at' => now(),
+        ]);
 
         return response()->json([
             'success' => true,
@@ -347,6 +381,19 @@ class AttendanceController extends Controller
             'check_out' => $now->format('H:i:s'),
         ]);
 
+        AttendanceLog::create([
+            'attendance_id' => $attendance->id,
+            'user_id' => $staff->id,
+            'changed_by' => auth()->id(),
+            'change_type' => 'Check Out',
+            'old_status' => $attendance->status,
+            'new_status' => 'completed',
+            'old_check_out' => null,
+            'new_check_out' => $now->format('H:i:s'),
+            'reason' => 'Staff checked out',
+            'changed_at' => now(),
+        ]);
+
         return response()->json([
             'success' => true,
             'display_status' => 'completed',
@@ -374,7 +421,7 @@ class AttendanceController extends Controller
             'reason' => 'required|string|max:255',
         ]);
 
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Manila');
 
         $exception = $this->todayException(
             $staff->id,
@@ -399,10 +446,12 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        $attendance = Attendance::firstOrNew([
-            'user_id' => $staff->id,
-            'date' => $today->toDateString(),
-        ]);
+        $attendance = Attendance::where('user_id', $staff->id)
+            ->whereDate('date', $today)
+            ->first() ?? new Attendance([
+                'user_id' => $staff->id,
+                'date' => $today->toDateString(),
+            ]);
 
         $correctedTime = $data['time'] . ':00';
 
@@ -486,6 +535,7 @@ class AttendanceController extends Controller
                     'attendance_id' => $attendance->id,
                     'user_id' => $staff->id,
                     'changed_by' => auth()->id(),
+                    'change_type' => 'Attendance Correction',
                     'old_status' => $old['status'],
                     'new_status' => $attendance->status,
                     'old_check_in' => $old['check_in'],
@@ -583,14 +633,7 @@ class AttendanceController extends Controller
                 . auth()->user()->last_name
             );
 
-        $filename =
-            'attendance-report-'
-            . (
-                $data['startDate']
-                    ? $data['startDate']->format('Y-m-d')
-                    : now('Asia/Manila')->format('Y-m-d')
-            )
-            . '.pdf';
+        $filename = 'attendance-report.pdf';
 
         if ($request->input('action') === 'download') {
             return $pdfService->generatePdf(
@@ -834,9 +877,41 @@ switch ($range) {
 
         /*
         |--------------------------------------------------------------------------
-        | Schedule exceptions
+        | Attendance & Leave Logs
         |--------------------------------------------------------------------------
         */
+        $auditFilter = $request->get('audit_filter');
+
+        $attendanceLogsQuery = AttendanceLog::with(['attendance', 'user', 'changedBy', 'scheduleException'])
+            ->whereBetween('changed_at', [
+                $startDate->copy()->startOfDay(),
+                $endDate->copy()->endOfDay(),
+            ])
+            ->when(
+                $staffId,
+                fn ($q) => $q->where('user_id', $staffId)
+            )
+            ->when(
+                $search !== '',
+                fn ($q) => $q->whereIn('user_id', $searchStaffIds)
+            )
+            ->when($auditFilter === 'attendance', fn($q) => $q->where(function($query) {
+                $query->whereIn('change_type', ['Check In', 'Check Out'])
+                      ->orWhere(fn($sub) => $sub->whereNull('change_type')->whereNotNull('attendance_id')->whereNull('schedule_exception_id'));
+            }))
+            ->when($auditFilter === 'leave', fn($q) => $q->where(function($query) {
+                $query->whereIn('change_type', ['Leave Added', 'Leave Updated', 'Leave Removed', 'Day Off/Holiday Change'])
+                      ->orWhere(fn($sub) => $sub->whereNull('change_type')->whereNotNull('schedule_exception_id'));
+            }))
+            ->when($auditFilter === 'corrections', fn($q) => $q->where(function($query) {
+                $query->where('change_type', 'Attendance Correction')
+                      ->orWhere(fn($sub) => $sub->whereNull('change_type')->whereNull('attendance_id')->whereNull('schedule_exception_id'));
+            }))
+            ->orderBy('changed_at', 'desc');
+
+        $attendanceLogs = $paginate
+            ? $attendanceLogsQuery->paginate(20)->appends($request->query())
+            : $attendanceLogsQuery->get();
         $exceptions = ScheduleException::whereBetween(
                 'exception_date',
                 [
@@ -1415,6 +1490,9 @@ switch ($range) {
 
             'exceptionRecords' =>
                 $exceptionRecords,
+
+            'attendanceLogs' =>
+                $attendanceLogs,
         ];
     }
 
@@ -1661,13 +1739,13 @@ switch ($range) {
         $user = auth()->user();
 
         if (
-            $user->roles->contains('name', 'admin')
+            $user->hasRole('admin')
         ) {
             return;
         }
 
         if (
-            $user->roles->contains('name', 'receptionist')
+            $user->hasRole('receptionist')
             && (
                 !$requirePermission
                 || $user->can_mark_attendance

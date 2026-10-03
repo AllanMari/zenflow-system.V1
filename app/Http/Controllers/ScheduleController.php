@@ -337,16 +337,10 @@ class ScheduleController extends Controller
         ) {
             $staff = $data['selectedStaff'];
 
-            return 'staff-schedule-'
-                . $staff->id
-                . '-'
-                . $weekStart
-                . '.pdf';
+            return 'staff-schedule-' . $staff->id . '.pdf';
         }
 
-        return 'staff-weekly-schedule-'
-            . $weekStart
-            . '.pdf';
+        return 'staff-weekly-schedule.pdf';
     }
 
     public function moveShift(Request $request)

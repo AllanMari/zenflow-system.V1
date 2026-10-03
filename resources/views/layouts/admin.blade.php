@@ -104,12 +104,6 @@
                 'i' => 'M3 7.5A2.5 2.5 0 015.5 5h13A2.5 2.5 0 0121 7.5v9a2.5 2.5 0 01-2.5 2.5h-13A2.5 2.5 0 013 16.5v-9zM8 5v14m8-14v14',
             ],
             [
-                'r' => 'admin.skill-gap',
-                'l' => 'Skill Gap Analytics',
-                'p' => 'admin.skill-gap',
-                'i' => 'M9 6.75l3 3 6-6M3.75 12h16.5M3.75 17.25h10.5',
-            ],
-            [
                 'r' => 'admin.service-popularity',
                 'l' => 'Service Popularity',
                 'p' => 'admin.service-popularity',

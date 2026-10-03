@@ -49,6 +49,8 @@ Route::middleware(['auth'])->group(function () {
 // ==================== CUSTOMER ONLY ====================
 Route::middleware(['auth', 'role:customer'])->prefix('customer')->group(function () {
     Route::get('/dashboard', [CustomerController::class, 'index'])->name('customer-dashboard');
+    Route::get('/bookings', [CustomerController::class, 'bookings'])->name('customer.bookings');
+    Route::post('/appointments/{appointment}/cancel', [CustomerController::class, 'cancelBooking'])->name('customer.appointments.cancel');
     Route::put('/medical-notes', [CustomerController::class, 'updateMedicalNotes'])->name('customer.medical-notes.update');
     Route::put('/profile', [CustomerController::class, 'updateProfile'])->name('customer.profile.update');
     Route::get('/profile', [CustomerController::class, 'profile'])->name('customer.profile');
@@ -240,8 +242,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/room-tracking', [AdminController::class, 'roomTracking'])
     ->name('admin.room-tracking');
 
-    Route::get('/skill-gap', [AdminController::class, 'skillGapAnalytics'])
-    ->name('admin.skill-gap');
+
+
 
     Route::get(
     '/appointment-invoice/{appointment?}',
