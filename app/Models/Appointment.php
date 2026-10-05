@@ -32,6 +32,7 @@ class Appointment extends Model
         'rescheduled_at',
         'reminder_sent_at',
         'room_id',
+        'requested_room_id',
         'ip_address',
     ];
 
@@ -80,6 +81,11 @@ class Appointment extends Model
     public function room()
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function requestedRoom()
+    {
+        return $this->belongsTo(Room::class, 'requested_room_id');
     }
 
     /* ─── Accessors ─── */

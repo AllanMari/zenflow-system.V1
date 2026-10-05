@@ -127,6 +127,42 @@ class Room extends Model
         return null;
     }
 
+    public static function findCompatibleForServices($services)
+    {
+        $roomReqServices = $services->filter(fn($s) => $s->requires_room);
+        if ($roomReqServices->isEmpty()) {
+            return collect();
+        }
+
+        $categoryIds = $roomReqServices->pluck('room_category_id')->filter()->unique();
+
+        $query = self::active()->where('status', '!=', 'maintenance');
+
+        if ($categoryIds->count() === 1) {
+            $catId = $categoryIds->first();
+            $query->where(function ($q) use ($catId) {
+                $q->where('category_id', $catId)
+                  ->orWhereNull('category_id');
+            });
+        } elseif ($categoryIds->count() > 1) {
+            // Multiple different categories required -> only General Rooms can accommodate all
+            $query->whereNull('category_id');
+        } else {
+            // requires_room = true but no category specified -> any active non-maintenance room
+        }
+
+        return $query->get();
+    }
+
+    public static function findAvailableForServices($services, $date, $startTime, $endTime, ?int $excludeAppointmentId = null)
+    {
+        $compatibleRooms = self::findCompatibleForServices($services);
+
+        return $compatibleRooms->filter(function ($room) use ($date, $startTime, $endTime, $excludeAppointmentId) {
+            return $room->isAvailableFor($date, $startTime, $endTime, $excludeAppointmentId);
+        });
+    }
+
     public static function findAvailableFor(Service $service, $date, $startTime, $endTime, ?int $excludeAppointmentId = null)
     {
         $query = self::active()

@@ -392,29 +392,8 @@ class BookingController extends Controller
             fn($s) => $s->requires_room
         );
 
-        $rooms = collect();
+        $rooms = $requiresRoom ? Room::findCompatibleForServices($services) : collect();
         $roomAppointments = collect();
-
-        if ($requiresRoom) {
-            $roomCategoryIds = $services
-                ->where('requires_room', true)
-                ->whereNotNull('room_category_id')
-                ->pluck('room_category_id')
-                ->unique()
-                ->values();
-
-            $roomsQuery = Room::active()
-                ->where('status', '!=', 'maintenance');
-
-            if ($roomCategoryIds->isNotEmpty()) {
-                $roomsQuery->where(function ($q) use ($roomCategoryIds) {
-                    $q->whereIn('category_id', $roomCategoryIds)
-                        ->orWhereNull('category_id');
-                });
-            }
-
-            $rooms = $roomsQuery->get();
-        }
 
         $tz = 'Asia/Manila';
         $now = Carbon::now($tz);
@@ -929,29 +908,8 @@ class BookingController extends Controller
             fn($s) => $s->requires_room
         );
 
-        $rooms = collect();
+        $rooms = $requiresRoom ? Room::findCompatibleForServices($services) : collect();
         $roomAppointments = collect();
-
-        if ($requiresRoom) {
-            $roomCategoryIds = $services
-                ->where('requires_room', true)
-                ->whereNotNull('room_category_id')
-                ->pluck('room_category_id')
-                ->unique()
-                ->values();
-
-            $roomsQuery = Room::active()
-                ->where('status', '!=', 'maintenance');
-
-            if ($roomCategoryIds->isNotEmpty()) {
-                $roomsQuery->where(function ($q) use ($roomCategoryIds) {
-                    $q->whereIn('category_id', $roomCategoryIds)
-                        ->orWhereNull('category_id');
-                });
-            }
-
-            $rooms = $roomsQuery->get();
-        }
 
         $tz = 'Asia/Manila';
         $now = Carbon::now($tz);
@@ -1556,30 +1514,21 @@ class BookingController extends Controller
         string $startTime,
         string $endTime
     ): ?Room {
-        $roomCategoryIds = $services
-            ->where('requires_room', true)
-            ->whereNotNull('room_category_id')
-            ->pluck('room_category_id')
-            ->unique()
-            ->values();
-
-        $query = Room::active()
-            ->where('status', '!=', 'maintenance');
-
-        if ($roomCategoryIds->isNotEmpty()) {
-            $query->where(function ($q) use ($roomCategoryIds) {
-                $q->whereIn('category_id', $roomCategoryIds)
-                    ->orWhereNull('category_id');
-            });
+        $compatibleRooms = Room::findCompatibleForServices($services);
+        if ($compatibleRooms->isEmpty()) {
+            return null;
         }
 
-        return $query->get()->first(
-            fn($room) => $room->isAvailableFor(
-                $date,
-                $startTime,
-                $endTime
-            )
-        );
+        return Room::lockForUpdate()
+            ->whereIn('id', $compatibleRooms->pluck('id'))
+            ->get()
+            ->first(
+                fn($room) => $room->isAvailableFor(
+                    $date,
+                    $startTime,
+                    $endTime
+                )
+            );
     }
 
     // ==================== STORE ====================
@@ -1832,41 +1781,53 @@ class BookingController extends Controller
             }
         }
 
+        $requestedRoomId = null;
         if ($requiresRoom) {
-            if ($request->filled('room_id')) {
-                $room = Room::find(
-                    $request->room_id
-                );
+            if ($request->filled('room_id') && $request->get('source', 'public') === 'public') {
+                $requestedRoomId = (int) $request->room_id;
+            }
 
-                if (
-                    !$room ||
-                    !$room->isAvailableFor(
+            $appointmentResult = DB::transaction(function () use ($request, $services, $startTimeStr, $endTimeStr, &$fail) {
+                if ($request->filled('room_id')) {
+                    $roomId = (int) $request->room_id;
+                    $room = Room::lockForUpdate()->find($roomId);
+
+                    $compatibleRooms = Room::findCompatibleForServices($services);
+                    $isCompatible = $compatibleRooms->contains('id', $roomId);
+
+                    if (
+                        !$room ||
+                        !$room->is_active ||
+                        $room->status === 'maintenance' ||
+                        !$isCompatible ||
+                        !$room->isAvailableFor($request->appointment_date, $startTimeStr, $endTimeStr)
+                    ) {
+                        return $fail('The selected room is no longer available or compatible at this time. Please pick another slot or choose no preference.');
+                    }
+                } else {
+                    $freeRoom = $this->findFreeRoom(
+                        $services,
                         $request->appointment_date,
                         $startTimeStr,
                         $endTimeStr
-                    )
-                ) {
-                    return $fail(
-                        'The selected room is no longer available at this time. Please pick another slot.'
                     );
-                }
-            } else {
-                $freeRoom = $this->findFreeRoom(
-                    $services,
-                    $request->appointment_date,
-                    $startTimeStr,
-                    $endTimeStr
-                );
 
-                if (!$freeRoom) {
-                    return $fail(
-                        'No rooms available for this time. Please choose a different time.'
-                    );
+                    if (!$freeRoom) {
+                        return $fail(
+                            'No rooms available for this time. Please choose a different time.'
+                        );
+                    }
+
+                    $request->merge([
+                        'room_id' => $freeRoom->id,
+                    ]);
                 }
 
-                $request->merge([
-                    'room_id' => $freeRoom->id,
-                ]);
+                return null;
+            });
+
+            if ($appointmentResult instanceof \Illuminate\Http\JsonResponse || $appointmentResult instanceof \Illuminate\Http\RedirectResponse) {
+                return $appointmentResult;
             }
         }
 
@@ -2004,12 +1965,14 @@ class BookingController extends Controller
             $status,
             $confirmedAt,
             $user,
+            $requestedRoomId,
             &$appointment
         ) {
             $appointment = Appointment::create([
                 'customer_id' => $customer->id,
                 'user_id' => $request->staff_id,
                 'room_id' => $request->room_id,
+                'requested_room_id' => $requestedRoomId,
                 'appointment_date' =>
                     $request->appointment_date,
                 'start_time' =>

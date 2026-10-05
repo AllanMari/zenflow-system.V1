@@ -53,8 +53,16 @@
                             <p class="text-xs font-semibold text-gray-400 uppercase">Date & Time</p>
                             <p class="text-base font-bold text-gray-800 dark:text-white">{{ $booking->appointment_date->format('l, M j, Y') }}</p>
                             <p class="text-sm font-semibold text-teal-600">{{ $booking->time_range }}</p>
+                            @if($booking->requestedRoom)
+                            <p class="text-xs font-semibold text-gray-400 uppercase mt-3">Requested Room</p>
+                            <p class="text-sm font-bold text-gray-800 dark:text-white">{{ $booking->requestedRoom->name }}</p>
+                            @else
+                            <p class="text-xs font-semibold text-gray-400 uppercase mt-3">Room Preference</p>
+                            <p class="text-sm font-semibold text-gray-600 dark:text-gray-400">No preference</p>
+                            @endif
+
                             @if($booking->room)
-                            <p class="text-xs font-semibold text-gray-400 uppercase mt-3">Room</p>
+                            <p class="text-xs font-semibold text-gray-400 uppercase mt-3">Assigned Room</p>
                             <p class="text-sm font-bold text-gray-800 dark:text-white">{{ $booking->room->name }}</p>
                             @endif
                             @if($booking->staff)

@@ -368,12 +368,7 @@
                                         $listStaffName ?: '—';
 
                                     $listReferenceNumber =
-                                        'ZF-' . str_pad(
-                                            (string) $invoiceAppointment->id,
-                                            6,
-                                            '0',
-                                            STR_PAD_LEFT
-                                        );
+                                        '#SPA-' . $invoiceAppointment->id;
                                 @endphp
 
 
