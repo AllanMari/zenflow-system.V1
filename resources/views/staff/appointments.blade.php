@@ -102,13 +102,16 @@
                 @php
                     $isToday = \Carbon\Carbon::parse($appointment->appointment_date)->isToday();
                     $isPast = \Carbon\Carbon::parse($appointment->appointment_date)->isPast() && !$isToday;
+                    $isLegacyNoShow = $appointment->status === 'cancelled' && $appointment->cancellation_reason === 'customer_no_show';
+                    $displayStatus = $isLegacyNoShow ? 'no_show' : $appointment->status;
                     $statusColors = [
                         'confirmed' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200', 'dot' => 'bg-emerald-500', 'darkBg' => 'dark:bg-emerald-900/30', 'darkText' => 'dark:text-emerald-400', 'darkBorder' => 'dark:border-emerald-800'],
                         'pending' => ['bg' => 'bg-amber-50', 'text' => 'text-amber-700', 'border' => 'border-amber-200', 'dot' => 'bg-amber-500', 'darkBg' => 'dark:bg-amber-900/30', 'darkText' => 'dark:text-amber-400', 'darkBorder' => 'dark:border-amber-800'],
                         'completed' => ['bg' => 'bg-blue-50', 'text' => 'text-blue-700', 'border' => 'border-blue-200', 'dot' => 'bg-blue-500', 'darkBg' => 'dark:bg-blue-900/30', 'darkText' => 'dark:text-blue-400', 'darkBorder' => 'dark:border-blue-800'],
                         'cancelled' => ['bg' => 'bg-red-50', 'text' => 'text-red-700', 'border' => 'border-red-200', 'dot' => 'bg-red-500', 'darkBg' => 'dark:bg-red-900/30', 'darkText' => 'dark:text-red-400', 'darkBorder' => 'dark:border-red-800'],
+                        'no_show' => ['bg' => 'bg-rose-50', 'text' => 'text-rose-700', 'border' => 'border-rose-200', 'dot' => 'bg-rose-500', 'darkBg' => 'dark:bg-rose-900/30', 'darkText' => 'dark:text-rose-400', 'darkBorder' => 'dark:border-rose-800'],
                     ];
-                    $sc = $statusColors[$appointment->status] ?? $statusColors['pending'];
+                    $sc = $statusColors[$displayStatus] ?? $statusColors['pending'];
                     $cardBorder = $isToday ? 'border-teal-300 ring-2 ring-teal-100 dark:border-teal-700 dark:ring-teal-900/30' : ($isPast ? 'border-gray-100 dark:border-neutral-800 opacity-75' : 'border-gray-200 dark:border-neutral-700');
                 @endphp
 
@@ -127,7 +130,7 @@
                         </div>
                         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border {{ $sc['bg'] }} {{ $sc['text'] }} {{ $sc['border'] }} {{ $sc['darkBg'] }} {{ $sc['darkText'] }} {{ $sc['darkBorder'] }}">
                             <span class="size-1.5 rounded-full {{ $sc['dot'] }}"></span>
-                            {{ ucfirst($appointment->status) }}
+                            {{ ucwords(str_replace('_', ' ', $displayStatus)) }}
                         </span>
                     </div>
 

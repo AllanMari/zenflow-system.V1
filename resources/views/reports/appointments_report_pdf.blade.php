@@ -356,14 +356,8 @@
                 @foreach($appointments as $appointment)
 
                     @php
-                        $appointmentStatus = $appointment->status;
-
-                        if (
-                            $appointmentStatus === 'cancelled' &&
-                            $appointment->cancellation_reason === 'customer_no_show'
-                        ) {
-                            $appointmentStatus = 'no_show';
-                        }
+                        $isLegacyNoShow = $appointment->status === 'cancelled' && $appointment->cancellation_reason === 'customer_no_show';
+                        $appointmentStatus = $isLegacyNoShow ? 'no_show' : $appointment->status;
 
                         $statusClass = match ($appointmentStatus) {
                             'pending' => 'status-pending',
@@ -494,15 +488,15 @@
                             <span class="status {{ $statusClass }}">
                                 {{ $statusText }}
                             </span>
-                                @if($appointment->status === 'cancelled')
+                                @if($appointmentStatus === 'cancelled')
                                     <div class="muted" style="font-size: 8px; margin-top: 4px;">
                                         Reason: {{ $appointment->cancellation_reason ? ucwords(str_replace('_', ' ', $appointment->cancellation_reason)) : 'No reason provided' }}
                                     </div>
                                 @endif
 
-                                @if($appointment->status === 'no_show')
+                                @if($appointmentStatus === 'no_show')
                                     <div class="muted" style="font-size: 8px; margin-top: 4px;">
-                                        Reason: {{ $appointment->no_show_reason ? ucwords(str_replace('_', ' ', $appointment->no_show_reason)) : 'No reason provided' }}
+                                        No-Show Reason: {{ $appointment->no_show_reason ? ucwords(str_replace('_', ' ', $appointment->no_show_reason)) : 'No reason provided' }}
                                     </div>
                                 @endif
                         </td>

@@ -113,8 +113,13 @@ class StaffController extends Controller
                 break;
 
             case 'no_show':
-                $query->where('status', 'cancelled')
-                    ->where('cancellation_reason', 'customer_no_show');
+                $query->where(function ($q) {
+                    $q->where('status', 'no_show')
+                      ->orWhere(function ($sq) {
+                          $sq->where('status', 'cancelled')
+                             ->where('cancellation_reason', 'customer_no_show');
+                      });
+                });
                 break;
         }
 
@@ -153,13 +158,18 @@ class StaffController extends Controller
                 ->where('status', 'cancelled')
                 ->where(function ($q) {
                     $q->whereNull('cancellation_reason')
-                        ->orWhere('cancellation_reason', '!=', 'customer_no_show');
+                      ->orWhere('cancellation_reason', '!=', 'customer_no_show');
                 })
                 ->count(),
 
             'no_show' => (clone $countBase)
-                ->where('status', 'cancelled')
-                ->where('cancellation_reason', 'customer_no_show')
+                ->where(function ($q) {
+                    $q->where('status', 'no_show')
+                      ->orWhere(function ($sq) {
+                          $sq->where('status', 'cancelled')
+                             ->where('cancellation_reason', 'customer_no_show');
+                      });
+                })
                 ->count(),
         ];
 

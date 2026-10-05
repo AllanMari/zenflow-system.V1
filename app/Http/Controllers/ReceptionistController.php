@@ -476,7 +476,10 @@ class ReceptionistController extends Controller
 
     public function handleNoShow(Request $request, Appointment $appointment)
     {
-        $request->validate(['action' => 'required|in:forfeit,refund']);
+        $request->validate([
+            'action' => 'required|in:forfeit,refund',
+            'no_show_reason' => 'nullable|string'
+        ]);
         $totalPaid = $appointment->payments()->sum('amount');
         $hasPayments = $totalPaid > 0;
 
@@ -485,8 +488,9 @@ class ReceptionistController extends Controller
         }
 
         if ($request->action === 'forfeit') {
-            $appointment->status = 'cancelled';
-            $appointment->cancellation_reason = 'customer_no_show';
+            $appointment->status = 'no_show';
+            $appointment->cancellation_reason = null;
+            $appointment->no_show_reason = $request->input('no_show_reason');
             $appointment->save();
 
             $msg = $hasPayments
@@ -506,8 +510,10 @@ class ReceptionistController extends Controller
             ]);
         }
 
-        $appointment->status = 'cancelled';
-        $appointment->cancellation_reason = 'customer_no_show';
+        $appointment->status = 'no_show';
+        $appointment->cancellation_reason = null;
+        $appointment->no_show_reason = $request->input('no_show_reason');
+        $appointment->refunded_by = auth()->id();
         $appointment->save();
 
         return back()->with('success', 'Payment of ₱' . number_format($totalPaid, 2) . ' refunded. Appointment marked as no-show.');

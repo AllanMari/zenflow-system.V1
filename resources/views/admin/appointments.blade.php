@@ -853,11 +853,8 @@
                             $balance =
                                 max(0, $totalAmount - $paidAmount);
 
-                            $displayStatus =
-                                $appt->status === 'cancelled'
-                                && $appt->cancellation_reason === 'customer_no_show'
-                                    ? 'no_show'
-                                    : $appt->status;
+                            $isLegacyNoShow = $appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show';
+                            $displayStatus = $isLegacyNoShow ? 'no_show' : $appt->status;
 
                             $statusConfig = match($displayStatus) {
 
@@ -1268,19 +1265,13 @@
 
                                 </span>
 
-                                @if($appt->status === 'cancelled' && $appt->cancellation_reason !== 'customer_no_show')
+                                @if($appt->status === 'cancelled' && !$isLegacyNoShow)
                                     <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
                                         Reason: {{ $appt->cancellation_reason ? ucwords(str_replace('_', ' ', $appt->cancellation_reason)) : 'No reason provided' }}
                                     </div>
                                 @endif
 
-                                @if($appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show')
-                                    <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
-                                        Reason: {{ $appt->no_show_reason ? ucwords(str_replace('_', ' ', $appt->no_show_reason)) : 'No reason provided' }}
-                                    </div>
-                                @endif
-
-                                @if($appt->status === 'no_show')
+                                @if($appt->status === 'no_show' || $isLegacyNoShow)
                                     <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
                                         Reason: {{ $appt->no_show_reason ? ucwords(str_replace('_', ' ', $appt->no_show_reason)) : 'No reason provided' }}
                                     </div>

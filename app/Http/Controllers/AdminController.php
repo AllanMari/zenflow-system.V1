@@ -75,8 +75,13 @@ class AdminController extends Controller
             ->sum('deposit_required');
 
         $todayNoShows = Appointment::whereDate('appointment_date', $today)
-            ->where('status', 'cancelled')
-            ->where('cancellation_reason', 'customer_no_show')
+            ->where(function ($q) {
+                $q->where('status', 'no_show')
+                  ->orWhere(function ($sq) {
+                      $sq->where('status', 'cancelled')
+                         ->where('cancellation_reason', 'customer_no_show');
+                  });
+            })
             ->count();
 
         return view('admin-dashboard', compact(
@@ -1030,13 +1035,18 @@ public function index(Request $request)
                 ->where('status', 'cancelled')
                 ->where(function ($q) {
                     $q->whereNull('cancellation_reason')
-                        ->orWhere('cancellation_reason', '!=', 'customer_no_show');
+                      ->orWhere('cancellation_reason', '!=', 'customer_no_show');
                 })
                 ->count(),
 
             'no_show' => (clone $baseQuery)
-                ->where('status', 'cancelled')
-                ->where('cancellation_reason', 'customer_no_show')
+                ->where(function ($q) {
+                    $q->where('status', 'no_show')
+                      ->orWhere(function ($sq) {
+                          $sq->where('status', 'cancelled')
+                             ->where('cancellation_reason', 'customer_no_show');
+                      });
+                })
                 ->count(),
 
             'today' => Appointment::whereDate(
@@ -1080,25 +1090,23 @@ public function index(Request $request)
                 $status = $request->status;
 
                 if ($status === 'no_show') {
-                    $q->where('status', 'cancelled')
-                        ->where(
-                            'cancellation_reason',
-                            'customer_no_show'
-                        );
+                    $q->where(function ($q2) {
+                        $q2->where('status', 'no_show')
+                           ->orWhere(function ($sq) {
+                               $sq->where('status', 'cancelled')
+                                  ->where('cancellation_reason', 'customer_no_show');
+                           });
+                    });
 
                     return;
                 }
 
                 if ($status === 'cancelled') {
                     $q->where('status', 'cancelled')
-                        ->where(function ($sub) {
-                            $sub->whereNull('cancellation_reason')
-                                ->orWhere(
-                                    'cancellation_reason',
-                                    '!=',
-                                    'customer_no_show'
-                                );
-                        });
+                      ->where(function ($sub) {
+                          $sub->whereNull('cancellation_reason')
+                              ->orWhere('cancellation_reason', '!=', 'customer_no_show');
+                      });
 
                     return;
                 }
@@ -1169,11 +1177,13 @@ public function appointmentReportPdf(
     if ($status === 'no_show') {
 
         $query
-            ->where('status', 'cancelled')
-            ->where(
-                'cancellation_reason',
-                'customer_no_show'
-            );
+            ->where(function ($q) {
+                $q->where('status', 'no_show')
+                  ->orWhere(function ($sq) {
+                      $sq->where('status', 'cancelled')
+                         ->where('cancellation_reason', 'customer_no_show');
+                  });
+            });
 
     } elseif ($status === 'cancelled') {
 
@@ -1181,11 +1191,7 @@ public function appointmentReportPdf(
             ->where('status', 'cancelled')
             ->where(function ($q) {
                 $q->whereNull('cancellation_reason')
-                    ->orWhere(
-                        'cancellation_reason',
-                        '!=',
-                        'customer_no_show'
-                    );
+                  ->orWhere('cancellation_reason', '!=', 'customer_no_show');
             });
 
     } elseif ($status) {
@@ -1308,35 +1314,27 @@ public function appointmentReportPdf(
     /*
     |--------------------------------------------------------------------------
     | CANCELLED
-    |
-    | A cancelled appointment is only counted as Cancelled when it is
-    | NOT marked as customer_no_show.
     |--------------------------------------------------------------------------
     */
 
     $cancelled = $appointments
         ->where('status', 'cancelled')
         ->filter(function ($appointment) {
-            return $appointment->cancellation_reason
-                !== 'customer_no_show';
+            return $appointment->cancellation_reason !== 'customer_no_show';
         })
         ->count();
 
     /*
     |--------------------------------------------------------------------------
     | NO-SHOW
-    |
-    | No-show appointments are stored as cancelled in the database,
-    | with cancellation_reason = customer_no_show.
     |--------------------------------------------------------------------------
     */
 
     $noShow = $appointments
-        ->where('status', 'cancelled')
-        ->where(
-            'cancellation_reason',
-            'customer_no_show'
-        )
+        ->filter(function ($appointment) {
+            return $appointment->status === 'no_show' 
+                || ($appointment->status === 'cancelled' && $appointment->cancellation_reason === 'customer_no_show');
+        })
         ->count();
 
     /*
