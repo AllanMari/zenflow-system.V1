@@ -1351,10 +1351,9 @@ public function appointmentReportPdf(
         return (float) $appointment->payments->sum('amount');
     });
 
-    $outstandingValue = max(
-        0,
-        $recordedValue - $paidValue
-    );
+    $outstandingValue = $appointments->sum(function ($appointment) {
+        return (float) $appointment->active_outstanding_balance;
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -1456,6 +1455,7 @@ public function appointmentReportPdf(
             auth()->user()->full_name
             ?? auth()->user()->name
             ?? 'Administrator',
+        'checkedBy' => $request->input('checked_by'),
 
         'generatedAt' =>
             now()->format('F j, Y g:i A'),

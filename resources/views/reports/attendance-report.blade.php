@@ -1164,10 +1164,30 @@
 
 
     {{-- FOOTER --}}
+    @if(!empty($preparedBy) || !empty($checkedBy))
+        <table style="width: 100%; margin-top: 40px; margin-bottom: 20px; text-align: left; page-break-inside: avoid;">
+            <tr>
+                @if(!empty($preparedBy))
+                <td style="width: 50%;">
+                    <div style="font-size: 7px; color: #666; text-transform: uppercase;">Prepared by</div>
+                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline;">{{ $preparedBy }}</div>
+                </td>
+                @endif
+                @if(!empty($checkedBy))
+                <td style="width: 50%;">
+                    <div style="font-size: 7px; color: #666; text-transform: uppercase;">Checked by</div>
+                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline;">{{ $checkedBy }}</div>
+                </td>
+                @endif
+            </tr>
+        </table>
+    @endif
     <div class="footer">
 
         <div>
-            Prepared by: {{ $preparedBy }}
+            @if(empty($preparedBy) && empty($checkedBy))
+                Prepared by: {{ $preparedBy ?? 'System User' }}
+            @endif
         </div>
 
         <div>

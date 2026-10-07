@@ -996,8 +996,23 @@
 
                     </div>
 
-                </div>
+                    {{-- Step 3: Signatory --}}
+                    <div class="mt-6 border-t border-gray-100 dark:border-slate-800/80 pt-6">
+                        <label class="block text-sm font-semibold text-gray-900 dark:text-white">
+                            Checked/Verified By (Optional)
+                        </label>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 mb-3">
+                            Include a secondary signature line for verification.
+                        </p>
+                        <input
+                            type="text"
+                            x-model="report.checked_by"
+                            placeholder="e.g. Jane Doe, HR Manager"
+                            class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                        >
+                    </div>
 
+                </div>
 
                 {{-- Modal Footer --}}
                 <div class="border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/40">
@@ -1362,7 +1377,8 @@ document.addEventListener('alpine:init', () => {
             status: '',
             range: 'today',
             start_date: '',
-            end_date: ''
+            end_date: '',
+            checked_by: ''
         },
 
 
@@ -1638,7 +1654,8 @@ document.addEventListener('alpine:init', () => {
                 status: '',
                 range: 'today',
                 start_date: '',
-                end_date: ''
+                end_date: '',
+                checked_by: ''
             };
 
             this.reportOpen = true;
@@ -1796,6 +1813,13 @@ document.addEventListener('alpine:init', () => {
                 params.set(
                     'end_date',
                     this.report.end_date
+                );
+            }
+
+            if (this.report.checked_by) {
+                params.set(
+                    'checked_by',
+                    this.report.checked_by
                 );
             }
 

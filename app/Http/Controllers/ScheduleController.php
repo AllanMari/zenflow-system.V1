@@ -126,6 +126,7 @@ class ScheduleController extends Controller
             'week_start' => ['nullable', 'date'],
             'staff_id' => ['nullable', 'integer'],
             'staff_ids' => ['nullable', 'string'],
+            'checked_by' => ['nullable', 'string', 'max:255'],
         ]);
 
         $weekStart = $request->filled('week_start')
@@ -213,8 +214,9 @@ class ScheduleController extends Controller
             'timeRange' => $timeRange,
 
             'preparedBy' => auth()->user()?->full_name ?? 'System User',
+            'checkedBy' => $request->input('checked_by'),
 
-            'generatedAt' => now('Asia/Manila')->format('F d, Y g:i A'),
+            'generatedAt' => now('Asia/Manila'),
         ];
     }
 

@@ -55,8 +55,8 @@ class CustomerController extends Controller
                 ->get();
 
             $upcomingBookings = $allAppointments->filter(function ($appt) {
-                $apptDateTime = \Carbon\Carbon::parse($appt->appointment_date->format('Y-m-d') . ' ' . $appt->start_time);
-                return in_array($appt->status, ['pending', 'confirmed']) && $apptDateTime->isFuture();
+                $endDateTime = \Carbon\Carbon::parse($appt->appointment_date->format('Y-m-d') . ' ' . $appt->end_time);
+                return in_array($appt->status, ['pending', 'confirmed']) && $endDateTime->isFuture();
             })->values();
 
             $pastBookings = $allAppointments->reject(function ($appt) use ($upcomingBookings) {

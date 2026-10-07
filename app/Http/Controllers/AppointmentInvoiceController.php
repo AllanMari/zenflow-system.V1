@@ -219,7 +219,7 @@ class AppointmentInvoiceController extends Controller
             'referenceNumber' => '#SPA-' . $appointment->id,
             'reportTitle' => 'APPOINTMENT INVOICE',
             'dateRange' => null,
-            'preparedBy' => auth()->user(),
+            'preparedBy' => auth()->user()?->full_name ?? auth()->user()?->name ?? 'System Administrator',
 
             'generatedAt' => now('Asia/Manila'),
         ];

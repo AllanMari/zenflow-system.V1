@@ -783,6 +783,26 @@
          FOOTER
     ====================================================== --}}
 
+    {{-- =====================================================
+          SIGNATURES
+     ====================================================== --}}
+    @if(!empty($preparedBy) || !empty($reviewedBy))
+        <table style="width: 100%; margin-top: 30px; margin-bottom: 20px; text-align: left; page-break-inside: avoid;">
+            <tr>
+                <td style="width: 50%;">
+                    <div style="font-size: 7px; color: #6b7280; text-transform: uppercase;">Prepared by</div>
+                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline; color: #111827;">{{ $preparedBy }}</div>
+                </td>
+                @if(!empty($reviewedBy))
+                <td style="width: 50%;">
+                    <div style="font-size: 7px; color: #6b7280; text-transform: uppercase;">Checked / Verified by</div>
+                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline; color: #111827;">{{ $reviewedBy }}</div>
+                </td>
+                @endif
+            </tr>
+        </table>
+    @endif
+
     <div class="footer">
 
         <div>
@@ -799,4 +819,3 @@
 </body>
 
 </html>
-```

@@ -1,4 +1,3 @@
-```blade
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2640,6 +2639,25 @@
 
 
 
+    @if(!empty($preparedBy) || !empty($checkedBy))
+        <table style="width: 100%; margin-top: 40px; text-align: left;">
+            <tr>
+                @if(!empty($preparedBy))
+                <td style="width: 50%;">
+                    <div style="font-size: 7px; color: #666; text-transform: uppercase;">Prepared by</div>
+                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline;">{{ $preparedBy }}</div>
+                </td>
+                @endif
+                @if(!empty($checkedBy))
+                <td style="width: 50%;">
+                    <div style="font-size: 7px; color: #666; text-transform: uppercase;">Checked by</div>
+                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline;">{{ $checkedBy }}</div>
+                </td>
+                @endif
+            </tr>
+        </table>
+    @endif
+
     {{-- =========================================================
          SIGNATURES
     ========================================================== --}}
@@ -2694,7 +2712,7 @@
     <div class="footer">
 
         Generated
-        {{ $generatedAt->format(
+        {{ is_string($generatedAt) ? $generatedAt : $generatedAt->format(
             'F j, Y g:i A'
         ) }}
 

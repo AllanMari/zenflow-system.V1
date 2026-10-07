@@ -127,19 +127,6 @@ class ReceptionistController extends Controller
                 $room = Room::lockForUpdate()->find($request->room_id);
                 if (!$room) return back()->with('error', 'Selected room no longer exists.');
 
-                $requiredCategoryIds = $appointment->services
-                    ->where('requires_room', true)
-                    ->whereNotNull('room_category_id')
-                    ->pluck('room_category_id')
-                    ->unique()
-                    ->values();
-
-                if ($requiredCategoryIds->isNotEmpty() && $room->category_id) {
-                    if (!$requiredCategoryIds->contains($room->category_id)) {
-                        return back()->with('error', 'Selected room does not match service category requirements.');
-                    }
-                }
-
                 if (!$room->isAvailableFor(
                     $appointment->appointment_date,
                     $appointment->start_time,
@@ -478,7 +465,16 @@ class ReceptionistController extends Controller
     {
         $request->validate([
             'action' => 'required|in:forfeit,refund',
-            'no_show_reason' => 'nullable|string'
+            'no_show_reason' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    if (trim($value) === '') {
+                        $fail('A valid no-show reason is required.');
+                    }
+                },
+            ],
         ]);
         $totalPaid = $appointment->payments()->sum('amount');
         $hasPayments = $totalPaid > 0;
@@ -534,6 +530,24 @@ public function active()
         ->orderBy('start_time')
         ->get();
 
+    $pastUnresolvedAppointments = Appointment::with([
+        'customer',
+        'services',
+        'payments',
+        'staff',
+        'room',
+    ])
+        ->where('status', 'confirmed')
+        ->get()
+        ->filter(function ($appointment) {
+            $endDateTime = Carbon::parse($appointment->appointment_date->format('Y-m-d') . ' ' . $appointment->end_time);
+            return $endDateTime->isPast();
+        })
+        ->sortBy(function ($appointment) {
+            return Carbon::parse($appointment->appointment_date->format('Y-m-d') . ' ' . $appointment->end_time);
+        })
+        ->values();
+
     $allStaff = User::whereHas('roles', function ($query) {
         $query->where('name', 'staff');
     })
@@ -553,6 +567,7 @@ public function active()
 
     return view('receptionist.active', compact(
         'appointments',
+        'pastUnresolvedAppointments',
         'allStaff',
         'catalogServices',
         'allRooms'
@@ -676,43 +691,29 @@ public function active()
             ]);
         }
 
-        $requiredCategoryId = $appointment->services
-            ->where('requires_room', true)
-            ->whereNotNull('room_category_id')
-            ->pluck('room_category_id')
-            ->first();
+        $eval = \App\Services\RoomCompatibilityService::evaluateSlot(
+            $appointment->services,
+            $appointment->appointment_date,
+            $appointment->start_time,
+            $appointment->end_time,
+            $appointment->id
+        );
 
-        $query = Room::active()->where('status', '!=', 'maintenance');
-        if ($requiredCategoryId) {
-            $query->where(function ($q) use ($requiredCategoryId) {
-                $q->where('category_id', $requiredCategoryId)->orWhereNull('category_id');
-            });
-        }
-
-        $rooms = $query->get()->filter(function ($room) use ($appointment) {
-            return $room->isAvailableFor(
-                $appointment->appointment_date,
-                $appointment->start_time,
-                $appointment->end_time,
-                $appointment->id
-            );
-        })->values();
-
-        $categoryName = null;
-        if ($requiredCategoryId) {
-            $categoryService = $appointment->services->firstWhere('room_category_id', $requiredCategoryId);
-            $categoryName = $categoryService?->category?->name;
+        $rooms = $eval['compatible_rooms'];
+        if ($rooms->isEmpty()) {
+            $rooms = $eval['free_rooms'];
         }
 
         return response()->json([
             'requires_room' => true,
-            'required_category' => $categoryName,
+            'review_required' => false,
             'rooms' => $rooms->map(fn($room) => [
                 'id' => $room->id,
                 'name' => $room->name,
                 'category' => $room->category?->name,
                 'is_general' => is_null($room->category_id),
-            ]),
+                'is_compatible' => $eval['compatible_rooms']->contains('id', $room->id),
+            ])->values(),
             'message' => $rooms->isEmpty() ? 'No rooms available for this time slot.' : null
         ]);
     }

@@ -89,7 +89,7 @@
                                 <p class="text-xs font-semibold text-gray-400 uppercase mb-2">Payment</p>
                                 <div class="flex justify-between"><span class="text-gray-600">Total</span><span class="font-bold">₱{{ number_format($booking->total_price, 0) }}</span></div>
                                 <div class="flex justify-between"><span class="text-gray-600">Paid</span><span class="font-bold text-teal-600">₱{{ number_format($booking->total_paid, 0) }}</span></div>
-                                <div class="flex justify-between border-t pt-2"><span class="text-gray-600">Balance</span><span class="font-bold text-orange-600">₱{{ number_format($booking->remaining_balance, 0) }}</span></div>
+                                <div class="flex justify-between border-t pt-2"><span class="text-gray-600">Balance</span><span class="font-bold text-orange-600">₱{{ number_format($booking->active_outstanding_balance, 0) }}</span></div>
                             </div>
                             <div class="mt-4">
                                 @if($booking->isFullyPaid())

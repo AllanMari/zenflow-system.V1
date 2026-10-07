@@ -100,6 +100,14 @@ class Appointment extends Model
         return max(0, $this->total_price - $this->total_paid);
     }
 
+    public function getActiveOutstandingBalanceAttribute()
+    {
+        if (in_array($this->status, ['pending', 'confirmed'])) {
+            return $this->remaining_balance;
+        }
+        return 0.00;
+    }
+
     public function isFullyPaid()
     {
         return $this->remaining_balance <= 0;

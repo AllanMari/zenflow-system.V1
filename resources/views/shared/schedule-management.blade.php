@@ -214,6 +214,11 @@ $todayStr = now()->toDateString();
 
       @if($isAdmin)
       <a href="{{ route('admin.shift-templates.index') }}" class="px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 rounded-lg transition-colors">Manage Templates</a>
+      {{-- Print / Export Action --}}
+      <button type="button" @click="openReportModal()" class="px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 rounded-lg transition-colors flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        Print / Export Schedule
+      </button>
       @endif
     </div>
   </header>
@@ -902,6 +907,138 @@ $todayStr = now()->toDateString();
     <button @click="selectedCells = {}" class="px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Clear</button>
   </div>
 
+  {{-- =========================================================
+       SCHEDULE REPORT MODAL
+  ========================================================== --}}
+  <div
+      x-show="reportOpen"
+      x-cloak
+      x-transition.opacity
+      class="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-sm"
+      @keydown.escape.window="reportOpen = false"
+  >
+      <div
+          x-show="reportOpen"
+          x-transition
+          @click.outside="reportOpen = false"
+          class="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+      >
+          <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-slate-800">
+              <div>
+                  <h3 class="text-base font-bold text-gray-900 dark:text-white">
+                      Print / Export Schedule Report
+                  </h3>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      Generate PDF schedule report for staff
+                  </p>
+              </div>
+              <button
+                  type="button"
+                  @click="reportOpen = false"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800 dark:hover:text-gray-200"
+              >
+                  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/>
+                  </svg>
+              </button>
+          </div>
+
+          <div class="px-5 py-5 space-y-5">
+              <div>
+                  <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Report Scope
+                  </label>
+                  <div class="grid grid-cols-2 gap-3">
+                      <label
+                          class="flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition"
+                          :class="report.scope === 'all' ? 'border-brand-500 bg-brand-50/50 dark:border-brand-500 dark:bg-brand-950/20 text-brand-900 dark:text-brand-200' : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 text-gray-700 dark:text-gray-300'"
+                      >
+                          <input type="radio" value="all" x-model="report.scope" class="text-brand-600 focus:ring-brand-500">
+                          <div>
+                              <span class="block text-sm font-semibold">All Therapists</span>
+                              <span class="block text-[11px] text-gray-500 dark:text-gray-400">Include all active staff</span>
+                          </div>
+                      </label>
+                      <label
+                          class="flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition"
+                          :class="report.scope === 'specific' ? 'border-brand-500 bg-brand-50/50 dark:border-brand-500 dark:bg-brand-950/20 text-brand-900 dark:text-brand-200' : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 text-gray-700 dark:text-gray-300'"
+                      >
+                          <input type="radio" value="specific" x-model="report.scope" class="text-brand-600 focus:ring-brand-500">
+                          <div>
+                              <span class="block text-sm font-semibold">Specific Therapist</span>
+                              <span class="block text-[11px] text-gray-500 dark:text-gray-400">Select single staff</span>
+                          </div>
+                      </label>
+                  </div>
+              </div>
+
+              <div x-show="report.scope === 'specific'" x-cloak class="mt-4">
+                  <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                      Select Therapist
+                  </label>
+                  <select
+                      x-model="report.staff_id"
+                      class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
+                  >
+                      <option value="">-- Choose Therapist --</option>
+                      <template x-for="[id, name] in Object.entries(staffNames)" :key="id">
+                          <option :value="id" x-text="name"></option>
+                      </template>
+                  </select>
+              </div>
+
+              <div class="mt-4">
+                  <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      Checked / Verified By (Optional)
+                  </label>
+                  <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+                      Include a secondary signature line for verification.
+                  </p>
+                  <input
+                      type="text"
+                      x-model="report.checked_by"
+                      placeholder="e.g. Jane Doe, Operations Manager"
+                      class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                  >
+              </div>
+          </div>
+
+          <div class="border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/40">
+              <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button
+                      type="button"
+                      @click="reportOpen = false"
+                      class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700"
+                  >
+                      Cancel
+                  </button>
+
+                  <button
+                      type="button"
+                      @click="generateReport('stream')"
+                      class="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-600 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500 dark:bg-slate-900 dark:text-brand-300 dark:hover:bg-brand-900/20"
+                  >
+                      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/>
+                          <circle cx="12" cy="12" r="2.5"/>
+                      </svg>
+                      Preview PDF
+                  </button>
+
+                  <button
+                      type="button"
+                      @click="generateReport('download')"
+                      class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-600"
+                  >
+                      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"/>
+                      </svg>
+                      Download PDF
+                  </button>
+              </div>
+          </div>
+      </div>
+  </div>
 </div>
 @endsection
 
@@ -1021,6 +1158,63 @@ function schedApp() {
       open: false,
       mode: 'edit',
       data: { userId: '', date: '', dow: '', start: '09:00', end: '18:00', status: 'work', exceptionType: 'day_off', reason: '', exceptionId: null }
+    },
+
+    reportOpen: false,
+    report: {
+      scope: 'all',
+      staff_id: '',
+      checked_by: ''
+    },
+
+    openReportModal() {
+      this.report = {
+        scope: 'all',
+        staff_id: '',
+        checked_by: ''
+      };
+      this.reportOpen = true;
+    },
+
+    generateReport(action) {
+      let route = '';
+      if (action === 'stream') {
+          route = '{{ $isAdmin ? route('admin.schedules.print') : route('receptionist.schedules.print') }}';
+      } else {
+          route = '{{ $isAdmin ? route('admin.schedules.download') : route('receptionist.schedules.download') }}';
+      }
+      
+      const params = new URLSearchParams();
+      // action parameter is not needed if the route is separate, but we should verify.
+      // Looking at ScheduleController:
+      // downloadSchedule just calls buildPrintableScheduleData and generates PDF.
+      // printSchedule just calls buildPrintableScheduleData and streams PDF.
+      // They don't seem to take an 'action' query param, but the Blade passes it anyway?
+      // Wait, buildPrintableScheduleData validates request. It doesn't seem to use action.
+      // Let's pass the parameters directly as they are.
+
+      params.append('view', '{{ $view }}');
+      @if($view === 'week')
+      params.append('week_start', '{{ $weekStart }}');
+      @else
+      params.append('date', '{{ $date }}');
+      @endif
+
+      if (this.report.scope === 'specific' && this.report.staff_id) {
+        params.append('staff_id', this.report.staff_id);
+      } else {
+        const allIds = Object.keys(this.staffNames);
+        if (allIds.length > 0) {
+          params.append('staff_ids', allIds.join(','));
+        }
+      }
+
+      if (this.report.checked_by) {
+        params.append('checked_by', this.report.checked_by);
+      }
+
+      window.open(route + '?' + params.toString(), '_blank');
+      this.reportOpen = false;
     },
 
     staffNames: @json($timeline->mapWithKeys(function($row) {

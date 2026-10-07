@@ -120,6 +120,9 @@
             <td>
                 <div class="line"></div>
                 <div class="label">Checked By</div>
+                @if(!empty($checkedBy))
+                    <div class="name">{{ $checkedBy }}</div>
+                @endif
             </td>
         </tr>
     </table>

@@ -551,11 +551,30 @@
     </table>
 
     <div class="footer">
-        <div>
-            Prepared by: {{ $preparedBy }}
-        </div>
+        @if(!empty($preparedBy) || !empty($checkedBy))
+            <table style="width: 100%; margin-bottom: 20px; text-align: left; page-break-inside: avoid;">
+                <tr>
+                    @if(!empty($preparedBy))
+                    <td style="width: 50%;">
+                        <div style="font-size: 7px; color: #6b7280; text-transform: uppercase;">Prepared by</div>
+                        <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline; color: #111827;">{{ $preparedBy }}</div>
+                    </td>
+                    @endif
+                    @if(!empty($checkedBy))
+                    <td style="width: 50%;">
+                        <div style="font-size: 7px; color: #6b7280; text-transform: uppercase;">Checked by</div>
+                        <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline; color: #111827;">{{ $checkedBy }}</div>
+                    </td>
+                    @endif
+                </tr>
+            </table>
+        @else
+            <div>
+                Prepared by: System User
+            </div>
+        @endif
 
-        <div>
+        <div style="margin-top: 15px; border-top: 1px solid #d1d5db; padding-top: 5px;">
             ZenFlow System — Spa Alexandria
         </div>
     </div>

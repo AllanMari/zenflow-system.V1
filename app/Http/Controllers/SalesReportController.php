@@ -110,6 +110,7 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
             'dateLabel'           => $period === 'daily' ? 'DATE:' : 'PERIOD:',
             'dateDisplay'         => $dateDisplay,
             'preparedBy'          => Auth::user()->full_name ?? Auth::user()->name,
+            'checkedBy'           => $request->input('checked_by'),
             'generatedAt'         => now()->format('F d, Y g:i A'),
         ];
 
@@ -147,6 +148,7 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
             'therapistRetentionData'=> $data['therapistRetentionData'] ?? [],
             'peakBusinessHours'     => $data['peakBusinessHours'] ?? [],
             'preparedBy'            => Auth::user()->full_name ?? Auth::user()->name,
+            'checkedBy'             => $request->input('checked_by'),
             'generatedAt'           => now()->format('F d, Y g:i A'),
             'safeNoShow'            => $data['noShowApptsInPeriod'],
         ];

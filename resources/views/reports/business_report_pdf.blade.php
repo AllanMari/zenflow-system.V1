@@ -829,6 +829,26 @@
 
     </div>
 
+    {{-- ===== SIGNATURES ===== --}}
+    @if(!empty($preparedBy) || !empty($checkedBy))
+        <table style="width: 100%; margin: 25px 0; padding: 0 20px; text-align: left; page-break-inside: avoid;">
+            <tr>
+                <td style="width: 50%; padding-right: 20px;">
+                    <div style="border-bottom: 1px solid #cbd5e1; height: 25px;"></div>
+                    <div style="font-size: 8px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-top: 4px;">Prepared By</div>
+                    <div style="font-size: 9px; font-weight: 600; color: #1e293b; margin-top: 2px;">{{ $preparedBy }}</div>
+                </td>
+                <td style="width: 50%; padding-left: 20px;">
+                    <div style="border-bottom: 1px solid #cbd5e1; height: 25px;"></div>
+                    <div style="font-size: 8px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-top: 4px;">Checked / Verified By</div>
+                    @if(!empty($checkedBy))
+                        <div style="font-size: 9px; font-weight: 600; color: #1e293b; margin-top: 2px;">{{ $checkedBy }}</div>
+                    @endif
+                </td>
+            </tr>
+        </table>
+    @endif
+
     <!-- ===== FOOTER ===== -->
     <div class="footer-bar">
         <div class="footer-left">

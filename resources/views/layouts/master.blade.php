@@ -435,8 +435,6 @@ setInterval(async()=>{try{const r=await fetch('/api/notifications/count',{header
 document.addEventListener('DOMContentLoaded',async()=>{try{const r=await fetch('/api/notifications/count',{headers:{'Accept':'application/json','X-CSRF-TOKEN':CSRF}});if(r.ok){const d=await r.json();updateBadge(d.unread_count||0)}}catch(e){}});
 
 let debounceTimer;
-
-let debounceTimer;
 const iconObserver = new MutationObserver((mutations) => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
@@ -484,9 +482,10 @@ function swalConfirmAsync(text) {
 
 @if(session('success'))
 Swal.fire({icon:'success',title:'Success',text:@json(session('success')),timer:3000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1e293b':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
-@endif
-@if(session('error'))
-Swal.fire({icon:'error',title:'Error',text:'{{ session('error') }}',timer:4000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1e293b':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
+@elseif(session('error'))
+Swal.fire({icon:'error',title:'Error',text:@json(session('error')),timer:4000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1e293b':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
+@elseif($errors->any())
+Swal.fire({icon:'error',title:'Validation Error',text:@json($errors->first()),timer:4000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1e293b':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
 @endif
 </script>
 </body>
