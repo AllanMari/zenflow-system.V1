@@ -39,7 +39,10 @@ class ServicePopularityController extends Controller
         $pdfData = [
             'reportTitle' => 'SERVICE POPULARITY BREAKDOWN REPORT',
             'dateRange' => $data['dateDisplay'],
+            'dateDisplay' => $data['dateDisplay'],
             'preparedBy' => Auth::user()->full_name ?? Auth::user()->name,
+            'reviewedBy' => $request->input('reviewed_by'),
+            'selectedCategoryName' => $data['selectedCategoryName'] ?? 'All Categories',
             'generatedAt' => now($this->timezone)->format('F d, Y g:i A'),
             'referenceNumber' => 'SP-' . now()->format('YmdHis'),
 

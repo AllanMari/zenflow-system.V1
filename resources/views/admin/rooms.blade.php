@@ -208,25 +208,19 @@
         openRoomModal();
     }
 
-    function confirmDelete(actionUrl) {
-        Swal.fire({
-            title: 'Delete Room?',
-            text: 'This cannot be undone.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#0d9488',
-            cancelButtonColor: '#ef4444',
-            confirmButtonText: 'Yes, delete',
-            cancelButtonText: 'Cancel',
-            background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
-            color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                const form = document.getElementById('deleteForm');
-                form.action = actionUrl;
-                form.submit();
-            }
-        });
-    }
+        function confirmDelete(actionUrl) {
+            swalConfirmStandard({
+                title: 'Delete Room?',
+                text: 'This cannot be undone.',
+                confirmButtonText: 'Yes, delete',
+                confirmButtonColor: '#ef4444' // Match red for destructive actions
+            }).then((confirmed) => {
+                if (confirmed) {
+                    const form = document.getElementById('deleteForm');
+                    form.action = actionUrl;
+                    form.submit();
+                }
+            });
+        }
 </script>
 @endsection

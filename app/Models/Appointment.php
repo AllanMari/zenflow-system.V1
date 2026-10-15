@@ -32,6 +32,7 @@ class Appointment extends Model
         'rescheduled_at',
         'reminder_sent_at',
         'room_id',
+        'requested_room_id',
         'ip_address',
     ];
 
@@ -82,6 +83,11 @@ class Appointment extends Model
         return $this->belongsTo(Room::class);
     }
 
+    public function requestedRoom()
+    {
+        return $this->belongsTo(Room::class, 'requested_room_id');
+    }
+
     /* ─── Accessors ─── */
 
     public function getTotalPaidAttribute()
@@ -92,6 +98,14 @@ class Appointment extends Model
     public function getRemainingBalanceAttribute()
     {
         return max(0, $this->total_price - $this->total_paid);
+    }
+
+    public function getActiveOutstandingBalanceAttribute()
+    {
+        if (in_array($this->status, ['pending', 'confirmed'])) {
+            return $this->remaining_balance;
+        }
+        return 0.00;
     }
 
     public function isFullyPaid()

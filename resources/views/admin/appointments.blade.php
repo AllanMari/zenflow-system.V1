@@ -853,11 +853,11 @@
                             $balance =
                                 max(0, $totalAmount - $paidAmount);
 
-                            $displayStatus =
-                                $appt->status === 'cancelled'
-                                && $appt->cancellation_reason === 'customer_no_show'
-                                    ? 'no_show'
-                                    : $appt->status;
+                            $isLegacyNoShow = $appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show';
+                            $displayStatus = $isLegacyNoShow ? 'no_show' : $appt->status;
+
+                            $appointmentEndDateTime = \Carbon\Carbon::parse($appt->appointment_date->format('Y-m-d') . ' ' . $appt->end_time);
+                            $isPastConfirmed = $appt->status === 'confirmed' && $appointmentEndDateTime->isPast();
 
                             $statusConfig = match($displayStatus) {
 
@@ -871,12 +871,11 @@
                                 ],
 
                                 'confirmed' => [
-                                    'label' => 'Confirmed',
-                                    'class' =>
-                                        'bg-blue-50 text-blue-700 border-blue-200
-                                         dark:bg-blue-900/20 dark:text-blue-300
-                                         dark:border-blue-800',
-                                    'dot' => 'bg-blue-500',
+                                    'label' => $isPastConfirmed ? 'Confirmed · Past' : 'Confirmed',
+                                    'class' => $isPastConfirmed
+                                        ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800'
+                                        : 'bg-blue-50 text-blue-700 border-blue-200\n                                         dark:bg-blue-900/20 dark:text-blue-300\n                                         dark:border-blue-800',
+                                    'dot' => $isPastConfirmed ? 'bg-purple-500' : 'bg-blue-500',
                                 ],
 
                                 'completed' => [
@@ -1200,7 +1199,29 @@
 
                                 <div class="mt-1 text-[10px]">
 
-                                    @if($paidAmount >= $totalAmount && $totalAmount > 0)
+                                    @if($displayStatus === 'cancelled' || $displayStatus === 'no_show')
+
+                                        @if($paidAmount > 0)
+
+                                            <span class="font-semibold
+                                                         text-amber-600
+                                                         dark:text-amber-400">
+
+                                                ₱{{ number_format($paidAmount, 2) }}
+                                                paid
+
+                                            </span>
+
+                                        @else
+
+                                            <span class="font-semibold
+                                                         text-gray-400">
+                                                No Balance Due
+                                            </span>
+
+                                        @endif
+
+                                    @elseif($paidAmount >= $totalAmount && $totalAmount > 0)
 
                                         <span class="font-bold
                                                      text-emerald-600
@@ -1230,7 +1251,7 @@
 
                                 </div>
 
-                                @if($balance > 0)
+                                @if(!in_array($displayStatus, ['cancelled', 'no_show']) && $balance > 0)
 
                                     <p class="text-[10px]
                                               text-gray-400
@@ -1268,21 +1289,15 @@
 
                                 </span>
 
-                                @if($appt->status === 'cancelled' && $appt->cancellation_reason !== 'customer_no_show')
+                                @if($appt->status === 'cancelled' && !$isLegacyNoShow)
                                     <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
-                                        Reason: {{ $appt->cancellation_reason ? ucwords(str_replace('_', ' ', $appt->cancellation_reason)) : 'No reason provided' }}
+                                        Cancellation Reason: {{ $appt->cancellation_reason ? ucwords(str_replace('_', ' ', $appt->cancellation_reason)) : 'No reason provided' }}
                                     </div>
                                 @endif
 
-                                @if($appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show')
+                                @if($appt->status === 'no_show' || $isLegacyNoShow)
                                     <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
-                                        Reason: {{ $appt->no_show_reason ? ucwords(str_replace('_', ' ', $appt->no_show_reason)) : 'No reason provided' }}
-                                    </div>
-                                @endif
-
-                                @if($appt->status === 'no_show')
-                                    <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
-                                        Reason: {{ $appt->no_show_reason ? ucwords(str_replace('_', ' ', $appt->no_show_reason)) : 'No reason provided' }}
+                                        No-Show Reason: {{ $appt->no_show_reason ? ucwords(str_replace('_', ' ', $appt->no_show_reason)) : 'No reason provided' }}
                                     </div>
                                 @endif
 

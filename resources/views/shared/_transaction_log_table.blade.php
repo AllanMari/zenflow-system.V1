@@ -1,12 +1,12 @@
 @php
     $statusLabel = match ($currentStatus) {
-        'customer_no_show' => 'No Show',
+        'no_show' => 'No Show',
         default => ucfirst(str_replace('_', ' ', $currentStatus)),
     };
 
     $statusColor = match ($currentStatus) {
         'completed' => 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
-        'customer_no_show' => 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+        'no_show' => 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
         'cancelled' => 'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300',
         default => 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
     };
@@ -327,7 +327,7 @@
                 Cancelled
             </option>
 
-            <option value="customer_no_show" {{ $currentStatus == 'customer_no_show' ? 'selected' : '' }}>
+            <option value="no_show" {{ $currentStatus == 'no_show' ? 'selected' : '' }}>
                 No Show
             </option>
         </select>

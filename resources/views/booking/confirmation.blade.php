@@ -129,12 +129,7 @@
     |
     */
 
-    $referenceNumber = 'ZF-' . str_pad(
-        (string) $appointment->id,
-        6,
-        '0',
-        STR_PAD_LEFT
-    );
+    $referenceNumber = '#SPA-' . $appointment->id;
 @endphp
 
 
@@ -168,28 +163,24 @@
 <header
     class="sticky top-0 z-50
            border-b
-           border-gray-200/80
-           dark:border-gray-800
+           border-slate-200/80
+           dark:border-slate-700/80
            bg-white/90
-           dark:bg-gray-950/90
-           backdrop-blur-xl
-           transition-colors duration-200"
->
+           dark:bg-slate-900/90
+           backdrop-blur-xl">
 
     <div
         class="mx-auto
                flex h-16
-               max-w-5xl
+               max-w-7xl
                items-center
                justify-between
-               px-4 sm:px-6 lg:px-8"
-    >
+               px-4 sm:px-6 lg:px-8">
 
         <!-- Brand -->
         <a
             href="{{ route('landing') }}"
-            class="flex items-center gap-3 group"
-        >
+            class="flex items-center gap-3">
 
             <div
                 class="flex h-10 w-10
@@ -197,10 +188,7 @@
                        rounded-xl
                        bg-teal-600
                        text-white
-                       shadow-sm
-                       group-hover:bg-teal-700
-                       transition"
-            >
+                       shadow-sm">
                 <i
                     data-lucide="sparkles"
                     class="h-5 w-5"
@@ -208,22 +196,22 @@
             </div>
 
 
-            <div class="hidden sm:block leading-tight">
+            <div class="hidden sm:block">
 
                 <div
                     class="font-bold text-sm
-                           text-gray-900
+                           text-slate-900
                            dark:text-white"
                 >
                     Spa Alexandria
                 </div>
 
                 <div
-                    class="text-[11px]
-                           text-gray-500
-                           dark:text-gray-400"
+                    class="text-[11px] font-medium
+                           text-slate-500
+                           dark:text-slate-400"
                 >
-                    Relax. Restore. Rejuvenate.
+                    Wellness &amp; Relaxation
                 </div>
 
             </div>

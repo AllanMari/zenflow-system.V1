@@ -434,7 +434,17 @@ async function markAllRead(){try{await fetch('/api/notifications/read-all',{meth
 setInterval(async()=>{try{const r=await fetch('/api/notifications/count',{headers:{'Accept':'application/json','X-CSRF-TOKEN':CSRF}});if(r.ok){const d=await r.json();updateBadge(d.unread_count||0)}}catch(e){}},30000);
 document.addEventListener('DOMContentLoaded',async()=>{try{const r=await fetch('/api/notifications/count',{headers:{'Accept':'application/json','X-CSRF-TOKEN':CSRF}});if(r.ok){const d=await r.json();updateBadge(d.unread_count||0)}}catch(e){}});
 
-// Settings & Dark Mode
+let debounceTimer;
+const iconObserver = new MutationObserver((mutations) => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        lucide.createIcons();
+    }, 250);
+});
+
+iconObserver.observe(document.body, { childList: true, subtree: true });
+
+
 let snap=localStorage.getItem('darkMode')||'disabled';
 function openSettingsModal(){snap=document.documentElement.classList.contains('dark')?'enabled':'disabled';const m=document.getElementById('settingsModal'),b=document.getElementById('settingsBackdrop'),p=document.getElementById('settingsPanel');m.classList.remove('hidden');void m.offsetWidth;b.classList.remove('opacity-0');p.classList.remove('scale-[0.97]','opacity-0');p.classList.add('scale-100','opacity-100');updateToggle()}
 function closeSettingsModal(){snap==='enabled'?document.documentElement.classList.add('dark'):document.documentElement.classList.remove('dark');const m=document.getElementById('settingsModal'),b=document.getElementById('settingsBackdrop'),p=document.getElementById('settingsPanel');b.classList.add('opacity-0');p.classList.remove('scale-100','opacity-100');p.classList.add('scale-[0.97]','opacity-0');setTimeout(()=>m.classList.add('hidden'),300);updateToggle()}
@@ -443,26 +453,41 @@ function saveSettingsState(){const d=document.documentElement.classList.contains
 function updateToggle(){const d=document.documentElement.classList.contains('dark'),c=document.getElementById('toggleCircle'),t=document.getElementById('darkToggle');if(c)c.style.transform=d?'translateX(20px)':'translateX(0px)';if(t){t.classList.toggle('bg-brand-600',d);t.classList.toggle('bg-gray-300',!d)}}
 updateToggle();
 
-function swalConfirmAsync(text) {
+function swalConfirmStandard(options) {
     return Swal.fire({
-        title: 'Are you sure?',
-        text: text,
-        icon: 'warning',
+        ...options,
+        icon: options.icon || 'warning',
         showCancelButton: true,
         confirmButtonColor: '#3085d6',
         cancelButtonColor: '#d33',
-        confirmButtonText: 'Yes',
+        confirmButtonText: options.confirmButtonText || 'Yes',
+        cancelButtonText: options.cancelButtonText || 'Cancel',
         background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
-        color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151'
+        color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+        width: '360px',                
+        padding: '1.25rem',            
+        customClass: {
+            popup: 'rounded-2xl',
+            title: 'text-lg',
+            htmlContainer: 'text-sm',
+            confirmButton: 'rounded-lg px-4 py-2 text-sm',
+            cancelButton: 'rounded-lg px-4 py-2 text-sm'
+        }
     }).then(r => r.isConfirmed);
+}
+
+function swalConfirmAsync(text) {
+    return swalConfirmStandard({ title: 'Are you sure?', text: text });
 }
 
 @if(session('success'))
 Swal.fire({icon:'success',title:'Success',text:@json(session('success')),timer:3000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1e293b':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
-@endif
-@if(session('error'))
-Swal.fire({icon:'error',title:'Error',text:'{{ session('error') }}',timer:4000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1e293b':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
+@elseif(session('error'))
+Swal.fire({icon:'error',title:'Error',text:@json(session('error')),timer:4000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1e293b':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
+@elseif($errors->any())
+Swal.fire({icon:'error',title:'Validation Error',text:@json($errors->first()),timer:4000,timerProgressBar:true,showConfirmButton:false,toast:true,position:'top-end',background:document.documentElement.classList.contains('dark')?'#1e293b':'#ffffff',color:document.documentElement.classList.contains('dark')?'#fff':'#374151'});
 @endif
 </script>
 </body>
 </html>
+

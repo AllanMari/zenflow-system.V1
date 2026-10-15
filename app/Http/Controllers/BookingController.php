@@ -303,6 +303,8 @@ class BookingController extends Controller
         }
 
         $activeNotice = \App\Services\BusinessScheduleService::getActiveNotice();
+        $businessHours = \App\Models\BusinessHour::all();
+        $businessExceptions = \App\Models\BusinessException::whereDate('date', '>=', now('Asia/Manila')->startOfDay()->toDateString())->get();
 
         return view(
             'booking.wizard',
@@ -312,7 +314,9 @@ class BookingController extends Controller
                 'defaultName',
                 'defaultPhone',
                 'customerMedicalNotes',
-                'activeNotice'
+                'activeNotice',
+                'businessHours',
+                'businessExceptions'
             )
         );
     }
@@ -392,29 +396,8 @@ class BookingController extends Controller
             fn($s) => $s->requires_room
         );
 
-        $rooms = collect();
+        $rooms = $requiresRoom ? Room::findCompatibleForServices($services) : collect();
         $roomAppointments = collect();
-
-        if ($requiresRoom) {
-            $roomCategoryIds = $services
-                ->where('requires_room', true)
-                ->whereNotNull('room_category_id')
-                ->pluck('room_category_id')
-                ->unique()
-                ->values();
-
-            $roomsQuery = Room::active()
-                ->where('status', '!=', 'maintenance');
-
-            if ($roomCategoryIds->isNotEmpty()) {
-                $roomsQuery->where(function ($q) use ($roomCategoryIds) {
-                    $q->whereIn('category_id', $roomCategoryIds)
-                        ->orWhereNull('category_id');
-                });
-            }
-
-            $rooms = $roomsQuery->get();
-        }
 
         $tz = 'Asia/Manila';
         $now = Carbon::now($tz);
@@ -636,56 +619,18 @@ class BookingController extends Controller
                         }
 
                         if ($requiresRoom && $roomAvailable) {
-                            if ($rooms->isEmpty()) {
-                                $roomAvailable = false;
-                            } elseif (
-                                $dayAppointments &&
-                                $dayAppointments->isNotEmpty()
-                            ) {
-                                $slotStartStr = $open->format('H:i:s');
-                                $slotEndStr = $slotEnd->format('H:i:s');
+                            $eval = \App\Services\RoomCompatibilityService::evaluateSlot(
+                                $services,
+                                $dateStr,
+                                $slotStartStr,
+                                $slotEndStr
+                            );
 
-                                foreach ($rooms as $room) {
-                                    $apts = $dayAppointments[$room->id]
-                                        ?? collect();
-
-                                    $isFree = $apts->isEmpty()
-                                        || !$apts->contains(
-                                            function ($apt) use (
-                                                $slotStartStr,
-                                                $slotEndStr
-                                            ) {
-                                                return (
-                                                    $slotStartStr
-                                                    < $apt->end_time
-                                                )
-                                                    && (
-                                                        $slotEndStr
-                                                        > $apt->start_time
-                                                    );
-                                            }
-                                        );
-
-                                    if ($isFree) {
-                                        $freeRooms[] = [
-                                            'id' => $room->id,
-                                            'name' => $room->name,
-                                        ];
-                                    }
-                                }
-
-                                $roomAvailable =
-                                    count($freeRooms) > 0;
-                            } else {
-                                $freeRooms = $rooms
-                                    ->map(
-                                        fn($r) => [
-                                            'id' => $r->id,
-                                            'name' => $r->name,
-                                        ]
-                                    )
-                                    ->toArray();
-                            }
+                            $roomAvailable = $eval['room_available'];
+                            $freeRooms = $eval['compatible_rooms']->map(fn($r) => [
+                                'id' => $r->id,
+                                'name' => $r->name,
+                            ])->values()->toArray();
                         }
 
                         $slots[] = [
@@ -693,6 +638,7 @@ class BookingController extends Controller
                             'time' => $open->format('H:i'),
                             'display' => $open->format('g:i A'),
                             'room_available' => $roomAvailable,
+                            'compatible_rooms' => $freeRooms,
                             'free_rooms' => $freeRooms,
                         ];
                     }
@@ -929,29 +875,8 @@ class BookingController extends Controller
             fn($s) => $s->requires_room
         );
 
-        $rooms = collect();
+        $rooms = $requiresRoom ? Room::findCompatibleForServices($services) : collect();
         $roomAppointments = collect();
-
-        if ($requiresRoom) {
-            $roomCategoryIds = $services
-                ->where('requires_room', true)
-                ->whereNotNull('room_category_id')
-                ->pluck('room_category_id')
-                ->unique()
-                ->values();
-
-            $roomsQuery = Room::active()
-                ->where('status', '!=', 'maintenance');
-
-            if ($roomCategoryIds->isNotEmpty()) {
-                $roomsQuery->where(function ($q) use ($roomCategoryIds) {
-                    $q->whereIn('category_id', $roomCategoryIds)
-                        ->orWhereNull('category_id');
-                });
-            }
-
-            $rooms = $roomsQuery->get();
-        }
 
         $tz = 'Asia/Manila';
         $now = Carbon::now($tz);
@@ -971,7 +896,7 @@ class BookingController extends Controller
             ->where('is_active', true)
             ->get();
 
-        if ($requiresRoom && $rooms->isNotEmpty()) {
+        if ($requiresRoom) {
             $dateList = [];
 
             for (
@@ -1118,66 +1043,19 @@ class BookingController extends Controller
                         $timeIsValid
                     ) {
                         $roomAvailable = true;
+                        $reviewRequired = false;
                         $freeRooms = [];
 
                         if ($requiresRoom) {
-                            if ($rooms->isEmpty()) {
-                                $roomAvailable = false;
-                            } elseif (
-                                $dayAppointments &&
-                                $dayAppointments->isNotEmpty()
-                            ) {
-                                $slotStartStr =
-                                    $open->format('H:i:s');
-
-                                $slotEndStr =
-                                    $slotEnd->format('H:i:s');
-
-                                foreach ($rooms as $room) {
-                                    $apts =
-                                        $dayAppointments[$room->id]
-                                        ?? collect();
-
-                                    $isFree =
-                                        $apts->isEmpty()
-                                        || !$apts->contains(
-                                            function ($apt)
-                                            use (
-                                                $slotStartStr,
-                                                $slotEndStr
-                                            ) {
-                                                return (
-                                                    $slotStartStr
-                                                    < $apt->end_time
-                                                )
-                                                    && (
-                                                        $slotEndStr
-                                                        > $apt->start_time
-                                                    );
-                                            }
-                                        );
-
-                                    if ($isFree) {
-                                        $freeRooms[] = [
-                                            'id' => $room->id,
-                                            'name' => $room->name,
-                                        ];
-                                    }
-                                }
-
-                                $roomAvailable =
-                                    count($freeRooms) > 0;
-                            } else {
-                                $freeRooms =
-                                    $rooms
-                                        ->map(
-                                            fn($r) => [
-                                                'id' => $r->id,
-                                                'name' => $r->name,
-                                            ]
-                                        )
-                                        ->toArray();
-                            }
+                            $slotStartStr = $open->format('H:i:s');
+                            $slotEndStr = $slotEnd->format('H:i:s');
+                            $eval = \App\Services\RoomCompatibilityService::evaluateSlot($services, $dateStr, $slotStartStr, $slotEndStr);
+                            
+                            $roomAvailable = $eval['room_available'];
+                            $freeRooms = $eval['compatible_rooms']->map(fn($r) => [
+                                'id' => $r->id,
+                                'name' => $r->name,
+                            ])->toArray();
                         }
 
                         $slots[] = [
@@ -1187,6 +1065,8 @@ class BookingController extends Controller
                                 $open->format('g:i A'),
                             'room_available' =>
                                 $roomAvailable,
+                            'compatible_rooms' =>
+                                $freeRooms,
                             'free_rooms' =>
                                 $freeRooms,
                         ];
@@ -1556,30 +1436,21 @@ class BookingController extends Controller
         string $startTime,
         string $endTime
     ): ?Room {
-        $roomCategoryIds = $services
-            ->where('requires_room', true)
-            ->whereNotNull('room_category_id')
-            ->pluck('room_category_id')
-            ->unique()
-            ->values();
-
-        $query = Room::active()
-            ->where('status', '!=', 'maintenance');
-
-        if ($roomCategoryIds->isNotEmpty()) {
-            $query->where(function ($q) use ($roomCategoryIds) {
-                $q->whereIn('category_id', $roomCategoryIds)
-                    ->orWhereNull('category_id');
-            });
+        $compatibleRooms = Room::findCompatibleForServices($services);
+        if ($compatibleRooms->isEmpty()) {
+            return null;
         }
 
-        return $query->get()->first(
-            fn($room) => $room->isAvailableFor(
-                $date,
-                $startTime,
-                $endTime
-            )
-        );
+        return Room::lockForUpdate()
+            ->whereIn('id', $compatibleRooms->pluck('id'))
+            ->get()
+            ->first(
+                fn($room) => $room->isAvailableFor(
+                    $date,
+                    $startTime,
+                    $endTime
+                )
+            );
     }
 
     // ==================== STORE ====================
@@ -1832,41 +1703,51 @@ class BookingController extends Controller
             }
         }
 
+        $requestedRoomId = null;
         if ($requiresRoom) {
-            if ($request->filled('room_id')) {
-                $room = Room::find(
-                    $request->room_id
-                );
+            if ($request->filled('room_id') && $request->get('source', 'public') === 'public') {
+                $requestedRoomId = (int) $request->room_id;
+            }
 
-                if (
-                    !$room ||
-                    !$room->isAvailableFor(
-                        $request->appointment_date,
-                        $startTimeStr,
-                        $endTimeStr
-                    )
-                ) {
-                    return $fail(
-                        'The selected room is no longer available at this time. Please pick another slot.'
-                    );
-                }
-            } else {
-                $freeRoom = $this->findFreeRoom(
+            $appointmentResult = DB::transaction(function () use ($request, $services, $startTimeStr, $endTimeStr, &$fail, &$requestedRoomId) {
+                $eval = \App\Services\RoomCompatibilityService::evaluateSlot(
                     $services,
                     $request->appointment_date,
                     $startTimeStr,
                     $endTimeStr
                 );
 
-                if (!$freeRoom) {
-                    return $fail(
-                        'No rooms available for this time. Please choose a different time.'
-                    );
+                if (!$eval['room_available'] || $eval['compatible_rooms']->isEmpty()) {
+                    return $fail('No compatible rooms available for this time. Please choose a different time.');
                 }
 
-                $request->merge([
-                    'room_id' => $freeRoom->id,
-                ]);
+                if ($request->filled('room_id')) {
+                    $roomId = (int) $request->room_id;
+                    $room = Room::lockForUpdate()->find($roomId);
+                    $isCompatible = $eval['compatible_rooms']->contains('id', $roomId);
+
+                    if (
+                        !$room ||
+                        !$room->is_active ||
+                        $room->status === 'maintenance' ||
+                        !$isCompatible
+                    ) {
+                        return $fail('The selected room is not compatible with all selected services or is no longer available. Please pick another slot.');
+                    }
+
+                    $requestedRoomId = $roomId;
+                    $request->merge(['room_id' => $roomId]);
+                } else {
+                    $request->merge([
+                        'room_id' => $eval['compatible_rooms']->first()->id,
+                    ]);
+                }
+
+                return null;
+            });
+
+            if ($appointmentResult instanceof \Illuminate\Http\JsonResponse || $appointmentResult instanceof \Illuminate\Http\RedirectResponse) {
+                return $appointmentResult;
             }
         }
 
@@ -2004,12 +1885,14 @@ class BookingController extends Controller
             $status,
             $confirmedAt,
             $user,
+            $requestedRoomId,
             &$appointment
         ) {
             $appointment = Appointment::create([
                 'customer_id' => $customer->id,
                 'user_id' => $request->staff_id,
                 'room_id' => $request->room_id,
+                'requested_room_id' => $requestedRoomId,
                 'appointment_date' =>
                     $request->appointment_date,
                 'start_time' =>

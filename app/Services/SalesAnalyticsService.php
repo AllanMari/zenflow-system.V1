@@ -130,16 +130,15 @@ class SalesAnalyticsService
             ->count();
 
         $cancelledApptsInPeriod = $periodAppts
-            ->where('status', 'cancelled')
-            ->where(function ($q) {
-                return $q->where('cancellation_reason', '!=', 'customer_no_show')
-                    ->orWhereNull('cancellation_reason');
+            ->filter(function ($appt) {
+                return $appt->status === 'cancelled' && $appt->cancellation_reason !== 'customer_no_show';
             })
             ->count();
 
         $noShowApptsInPeriod = $periodAppts
-            ->where('status', 'cancelled')
-            ->where('cancellation_reason', 'customer_no_show')
+            ->filter(function ($appt) {
+                return $appt->status === 'no_show' || ($appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show');
+            })
             ->count();
 
         /*
@@ -178,8 +177,9 @@ class SalesAnalyticsService
         |--------------------------------------------------------------------------
         */
         $noShowAppointments = $periodAppts
-            ->where('status', 'cancelled')
-            ->where('cancellation_reason', 'customer_no_show')
+            ->filter(function ($appt) {
+                return $appt->status === 'no_show' || ($appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show');
+            })
             ->values();
 
         $noShowData = $this->getNoShowData($noShowAppointments);
@@ -621,27 +621,21 @@ class SalesAnalyticsService
             'appointment',
             function ($q) use ($currentStatus) {
                 match ($currentStatus) {
-                    'customer_no_show' =>
-                        $q->where('status', 'cancelled')
-                            ->where(
-                                'cancellation_reason',
-                                'customer_no_show'
-                            ),
+                    'no_show' =>
+                        $q->where(function ($sub) {
+                            $sub->where('status', 'no_show')
+                               ->orWhere(function ($sq) {
+                                   $sq->where('status', 'cancelled')
+                                      ->where('cancellation_reason', 'customer_no_show');
+                               });
+                        }),
 
                     'cancelled' =>
                         $q->where('status', 'cancelled')
-                            ->where(
-                                function ($sq) {
-                                    $sq->where(
-                                        'cancellation_reason',
-                                        '!=',
-                                        'customer_no_show'
-                                    )
-                                    ->orWhereNull(
-                                        'cancellation_reason'
-                                    );
-                                }
-                            ),
+                          ->where(function ($sub) {
+                              $sub->whereNull('cancellation_reason')
+                                  ->orWhere('cancellation_reason', '!=', 'customer_no_show');
+                          }),
 
                     default =>
                         $q->where(
@@ -881,15 +875,11 @@ class SalesAnalyticsService
                 $staff[$staffId]['completed']++;
             }
 
-            if ($appt->status === 'cancelled') {
-                if (
-                    $appt->cancellation_reason
-                    === 'customer_no_show'
-                ) {
-                    $staff[$staffId]['no_shows']++;
-                } else {
-                    $staff[$staffId]['cancelled']++;
-                }
+            if ($appt->status === 'cancelled' && $appt->cancellation_reason !== 'customer_no_show') {
+                $staff[$staffId]['cancelled']++;
+            }
+            if ($appt->status === 'no_show' || ($appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show')) {
+                $staff[$staffId]['no_shows']++;
             }
 
             /*
@@ -1200,7 +1190,7 @@ class SalesAnalyticsService
         $details = [];
 
         foreach ($appointments as $appointment) {
-            if ($appointment->status !== 'cancelled') {
+            if ($appointment->status !== 'cancelled' && $appointment->status !== 'no_show') {
                 continue;
             }
 
@@ -1216,8 +1206,7 @@ class SalesAnalyticsService
                 continue;
             }
 
-            $isNoShow =
-                $appointment->cancellation_reason === 'customer_no_show';
+            $isNoShow = $appointment->status === 'no_show' || ($appointment->status === 'cancelled' && $appointment->cancellation_reason === 'customer_no_show');
 
             $deposit = $appointment->payments
                 ->where('type', 'deposit')
@@ -1256,7 +1245,7 @@ class SalesAnalyticsService
                 'appointment_id' => $appointment->id,
                 'date' => $appointment->appointment_date,
                 'status' => $isNoShow
-                    ? 'customer_no_show'
+                    ? 'no_show'
                     : 'cancelled',
                 'service_value' => round($serviceValue, 2),
                 'deposit' => round((float) $deposit, 2),
@@ -1773,11 +1762,9 @@ class SalesAnalyticsService
             ->get();
 
         $prevNoShows = $prevAppts
-            ->where('status', 'cancelled')
-            ->where(
-                'cancellation_reason',
-                'customer_no_show'
-            );
+            ->filter(function ($appt) {
+                return $appt->status === 'no_show' || ($appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show');
+            });
 
         foreach ($prevNoShows as $appt) {
             $deposit = $appt->payments
@@ -2045,12 +2032,7 @@ private function getNoShowData(
                     );
             }
 
-            $trueStatus =
-                $appt->status === 'cancelled'
-                && $appt->cancellation_reason
-                    === 'customer_no_show'
-                    ? 'customer_no_show'
-                    : $appt->status;
+            $trueStatus = $appt->status;
 
             $rows[] = [
                 'rowNum' =>
@@ -2561,14 +2543,9 @@ private function getNoShowData(
                         ? round(
                             (
                                 $prevAppts
-                                    ->where(
-                                        'status',
-                                        'cancelled'
-                                    )
-                                    ->where(
-                                        'cancellation_reason',
-                                        'customer_no_show'
-                                    )
+                                    ->filter(function ($appt) {
+                                        return $appt->status === 'no_show' || ($appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show');
+                                    })
                                     ->count()
                                 / $prevTotal
                             ) * 100,
@@ -2581,10 +2558,9 @@ private function getNoShowData(
                         ? round(
                             (
                                 $prevAppts
-                                    ->where(
-                                        'status',
-                                        'cancelled'
-                                    )
+                                    ->filter(function ($appt) {
+                                        return $appt->status === 'cancelled' && $appt->cancellation_reason !== 'customer_no_show';
+                                    })
                                     ->count()
                                 / $prevTotal
                             ) * 100,
@@ -2666,11 +2642,7 @@ private function getNoShowData(
                             $monthAppts
                                 ->where(
                                     'status',
-                                    'cancelled'
-                                )
-                                ->where(
-                                    'cancellation_reason',
-                                    'customer_no_show'
+                                    'no_show'
                                 )
                                 ->count()
                             / $total

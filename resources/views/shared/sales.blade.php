@@ -179,8 +179,42 @@
 <div
     x-data="{
         activeTab: 'overview',
-        reportMenu: false,
-        businessMenu: false
+        salesReportModalOpen: false,
+        businessReportModalOpen: false,
+        salesCheckedBy: '',
+        businessCheckedBy: '',
+        generateSalesReport(action) {
+            const params = new URLSearchParams(window.location.search);
+            params.set('action', action);
+            if (this.salesCheckedBy) {
+                params.set('checked_by', this.salesCheckedBy);
+            } else {
+                params.delete('checked_by');
+            }
+            const url = '{{ route($routeName . '.daily-report-pdf') }}?' + params.toString();
+            if (action === 'stream') {
+                window.open(url, '_blank', 'noopener');
+            } else {
+                window.location.href = url;
+            }
+            this.salesReportModalOpen = false;
+        },
+        generateBusinessReport(action) {
+            const params = new URLSearchParams(window.location.search);
+            params.set('action', action);
+            if (this.businessCheckedBy) {
+                params.set('checked_by', this.businessCheckedBy);
+            } else {
+                params.delete('checked_by');
+            }
+            const url = '{{ route($routeName . '.business-report-pdf') }}?' + params.toString();
+            if (action === 'stream') {
+                window.open(url, '_blank', 'noopener');
+            } else {
+                window.location.href = url;
+            }
+            this.businessReportModalOpen = false;
+        }
     }"
     class="min-w-0"
 >
@@ -383,252 +417,56 @@
             {{-- RIGHT: REPORT BUTTONS --}}
             <div class="flex flex-wrap items-center gap-2">
 
-                {{-- DAILY / PERIOD REPORT --}}
-                <div class="relative">
+                {{-- SALES REPORT BUTTON --}}
+                <button
+                    type="button"
+                    @click="salesReportModalOpen = true"
+                    class="h-10 px-3.5 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 transition"
+                >
 
-                    <button
-                        type="button"
-                        @click="reportMenu = !reportMenu; businessMenu = false"
-                        class="h-10 px-3.5 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 transition"
+                    <svg
+                        class="w-4 h-4 text-brand-600 dark:text-brand-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                     >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="1.8"
+                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                    </svg>
 
-                        <svg
-                            class="w-4 h-4 text-brand-600 dark:text-brand-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="1.8"
-                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                        </svg>
+                    {{ $periodLabel }} Report
 
-                        {{ $periodLabel }} Report
-
-                        <svg
-                            class="w-3.5 h-3.5 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="m6 9 6 6 6-6"
-                            />
-                        </svg>
-
-                    </button>
+                </button>
 
 
-                    <div
-                        x-show="reportMenu"
-                        x-transition
-                        @click.away="reportMenu = false"
-                        x-cloak
-                        class="absolute right-0 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl z-50 dark:border-neutral-700 dark:bg-neutral-800"
+                {{-- BUSINESS REPORT BUTTON --}}
+                <button
+                    type="button"
+                    @click="businessReportModalOpen = true"
+                    class="h-10 px-3.5 inline-flex items-center gap-2 rounded-xl bg-gray-900 text-white text-sm font-bold shadow-sm hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-neutral-200 transition"
+                >
+
+                    <svg
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                     >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="1.8"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4-4 4m0 0-4-4m4 4V4"
+                        />
+                    </svg>
 
-                        <div class="px-3 py-2 border-b border-gray-100 dark:border-neutral-700">
+                    Business Report
 
-                            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                {{ $periodLabel }}
-                            </p>
-
-                        </div>
-
-
-                        {{-- DOWNLOAD PDF --}}
-                        <a
-                            href="{{ route($routeName . '.daily-report-pdf', array_merge(request()->all(), ['action' => 'download'])) }}"
-                            class="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                        >
-
-                            <span class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center dark:bg-red-900/20 dark:text-red-400">
-
-                                <svg
-                                    class="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="1.8"
-                                        d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"
-                                    />
-                                </svg>
-
-                            </span>
-
-                            Download PDF
-
-                        </a>
-
-
-                        {{-- PRINT PREVIEW --}}
-                        <a
-                            href="{{ route($routeName . '.daily-report-pdf', array_merge(request()->all(), ['action' => 'stream'])) }}"
-                            target="_blank"
-                            class="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 border-t border-gray-100 hover:bg-gray-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                        >
-
-                            <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center dark:bg-blue-900/20 dark:text-blue-400">
-
-                                <svg
-                                    class="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="1.8"
-                                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                                    />
-
-                                    <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="3"
-                                    />
-                                </svg>
-
-                            </span>
-
-                            Print Preview
-
-                        </a>
-
-                    </div>
-
-                </div>
-
-
-                {{-- BUSINESS REPORT --}}
-                <div class="relative">
-
-                    <button
-                        type="button"
-                        @click="businessMenu = !businessMenu; reportMenu = false"
-                        class="h-10 px-3.5 inline-flex items-center gap-2 rounded-xl bg-gray-900 text-white text-sm font-bold shadow-sm hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-neutral-200 transition"
-                    >
-
-                        <svg
-                            class="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="1.8"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4-4 4m0 0-4-4m4 4V4"
-                            />
-                        </svg>
-
-                        Business Report
-
-                        <svg
-                            class="w-3.5 h-3.5 opacity-70"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="m6 9 6 6 6-6"
-                            />
-                        </svg>
-
-                    </button>
-
-
-                    <div
-                        x-show="businessMenu"
-                        x-transition
-                        @click.away="businessMenu = false"
-                        x-cloak
-                        class="absolute right-0 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl z-50 dark:border-neutral-700 dark:bg-neutral-800"
-                    >
-
-                        {{-- DOWNLOAD REPORT --}}
-                        <a
-                            href="{{ route($routeName . '.business-report-pdf', array_merge(request()->all(), ['action' => 'download'])) }}"
-                            class="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                        >
-
-                            <span class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center dark:bg-brand-900/20 dark:text-brand-400">
-
-                                <svg
-                                    class="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="1.8"
-                                        d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"
-                                    />
-                                </svg>
-
-                            </span>
-
-                            Download Report
-
-                        </a>
-
-
-                        {{-- PRINT PREVIEW --}}
-                        <a
-                            href="{{ route($routeName . '.business-report-pdf', array_merge(request()->all(), ['action' => 'stream'])) }}"
-                            target="_blank"
-                            class="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 border-t border-gray-100 hover:bg-gray-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                        >
-
-                            <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center dark:bg-blue-900/20 dark:text-blue-400">
-
-                                <svg
-                                    class="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="1.8"
-                                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                                    />
-
-                                    <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="3"
-                                    />
-
-                                </svg>
-
-                            </span>
-
-                            Print Preview
-
-                        </a>
-
-                    </div>
-
-                </div>
+                </button>
 
             </div>
 
@@ -636,6 +474,134 @@
 
     </div>
 
+
+    {{-- =========================================================
+         SALES REPORT MODAL
+    ========================================================== --}}
+    <div
+        x-show="salesReportModalOpen"
+        x-cloak
+        x-transition.opacity
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-sm"
+        @keydown.escape.window="salesReportModalOpen = false"
+    >
+        <div
+            x-show="salesReportModalOpen"
+            x-transition:enter="ease-out duration-200"
+            x-transition:enter-start="opacity-0 translate-y-2 scale-[.98]"
+            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+            x-transition:leave="ease-in duration-150"
+            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+            x-transition:leave-end="opacity-0 translate-y-2 scale-[.98]"
+            @click.outside="salesReportModalOpen = false"
+            class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900 dark:border dark:border-slate-800"
+        >
+            <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-slate-800">
+                <div class="flex items-center gap-2">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-900/20 dark:text-brand-400">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </span>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">{{ $periodLabel }} Report</h3>
+                </div>
+                <button type="button" @click="salesReportModalOpen = false" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800 dark:hover:text-gray-200">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5 space-y-4">
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Filter Summary</p>
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-3.5 dark:border-slate-800 dark:bg-slate-950/40">
+                        <div class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
+                            <span class="font-bold">{{ $periodLabel }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ $startDate->format('M d, Y') }} — {{ $endDate->format('M d, Y') }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Checked / Verified By (Optional)</label>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-2">Include a secondary signature line for verification.</p>
+                    <input type="text" x-model="salesCheckedBy" placeholder="e.g. Jane Doe, Operations Manager" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
+                </div>
+
+    {{-- =========================================================
+         BUSINESS REPORT MODAL
+    ========================================================== --}}
+    <div
+        x-show="businessReportModalOpen"
+        x-cloak
+        x-transition.opacity
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-sm"
+        @keydown.escape.window="businessReportModalOpen = false"
+    >
+        <div
+            x-show="businessReportModalOpen"
+            x-transition:enter="ease-out duration-200"
+            x-transition:enter-start="opacity-0 translate-y-2 scale-[.98]"
+            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+            x-transition:leave="ease-in duration-150"
+            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+            x-transition:leave-end="opacity-0 translate-y-2 scale-[.98]"
+            @click.outside="businessReportModalOpen = false"
+            class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900 dark:border dark:border-slate-800"
+        >
+            <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-slate-800">
+                <div class="flex items-center gap-2">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-900/20 dark:text-brand-400">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4-4 4m0 0-4-4m4 4V4"/></svg>
+                    </span>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Business Report</h3>
+                </div>
+                <button type="button" @click="businessReportModalOpen = false" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800 dark:hover:text-gray-200">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5 space-y-4">
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Filter Summary</p>
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-3.5 dark:border-slate-800 dark:bg-slate-950/40">
+                        <div class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
+                            <span class="font-bold">Business Report Range</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ $startDate->format('M d, Y') }} — {{ $endDate->format('M d, Y') }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Checked / Verified By (Optional)</label>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-2">Include a secondary signature line for verification.</p>
+                    <input type="text" x-model="businessCheckedBy" placeholder="e.g. Jane Doe, Operations Manager" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
+                </div>
+            </div>
+            <div class="border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button type="button" @click="businessReportModalOpen = false" class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700">Cancel</button>
+                    <button type="button" @click="generateBusinessReport('stream')" class="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-600 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500 dark:bg-slate-900 dark:text-brand-300 dark:hover:bg-brand-900/20">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Preview
+                    </button>
+                    <button type="button" @click="generateBusinessReport('download')" class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 shadow-sm">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+                        Download PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+            </div>
+            <div class="border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button type="button" @click="salesReportModalOpen = false" class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700">Cancel</button>
+                    <button type="button" @click="generateSalesReport('stream')" class="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-600 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500 dark:bg-slate-900 dark:text-brand-300 dark:hover:bg-brand-900/20">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Preview
+                    </button>
+                    <button type="button" @click="generateSalesReport('download')" class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 shadow-sm">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+                        Download PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {{-- =========================================================
          PERIOD SUMMARY

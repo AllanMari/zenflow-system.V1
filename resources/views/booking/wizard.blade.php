@@ -160,10 +160,6 @@
             color: #cbd5e1;
         }
 
-        .fc .fc-day-sun {
-            background: #fafafa;
-        }
-
         @media (max-width: 640px) {
             .fc .fc-toolbar {
                 flex-direction: column;
@@ -388,13 +384,10 @@
                                     ? 'bg-zen-600 text-white'
                                     : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400'"
                             >
-                                <template x-if="step > 1">
-                                    <i data-lucide="check" class="h-4 w-4"></i>
-                                </template>
-
-                                <template x-if="step <= 1">
-                                    <span>1</span>
-                                </template>
+                                <svg x-show="step > 1" x-cloak class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                <span x-show="step <= 1">1</span>
                             </div>
 
                             <div class="min-w-0">
@@ -441,13 +434,10 @@
                                     ? 'bg-zen-600 text-white'
                                     : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400'"
                             >
-                                <template x-if="step > 2">
-                                    <i data-lucide="check" class="h-4 w-4"></i>
-                                </template>
-
-                                <template x-if="step <= 2">
-                                    <span>2</span>
-                                </template>
+                                <svg x-show="step > 2" x-cloak class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                <span x-show="step <= 2">2</span>
                             </div>
 
                             <div class="min-w-0">
@@ -494,7 +484,10 @@
                                     ? 'bg-zen-600 text-white'
                                     : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400'"
                             >
-                                3
+                                <svg x-show="step > 3" x-cloak class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                <span x-show="step <= 3">3</span>
                             </div>
 
                             <div class="min-w-0">
@@ -884,19 +877,35 @@
 
                                                 <div class="grid grid-cols-2 gap-2">
                                                     <template x-for="slot in morningSlots" :key="slot.time">
-                                                        <button
-                                                            type="button"
-                                                            @click="selectSlot(slot)"
-                                                            :disabled="slot.room_available === false"
-                                                            class="slot-button min-h-12 rounded-xl border px-3 py-3 text-sm font-bold"
-                                                            :class="selectedTime === slot.time
-                                                                ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
-                                                                : slot.room_available === false
-                                                                    ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
-                                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
-                                                        >
-                                                            <span x-text="formatTime(slot.time)"></span>
-                                                        </button>
+                                                        <div class="relative flex flex-col" :class="selectedTime === slot.time ? 'col-span-2' : ''">
+                                                            <button
+                                                                type="button"
+                                                                @click="selectSlot(slot)"
+                                                                :disabled="slot.room_available === false"
+                                                                class="flex h-16 w-full flex-col items-center justify-center rounded-xl border px-3 py-2 text-sm font-bold transition"
+                                                                :class="selectedTime === slot.time
+                                                                    ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
+                                                                    : slot.room_available === false
+                                                                        ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
+                                                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
+                                                            >
+                                                                <span x-text="formatTime(slot.time)"></span>
+                                                                <span class="text-[10px] font-normal" x-text="((slot.free_rooms || []).length + ' compatible room' + ((slot.free_rooms || []).length !== 1 ? 's' : '') + ' available')"></span>
+                                                            </button>
+
+                                                            <!-- Animated Room Drawer -->
+                                                            <div x-show="selectedTime === slot.time" x-cloak x-transition class="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 shadow-inner">
+                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider" 'Room preference (optional)'></p>
+                                                                <div class="mt-3 space-y-2">
+                                                                    <template x-for="r in (slot.compatible_rooms || slot.free_rooms || [])" :key="r.id">
+                                                                        <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition">
+                                                                            <input type="radio" :value="r.id" :name="'room_pref_' + slot.time" x-model="selectedRoomId" class="text-zen-600 focus:ring-zen-500">
+                                                                            <span x-text="r.name" class="text-slate-700 dark:text-slate-300 font-medium"></span>
+                                                                        </label>
+                                                                    </template>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </template>
                                                 </div>
                                             </div>
@@ -917,19 +926,35 @@
 
                                                 <div class="grid grid-cols-2 gap-2">
                                                     <template x-for="slot in afternoonSlots" :key="slot.time">
-                                                        <button
-                                                            type="button"
-                                                            @click="selectSlot(slot)"
-                                                            :disabled="slot.room_available === false"
-                                                            class="slot-button min-h-12 rounded-xl border px-3 py-3 text-sm font-bold"
-                                                            :class="selectedTime === slot.time
-                                                                ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
-                                                                : slot.room_available === false
-                                                                    ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
-                                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
-                                                        >
-                                                            <span x-text="formatTime(slot.time)"></span>
-                                                        </button>
+                                                        <div class="relative flex flex-col" :class="selectedTime === slot.time ? 'col-span-2' : ''">
+                                                            <button
+                                                                type="button"
+                                                                @click="selectSlot(slot)"
+                                                                :disabled="slot.room_available === false"
+                                                                class="flex h-16 w-full flex-col items-center justify-center rounded-xl border px-3 py-2 text-sm font-bold transition"
+                                                                :class="selectedTime === slot.time
+                                                                    ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
+                                                                    : slot.room_available === false
+                                                                        ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
+                                                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
+                                                            >
+                                                                <span x-text="formatTime(slot.time)"></span>
+                                                                <span class="text-[10px] font-normal" x-text="((slot.free_rooms || []).length + ' compatible room' + ((slot.free_rooms || []).length !== 1 ? 's' : '') + ' available')"></span>
+                                                            </button>
+
+                                                            <!-- Animated Room Drawer -->
+                                                            <div x-show="selectedTime === slot.time" x-cloak x-transition class="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 shadow-inner">
+                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider" 'Room preference (optional)'></p>
+                                                                <div class="mt-3 space-y-2">
+                                                                    <template x-for="r in (slot.compatible_rooms || slot.free_rooms || [])" :key="r.id">
+                                                                        <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition">
+                                                                            <input type="radio" :value="r.id" :name="'room_pref_' + slot.time" x-model="selectedRoomId" class="text-zen-600 focus:ring-zen-500">
+                                                                            <span x-text="r.name" class="text-slate-700 dark:text-slate-300 font-medium"></span>
+                                                                        </label>
+                                                                    </template>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </template>
                                                 </div>
                                             </div>
@@ -950,19 +975,35 @@
 
                                                 <div class="grid grid-cols-2 gap-2">
                                                     <template x-for="slot in eveningSlots" :key="slot.time">
-                                                        <button
-                                                            type="button"
-                                                            @click="selectSlot(slot)"
-                                                            :disabled="slot.room_available === false"
-                                                            class="slot-button min-h-12 rounded-xl border px-3 py-3 text-sm font-bold"
-                                                            :class="selectedTime === slot.time
-                                                                ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
-                                                                : slot.room_available === false
-                                                                    ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
-                                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
-                                                        >
-                                                            <span x-text="formatTime(slot.time)"></span>
-                                                        </button>
+                                                        <div class="relative flex flex-col" :class="selectedTime === slot.time ? 'col-span-2' : ''">
+                                                            <button
+                                                                type="button"
+                                                                @click="selectSlot(slot)"
+                                                                :disabled="slot.room_available === false"
+                                                                class="flex h-16 w-full flex-col items-center justify-center rounded-xl border px-3 py-2 text-sm font-bold transition"
+                                                                :class="selectedTime === slot.time
+                                                                    ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
+                                                                    : slot.room_available === false
+                                                                        ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
+                                                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
+                                                            >
+                                                                <span x-text="formatTime(slot.time)"></span>
+                                                                <span class="text-[10px] font-normal" x-text="((slot.free_rooms || []).length + ' compatible room' + ((slot.free_rooms || []).length !== 1 ? 's' : '') + ' available')"></span>
+                                                            </button>
+
+                                                            <!-- Animated Room Drawer -->
+                                                            <div x-show="selectedTime === slot.time" x-cloak x-transition class="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 shadow-inner">
+                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider" 'Room preference (optional)'></p>
+                                                                <div class="mt-3 space-y-2">
+                                                                    <template x-for="r in (slot.compatible_rooms || slot.free_rooms || [])" :key="r.id">
+                                                                        <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition">
+                                                                            <input type="radio" :value="r.id" :name="'room_pref_' + slot.time" x-model="selectedRoomId" class="text-zen-600 focus:ring-zen-500">
+                                                                            <span x-text="r.name" class="text-slate-700 dark:text-slate-300 font-medium"></span>
+                                                                        </label>
+                                                                    </template>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </template>
                                                 </div>
                                             </div>
@@ -1885,6 +1926,8 @@
     >
         @csrf
 
+        <input type="hidden" name="room_id" x-bind:value="selectedRoomId">
+
         <input
             type="hidden"
             name="source"
@@ -1944,6 +1987,9 @@
     <script>
         window.bookingCategories = {!! $categoriesJson !!};
 
+        window.bookingBusinessHours = @json($businessHours ?? []);
+        window.bookingBusinessExceptions = @json($businessExceptions ?? []);
+
         window.bookingDefaults = {
             name: @json($defaultName ?? ''),
             phone: @json($defaultPhone ?? ''),
@@ -1967,6 +2013,9 @@
 
                 step: 1,
 
+                businessHours: window.bookingBusinessHours || [],
+                businessExceptions: window.bookingBusinessExceptions || [],
+
                 categories: window.bookingCategories || [],
 
                 activeCategory: null,
@@ -1976,6 +2025,9 @@
                 appointmentDate: '',
 
                 selectedTime: '',
+                selectedRoomId: null,
+                
+
 
                 slots: [],
 
@@ -2310,20 +2362,7 @@
 
                                 const clickedDate = info.dateStr;
 
-                                /*
-                                 * Sunday
-                                 */
-
-                                if (this.isSunday(clickedDate)) {
-
-                                    this.showMessage(
-                                        'Sunday is unavailable',
-                                        'Spa Alexandria is closed on Sundays.',
-                                        'info'
-                                    );
-
-                                    return;
-                                }
+                                if (this.isDateClosed(clickedDate)) { this.showMessage("Date is unavailable", this.getClosedReason(clickedDate), "info"); return; }
 
                                 /*
                                  * Prevent dates beyond booking window.
@@ -2345,9 +2384,7 @@
                                     arg.date
                                 );
 
-                                if (this.isSunday(date)) {
-                                    return ['booking-sunday'];
-                                }
+                                if (this.isDateClosed(date)) { return ['booking-closed-day']; }
 
                                 return [];
                             },
@@ -2364,11 +2401,7 @@
                 },
 
 
-                selectDate(date) {
-
-                    if (this.isSunday(date)) {
-                        return;
-                    }
+                selectDate(date) { if (this.isDateClosed(date)) { return; }
 
                     this.appointmentDate = date;
 
@@ -2522,7 +2555,7 @@
                         const stillAvailable = this.slots.some(
                             slot => {
                                 return slot.time === this.selectedTime &&
-                                    slot.room_available !== false;
+                                    slot.room_available === true;
                             }
                         );
 
@@ -2561,7 +2594,7 @@
                 get availableSlots() {
 
                     return this.slots.filter(
-                        slot => slot.room_available !== false
+                        slot => slot.room_available === true
                     );
                 },
 
@@ -2601,6 +2634,7 @@
                     }
 
                     this.selectedTime = slot.time;
+                    this.selectedRoomId = null;
 
                     this.$nextTick(() => {
                         this.refreshIcons();
@@ -2975,19 +3009,49 @@
                 },
 
 
-                isSunday(dateString) {
+                isDateClosed(dateString) {
+                    if (!dateString) return false;
+                    const exc = (this.businessExceptions || []).find(e => {
+                        const eDate = typeof e.date === 'string' ? e.date.substring(0, 10) : '';
+                        return eDate === dateString;
+                    });
+                    if (exc) {
+                        return !!exc.is_closed;
+                    }
 
-                    const parts = dateString
-                        .split('-')
-                        .map(Number);
+                    const parts = dateString.split('-').map(Number);
+                    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+                    const dayOfWeek = date.getDay();
 
-                    const date = new Date(
-                        parts[0],
-                        parts[1] - 1,
-                        parts[2]
-                    );
+                    const bh = (this.businessHours || []).find(h => Number(h.day_of_week) === dayOfWeek);
+                    if (bh) {
+                        return !!bh.is_closed;
+                    }
 
-                    return date.getDay() === 0;
+                    return false;
+                },
+
+                getClosedReason(dateString) {
+                    if (!dateString) return 'The spa is closed on this date.';
+                    const exc = (this.businessExceptions || []).find(e => {
+                        const eDate = typeof e.date === 'string' ? e.date.substring(0, 10) : '';
+                        return eDate === dateString;
+                    });
+                    if (exc && exc.is_closed) {
+                        return exc.notice_message || exc.title || 'The spa is closed for a special event/holiday.';
+                    }
+
+                    const parts = dateString.split('-').map(Number);
+                    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+                    const dayOfWeek = date.getDay();
+                    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+                    const bh = (this.businessHours || []).find(h => Number(h.day_of_week) === dayOfWeek);
+                    if (bh && bh.is_closed) {
+                        return 'Spa Alexandria is closed on ' + days[dayOfWeek] + 's.';
+                    }
+
+                    return 'The spa is closed on this date.';
                 },
 
 
@@ -3163,11 +3227,11 @@
             color: white;
         }
 
-        #booking-calendar .booking-sunday {
+        #booking-calendar .booking-closed-day {
             background: #fafafa !important;
         }
 
-        #booking-calendar .booking-sunday .fc-daygrid-day-number {
+        #booking-calendar .booking-closed-day .fc-daygrid-day-number {
             color: #cbd5e1 !important;
         }
     </style>

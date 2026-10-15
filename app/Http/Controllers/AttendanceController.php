@@ -626,12 +626,8 @@ class AttendanceController extends Controller
                 'M j, Y g:i A'
             );
 
-        $data['preparedBy'] =
-            trim(
-                auth()->user()->first_name
-                . ' '
-                . auth()->user()->last_name
-            );
+        $data['preparedBy'] = trim(auth()->user()->first_name . ' ' . auth()->user()->last_name);
+        $data['checkedBy'] = $request->input('checked_by');
 
         $filename = 'attendance-report.pdf';
 

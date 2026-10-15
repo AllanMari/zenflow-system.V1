@@ -127,6 +127,17 @@ class Room extends Model
         return null;
     }
 
+    public static function findCompatibleForServices($services)
+    {
+        return \App\Services\RoomCompatibilityService::findCompatibleForServices($services);
+    }
+
+    public static function findAvailableForServices($services, $date, $startTime, $endTime, ?int $excludeAppointmentId = null)
+    {
+        $eval = \App\Services\RoomCompatibilityService::evaluateSlot($services, $date, $startTime, $endTime, $excludeAppointmentId);
+        return $eval['free_rooms'];
+    }
+
     public static function findAvailableFor(Service $service, $date, $startTime, $endTime, ?int $excludeAppointmentId = null)
     {
         $query = self::active()
