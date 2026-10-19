@@ -1,22 +1,11 @@
 @php
-    // Helper for time formatting
     $fmt = fn($t) => $t ? \Carbon\Carbon::parse($t)->format('g:i A') : '—';
-
-    // Fallbacks in case the controller hasn't been fully updated yet to pass these explicitly
     $totalHours = $totalHours ?? 0;
     $daysWorking = $daysWorking ?? 0;
-    $weekLabel = $weekLabel ?? now()->startOfWeek()->format('M j') . ' – ' . now()->endOfWeek()->format('M j, Y');
+    $todayDateStr = \Carbon\Carbon::today('Asia/Manila')->toDateString();
 
-    // Compute today's shift (if today falls within this week)
-    $todayShift = null;
-    if (isset($weeklySchedule) && count($weeklySchedule) > 0) {
-        foreach ($weeklySchedule as $d) {
-            if (($d['date'] ?? null) === now()->toDateString()) {
-                $todayShift = $d;
-                break;
-            }
-        }
-    }
+    // Check if the viewed week contains today
+    $isCurrentWeek = ($weekStart && $weekEnd) ? ($todayDateStr >= $weekStart->toDateString() && $todayDateStr <= $weekEnd->toDateString()) : false;
 @endphp
 
 @extends('layouts.staff')
@@ -29,432 +18,524 @@
         .no-print { display: none !important; }
         .print-block { display: block !important; }
         body { background: white !important; }
-        .today-card { animation: none !important; box-shadow: none !important; }
     }
     .print-block { display: none; }
-
-    @keyframes subtlePulse {
-        0% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4); }
-        70% { box-shadow: 0 0 0 4px rgba(20, 184, 166, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
-    }
-    .today-card {
-        animation: subtlePulse 2s infinite;
-        border-color: #14b8a6 !important;
-    }
-    .dark .today-card {
-        border-color: #0d9488 !important;
-    }
-    .past-day {
-        opacity: 0.7;
-        filter: grayscale(0.5);
-    }
 </style>
 @endpush
 
 @section('content')
-<div class="max-w-[85rem] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 mx-auto space-y-6">
+<div class="space-y-6">
 
-    <!-- 1. Header & Navigation -->
-    <div class="flex flex-col md:flex-row md:items-end justify-between gap-5 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm dark:bg-neutral-900 dark:border-neutral-700">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-800 dark:text-neutral-200 flex items-center gap-3">
-                <span class="inline-flex items-center justify-center size-10 rounded-lg bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400">
-                    <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
-                </span>
-                My Schedule
-            </h1>
-            <p class="mt-2 text-sm text-gray-500 dark:text-neutral-500">
-                View your assigned shifts, scheduled hours, and approved exceptions for ZenFlow.
-            </p>
-        </div>
-
-        <!-- Week Navigation Toolbar -->
-        <div class="flex items-center gap-2">
-            <div class="flex items-center bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-1.5 shadow-sm">
-                <a href="?week_start={{ $prevWeek ?? now()->subWeek()->toDateString() }}" class="p-2 rounded-md text-gray-500 hover:bg-white hover:text-gray-800 hover:shadow-sm dark:hover:bg-neutral-700 dark:text-neutral-400 dark:hover:text-white transition-all" title="Previous Week">
-                    <svg class="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-                </a>
-
-                <div class="flex items-center px-4 border-x border-gray-200 dark:border-neutral-700 mx-1">
-                    <span class="text-sm font-bold text-gray-800 dark:text-neutral-200 whitespace-nowrap min-w-[140px] text-center">
-                        {{ $weekLabel }}
+    {{-- ═══════════════════════════════════════════════════════════
+         1. HERO HEADER: Week Navigation & Controls
+    ════════════════════════════════════════════════════════════════ --}}
+    <div class="bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/50 rounded-2xl p-5 sm:p-6 shadow-sm">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 border border-brand-200/60 dark:border-brand-800/40">
+                        <i data-lucide="calendar" class="w-3.5 h-3.5 text-brand-600 dark:text-brand-400"></i>
+                        Work Shift & Roster Timeline
                     </span>
+                    @if($isCurrentWeek)
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300">
+                            Current Week
+                        </span>
+                    @endif
                 </div>
 
-                <a href="?week_start={{ $nextWeek ?? now()->addWeek()->toDateString() }}" class="p-2 rounded-md text-gray-500 hover:bg-white hover:text-gray-800 hover:shadow-sm dark:hover:bg-neutral-700 dark:text-neutral-400 dark:hover:text-white transition-all" title="Next Week">
-                    <svg class="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                </a>
-
-                <a href="?week_start={{ now()->startOfWeek()->toDateString() }}" class="ml-2 px-3 py-1.5 text-xs font-semibold bg-white border border-gray-200 text-gray-700 rounded-md hover:bg-gray-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800 transition-colors shadow-sm">
-                    Today
-                </a>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white mt-2 tracking-tight flex items-center gap-2">
+                    My Schedule
+                </h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Your scheduled shifts, custom hours, approved leave, and attendance record for
+                    <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $weekLabel }}</span>.
+                </p>
             </div>
 
-            <button onclick="window.print()" class="no-print hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800 transition-colors shadow-sm">
-                <svg class="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
-                Print
-            </button>
-        </div>
-    </div>
+            {{-- Controls: Prev Week, Today, Next Week, Print --}}
+            <div class="flex flex-wrap items-center gap-2.5 shrink-0 no-print">
+                <div class="inline-flex items-center bg-gray-50 dark:bg-gray-700/50 border border-gray-200/80 dark:border-gray-600/50 rounded-xl p-1 shadow-sm">
+                    <a href="?week_start={{ $prevWeek }}"
+                       class="inline-flex items-center justify-center p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 hover:text-gray-900 dark:hover:text-white hover:shadow-xs transition-all"
+                       title="Previous Week">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    </a>
 
-    <!-- 2. Weekly Summary Metrics -->
-    <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
-        <!-- Metric: Total Hours -->
-        <div class="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-neutral-900 dark:border-neutral-700">
-            <div class="p-4 md:p-5 flex items-center gap-x-4">
-                <div class="flex-shrink-0 flex justify-center items-center size-[46px] bg-teal-100 text-teal-600 rounded-lg dark:bg-teal-900/30 dark:text-teal-400">
-                    <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                </div>
-                <div>
-                    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Scheduled</p>
-                    <h3 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-neutral-200">
-                        {{ $totalHours }} <span class="text-sm font-medium text-gray-500 dark:text-neutral-500">hrs</span>
-                    </h3>
-                </div>
-            </div>
-        </div>
+                    <div class="px-3 border-x border-gray-200 dark:border-gray-600/60 text-xs font-bold text-gray-800 dark:text-gray-200 whitespace-nowrap min-w-[130px] text-center tabular-nums">
+                        {{ $weekLabel }}
+                    </div>
 
-        <!-- Metric: Worked Hours -->
-        <div class="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-neutral-900 dark:border-neutral-700">
-            <div class="p-4 md:p-5 flex items-center gap-x-4">
-                <div class="flex-shrink-0 flex justify-center items-center size-[46px] bg-indigo-100 text-indigo-600 rounded-lg dark:bg-indigo-900/30 dark:text-indigo-400">
-                    <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <a href="?week_start={{ $nextWeek }}"
+                       class="inline-flex items-center justify-center p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 hover:text-gray-900 dark:hover:text-white hover:shadow-xs transition-all"
+                       title="Next Week">
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </a>
                 </div>
-                <div>
-                    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Worked</p>
-                    <h3 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-neutral-200">
-                        {{ $totalWorkedHours ?? 0 }} <span class="text-sm font-medium text-gray-500 dark:text-neutral-500">hrs</span>
-                    </h3>
-                </div>
-            </div>
-        </div>
 
-        <!-- Metric: Overtime Hours -->
-        <div class="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-neutral-900 dark:border-neutral-700">
-            <div class="p-4 md:p-5 flex items-center gap-x-4">
-                <div class="flex-shrink-0 flex justify-center items-center size-[46px] bg-rose-100 text-rose-600 rounded-lg dark:bg-rose-900/30 dark:text-rose-400">
-                    <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>
-                </div>
-                <div>
-                    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Overtime</p>
-                    <h3 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-neutral-200">
-                        {{ $totalOvertime ?? 0 }} <span class="text-sm font-medium text-gray-500 dark:text-neutral-500">hrs</span>
-                    </h3>
-                </div>
-            </div>
-        </div>
-
-        <!-- Metric: Days Working -->
-        <div class="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-neutral-900 dark:border-neutral-700">
-            <div class="p-4 md:p-5 flex items-center gap-x-4">
-                <div class="flex-shrink-0 flex justify-center items-center size-[46px] bg-blue-100 text-blue-600 rounded-lg dark:bg-blue-900/30 dark:text-blue-400">
-                    <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
-                </div>
-                <div>
-                    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Days Working</p>
-                    <h3 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-neutral-200">
-                        {{ $daysWorking }} <span class="text-sm font-medium text-gray-500 dark:text-neutral-500">/ 7</span>
-                    </h3>
-                </div>
-            </div>
-        </div>
-
-        <!-- Today's Shift Summary -->
-        <div class="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-neutral-900 dark:border-neutral-700">
-            <div class="p-4 md:p-5 flex items-center gap-x-4">
-                @if($todayShift && ($todayShift['type'] === 'work' || ($todayShift['type'] === 'exception' && ($todayShift['exception_type'] ?? '') === 'custom_hours')))
-                    <div class="flex-shrink-0 flex justify-center items-center size-[46px] bg-emerald-100 text-emerald-600 rounded-lg dark:bg-emerald-900/30 dark:text-emerald-400">
-                        <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Today</p>
-                        <h3 class="text-sm sm:text-base font-bold text-gray-800 dark:text-neutral-200">
-                            {{ $fmt($todayShift['start_time']) }} – {{ $fmt($todayShift['end_time']) }}
-                        </h3>
-                    </div>
-                @elseif($todayShift && $todayShift['type'] === 'exception')
-                    <div class="flex-shrink-0 flex justify-center items-center size-[46px] bg-amber-100 text-amber-600 rounded-lg dark:bg-amber-900/30 dark:text-amber-400">
-                        <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M3.5 12h17"/><path d="m17 5 3.5 7-3.5 7"/><path d="m7 19-3.5-7 3.5-7"/></svg>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Today</p>
-                        <h3 class="text-sm sm:text-base font-bold text-amber-600 dark:text-amber-400">
-                            {{ ucfirst(str_replace('_', ' ', $todayShift['exception_type'] ?? 'off')) }}
-                        </h3>
-                    </div>
-                @else
-                    <div class="flex-shrink-0 flex justify-center items-center size-[46px] bg-gray-100 text-gray-400 rounded-lg dark:bg-neutral-800 dark:text-neutral-600">
-                        <svg class="flex-shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-neutral-500 font-semibold">Today</p>
-                        <h3 class="text-sm sm:text-base font-bold text-gray-400 dark:text-neutral-500">
-                            Day Off
-                        </h3>
-                    </div>
+                @if(!$isCurrentWeek)
+                    <a href="?week_start={{ \Carbon\Carbon::now('Asia/Manila')->startOfWeek()->toDateString() }}"
+                       class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-white dark:bg-gray-800 border border-brand-300 dark:border-brand-700 text-brand-700 dark:text-brand-300 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-950/40 transition-colors shadow-xs">
+                        <i data-lucide="calendar-check" class="w-3.5 h-3.5"></i>
+                        <span>This Week</span>
+                    </a>
                 @endif
-            </div>
-        </div>
 
-        <!-- Info Banner -->
-        <div class="flex flex-col bg-amber-50 border border-amber-200 shadow-sm rounded-xl dark:bg-amber-900/20 dark:border-amber-900/50">
-            <div class="p-4 md:p-5 flex items-start gap-x-4">
-                <svg class="flex-shrink-0 size-6 text-amber-600 dark:text-amber-500 mt-1" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                <div>
-                    <h3 class="text-sm font-bold text-amber-800 dark:text-amber-300">Need to request a change?</h3>
-                    <p class="mt-1 text-sm text-amber-700 dark:text-amber-400">
-                        This view is read-only. Contact your Receptionist or Administrator to add an exception to your timeline.
-                    </p>
-                </div>
+                <button onclick="window.print()"
+                        class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors shadow-xs">
+                    <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Print</span>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Legend -->
-    <div class="no-print flex flex-wrap items-center gap-x-5 gap-y-2 bg-white border border-gray-200 shadow-sm rounded-xl px-5 py-3 dark:bg-neutral-900 dark:border-neutral-700">
-        <span class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-neutral-500">Legend:</span>
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-neutral-400">
-            <span class="size-2.5 rounded-full bg-teal-500"></span> Work Shift
-        </span>
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-neutral-400">
-            <span class="size-2.5 rounded-full bg-amber-500"></span> Custom Hours
-        </span>
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-neutral-400">
-            <span class="size-2.5 rounded-full bg-red-500"></span> Leave / Sick
-        </span>
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-neutral-400">
-            <span class="size-2.5 rounded-full bg-purple-500"></span> Holiday
-        </span>
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-neutral-400">
-            <span class="size-2.5 rounded-full bg-gray-300 dark:bg-neutral-600"></span> Day Off
-        </span>
-    </div>
+    {{-- ═══════════════════════════════════════════════════════════
+         2. WEEKLY SCHEDULE: RESPONSIVE DAY-BY-DAY ROW LIST
+    ════════════════════════════════════════════════════════════════ --}}
+    <div class="bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/50 rounded-2xl shadow-sm overflow-hidden">
+        {{-- Section Heading & Inline Legend --}}
+        <div class="p-4 sm:p-5 border-b border-gray-200/80 dark:border-gray-700/50 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <i data-lucide="calendar-range" class="w-4 h-4 text-brand-600 dark:text-brand-400"></i>
+                <h2 class="text-base font-bold text-gray-900 dark:text-white">Daily Roster Breakdown</h2>
+            </div>
 
-    <!-- 3. The Weekly Schedule Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
-        @if(isset($weeklySchedule) && count($weeklySchedule) > 0)
-            @foreach($weeklySchedule as $day)
-                @php
-                    $isPast = $day['date'] < now()->toDateString();
-                    $isToday = $day['date'] === now()->toDateString();
-                    $isWork = $day['type'] === 'work';
-                    $isExc = $day['type'] === 'exception';
-                    $isCustom = ($day['exception_type'] ?? '') === 'custom_hours';
-                    $isOff = $day['type'] === 'off' || ($isExc && !$isCustom);
+            {{-- Legend Chips --}}
+            <div class="no-print flex flex-wrap items-center gap-2 text-xs">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200/70 dark:border-teal-800/40 font-medium">
+                    <span class="w-2 h-2 rounded-full bg-teal-500"></span>
+                    Regular Shift
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/40 font-medium">
+                    <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    Custom Hours
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200/70 dark:border-rose-800/40 font-medium">
+                    <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                    Leave / Sick
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/70 dark:border-purple-800/40 font-medium">
+                    <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                    Holiday
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 font-medium">
+                    <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                    Day Off
+                </span>
+            </div>
+        </div>
 
-                    $cardClass = 'bg-white border-gray-200 dark:bg-neutral-900 dark:border-neutral-700';
-                    if ($isToday) $cardClass = 'bg-teal-50/50 border-teal-500 today-card dark:bg-teal-900/10 dark:border-teal-600';
-                    elseif ($isPast) $cardClass = 'bg-gray-50 border-gray-100 past-day dark:bg-neutral-800/50 dark:border-neutral-800';
-                @endphp
+        {{-- Schedule Rows --}}
+        <div class="divide-y divide-gray-100 dark:divide-gray-700/50">
+            @if(isset($weeklySchedule) && count($weeklySchedule) > 0)
+                @foreach($weeklySchedule as $day)
+                    @php
+                        $dayDate = \Carbon\Carbon::parse($day['date']);
+                        $isToday = $day['date'] === $todayDateStr;
+                        $isPast = $day['date'] < $todayDateStr;
 
-                <div class="flex flex-col border shadow-sm rounded-xl transition-all h-full {{ $cardClass }}">
-                    <!-- Day Header -->
-                    <div class="p-3 border-b border-gray-100 dark:border-neutral-800 flex items-center justify-between {{ $isToday ? 'bg-teal-100/50 dark:bg-teal-900/20 rounded-t-xl' : '' }}">
-                        <div>
-                            <p class="text-[10px] font-bold uppercase tracking-wider {{ $isToday ? 'text-teal-600 dark:text-teal-400' : 'text-gray-500 dark:text-neutral-500' }}">
-                                {{ $day['day_name'] ?? \Carbon\Carbon::parse($day['date'])->format('l') }}
-                            </p>
-                            <p class="text-sm font-bold {{ $isToday ? 'text-teal-800 dark:text-teal-300' : 'text-gray-800 dark:text-neutral-200' }}">
-                                {{ \Carbon\Carbon::parse($day['date'])->format('M j') }}
-                            </p>
-                        </div>
-                        @if($isToday)
-                            <span class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-md text-[10px] font-bold bg-teal-600 text-white shadow-sm uppercase tracking-wider">
-                                Today
-                            </span>
-                        @endif
-                    </div>
+                        $isWork = $day['type'] === 'work';
+                        $isExc = $day['type'] === 'exception';
+                        $isCustom = ($day['exception_type'] ?? '') === 'custom_hours';
+                        $isOff = $day['type'] === 'off' || ($isExc && !$isCustom && in_array($day['exception_type'], ['day_off', 'sick_leave', 'urgent_leave', 'holiday']));
 
-                    <!-- Day Content -->
-                    <div class="p-4 flex-1 flex flex-col justify-center items-center text-center">
-                        @if($isWork)
-                            <!-- Standard Working Shift -->
-                            <div class="flex flex-col items-center gap-2 w-full">
-                                <div class="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center dark:bg-teal-900/30 dark:text-teal-400 mb-1">
-                                    <svg class="size-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                </div>
-                                <div class="font-bold text-gray-800 dark:text-neutral-200 text-lg">
-                                    {{ $fmt($day['start_time']) }}
-                                </div>
-                                <div class="w-px h-4 bg-gray-300 dark:bg-neutral-600"></div>
-                                <div class="font-bold text-gray-800 dark:text-neutral-200 text-lg">
-                                    {{ $fmt($day['end_time']) }}
-                                </div>
+                        $hasShift = ($isWork || $isCustom) && $day['start_time'] && $day['end_time'];
+                        $shiftDuration = $hasShift ? round(\Carbon\Carbon::parse($day['start_time'])->diffInMinutes(\Carbon\Carbon::parse($day['end_time'])) / 60, 1) : 0;
 
-                                @php $hrs = $day['start_time'] && $day['end_time'] ? round(\Carbon\Carbon::parse($day['start_time'])->diffInMinutes(\Carbon\Carbon::parse($day['end_time']))/60, 1) : 0; @endphp
-                                @if($hrs > 0)
-                                    <span class="mt-2 inline-flex items-center gap-x-1.5 py-1 px-2.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-800 dark:bg-neutral-800 dark:text-neutral-200">
-                                        {{ $hrs }} hrs
-                                    </span>
-                                @endif
+                        // Static, discoverable container styles
+                        $rowBg = 'bg-white hover:bg-gray-50/70 dark:bg-gray-800/80 dark:hover:bg-gray-700/30';
+                        $borderAccent = 'border-l-4 border-transparent';
 
-                                @if(($day['worked_hours'] ?? 0) > 0)
-                                    <div class="mt-3 flex flex-col gap-1 w-full px-2">
-                                        <div class="flex justify-between items-center text-[11px]">
-                                            <span class="text-gray-500">Worked:</span>
-                                            <span class="font-bold text-gray-700 dark:text-neutral-300">{{ $day['worked_hours'] }} hrs</span>
-                                        </div>
-                                        @if(($day['overtime_hours'] ?? 0) > 0)
-                                        <div class="flex justify-between items-center text-[11px] bg-rose-50 text-rose-600 px-1.5 rounded-md dark:bg-rose-900/30 dark:text-rose-400">
-                                            <span class="font-medium">Overtime:</span>
-                                            <span class="font-bold">{{ $day['overtime_hours'] }} hrs</span>
-                                        </div>
-                                        @endif
-                                    </div>
-                                @endif
+                        if ($isToday) {
+                            $rowBg = 'bg-teal-50/40 dark:bg-teal-950/20 hover:bg-teal-50/60 dark:hover:bg-teal-950/30';
+                            $borderAccent = 'border-l-4 border-teal-500 dark:border-teal-400';
+                        } elseif ($isPast) {
+                            $rowBg = 'bg-gray-50/40 dark:bg-gray-800/40 hover:bg-gray-50/80 dark:hover:bg-gray-700/20';
+                        }
+                    @endphp
 
-                                @if(!empty($day['attendance']))
-                                    <span class="mt-2 inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide
-                                        {{ $day['attendance'] === 'present' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : '' }}
-                                        {{ $day['attendance'] === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : '' }}
-                                        {{ $day['attendance'] === 'absent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : '' }}
-                                    ">
-                                        {{ ucfirst($day['attendance']) }}
-                                    </span>
-                                @endif
+                    <div class="p-4 sm:p-5 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 {{ $rowBg }} {{ $borderAccent }}">
+                        {{-- Left Column: Date & Day Label --}}
+                        <div class="flex items-center gap-3.5 min-w-[200px]">
+                            {{-- Day number calendar chip --}}
+                            <div class="w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 border
+                                {{ $isToday
+                                    ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                                    : ($isPast
+                                        ? 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600/60'
+                                        : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200/90 dark:border-gray-600/70 shadow-xs') }}">
+                                <span class="text-[10px] font-bold uppercase tracking-wider leading-none">
+                                    {{ $dayDate->format('D') }}
+                                </span>
+                                <span class="text-lg font-bold leading-none mt-1 tabular-nums">
+                                    {{ $dayDate->format('j') }}
+                                </span>
                             </div>
 
-                        @elseif($isExc && $isCustom)
-                            <!-- Custom Hours Exception -->
-                            <div class="flex flex-col items-center gap-2 w-full">
-                                <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center dark:bg-amber-900/30 dark:text-amber-400 mb-1 ring-2 ring-amber-100 dark:ring-amber-900/50">
-                                    <svg class="size-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M3.5 12h17"/><path d="m17 5 3.5 7-3.5 7"/><path d="m7 19-3.5-7 3.5-7"/></svg>
-                                </div>
-                                <span class="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Custom Hours</span>
-                                <div class="font-bold text-gray-800 dark:text-neutral-200 text-sm">
-                                    {{ $fmt($day['start_time']) }} <br> to <br> {{ $fmt($day['end_time']) }}
-                                </div>
-                                @if(!empty($day['reason']))
-                                    <p class="text-[10px] text-gray-500 dark:text-neutral-400 mt-2 px-2 italic text-center leading-tight">
-                                        "{{ $day['reason'] }}"
-                                    </p>
-                                @endif
-
-                                @if(($day['worked_hours'] ?? 0) > 0)
-                                    <div class="mt-3 flex flex-col gap-1 w-full px-2">
-                                        <div class="flex justify-between items-center text-[11px]">
-                                            <span class="text-gray-500">Worked:</span>
-                                            <span class="font-bold text-gray-700 dark:text-neutral-300">{{ $day['worked_hours'] }} hrs</span>
-                                        </div>
-                                        @if(($day['overtime_hours'] ?? 0) > 0)
-                                        <div class="flex justify-between items-center text-[11px] bg-rose-50 text-rose-600 px-1.5 rounded-md dark:bg-rose-900/30 dark:text-rose-400">
-                                            <span class="font-medium">Overtime:</span>
-                                            <span class="font-bold">{{ $day['overtime_hours'] }} hrs</span>
-                                        </div>
-                                        @endif
-                                    </div>
-                                @endif
-                            </div>
-
-                        @elseif($isExc && !$isCustom)
-                            <!-- Full Day Exception (Leave/Holiday) -->
-                            <div class="flex flex-col items-center gap-2 w-full py-4">
-                                @php
-                                    $exColor = $day['exception_type'] === 'holiday' ? 'purple' : 'red';
-                                @endphp
-                                <div class="w-12 h-12 bg-{{ $exColor }}-50 text-{{ $exColor }}-600 rounded-full flex items-center justify-center dark:bg-{{ $exColor }}-900/30 dark:text-{{ $exColor }}-400 mb-2">
-                                    @if($day['exception_type'] === 'holiday')
-                                        <svg class="size-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
-                                    @else
-                                        <svg class="size-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+                            {{-- Full Date Title & "Today" Tag --}}
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-sm font-bold text-gray-900 dark:text-white">
+                                        {{ $dayDate->format('l') }}
+                                    </h3>
+                                    @if($isToday)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 dark:bg-teal-900/50 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-700">
+                                            TODAY
+                                        </span>
                                     @endif
                                 </div>
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide bg-{{ $exColor }}-100 text-{{ $exColor }}-800 dark:bg-{{ $exColor }}-900/30 dark:text-{{ $exColor }}-400 border border-{{ $exColor }}-200 dark:border-{{ $exColor }}-800">
-                                    {{ ucfirst(str_replace('_', ' ', $day['exception_type'])) }}
-                                </span>
-                                @if(!empty($day['reason']))
-                                    <p class="text-[11px] text-gray-500 dark:text-neutral-400 mt-2 px-2 text-center leading-tight">
-                                        {{ $day['reason'] }}
-                                    </p>
-                                @endif
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {{ $dayDate->format('F j, Y') }}
+                                </p>
                             </div>
+                        </div>
 
-                        @else
-                            <!-- Standard Day Off -->
-                            <div class="flex flex-col items-center gap-2 w-full py-6">
-                                <div class="w-12 h-12 bg-gray-50 border border-gray-200 text-gray-400 rounded-full flex items-center justify-center dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-600 mb-2">
-                                    <svg class="size-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        {{-- Middle Column: Schedule Type, Timing & Hours Badge --}}
+                        <div class="flex-1 md:px-4">
+                            @if($isWork)
+                                {{-- Regular Work Shift --}}
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-teal-50 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/50">
+                                        <i data-lucide="clock" class="w-3.5 h-3.5 text-teal-600 dark:text-teal-400"></i>
+                                        Regular Shift
+                                    </span>
+
+                                    <div class="flex items-center gap-2 text-sm font-bold text-gray-800 dark:text-gray-200 tabular-nums">
+                                        <span>{{ $fmt($day['start_time']) }}</span>
+                                        <span class="text-gray-400 dark:text-gray-500 font-normal">&mdash;</span>
+                                        <span>{{ $fmt($day['end_time']) }}</span>
+                                    </div>
+
+                                    @if($shiftDuration > 0)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                                            {{ $shiftDuration }} hrs scheduled
+                                        </span>
+                                    @endif
                                 </div>
-                                <span class="text-sm font-bold text-gray-400 dark:text-neutral-500 uppercase tracking-wider">
-                                    Day Off
-                                </span>
-                                @if(($day['worked_hours'] ?? 0) > 0)
-                                    <div class="mt-4 flex flex-col gap-1 w-full px-2">
-                                        <div class="flex justify-between items-center text-[11px]">
-                                            <span class="text-gray-500">Worked:</span>
-                                            <span class="font-bold text-gray-700 dark:text-neutral-300">{{ $day['worked_hours'] }} hrs</span>
+
+                            @elseif($isExc && $isCustom)
+                                {{-- Custom Working Hours Exception --}}
+                                <div class="space-y-1">
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/50">
+                                            <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400"></i>
+                                            Custom Shift
+                                        </span>
+
+                                        <div class="flex items-center gap-2 text-sm font-bold text-gray-800 dark:text-gray-200 tabular-nums">
+                                            <span>{{ $fmt($day['start_time']) }}</span>
+                                            <span class="text-gray-400 dark:text-gray-500 font-normal">&mdash;</span>
+                                            <span>{{ $fmt($day['end_time']) }}</span>
                                         </div>
-                                        @if(($day['overtime_hours'] ?? 0) > 0)
-                                        <div class="flex justify-between items-center text-[11px] bg-rose-50 text-rose-600 px-1.5 rounded-md dark:bg-rose-900/30 dark:text-rose-400">
-                                            <span class="font-medium">Overtime:</span>
-                                            <span class="font-bold">{{ $day['overtime_hours'] }} hrs</span>
-                                        </div>
+
+                                        @if($shiftDuration > 0)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
+                                                {{ $shiftDuration }} hrs scheduled
+                                            </span>
                                         @endif
                                     </div>
-                                @endif
-                            </div>
-                        @endif
+                                    @if(!empty($day['reason']))
+                                        <p class="text-xs text-amber-700 dark:text-amber-400/90 italic pl-1">
+                                            &ldquo;{{ $day['reason'] }}&rdquo;
+                                        </p>
+                                    @endif
+                                </div>
+
+                            @elseif($isExc && !$isCustom)
+                                {{-- Approved Leave / Holiday / Special Day Off Exception --}}
+                                @php
+                                    $exType = $day['exception_type'] ?? '';
+                                    $isHoliday = $exType === 'holiday';
+                                    $isSick = $exType === 'sick_leave';
+                                    $isUrgent = $exType === 'urgent_leave';
+                                    $typeTitle = ucfirst(str_replace('_', ' ', $exType));
+                                @endphp
+                                <div class="space-y-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        @if($isHoliday)
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/50">
+                                                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-purple-600 dark:text-purple-400"></i>
+                                                Holiday (No Shift)
+                                            </span>
+                                        @elseif($isSick)
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/50">
+                                                <i data-lucide="heart-pulse" class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400"></i>
+                                                Sick Leave Approved
+                                            </span>
+                                        @elseif($isUrgent)
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-orange-50 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200/80 dark:border-orange-800/50">
+                                                <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-orange-600 dark:text-orange-400"></i>
+                                                Urgent Leave Approved
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/50">
+                                                <i data-lucide="calendar-x" class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400"></i>
+                                                {{ $typeTitle }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                    @if(!empty($day['reason']))
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 italic pl-1">
+                                            Reason: &ldquo;{{ $day['reason'] }}&rdquo;
+                                        </p>
+                                    @endif
+                                </div>
+
+                            @else
+                                {{-- Standard Scheduled Day Off --}}
+                                <div class="flex items-center gap-2">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
+                                        <i data-lucide="coffee" class="w-3.5 h-3.5 text-gray-400 dark:text-gray-400"></i>
+                                        Scheduled Day Off
+                                    </span>
+                                </div>
+                            @endif
+                        </div>
+
+                        {{-- Right Column: Attendance Records, Worked Hours, & Overtime --}}
+                        <div class="flex flex-wrap md:flex-col md:items-end justify-between items-center gap-2 min-w-[210px] shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-gray-100 dark:border-gray-700/40">
+                            {{-- Attendance Status Tag --}}
+                            @php
+                                $attVal = $day['attendance'] ?? null;
+                            @endphp
+
+                            @if($attVal === 'present')
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                    <i data-lucide="check-circle-2" class="w-3 h-3 text-emerald-600 dark:text-emerald-400"></i>
+                                    Present
+                                </span>
+                            @elseif($attVal === 'late')
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                    <i data-lucide="clock" class="w-3 h-3 text-amber-600 dark:text-amber-400"></i>
+                                    Late
+                                </span>
+                            @elseif($attVal === 'absent')
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                                    <i data-lucide="x-circle" class="w-3 h-3 text-rose-600 dark:text-rose-400"></i>
+                                    Absent
+                                </span>
+                            @elseif(!empty($day['check_in']))
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-800">
+                                    <i data-lucide="log-in" class="w-3 h-3 text-teal-600 dark:text-teal-400"></i>
+                                    Clocked In
+                                </span>
+                            @elseif($hasShift && $isPast)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium text-gray-400 dark:text-gray-500">
+                                    No punch record
+                                </span>
+                            @elseif($hasShift && $isToday)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium text-brand-600 dark:text-brand-400">
+                                    Awaiting punch in
+                                </span>
+                            @endif
+
+                            {{-- Clock Times & Actual Worked Summary --}}
+                            @if(!empty($day['check_in']) || ($day['worked_hours'] ?? 0) > 0)
+                                <div class="text-xs text-right">
+                                    @if(!empty($day['check_in']))
+                                        <p class="text-gray-600 dark:text-gray-300 font-medium tabular-nums">
+                                            Punch: {{ $fmt($day['check_in']) }} &ndash; {{ $fmt($day['check_out']) }}
+                                        </p>
+                                    @endif
+
+                                    <div class="flex items-center justify-end gap-2 mt-0.5">
+                                        @if(($day['worked_hours'] ?? 0) > 0)
+                                            <span class="font-bold text-gray-800 dark:text-gray-200 tabular-nums">
+                                                {{ $day['worked_hours'] }} hrs worked
+                                            </span>
+                                        @endif
+                                        @if(($day['overtime_hours'] ?? 0) > 0)
+                                            <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300">
+                                                +{{ $day['overtime_hours'] }} OT
+                                            </span>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
                     </div>
+                @endforeach
+            @else
+                <div class="py-16 px-4 text-center">
+                    <div class="w-14 h-14 bg-gray-100 dark:bg-gray-700/60 rounded-2xl flex items-center justify-center mx-auto mb-3 text-gray-400">
+                        <i data-lucide="calendar-x" class="w-7 h-7"></i>
+                    </div>
+                    <h3 class="text-base font-bold text-gray-800 dark:text-gray-200">No Schedule Found</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-sm mx-auto">
+                        No recurring shift or exceptions could be loaded for this date window. Contact management if your shift roster is missing.
+                    </p>
                 </div>
-            @endforeach
-        @else
-            <!-- Empty State -->
-            <div class="col-span-full py-20 bg-white border border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-center dark:bg-neutral-900 dark:border-neutral-700">
-                <div class="flex justify-center items-center size-16 bg-gray-100 rounded-full dark:bg-neutral-800 mb-4">
-                    <svg class="size-8 text-gray-400 dark:text-neutral-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-                </div>
-                <h3 class="text-lg font-bold text-gray-800 dark:text-neutral-200">Timeline Data Unavailable</h3>
-                <p class="text-sm text-gray-500 dark:text-neutral-400 mt-1">Please ensure the controller is passing the <code class="text-xs bg-gray-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">$weeklySchedule</code> array.</p>
-            </div>
-        @endif
+            @endif
+        </div>
     </div>
 
-    <!-- 4. Future Exceptions List -->
-    <div class="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-neutral-900 dark:border-neutral-700 p-5 md:p-6 mt-8">
-        <h2 class="text-lg font-bold text-gray-800 dark:text-neutral-200 mb-5 flex items-center gap-2">
-            <svg class="flex-shrink-0 size-5 text-teal-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
-            Upcoming Leaves & Holidays
-        </h2>
+    {{-- ═══════════════════════════════════════════════════════════
+         3. SECONDARY WEEKLY SUMMARY METRICS (PLACED BELOW ROSTER)
+    ════════════════════════════════════════════════════════════════ --}}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {{-- Total Scheduled Hours --}}
+        <div class="bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/50 rounded-2xl p-4 shadow-sm flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-900/30 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
+                <i data-lucide="clock" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-400">Scheduled Hours</p>
+                <p class="text-xl font-bold text-gray-900 dark:text-white tabular-nums mt-0.5">
+                    {{ $totalHours }} <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">hrs</span>
+                </p>
+            </div>
+        </div>
+
+        {{-- Total Worked Hours --}}
+        <div class="bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/50 rounded-2xl p-4 shadow-sm flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                <i data-lucide="check-check" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-400">Worked Hours</p>
+                <p class="text-xl font-bold text-gray-900 dark:text-white tabular-nums mt-0.5">
+                    {{ $totalWorkedHours ?? 0 }} <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">hrs</span>
+                </p>
+            </div>
+        </div>
+
+        {{-- Overtime Hours --}}
+        <div class="bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/50 rounded-2xl p-4 shadow-sm flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                <i data-lucide="flame" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-400">Overtime Recorded</p>
+                <p class="text-xl font-bold text-gray-900 dark:text-white tabular-nums mt-0.5">
+                    {{ $totalOvertime ?? 0 }} <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">hrs</span>
+                </p>
+            </div>
+        </div>
+
+        {{-- Days Working this Week --}}
+        <div class="bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/50 rounded-2xl p-4 shadow-sm flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                <i data-lucide="calendar-days" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-400">Working Days</p>
+                <p class="text-xl font-bold text-gray-900 dark:text-white tabular-nums mt-0.5">
+                    {{ $daysWorking }} <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">days</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    {{-- ═══════════════════════════════════════════════════════════
+         4. UPCOMING EXCEPTIONS & LEAVE (NEXT 30+ DAYS)
+    ════════════════════════════════════════════════════════════════ --}}
+    <div class="bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/50 rounded-2xl p-5 sm:p-6 shadow-sm">
+        <div class="flex items-center justify-between pb-4 mb-4 border-b border-gray-100 dark:border-gray-700/50">
+            <div class="flex items-center gap-2">
+                <i data-lucide="calendar-clock" class="w-5 h-5 text-brand-600 dark:text-brand-400"></i>
+                <div>
+                    <h2 class="text-base font-bold text-gray-900 dark:text-white">Upcoming Leaves, Holidays & Exceptions</h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Approved timeline exceptions starting from today onwards</p>
+                </div>
+            </div>
+        </div>
 
         @if(!isset($exceptions) || $exceptions->isEmpty())
             <div class="text-center py-8">
-                <svg class="size-10 mx-auto text-gray-300 dark:text-neutral-700 mb-3" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-                <p class="text-sm font-medium text-gray-500 dark:text-neutral-400">You have no upcoming scheduled leaves or holidays.</p>
+                <div class="w-12 h-12 bg-gray-50 dark:bg-gray-700/50 rounded-xl flex items-center justify-center mx-auto mb-2 text-gray-400">
+                    <i data-lucide="calendar-check-2" class="w-6 h-6 text-emerald-500"></i>
+                </div>
+                <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">No Upcoming Exceptions</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">You have no upcoming scheduled leaves, holidays, or custom shift exceptions on file.</p>
             </div>
         @else
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach($exceptions as $ex)
-                <div class="flex items-start gap-x-4 p-4 bg-gray-50 border border-gray-200 rounded-xl dark:bg-neutral-800/50 dark:border-neutral-700">
-                    <div class="inline-flex justify-center items-center size-12 rounded-xl bg-white shadow-sm border border-gray-200 text-gray-800 font-bold text-lg dark:bg-neutral-800 dark:border-neutral-600 dark:text-neutral-200 shrink-0">
-                        {{ \Carbon\Carbon::parse($ex->exception_date)->format('d') }}
-                    </div>
-                    <div class="grow">
-                        <div class="flex flex-col gap-1">
-                            <span class="font-bold text-sm text-gray-900 dark:text-neutral-100">{{ \Carbon\Carbon::parse($ex->exception_date)->format('l, M Y') }}</span>
-                            <div>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide
-                                    {{ in_array($ex->type, ['day_off', 'sick_leave', 'urgent_leave']) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                                       ($ex->type === 'holiday' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400') }}">
-                                    {{ ucfirst(str_replace('_', ' ', $ex->type)) }}
+                    @php
+                        $exDate = \Carbon\Carbon::parse($ex->exception_date);
+                        $exType = $ex->type;
+                        $isHoliday = $exType === 'holiday';
+                        $isSick = $exType === 'sick_leave';
+                        $isUrgent = $exType === 'urgent_leave';
+                        $isCustom = $exType === 'custom_hours';
+                        $typeLabel = ucfirst(str_replace('_', ' ', $exType));
+                    @endphp
+
+                    <div class="p-4 rounded-xl border border-gray-200/80 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/40 flex items-start gap-3.5">
+                        {{-- Date Badge --}}
+                        <div class="w-12 h-12 rounded-xl bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center flex flex-col items-center justify-center shrink-0 shadow-xs">
+                            <span class="text-[10px] font-bold text-gray-400 dark:text-gray-400 uppercase leading-none">
+                                {{ $exDate->format('M') }}
+                            </span>
+                            <span class="text-base font-bold text-gray-900 dark:text-white tabular-nums leading-none mt-1">
+                                {{ $exDate->format('j') }}
+                            </span>
+                        </div>
+
+                        {{-- Details --}}
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="text-xs font-bold text-gray-900 dark:text-white">
+                                    {{ $exDate->format('l, M j, Y') }}
                                 </span>
                             </div>
-                        </div>
-                        @if($ex->start_time && $ex->end_time)
-                            <div class="text-xs font-semibold text-gray-500 dark:text-neutral-400 mt-2">
-                                {{ \Carbon\Carbon::parse($ex->start_time)->format('g:i A') }} – {{ \Carbon\Carbon::parse($ex->end_time)->format('g:i A') }}
+
+                            <div class="mt-1">
+                                @if($isHoliday)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">
+                                        Holiday
+                                    </span>
+                                @elseif($isSick)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300">
+                                        Sick Leave
+                                    </span>
+                                @elseif($isUrgent)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300">
+                                        Urgent Leave
+                                    </span>
+                                @elseif($isCustom)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                                        Custom Hours
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                                        {{ $typeLabel }}
+                                    </span>
+                                @endif
                             </div>
-                        @endif
-                        @if($ex->reason)
-                            <p class="text-xs text-gray-500 dark:text-neutral-500 mt-1.5 truncate" title="{{ $ex->reason }}">
-                                "{{ $ex->reason }}"
-                            </p>
-                        @endif
+
+                            @if($ex->start_time && $ex->end_time)
+                                <p class="text-xs text-gray-600 dark:text-gray-400 font-medium tabular-nums mt-1.5">
+                                    Shift: {{ $fmt($ex->start_time) }} &ndash; {{ $fmt($ex->end_time) }}
+                                </p>
+                            @endif
+
+                            @if($ex->reason)
+                                <p class="text-xs text-gray-500 dark:text-gray-400 italic mt-1 truncate" title="{{ $ex->reason }}">
+                                    &ldquo;{{ $ex->reason }}&rdquo;
+                                </p>
+                            @endif
+                        </div>
                     </div>
-                </div>
                 @endforeach
             </div>
         @endif
+    </div>
+
+    {{-- ═══════════════════════════════════════════════════════════
+         5. NOTICE & HELP FOOTER
+    ════════════════════════════════════════════════════════════════ --}}
+    <div class="bg-gray-50 dark:bg-gray-800/40 border border-gray-200/80 dark:border-gray-700/50 rounded-2xl p-4 flex items-center justify-between gap-4 text-xs text-gray-500 dark:text-gray-400 no-print">
+        <div class="flex items-center gap-2">
+            <i data-lucide="info" class="w-4 h-4 text-brand-600 dark:text-brand-400 shrink-0"></i>
+            <span>
+                Need to request a shift swap, day off, or file leave? Please submit your schedule adjustments to the Reception Desk or Spa Administrator.
+            </span>
+        </div>
+        <span class="font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">
+            Asia/Manila
+        </span>
     </div>
 
 </div>

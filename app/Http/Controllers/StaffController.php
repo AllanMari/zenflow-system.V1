@@ -16,62 +16,120 @@ class StaffController extends Controller
     public function index()
     {
         $userId = Auth::id();
-        $today = today();
+        $today = Carbon::today('Asia/Manila');
+        $currentTime = Carbon::now('Asia/Manila')->format('H:i:s');
 
-        $myToday = Appointment::with(['customer', 'services'])
+        // 1. Today's Appointments for authenticated staff member (with customer, services, room)
+        $myToday = Appointment::with(['customer', 'services', 'room'])
             ->where('user_id', $userId)
             ->whereDate('appointment_date', $today)
-            ->whereIn('status', ['confirmed', 'pending', 'completed'])
+            ->whereIn('status', ['confirmed', 'completed', 'pending', 'cancelled'])
             ->orderBy('start_time')
             ->get();
 
-        $myUpcoming = Appointment::with(['customer', 'services'])
+        // 2. Upcoming Appointments for authenticated staff member (next 5 eligible future appointments)
+        $myUpcoming = Appointment::with(['customer', 'services', 'room'])
             ->where('user_id', $userId)
             ->whereDate('appointment_date', '>', $today)
             ->whereIn('status', ['confirmed', 'pending'])
             ->orderBy('appointment_date')
             ->orderBy('start_time')
-            ->limit(10)
+            ->limit(5)
             ->get();
 
-        $todayRevenue = Appointment::where('user_id', $userId)
-            ->whereDate('appointment_date', $today)
-            ->where('status', 'completed')
-            ->with('payments')
-            ->get()
-            ->sum(fn ($appointment) =>
-                $appointment->payments->sum('amount')
-            );
+        // 3. Operational KPI Counts
+        // Today's assigned non-cancelled bookings
+        $todayAssignedCount = $myToday->whereIn('status', ['confirmed', 'completed', 'pending'])->count();
+        // Completed today
+        $todayCompletedCount = $myToday->where('status', 'completed')->count();
+        // Remaining confirmed sessions today that are not completed or cancelled and have not yet ended
+        $remainingConfirmedCount = $myToday->where('status', 'confirmed')
+            ->where('end_time', '>', $currentTime)
+            ->count();
 
+        // Weekly completed sessions (Mon-Sun in Asia/Manila)
         $weekStart = $today->copy()->startOfWeek();
         $weekEnd = $today->copy()->endOfWeek();
-
         $weeklyCompleted = Appointment::where('user_id', $userId)
-            ->whereBetween('appointment_date', [
-                $weekStart,
-                $weekEnd
-            ])
+            ->whereBetween('appointment_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
             ->where('status', 'completed')
             ->count();
 
-        $weeklyRevenue = Appointment::where('user_id', $userId)
-            ->whereBetween('appointment_date', [
-                $weekStart,
-                $weekEnd
-            ])
-            ->where('status', 'completed')
-            ->with('payments')
-            ->get()
-            ->sum(fn ($appointment) =>
-                $appointment->payments->sum('amount')
-            );
+        // 4. Next/Current Session Highlight (earliest confirmed session today that hasn't ended yet)
+        $nextSession = $myToday->first(function ($appt) use ($currentTime) {
+            return $appt->status === 'confirmed' && $appt->end_time > $currentTime;
+        });
+
+        // 5. Today's Shift Schedule Resolution
+        $dayOfWeek = $today->dayOfWeek; // 0=Sunday, 6=Saturday
+        $schedule = WorkSchedule::where('user_id', $userId)
+            ->where('day_of_week', $dayOfWeek)
+            ->first();
+
+        $exception = ScheduleException::where('user_id', $userId)
+            ->whereDate('exception_date', $today)
+            ->first();
+
+        $shiftInfo = [
+            'is_working' => false,
+            'label' => 'No scheduled shift today',
+            'start_time' => null,
+            'end_time' => null,
+            'type' => 'off',
+        ];
+
+        if ($exception) {
+            if ($exception->type === 'custom_hours') {
+                $shiftInfo = [
+                    'is_working' => true,
+                    'label' => Carbon::parse($exception->start_time)->format('g:i A') . ' – ' . Carbon::parse($exception->end_time)->format('g:i A'),
+                    'start_time' => $exception->start_time,
+                    'end_time' => $exception->end_time,
+                    'type' => 'custom_hours',
+                ];
+            } else {
+                $typeLabel = match ($exception->type) {
+                    'sick_leave' => 'On Sick Leave',
+                    'urgent_leave' => 'On Urgent Leave',
+                    'holiday' => 'Holiday',
+                    'day_off' => 'Day Off',
+                    default => ucfirst(str_replace('_', ' ', $exception->type)),
+                };
+                $shiftInfo = [
+                    'is_working' => false,
+                    'label' => $typeLabel,
+                    'start_time' => null,
+                    'end_time' => null,
+                    'type' => $exception->type,
+                ];
+            }
+        } elseif ($schedule && !$schedule->is_day_off && $schedule->start_time && $schedule->end_time) {
+            $shiftInfo = [
+                'is_working' => true,
+                'label' => Carbon::parse($schedule->start_time)->format('g:i A') . ' – ' . Carbon::parse($schedule->end_time)->format('g:i A'),
+                'start_time' => $schedule->start_time,
+                'end_time' => $schedule->end_time,
+                'type' => 'regular',
+            ];
+        }
+
+        // 6. Today's Attendance Record for Authenticated Staff
+        $todayAttendance = Attendance::where('user_id', $userId)
+            ->whereDate('date', $today)
+            ->first();
 
         return view('staff-dashboard', compact(
             'myToday',
             'myUpcoming',
-            'todayRevenue',
+            'todayAssignedCount',
+            'todayCompletedCount',
+            'remainingConfirmedCount',
             'weeklyCompleted',
-            'weeklyRevenue'
+            'weekStart',
+            'weekEnd',
+            'nextSession',
+            'shiftInfo',
+            'todayAttendance'
         ));
     }
 
@@ -84,11 +142,34 @@ class StaffController extends Controller
         $query = Appointment::with(['customer', 'services'])
             ->where('user_id', $userId);
 
+        // Date filter handling: single date takes precedence, then valid date range (date_from & date_to)
+        $hasSingleDate = false;
+        $hasDateRange = false;
+        $dateFromStr = null;
+        $dateToStr = null;
+
         if ($request->filled('date')) {
-            $query->whereDate(
-                'appointment_date',
-                $request->date
-            );
+            try {
+                $parsedDate = Carbon::parse($request->date)->toDateString();
+                $query->whereDate('appointment_date', $parsedDate);
+                $hasSingleDate = true;
+            } catch (\Exception $e) {
+                // Invalid single date ignored safely
+            }
+        } elseif ($request->filled('date_from') && $request->filled('date_to')) {
+            try {
+                $dFrom = Carbon::parse($request->date_from)->toDateString();
+                $dTo = Carbon::parse($request->date_to)->toDateString();
+                if ($dFrom <= $dTo) {
+                    $query->whereDate('appointment_date', '>=', $dFrom)
+                          ->whereDate('appointment_date', '<=', $dTo);
+                    $hasDateRange = true;
+                    $dateFromStr = $dFrom;
+                    $dateToStr = $dTo;
+                }
+            } catch (\Exception $e) {
+                // Invalid date range ignored safely
+            }
         }
 
         switch ($status) {
@@ -132,11 +213,11 @@ class StaffController extends Controller
         $countBase = Appointment::query()
             ->where('user_id', $userId);
 
-        if ($request->filled('date')) {
-            $countBase->whereDate(
-                'appointment_date',
-                $request->date
-            );
+        if ($hasSingleDate) {
+            $countBase->whereDate('appointment_date', $parsedDate);
+        } elseif ($hasDateRange) {
+            $countBase->whereDate('appointment_date', '>=', $dateFromStr)
+                      ->whereDate('appointment_date', '<=', $dateToStr);
         }
 
         $counts = [
@@ -330,6 +411,7 @@ class StaffController extends Controller
 
             $day['check_in'] = $att?->check_in;
             $day['check_out'] = $att?->check_out;
+            $day['attendance'] = $att?->status;
             $day['worked_hours'] = 0;
             $day['overtime_hours'] = 0;
 
@@ -381,15 +463,6 @@ class StaffController extends Controller
             ->orderBy('exception_date')
             ->get();
 
-        $templateHint = null;
-
-        if ($schedules->isNotEmpty()) {
-            $templateHint = ShiftTemplate::where(
-                'is_active',
-                true
-            )->first()?->name;
-        }
-
         $prevWeek = $weekStart
             ->copy()
             ->subWeek()
@@ -417,8 +490,7 @@ class StaffController extends Controller
             'totalHours',
             'daysWorking',
             'totalOvertime',
-            'totalWorkedHours',
-            'templateHint'
+            'totalWorkedHours'
         ));
     }
 

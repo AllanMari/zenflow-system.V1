@@ -100,7 +100,7 @@
                     default => ['bg-gray-100 text-gray-600 border-gray-200', $apptDateTime->diffForHumans()]
                 };
 
-                $initials = collect(explode(' ', $appointment->customer->display_name))
+                $initials = collect(explode(' ', $appointment->client_name))
                     ->map(fn($n) => strtoupper(substr($n, 0, 1)))
                     ->filter()
                     ->take(2)
@@ -110,8 +110,8 @@
             <article
                 class="appointment-card group bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 {{ $urgencyClass }}"
                 data-id="{{ $appointment->id }}"
-                data-customer="{{ strtolower($appointment->customer->display_name) }}"
-                data-phone="{{ $appointment->customer->phone_number }}"
+                data-customer="{{ strtolower($appointment->client_name) }}"
+                data-phone="{{ $appointment->guest_phone ?: ($appointment->customer?->phone_number ?: 'N/A') }}"
                 data-date="{{ $dateStr }}"
                 data-timestamp="{{ $apptDateTime->timestamp }}"
                 data-cancel-url="{{ route('receptionist.cancel', $appointment) }}"
@@ -149,9 +149,29 @@
 
                             </div>
 
-                            <h3 class="text-base font-bold text-gray-900 dark:text-white truncate">
-                                {{ $appointment->customer->display_name }}
-                            </h3>
+                            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-0.5">
+                                <h3 class="text-base font-bold text-gray-900 dark:text-white truncate">
+                                    {{ $appointment->client_name }}
+                                </h3>
+
+                                @php
+                                    $phoneNum = $appointment->guest_phone ?: ($appointment->customer?->phone_number ?: 'N/A');
+                                    $hasPhone = !empty($phoneNum) && $phoneNum !== 'N/A';
+                                @endphp
+
+                                <span class="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a2 2 0 011.498 1.21l1.498 4.493A2 2 0 0119 21h-1C9.716 21 3 14.284 3 6V5z"/>
+                                    </svg>
+                                    @if($hasPhone)
+                                        <a href="tel:{{ $phoneNum }}" onclick="event.stopPropagation()" class="hover:underline hover:text-teal-600 dark:hover:text-teal-400 font-medium">
+                                            {{ $phoneNum }}
+                                        </a>
+                                    @else
+                                        <span>{{ $phoneNum }}</span>
+                                    @endif
+                                </span>
+                            </div>
 
                             <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-gray-500 dark:text-gray-400">
 
@@ -187,17 +207,6 @@
                         </div>
 
                         <div class="shrink-0 flex items-center gap-2">
-
-                            <a
-                                href="tel:{{ $appointment->customer->phone_number }}"
-                                onclick="event.stopPropagation()"
-                                class="p-2 rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 transition-colors"
-                                title="Call {{ $appointment->customer->phone_number }}"
-                            >
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a2 2 0 011.498 1.21l1.498 4.493A2 2 0 0119 21h-1C9.716 21 3 14.284 3 6V5z"/>
-                                </svg>
-                            </a>
 
                             <div
                                 class="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center transition-transform duration-200"

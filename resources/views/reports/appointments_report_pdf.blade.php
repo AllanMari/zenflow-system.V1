@@ -373,8 +373,7 @@
                         );
 
                         $customerName =
-                            $appointment->customer->display_name
-                            ?? $appointment->customer->full_name
+                            $appointment->client_name
                             ?? 'Walk-in';
 
                         $staffName =

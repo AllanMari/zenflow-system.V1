@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\Appointment;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class CustomerController extends Controller
@@ -14,26 +15,69 @@ class CustomerController extends Controller
     public function index()
     {
         $user = auth()->user();
-
         $customer = Customer::where('user_id', $user->id)->first();
+        $timezone = config('app.timezone', 'Asia/Manila');
+        $now = Carbon::now($timezone);
 
-        $appointments = collect();
-        $latest = null;
+        $upcomingAppointments = collect();
+        $upcomingCount = 0;
+        $pendingCount = 0;
+        $completedCount = 0;
 
         if ($customer) {
-            $appointments = Appointment::with('services')
+            $appointments = Appointment::query()
                 ->where('customer_id', $customer->id)
-                ->orderBy('appointment_date', 'desc')
-                ->orderBy('start_time', 'desc')
-                ->get();
+                ->whereIn('status', ['pending', 'confirmed'])
+                ->where(function ($query) use ($now) {
+                    $query->whereDate('appointment_date', '>', $now->toDateString())
+                        ->orWhere(function ($todayQuery) use ($now) {
+                            $todayQuery->whereDate('appointment_date', $now->toDateString())
+                                ->whereTime('end_time', '>', $now->format('H:i:s'));
+                        });
+                })
+                ->orderBy('appointment_date')
+                ->orderBy('start_time')
+                ->limit(1)
+                ->with('services')
+                ->first();
 
-            $latest = $appointments->first();
+            if ($appointments) {
+                $upcomingAppointments = collect([$appointments]);
+            }
+
+            $upcomingCount = Appointment::query()
+                ->where('customer_id', $customer->id)
+                ->whereIn('status', ['pending', 'confirmed'])
+                ->where(function ($query) use ($now) {
+                    $query->whereDate('appointment_date', '>', $now->toDateString())
+                        ->orWhere(function ($todayQuery) use ($now) {
+                            $todayQuery->whereDate('appointment_date', $now->toDateString())
+                                ->whereTime('end_time', '>', $now->format('H:i:s'));
+                        });
+                })
+                ->count();
+
+            $pendingCount = Appointment::query()
+                ->where('customer_id', $customer->id)
+                ->where('status', 'pending')
+                ->where(function ($query) use ($now) {
+                    $query->whereDate('appointment_date', '>', $now->toDateString())
+                        ->orWhere(function ($todayQuery) use ($now) {
+                            $todayQuery->whereDate('appointment_date', $now->toDateString())
+                                ->whereTime('end_time', '>', $now->format('H:i:s'));
+                        });
+                })
+                ->count();
+
+            $completedCount = Appointment::query()
+                ->where('customer_id', $customer->id)
+                ->where('status', 'completed')
+                ->count();
         }
 
-        return view(
-            'customer.dashboard',
-            compact('appointments', 'latest', 'customer')
-        );
+        return view('customer.dashboard', compact(
+            'customer', 'upcomingAppointments', 'upcomingCount', 'pendingCount', 'completedCount'
+        ));
     }
 
     /**

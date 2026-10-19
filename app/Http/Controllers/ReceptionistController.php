@@ -25,32 +25,76 @@ class ReceptionistController extends Controller
 
     public function desk()
     {
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Manila');
+
+        // 1. Operational KPIs
+        $confirmedToday = Appointment::whereDate('appointment_date', $today)
+            ->where('status', 'confirmed')
+            ->count();
+
+        $completedToday = Appointment::whereDate('appointment_date', $today)
+            ->where('status', 'completed')
+            ->count();
+
+        // Net cash collected today (all payment types net of refunds stored as negative amounts)
+        $collectionsToday = (float) Payment::whereDate('paid_at', $today)->sum('amount');
+
+        // Staff attendance metrics (present/late records for active users with staff role)
+        $presentStaffCount = Attendance::whereDate('date', $today)
+            ->whereIn('status', ['present', 'late'])
+            ->whereHas('user', fn($q) => $q->where('is_active', true)->whereHas('roles', fn($r) => $r->where('name', 'staff')))
+            ->count();
+
+        $totalActiveStaff = User::whereHas('roles', fn($q) => $q->where('name', 'staff'))
+            ->where('is_active', true)
+            ->count();
+
+        // Room availability metrics (active non-maintenance rooms vs rooms occupied right now)
+        $totalActiveRooms = Room::active()->where('status', '!=', 'maintenance')->count();
+        $currentTime = Carbon::now('Asia/Manila')->format('H:i:s');
+        $occupiedRoomIds = Appointment::whereDate('appointment_date', $today)
+            ->where('status', 'confirmed')
+            ->whereNotNull('room_id')
+            ->where('start_time', '<=', $currentTime)
+            ->where('end_time', '>', $currentTime)
+            ->pluck('room_id')
+            ->unique();
+        $availableRoomsCount = max(0, $totalActiveRooms - $occupiedRoomIds->count());
 
         $stats = [
-            'pending' => Appointment::pendingValid()->count(),
-            'today' => Appointment::whereDate('appointment_date', $today)
-                ->whereIn('status', ['confirmed', 'completed'])
-                ->count(),
-            'sales' => Payment::whereDate('paid_at', $today)
-                ->whereIn('type', ['completion', 'additional', 'full'])
-                ->sum('amount'),
+            'pending'             => Appointment::pendingValid()->count(),
+            'confirmed_today'     => $confirmedToday,
+            'completed_today'     => $completedToday,
+            'collections_today'   => $collectionsToday,
+            'present_staff_count' => $presentStaffCount,
+            'total_active_staff'  => $totalActiveStaff,
+            'available_rooms'     => $availableRoomsCount,
+            'total_active_rooms'  => $totalActiveRooms,
         ];
 
-        $pending = Appointment::with(['customer', 'services'])
+        // 2. Today's Full Schedule (Chronological Feed)
+        $todaySchedule = Appointment::with(['customer', 'staff', 'services', 'room', 'payments'])
+            ->whereDate('appointment_date', $today)
+            ->whereIn('status', ['confirmed', 'completed'])
+            ->orderBy('start_time')
+            ->get();
+
+        // 3. Valid Pending Bookings (Top 8 for Dashboard Preview)
+        $pending = Appointment::with(['customer', 'services.category'])
             ->pendingValid()
             ->orderBy('appointment_date')
             ->orderBy('start_time')
-            ->limit(20)
+            ->limit(8)
             ->get();
 
+        // 4. Same-day Absent Staff Scheduling Conflicts
         $absentStaffIds = Attendance::whereDate('date', $today)
             ->whereIn('status', ['absent', 'on_leave', 'holiday'])
             ->pluck('user_id');
 
         $absentStaffConflicts = collect();
         if ($absentStaffIds->isNotEmpty()) {
-            $absentStaffConflicts = Appointment::with(['customer', 'staff', 'services'])
+            $absentStaffConflicts = Appointment::with(['customer', 'staff', 'services', 'room'])
                 ->whereDate('appointment_date', $today)
                 ->where('status', 'confirmed')
                 ->whereIn('user_id', $absentStaffIds)
@@ -58,7 +102,12 @@ class ReceptionistController extends Controller
                 ->get();
         }
 
-        return view('receptionist-dashboard', compact('stats', 'pending', 'absentStaffConflicts'));
+        return view('receptionist-dashboard', compact(
+            'stats',
+            'todaySchedule',
+            'pending',
+            'absentStaffConflicts'
+        ));
     }
 
     public function booking(Appointment $appointment)
@@ -195,7 +244,7 @@ class ReceptionistController extends Controller
                 NotificationController::sendTo(
                     $appointment->staff,
                     'New Assignment',
-                    ($appointment->customer->full_name ?? 'Walk-in') . ' — ' . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
+                    ($appointment->client_name ?? 'Walk-in') . ' — ' . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
                     'booking', 'info', route('staff.dashboard'), 'My Schedule'
                 );
             }
@@ -229,7 +278,7 @@ class ReceptionistController extends Controller
             NotificationController::sendTo(
                 $appointment->staff,
                 'Assignment Cancelled',
-                ($appointment->customer->full_name ?? 'Walk-in') . "'s appointment on " . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A') . ' was cancelled. Reason: ' . ucfirst($reason),
+                ($appointment->client_name ?? 'Walk-in') . "'s appointment on " . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A') . ' was cancelled. Reason: ' . ucfirst($reason),
                 'booking', 'warning', route('staff.dashboard'), 'My Schedule'
             );
         }
@@ -238,7 +287,7 @@ class ReceptionistController extends Controller
             NotificationController::sendTo(
                 $admins,
                 'Appointment Cancelled',
-                ($appointment->customer->full_name ?? 'Walk-in') . "'s appointment was cancelled. Reason: " . ucfirst($reason),
+                ($appointment->client_name ?? 'Walk-in') . "'s appointment was cancelled. Reason: " . ucfirst($reason),
                 'booking', 'warning', route('admin.appointments', ['status' => 'cancelled']), 'Review'
             );
         }

@@ -400,7 +400,11 @@
     </div>
 </div>
 
+<!-- Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+
 @stack('scripts')
+
 
 <script>
 function esc(t){if(!t)return'';const d=document.createElement('div');d.textContent=t;return d.innerHTML}

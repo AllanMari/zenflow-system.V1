@@ -807,7 +807,7 @@
                                 $startTime->diffInMinutes($endTime);
 
                             $customerName =
-                                $appt->customer->display_name ?? 'Walk-in';
+                                $appt->client_name ?? 'Walk-in';
 
                             $customerParts =
                                 preg_split('/\s+/', trim($customerName));

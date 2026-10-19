@@ -1466,7 +1466,7 @@ class BookingController extends Controller
             'start_time' => 'required',
             'end_time' => 'nullable',
             'guest_first_name' =>
-                'required|string|max:255',
+                'required|string|max:100',
             'guest_phone' =>
                 'required|string|regex:/^09\d{9}$/',
             'medical_notes' =>
@@ -1907,7 +1907,9 @@ class BookingController extends Controller
                     $request->medical_notes
                     ?? $request->notes
                     ?? null,
-                'ip_address' => $request->ip(), // Added IP address tracking
+                'ip_address' => $request->ip(),
+                'guest_first_name' => $request->guest_first_name ? trim($request->guest_first_name) : null,
+                'guest_phone' => $request->guest_phone ?? null,
             ]);
 
             foreach ($services as $service) {

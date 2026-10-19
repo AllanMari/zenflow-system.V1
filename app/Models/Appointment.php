@@ -34,6 +34,8 @@ class Appointment extends Model
         'room_id',
         'requested_room_id',
         'ip_address',
+        'guest_first_name',
+        'guest_phone',
     ];
 
     protected $casts = [
@@ -117,6 +119,19 @@ class Appointment extends Model
     {
         $depositAmount = $this->total_price * 0.2;
         return $this->total_paid >= $depositAmount;
+    }
+
+    public function getClientNameAttribute()
+    {
+        if (!empty($this->guest_first_name)) {
+            return trim($this->guest_first_name);
+        }
+
+        if ($this->relationLoaded('customer') ? $this->customer : $this->customer()->exists()) {
+            return $this->customer->display_name ?? $this->customer->full_name ?? 'Walk-in';
+        }
+
+        return 'Walk-in';
     }
 
     public function getTimeRangeAttribute()

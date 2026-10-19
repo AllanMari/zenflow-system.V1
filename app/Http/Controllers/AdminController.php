@@ -53,27 +53,45 @@ class AdminController extends Controller
 
     public function dashboard()
     {
-        $today = Carbon::today();
+        $today    = Carbon::today();
+        $todayDow = $today->dayOfWeek;
 
-        $todayRevenue = Payment::whereDate('paid_at', $today)
-            ->whereIn('type', ['completion', 'additional', 'full'])
-            ->sum('amount');
+        // ── KPI 1: Today's Revenue ───────────────────────────────────────
+        // Include ALL payment types received today (completion, additional,
+        // full, and deposit). The original query excluded deposits.
+        $todayRevenue = Payment::whereDate('paid_at', $today)->sum('amount');
 
-        $todayAppointments = Appointment::whereDate('appointment_date', $today)->count();
+        // ── KPI 2: Appointments ──────────────────────────────────────────
+        // Count only active appointments (excludes cancelled / no_show).
+        $todayAppointments = Appointment::whereDate('appointment_date', $today)
+            ->whereNotIn('status', ['cancelled', 'no_show'])
+            ->count();
+
         $completedToday = Appointment::whereDate('appointment_date', $today)
             ->where('status', 'completed')
             ->count();
 
-        $todayDow = $today->dayOfWeek;
-        $staffOnDuty = User::whereHas('roles', fn($q) => $q->where('name', 'staff'))
-            ->whereHas('workSchedules', function ($q) use ($todayDow) {
-                $q->where('day_of_week', $todayDow)->where('is_day_off', false);
-            })->count();
+        // ── KPI 3: Staff Scheduled ───────────────────────────────────────
+        // Filter to active accounts + scheduled today + no approved leave.
+        // ScheduleException types sick_leave / urgent_leave count as absent.
+        $staffOnDuty = User::where('is_active', true)
+            ->whereHas('roles', fn($q) => $q->where('name', 'staff'))
+            ->whereHas('workSchedules', fn($q) =>
+                $q->where('day_of_week', $todayDow)->where('is_day_off', false)
+            )
+            ->whereDoesntHave('scheduleExceptions', fn($q) =>
+                $q->whereDate('exception_date', $today)
+                  ->whereIn('type', ['sick_leave', 'urgent_leave', 'day_off', 'holiday'])
+            )
+            ->count();
 
-        $depositsHeld = Appointment::where('status', 'pending')
-            ->where('deposit_required', '>', 0)
-            ->sum('deposit_required');
+        // Total active staff (for context in the view)
+        $totalStaff = User::where('is_active', true)
+            ->whereHas('roles', fn($q) => $q->where('name', 'staff'))
+            ->count();
 
+        // ── KPI 4: No Shows ──────────────────────────────────────────────
+        // Unchanged — verified accurate in the original.
         $todayNoShows = Appointment::whereDate('appointment_date', $today)
             ->where(function ($q) {
                 $q->where('status', 'no_show')
@@ -84,11 +102,38 @@ class AdminController extends Controller
             })
             ->count();
 
+        // ── KPI 5: Pending Confirmations ─────────────────────────────────
+        // Uses pendingValid() scope to count valid unconfirmed bookings
+        // scheduled for today or upcoming, excluding abandoned past-due bookings.
+        $pendingConfirmations = Appointment::pendingValid()->count();
+
+        // ── 7-Day Revenue Trend ──────────────────────────────────────────
+        $revenueChart = collect(range(6, 0))->map(fn($d) => [
+            'label' => Carbon::today()->subDays($d)->format('D'),
+            'value' => (float) Payment::whereDate('paid_at', Carbon::today()->subDays($d))
+                           ->sum('amount'),
+        ])->values();
+
+        // ── Today's Appointment Status Breakdown ─────────────────────────
+        $statusBreakdown = Appointment::whereDate('appointment_date', $today)
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        // ── Today's Appointment Feed ─────────────────────────────────────
+        $todayFeed = Appointment::with(['services', 'staff', 'room'])
+            ->whereDate('appointment_date', $today)
+            ->orderBy('start_time')
+            ->get();
+
         return view('admin-dashboard', compact(
             'todayRevenue', 'todayAppointments', 'completedToday',
-            'staffOnDuty', 'depositsHeld', 'todayNoShows'
+            'staffOnDuty', 'totalStaff', 'todayNoShows',
+            'pendingConfirmations',
+            'revenueChart', 'statusBreakdown', 'todayFeed'
         ));
     }
+
 
     /* ─── USERS ─── */
 
