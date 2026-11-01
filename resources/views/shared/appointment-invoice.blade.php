@@ -343,17 +343,12 @@
                                         $invoiceAppointment->customer;
 
                                     $listCustomerName =
-                                        $listCustomer
-                                            ? trim(
-                                                ($listCustomer->first_name ?? '') .
-                                                ' ' .
-                                                ($listCustomer->last_name ?? '')
-                                            )
-                                            : 'Walk-in Customer';
-
-                                    $listCustomerName =
-                                        $listCustomerName
+                                        $invoiceAppointment->client_name
                                         ?: 'Walk-in Customer';
+
+                                    $listCustomerPhone =
+                                        $invoiceAppointment->client_phone
+                                        ?? ($listCustomer?->phone_number ?? '—');
 
                                     $listStaffName =
                                         $invoiceAppointment->staff
@@ -450,7 +445,7 @@
                                                    dark:text-gray-400
                                                    mt-0.5"
                                         >
-                                            {{ $listCustomer?->phone_number ?? '—' }}
+                                            {{ $listCustomerPhone }}
                                         </div>
 
                                     </td>
@@ -724,15 +719,13 @@
 
     @php
 
-        $customerName = $customer
-            ? trim(
-                ($customer->first_name ?? '') . ' ' .
-                ($customer->last_name ?? '')
-            )
-            : 'Walk-in Customer';
+        $customerName = !empty($clientName)
+            ? $clientName
+            : ($appointment->client_name ?: 'Walk-in Customer');
 
-        $customerName =
-            $customerName ?: 'Walk-in Customer';
+        $customerPhone = !empty($clientPhone)
+            ? $clientPhone
+            : ($appointment->client_phone ?? ($customer?->phone_number ?? '—'));
 
         $appointmentDate =
             $appointment->appointment_date
@@ -1062,7 +1055,7 @@
                                        text-gray-900
                                        dark:text-white"
                             >
-                                {{ $customer?->phone_number ?? '—' }}
+                                {{ $customerPhone ?? '—' }}
                             </p>
 
                         </div>

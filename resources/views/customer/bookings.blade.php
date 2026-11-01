@@ -106,7 +106,7 @@
                     @if($isCancellable)
                     <div class="border-t pt-3 flex justify-end">
                         <button type="button" 
-                                @click="$dispatch('open-cancel-modal', { url: '{{ route('customer.appointments.cancel', $booking->id) }}', service: '{{ $booking->services->pluck('name')->join(', ') }}' })"
+                                onclick="cancelAppointment({{ \Illuminate\Support\Js::from(route('customer.appointments.cancel', $booking->id)) }}, {{ \Illuminate\Support\Js::from($booking->services->pluck('name')->join(', ')) }})"
                                 class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs rounded-xl font-bold flex items-center gap-1.5">
                             Cancel Appointment
                         </button>
@@ -162,29 +162,71 @@
 
 </div>
 
-<!-- Cancel Modal -->
-<div x-data="{ open: false, actionUrl: '', serviceName: '' }"
-     @open-cancel-modal.window="open = true; actionUrl = $event.detail.url; serviceName = $event.detail.service"
-     x-show="open"
-     class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-     style="display: none;"
-     x-cloak>
-    <div @click.outside="open = false" class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full p-6 border space-y-4">
-        <h3 class="text-lg font-bold text-gray-800 dark:text-white">Cancel Appointment</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400">
-            Are you sure you want to cancel <span class="font-semibold text-gray-800" x-text="serviceName"></span>?
-        </p>
-        <form :action="actionUrl" method="POST">
-            @csrf
-            <div>
+<script>
+async function cancelAppointment(url, serviceNames) {
+    const { value: note, isConfirmed } = await Swal.fire({
+        title: 'Cancel Appointment',
+        html: `
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Are you sure you want to cancel <span class="font-semibold text-gray-800 dark:text-white">${serviceNames}</span>?
+            </p>
+            <div class="text-left">
                 <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">Cancellation Reason (Optional)</label>
-                <textarea name="cancellation_note" rows="3" class="w-full rounded-xl border p-3 text-sm focus:ring-2 focus:ring-teal-500"></textarea>
+                <textarea id="swal-input-reason" rows="3" class="w-full rounded-xl border p-3 text-sm focus:ring-2 focus:ring-teal-500" placeholder="Optional reason..."></textarea>
             </div>
-            <div class="flex items-center justify-end gap-3 mt-5">
-                <button type="button" @click="open = false" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium">Keep Appointment</button>
-                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium">Yes, Cancel</button>
-            </div>
-        </form>
-    </div>
-</div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Cancel',
+        cancelButtonText: 'Keep Appointment',
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#9ca3af',
+        background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
+        color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+        width: '400px',
+        padding: '1.25rem',
+        customClass: {
+            popup: 'rounded-2xl',
+            title: 'text-lg font-bold',
+            htmlContainer: 'text-sm',
+            confirmButton: 'rounded-lg px-4 py-2 text-sm',
+            cancelButton: 'rounded-lg px-4 py-2 text-sm'
+        },
+        preConfirm: () => {
+            const reason = document.getElementById('swal-input-reason').value;
+            if (reason.length > 1000) {
+                Swal.showValidationMessage('Reason must be 1000 characters or less.');
+                return false;
+            }
+            return reason;
+        }
+    });
+
+    if (isConfirmed) {
+        Swal.showLoading();
+        
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = '_token';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+        
+        if (note && note.trim().length > 0) {
+            const noteInput = document.createElement('input');
+            noteInput.type = 'hidden';
+            noteInput.name = 'cancellation_note';
+            noteInput.value = note;
+            form.appendChild(noteInput);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
 @endsection

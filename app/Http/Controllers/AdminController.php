@@ -1156,6 +1156,13 @@ public function index(Request $request)
                     return;
                 }
 
+                if ($status === 'cancelled_customer') {
+                    $q->where('status', 'cancelled')
+                      ->where('cancellation_reason', 'customer_cancelled');
+
+                    return;
+                }
+
                 $q->where('status', $status);
             }
         )
@@ -1238,6 +1245,12 @@ public function appointmentReportPdf(
                 $q->whereNull('cancellation_reason')
                   ->orWhere('cancellation_reason', '!=', 'customer_no_show');
             });
+
+    } elseif ($status === 'cancelled_customer') {
+
+        $query
+            ->where('status', 'cancelled')
+            ->where('cancellation_reason', 'customer_cancelled');
 
     } elseif ($status) {
 
@@ -1434,11 +1447,12 @@ public function appointmentReportPdf(
     |--------------------------------------------------------------------------
     */
 
-    $statusLabel = $status
-        ? ucwords(
-            str_replace('_', ' ', $status)
-        )
-        : 'All Statuses';
+    $statusLabel = match ($status) {
+        'cancelled_customer' => 'Customer Cancelled',
+        'no_show' => 'No-Show',
+        null, '' => 'All Statuses',
+        default => ucwords(str_replace('_', ' ', $status)),
+    };
 
     /*
     |--------------------------------------------------------------------------

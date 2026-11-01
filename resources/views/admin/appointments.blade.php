@@ -197,7 +197,12 @@
 
                             <option value="cancelled"
                                 {{ request('status') === 'cancelled' ? 'selected' : '' }}>
-                                Cancelled
+                                All Cancellations
+                            </option>
+
+                            <option value="cancelled_customer"
+                                {{ request('status') === 'cancelled_customer' ? 'selected' : '' }}>
+                                Customer Cancelled
                             </option>
 
                             <option value="no_show"
@@ -562,7 +567,9 @@
                                 @if(request('status') === 'no_show')
                                     No-show
                                 @elseif(request('status') === 'cancelled')
-                                    Cancelled
+                                    All Cancellations
+                                @elseif(request('status') === 'cancelled_customer')
+                                    Customer Cancelled
                                 @else
                                     {{ str_replace('_', ' ', ucfirst(request('status'))) }}
                                 @endif

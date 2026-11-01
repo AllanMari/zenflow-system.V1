@@ -7,6 +7,7 @@ use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureSessionValid;
+use App\Http\Middleware\EnsureCanManageSchedules;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'auth' => Authenticate::class,
+            'can_manage_schedules' => EnsureCanManageSchedules::class,
         ]);
 
         // Append to web middleware group — runs on EVERY web request

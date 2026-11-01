@@ -200,6 +200,8 @@ class AppointmentInvoiceController extends Controller
         return [
             'appointment' => $appointment,
             'customer' => $appointment->customer,
+            'clientName' => $appointment->client_name ?: 'Walk-in Customer',
+            'clientPhone' => $appointment->client_phone,
             'staff' => $appointment->staff,
             'room' => $appointment->room,
             'services' => $appointment->services,

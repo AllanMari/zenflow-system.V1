@@ -3,9 +3,7 @@
     $balance = max(0, (float) $appointment->total_price - $totalPaid);
     $fullyPaid = $balance <= 0;
 
-    $customerName = $appointment->customer?->nickname
-        ?: $appointment->customer?->full_name
-        ?: 'Walk-in Customer';
+    $customerName = $appointment->client_name;
 
     $phone = $appointment->customer?->phone_number;
     $isPastUnresolved = isset($isPastUnresolved) ? $isPastUnresolved : false;

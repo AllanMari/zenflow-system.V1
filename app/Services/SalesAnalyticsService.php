@@ -104,6 +104,32 @@ class SalesAnalyticsService
             $status
         );
 
+        /*
+        |--------------------------------------------------------------------------
+        | Appointment-based paginators for the Transaction Log
+        |--------------------------------------------------------------------------
+        |
+        | $paginatedAppointments:
+        |   25 unique Appointment records per page whose payments fall in the
+        |   selected date range and whose status matches the selected tab.
+        |
+        | $allFilteredAppointments:
+        |   All matching Appointment records (unpaginated), used for grand totals
+        |   and the unique-appointment count shown in the header / footer.
+        |
+        */
+        $paginatedAppointments = $this->getFilteredAppointments(
+            $startDate,
+            $endDate,
+            $status
+        );
+
+        $allFilteredAppointments = $this->getAllFilteredAppointmentModels(
+            $startDate,
+            $endDate,
+            $status
+        );
+
         $allPayments = (clone $baseQuery)
             ->orderBy('paid_at', 'desc')
             ->get();
@@ -341,22 +367,30 @@ class SalesAnalyticsService
         | Transaction log
         |--------------------------------------------------------------------------
         |
-        | IMPORTANT:
-        | Use $filteredAllPayments here instead of $allPayments.
+        | For 'completed' and 'no_show': use the Payment-based query ($payments /
+        | $filteredAllPayments). These statuses always have a payment record.
         |
-        | This makes:
-        |   Completed -> completed transaction count
-        |   Cancelled -> cancelled transaction count
-        |   No Show   -> customer no-show transaction count
-        |
-        | The rest of the dashboard still uses $allPayments.
+        | For 'cancelled': query Appointment directly so that unpaid customer
+        | cancellations (which have NO row in the payments table) are included.
         |
         */
-        $txLogData = $this->buildTransactionRows(
-            $payments,
-            $filteredAllPayments,
-            $status
-        );
+        if ($status === 'cancelled') {
+            $txLogData = $this->buildCancelledTransactionRows(
+                $this->getPaginatedCancelledAppointments($startDate, $endDate),
+                $this->getAllCancelledAppointments($startDate, $endDate)
+            );
+        } elseif ($status === 'no_show') {
+            $txLogData = $this->buildNoShowTransactionRows(
+                $this->getPaginatedNoShowAppointments($startDate, $endDate),
+                $this->getAllNoShowAppointments($startDate, $endDate)
+            );
+        } else {
+            $txLogData = $this->buildTransactionRows(
+                $paginatedAppointments,
+                $allFilteredAppointments,
+                $status
+            );
+        }
 
         $printServiceSummary = $this->buildPrintServiceSummary(
             $allPayments
@@ -691,6 +725,119 @@ class SalesAnalyticsService
 
         return $query
             ->orderBy('paid_at', 'desc')
+            ->get();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Appointment-based query helpers for the Transaction Log
+    |--------------------------------------------------------------------------
+    |
+    | These methods query the Appointment model directly, using a whereHas
+    | constraint to enforce the same paid_at date range that buildBaseQuery()
+    | applies to the Payment model.  Because each Appointment row is unique,
+    | paginating here always yields exactly one row per appointment.
+    |
+    | The status filter mirrors applyTransactionStatusFilter() but operates on
+    | the appointment's own columns rather than through a whereHas relationship.
+    |
+    */
+
+    /**
+     * Build the base Appointment query for the Transaction Log.
+     *
+     * Only appointments that have at least one payment whose paid_at falls
+     * within the date range are included.  Confirmed appointments (not yet
+     * finalised) are excluded to match buildBaseQuery().
+     */
+    private function buildAppointmentBaseQuery(
+        Carbon $startDate,
+        Carbon $endDate
+    ) {
+        return Appointment::with([
+            'customer',
+            'services',
+            'staff',
+            'room',
+            'payments',
+        ])
+            ->where('status', '!=', 'confirmed')
+            ->whereHas(
+                'payments',
+                fn ($q) => $q->whereBetween('paid_at', [$startDate, $endDate])
+            );
+    }
+
+    /**
+     * Apply the same status rules used in applyTransactionStatusFilter(),
+     * but directly on the Appointment query.
+     */
+    private function applyAppointmentStatusFilter(
+        $query,
+        string $currentStatus
+    ) {
+        if ($currentStatus === 'all') {
+            return $query;
+        }
+
+        match ($currentStatus) {
+            'no_show' =>
+                $query->where(function ($q) {
+                    $q->where('status', 'no_show')
+                      ->orWhere(function ($sq) {
+                          $sq->where('status', 'cancelled')
+                             ->where('cancellation_reason', 'customer_no_show');
+                      });
+                }),
+
+            'cancelled' =>
+                $query->where('status', 'cancelled')
+                      ->where(function ($q) {
+                          $q->whereNull('cancellation_reason')
+                            ->orWhere('cancellation_reason', '!=', 'customer_no_show');
+                      }),
+
+            default =>
+                $query->where('status', $currentStatus),
+        };
+
+        return $query;
+    }
+
+    /**
+     * Return a paginated LengthAwarePaginator of Appointment records.
+     * 25 unique appointments per page.
+     */
+    private function getFilteredAppointments(
+        Carbon $startDate,
+        Carbon $endDate,
+        string $currentStatus
+    ) {
+        $query = $this->buildAppointmentBaseQuery($startDate, $endDate);
+        $query = $this->applyAppointmentStatusFilter($query, $currentStatus);
+
+        return $query
+            ->orderByDesc('appointment_date')
+            ->orderByDesc('start_time')
+            ->paginate(25)
+            ->withQueryString();
+    }
+
+    /**
+     * Return all matching Appointment records (no pagination).
+     * Used for grand totals and the unique-appointment count.
+     */
+    private function getAllFilteredAppointmentModels(
+        Carbon $startDate,
+        Carbon $endDate,
+        string $currentStatus
+    ): Collection {
+        $query = $this->buildAppointmentBaseQuery($startDate, $endDate);
+        $query = $this->applyAppointmentStatusFilter($query, $currentStatus);
+
+        return $query
+            ->orderByDesc('appointment_date')
+            ->orderByDesc('start_time')
             ->get();
     }
 
@@ -1312,7 +1459,7 @@ class SalesAnalyticsService
                 continue;
             }
 
-            // 4. Repeat Clients: prior completed visits with this therapist OR multiple in period
+            // 4. Repeat Clients: prior completed visits with this therapist before the reporting period start date
             $priorCustomerIds = Appointment::query()
                 ->where('user_id', $therapistId)
                 ->whereIn('customer_id', $customerIds)
@@ -1322,19 +1469,13 @@ class SalesAnalyticsService
                 ->pluck('customer_id')
                 ->toArray();
 
-            $periodRepeatCustomerIds = $apptGroup
-                ->groupBy('customer_id')
-                ->filter(fn ($clientGroup) => $clientGroup->count() > 1)
-                ->keys()
-                ->toArray();
-
-            $repeatCustomerIds = array_unique(array_merge($priorCustomerIds, $periodRepeatCustomerIds));
+            $repeatCustomerIds = array_values(array_unique($priorCustomerIds));
             $repeatClientsCount = count($repeatCustomerIds);
             $newClientsCount = max(0, $uniqueClients - $repeatClientsCount);
 
             $repeatAppts = $apptGroup->whereIn('customer_id', $repeatCustomerIds)->count();
 
-            // 5. Calculate Retention Rate (repeat clients / total unique clients served)
+            // 5. Calculate Retention Rate (unique prior-period returning clients / total unique clients served)
             $retentionRate = $uniqueClients > 0
                 ? round(($repeatClientsCount / $uniqueClients) * 100, 1)
                 : 0;
@@ -1825,48 +1966,9 @@ private function getNoShowData(
             $forfeited += $deposit;
         }
 
-        $customerName = 'Walk-in';
+        $customerName = $appt->client_name ?: 'Walk-in';
 
-        if ($appt->customer) {
-            $customerName =
-                $appt->customer->full_name
-                ?? trim(
-                    ($appt->customer->first_name ?? '')
-                    . ' '
-                    . ($appt->customer->last_name ?? '')
-                );
-
-            if (empty(trim($customerName))) {
-                $customerName = 'Walk-in';
-            }
-        } else {
-            $customerName = trim(
-                ($appt->guest_first_name ?? '')
-                . ' '
-                . ($appt->guest_last_name ?? '')
-            );
-
-            if ($customerName === '') {
-                $customerName = $appt->guest_name
-                    ?? 'Walk-in';
-            }
-        }
-
-        $phone = 'N/A';
-
-        if ($appt->customer) {
-            $phone =
-                $appt->customer->phone_number
-                ?? $appt->customer->user->phone_number
-                ?? 'N/A';
-        }
-
-        if (
-            ($phone === 'N/A' || empty($phone))
-            && !empty($appt->guest_phone)
-        ) {
-            $phone = $appt->guest_phone;
-        }
+        $phone = $appt->client_phone ?: 'N/A';
 
         $list[] = [
             'appointment_id' =>
@@ -1914,24 +2016,460 @@ private function getNoShowData(
 
     /*
     |--------------------------------------------------------------------------
+    | Cancelled-appointment data sources
+    |--------------------------------------------------------------------------
+    |
+    | The Payment-based buildBaseQuery() cannot find unpaid cancellations
+    | because they have no row in the payments table.
+    |
+    | These three methods query Appointment directly, ordered by appointment_date
+    | (descending) within the selected date range, excluding customer_no_show
+    | records which belong to the No-Show tab.
+    |
+    */
+    private function buildCancelledApptQuery(
+        Carbon $startDate,
+        Carbon $endDate
+    ) {
+        return Appointment::with([
+            'customer',
+            'services',
+            'staff',
+            'room',
+            'payments',
+        ])
+            ->where('status', 'cancelled')
+            ->where(function ($q) {
+                $q->whereNull('cancellation_reason')
+                  ->orWhere('cancellation_reason', '!=', 'customer_no_show');
+            })
+            ->whereBetween('appointment_date', [
+                $startDate->copy()->startOfDay(),
+                $endDate->copy()->endOfDay(),
+            ])
+            ->orderBy('appointment_date', 'desc')
+            ->orderBy('start_time', 'desc');
+    }
+
+    private function getPaginatedCancelledAppointments(
+        Carbon $startDate,
+        Carbon $endDate
+    ) {
+        return $this->buildCancelledApptQuery($startDate, $endDate)
+            ->paginate(25)
+            ->withQueryString();
+    }
+
+    private function getAllCancelledAppointments(
+        Carbon $startDate,
+        Carbon $endDate
+    ): Collection {
+        return $this->buildCancelledApptQuery($startDate, $endDate)
+            ->get();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Transaction log rows — cancelled appointments (appointment-based)
+    |--------------------------------------------------------------------------
+    |
+    | Builds the same row structure as buildTransactionRows() but works
+    | directly from Appointment objects instead of Payment objects.
+    |
+    | Financial amounts for UNPAID cancellations:
+    |   grossAmount  — the sum of service prices at booking time (scheduled value)
+    |   discountAmount / discountPercent — any booking-level discount
+    |   netAmount    — 0.00  (no money was actually collected)
+    |   therapistCom — 0.00  (no net revenue means no commission)
+    |
+    | For PAID cancellations (e.g. deposit forfeited), the actual collected
+    | amount is reflected via the payments relation.
+    |
+    */
+    private function buildCancelledTransactionRows(
+        $paginatedAppointments,
+        Collection $allAppointments
+    ): array {
+        $rows   = [];
+        $rowNum = 1;
+
+        foreach ($paginatedAppointments as $appt) {
+            $services = $appt->services;
+
+            $serviceList = $services->map(fn ($svc) => [
+                'code' => $this->resolveServiceCode(
+                    $svc->pivot->service_name ?? $svc->name,
+                    $svc->code
+                ),
+                'name' => $svc->pivot->service_name ?? $svc->name,
+            ])->toArray();
+
+            // Gross = scheduled service value (what was booked, not what was paid)
+            $gross = $services->sum(
+                fn ($s) => (float) ($s->pivot->price_at_booking ?? $s->price ?? 0)
+            );
+
+            // Service-level discount
+            $discount = 0;
+            foreach ($services as $svc) {
+                $price    = (float) ($svc->pivot->price_at_booking ?? $svc->price ?? 0);
+                $discPrice = (float) ($svc->pivot->discount_price ?? $svc->discount_price ?? 0);
+                if ($discPrice > 0 && $discPrice < $price) {
+                    $discount += $price - $discPrice;
+                }
+            }
+
+            // Appointment-level discount
+            if (($appt->discount_amount ?? 0) > 0 && $gross > 0) {
+                $discount += $appt->discount_amount;
+            } elseif (($appt->discount_percent ?? 0) > 0 && $gross > 0) {
+                $discount += $gross * ($appt->discount_percent / 100);
+            }
+
+            // Collected deposit (if any)
+            $collected = (float) $appt->payments
+                ->whereIn('type', ['deposit', 'full', 'completion', 'additional'])
+                ->where('amount', '>', 0)
+                ->sum('amount');
+
+            // Net and commission are 0 — no revenue was earned from a cancellation.
+            // We show gross as the scheduled value for informational purposes only.
+            $net        = 0.0;
+            $commission = 0.0;
+
+            $durationMinutes = $services->sum(
+                fn ($s) => $s->pivot->service_duration ?? $s->duration_minutes ?? 0
+            );
+
+            if ($durationMinutes <= 0) {
+                $durationMinutes = abs(
+                    Carbon::parse($appt->end_time)
+                        ->diffInMinutes(Carbon::parse($appt->start_time))
+                );
+            }
+
+            // Note: surface the cancellation reason so staff can see it
+            $noteText = trim(
+                collect([
+                    $appt->cancellation_reason
+                        ? '[' . str_replace('_', ' ', ucfirst($appt->cancellation_reason)) . ']'
+                        : null,
+                    $appt->notes,
+                ])->filter()->implode(' — ')
+            );
+
+            $rows[] = [
+                'rowNum'          => $rowNum++,
+                'customerName'    => $appt->client_name ?: 'Walk-in',
+                'room'            => $appt->room->name ?? 'N/A',
+                'startTime'       => Carbon::parse($appt->start_time)->format('g:i A'),
+                'endTime'         => Carbon::parse($appt->end_time)->format('g:i A'),
+                'staffName'       => $appt->staff->full_name ?? 'Unassigned',
+                'durationHrs'     => round($durationMinutes / 60, 1),
+                'serviceList'     => $serviceList,
+                'grossAmount'     => number_format($gross, 2),
+                'discountAmount'  => $discount > 0 ? number_format($discount, 2) : null,
+                'discountPercent' => ($gross > 0 && $discount > 0)
+                    ? round(($discount / $gross) * 100, 1)
+                    : null,
+                'netAmount'       => number_format($net, 2),
+                'noteText'        => $noteText,
+                'comPct'          => (int) (self::COMMISSION_RATE * 100),
+                'therapistCom'    => number_format($commission, 2),
+                'filterKey'       => $appt->status,
+            ];
+        }
+
+        /*
+        | Grand totals — for cancelled appointments, net and commission are 0
+        | so that no phantom financial revenue is counted in the footer.
+        | Gross shows the aggregate scheduled value for reference.
+        */
+        $grandGross = 0;
+        $grandNet   = 0;
+        $grandCom   = 0;
+
+        foreach ($allAppointments as $appt) {
+            $gross = $appt->services->sum(
+                fn ($s) => (float) ($s->pivot->price_at_booking ?? $s->price ?? 0)
+            );
+
+            $discount = 0;
+            foreach ($appt->services as $svc) {
+                $price     = (float) ($svc->pivot->price_at_booking ?? $svc->price ?? 0);
+                $discPrice = (float) ($svc->pivot->discount_price ?? $svc->discount_price ?? 0);
+                if ($discPrice > 0 && $discPrice < $price) {
+                    $discount += $price - $discPrice;
+                }
+            }
+
+            if (($appt->discount_amount ?? 0) > 0 && $gross > 0) {
+                $discount += $appt->discount_amount;
+            } elseif (($appt->discount_percent ?? 0) > 0 && $gross > 0) {
+                $discount += $gross * ($appt->discount_percent / 100);
+            }
+
+            $grandGross += max(0, $gross - $discount);
+            // grandNet and grandCom remain 0 — no real revenue for cancellations
+        }
+
+        return [
+            'rows'          => $rows,
+            'grandGross'    => $grandGross,
+            'grandNet'      => $grandNet,
+            'grandCom'      => $grandCom,
+            'totalFiltered' => $allAppointments->count(),
+            'pagination'    => $paginatedAppointments,
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | No-Show appointment data sources
+    |--------------------------------------------------------------------------
+    |
+    | Queries Appointment directly so that no-show appointments without payments
+    | or deposits appear in the Transaction Log's No-Show tab.
+    |
+    | Supported conventions:
+    |   1. status = 'no_show'
+    |   2. status = 'cancelled' AND cancellation_reason = 'customer_no_show'
+    |
+    */
+    private function buildNoShowApptQuery(
+        Carbon $startDate,
+        Carbon $endDate
+    ) {
+        return Appointment::with([
+            'customer',
+            'services',
+            'staff',
+            'room',
+            'payments',
+        ])
+            ->where(function ($q) {
+                $q->where('status', 'no_show')
+                  ->orWhere(function ($sq) {
+                      $sq->where('status', 'cancelled')
+                         ->where('cancellation_reason', 'customer_no_show');
+                  });
+            })
+            ->whereBetween('appointment_date', [
+                $startDate->copy()->startOfDay(),
+                $endDate->copy()->endOfDay(),
+            ])
+            ->orderBy('appointment_date', 'desc')
+            ->orderBy('start_time', 'desc');
+    }
+
+    private function getPaginatedNoShowAppointments(
+        Carbon $startDate,
+        Carbon $endDate
+    ) {
+        return $this->buildNoShowApptQuery($startDate, $endDate)
+            ->paginate(25)
+            ->withQueryString();
+    }
+
+    private function getAllNoShowAppointments(
+        Carbon $startDate,
+        Carbon $endDate
+    ): Collection {
+        return $this->buildNoShowApptQuery($startDate, $endDate)
+            ->get();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Transaction log rows — no-show appointments (appointment-based)
+    |--------------------------------------------------------------------------
+    |
+    | Builds the same row structure as buildTransactionRows() but works
+    | directly from Appointment objects.
+    |
+    | Financial amounts for UNPAID no-shows:
+    |   grossAmount  — scheduled service price at booking time (reference only)
+    |   discountAmount / discountPercent — booking-level discount
+    |   netAmount    — 0.00 (no money collected)
+    |   therapistCom — 0.00 (no commission on uncollected amounts)
+    |
+    | For PAID no-shows (where a deposit was forfeited):
+    |   netAmount    — un-refunded deposit (genuine collected revenue, if any)
+    |   grandNet     — sum of actual collected amounts
+    |
+    */
+    private function buildNoShowTransactionRows(
+        $paginatedAppointments,
+        Collection $allAppointments
+    ): array {
+        $rows   = [];
+        $rowNum = 1;
+
+        foreach ($paginatedAppointments as $appt) {
+            $services = $appt->services;
+
+            $serviceList = $services->map(fn ($svc) => [
+                'code' => $this->resolveServiceCode(
+                    $svc->pivot->service_name ?? $svc->name,
+                    $svc->code
+                ),
+                'name' => $svc->pivot->service_name ?? $svc->name,
+            ])->toArray();
+
+            $gross = $services->sum(
+                fn ($s) => (float) ($s->pivot->price_at_booking ?? $s->price ?? 0)
+            );
+
+            $discount = 0;
+            foreach ($services as $svc) {
+                $price    = (float) ($svc->pivot->price_at_booking ?? $svc->price ?? 0);
+                $discPrice = (float) ($svc->pivot->discount_price ?? $svc->discount_price ?? 0);
+                if ($discPrice > 0 && $discPrice < $price) {
+                    $discount += $price - $discPrice;
+                }
+            }
+
+            if (($appt->discount_amount ?? 0) > 0 && $gross > 0) {
+                $discount += $appt->discount_amount;
+            } elseif (($appt->discount_percent ?? 0) > 0 && $gross > 0) {
+                $discount += $gross * ($appt->discount_percent / 100);
+            }
+
+            // Actual collected deposit vs refund
+            $deposit = (float) $appt->payments
+                ->where('type', 'deposit')
+                ->where('amount', '>', 0)
+                ->sum('amount');
+
+            $refund = (float) abs(
+                $appt->payments
+                    ->where('type', 'refund')
+                    ->where('amount', '<', 0)
+                    ->sum('amount')
+            );
+
+            // Genuine collected revenue from a no-show is non-refunded deposit
+            $net = ($deposit > 0 && $refund == 0) ? $deposit : 0.0;
+            $commission = 0.0; // No therapist commission for unperformed no-show services
+
+            $durationMinutes = $services->sum(
+                fn ($s) => $s->pivot->service_duration ?? $s->duration_minutes ?? 0
+            );
+
+            if ($durationMinutes <= 0) {
+                $durationMinutes = abs(
+                    Carbon::parse($appt->end_time)
+                        ->diffInMinutes(Carbon::parse($appt->start_time))
+                );
+            }
+
+            $reasonBadge = $appt->no_show_reason
+                ? '[' . str_replace('_', ' ', ucfirst($appt->no_show_reason)) . ']'
+                : ($appt->cancellation_reason
+                    ? '[' . str_replace('_', ' ', ucfirst($appt->cancellation_reason)) . ']'
+                    : '[No-Show]');
+
+            $noteText = trim(
+                collect([
+                    $reasonBadge,
+                    $appt->notes,
+                ])->filter()->implode(' — ')
+            );
+
+            $rows[] = [
+                'rowNum'          => $rowNum++,
+                'customerName'    => $appt->client_name ?: 'Walk-in',
+                'room'            => $appt->room->name ?? 'N/A',
+                'startTime'       => Carbon::parse($appt->start_time)->format('g:i A'),
+                'endTime'         => Carbon::parse($appt->end_time)->format('g:i A'),
+                'staffName'       => $appt->staff->full_name ?? 'Unassigned',
+                'durationHrs'     => round($durationMinutes / 60, 1),
+                'serviceList'     => $serviceList,
+                'grossAmount'     => number_format($gross, 2),
+                'discountAmount'  => $discount > 0 ? number_format($discount, 2) : null,
+                'discountPercent' => ($gross > 0 && $discount > 0)
+                    ? round(($discount / $gross) * 100, 1)
+                    : null,
+                'netAmount'       => number_format($net, 2),
+                'noteText'        => $noteText,
+                'comPct'          => (int) (self::COMMISSION_RATE * 100),
+                'therapistCom'    => number_format($commission, 2),
+                'filterKey'       => $appt->status,
+            ];
+        }
+
+        /*
+        | Grand totals — gross shows scheduled reference value, net shows genuine
+        | un-refunded forfeited deposits. Therapist commission is 0.
+        */
+        $grandGross = 0;
+        $grandNet   = 0;
+        $grandCom   = 0;
+
+        foreach ($allAppointments as $appt) {
+            $gross = $appt->services->sum(
+                fn ($s) => (float) ($s->pivot->price_at_booking ?? $s->price ?? 0)
+            );
+
+            $discount = 0;
+            foreach ($appt->services as $svc) {
+                $price     = (float) ($svc->pivot->price_at_booking ?? $svc->price ?? 0);
+                $discPrice = (float) ($svc->pivot->discount_price ?? $svc->discount_price ?? 0);
+                if ($discPrice > 0 && $discPrice < $price) {
+                    $discount += $price - $discPrice;
+                }
+            }
+
+            if (($appt->discount_amount ?? 0) > 0 && $gross > 0) {
+                $discount += $appt->discount_amount;
+            } elseif (($appt->discount_percent ?? 0) > 0 && $gross > 0) {
+                $discount += $gross * ($appt->discount_percent / 100);
+            }
+
+            $grandGross += max(0, $gross - $discount);
+
+            $deposit = (float) $appt->payments
+                ->where('type', 'deposit')
+                ->where('amount', '>', 0)
+                ->sum('amount');
+
+            $refund = (float) abs(
+                $appt->payments
+                    ->where('type', 'refund')
+                    ->where('amount', '<', 0)
+                    ->sum('amount')
+            );
+
+            if ($deposit > 0 && $refund == 0) {
+                $grandNet += $deposit;
+            }
+        }
+
+        return [
+            'rows'          => $rows,
+            'grandGross'    => $grandGross,
+            'grandNet'      => $grandNet,
+            'grandCom'      => $grandCom,
+            'totalFiltered' => $allAppointments->count(),
+            'pagination'    => $paginatedAppointments,
+        ];
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Transaction log rows
     |--------------------------------------------------------------------------
     */
     private function buildTransactionRows(
-        $paginatedPayments,
-        $filteredPayments,
+        $paginatedAppointments,
+        $allFilteredAppointments,
         string $filterStatus
     ): array {
         $rows = [];
         $rowNum = 1;
 
-        foreach ($paginatedPayments as $payment) {
-            $appt = $payment->appointment;
-
-            if (!$appt) {
-                continue;
-            }
-
+        foreach ($paginatedAppointments as $appt) {
             $services = $appt->services;
 
             $serviceList = $services
@@ -2039,13 +2577,7 @@ private function getNoShowData(
                     $rowNum++,
 
                 'customerName' =>
-                    $appt->customer->full_name
-                    ?? trim(
-                        ($appt->guest_first_name ?? '')
-                        . ' '
-                        . ($appt->guest_last_name ?? '')
-                    )
-                    ?: 'Walk-in',
+                    $appt->client_name ?: 'Walk-in',
 
                 'room' =>
                     $appt->room->name ?? 'N/A',
@@ -2127,30 +2659,18 @@ private function getNoShowData(
 
         /*
         |--------------------------------------------------------------------------
-        | Grand totals: unique appointments for SELECTED STATUS
+        | Grand totals: one pass over all unique appointments
         |--------------------------------------------------------------------------
         |
-        | IMPORTANT FIX:
-        |
-        | Previously this used $allPayments, which contains every status.
-        | Therefore the count stayed the same when changing the dropdown.
-        |
-        | It now uses $filteredPayments, which contains only the selected
-        | transaction status.
+        | $allFilteredAppointments already contains one Appointment per row
+        | (queried from the appointments table), so no deduplication is needed.
         |
         */
         $grandGross = 0;
         $grandNet = 0;
         $grandCom = 0;
 
-        $uniqueAppts =
-            $filteredPayments
-                ->pluck('appointment')
-                ->filter()
-                ->unique('id')
-                ->values();
-
-        foreach ($uniqueAppts as $appt) {
+        foreach ($allFilteredAppointments as $appt) {
             $gross = $appt->services->sum(
                 fn ($s) =>
                     (float) (
@@ -2233,14 +2753,11 @@ private function getNoShowData(
             'grandCom' =>
                 $grandCom,
 
-            /*
-            | This now changes according to the selected status.
-            */
             'totalFiltered' =>
-                $uniqueAppts->count(),
+                $allFilteredAppointments->count(),
 
             'pagination' =>
-                $paginatedPayments,
+                $paginatedAppointments,
         ];
     }
 

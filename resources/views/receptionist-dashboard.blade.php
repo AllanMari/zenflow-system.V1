@@ -403,15 +403,29 @@
                                             @endif
                                         </div>
 
-                                        @if($isToday)
-                                            <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 animate-pulse">
-                                                Today
-                                            </span>
-                                        @else
-                                            <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                                                {{ $apptDate->format('M j') }}
-                                            </span>
-                                        @endif
+                                        <div class="flex items-center gap-1.5 shrink-0">
+                                            @if($appt->expires_at)
+                                                <span
+                                                    class="pending-countdown-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50"
+                                                    data-countdown-id="{{ $appt->id }}"
+                                                    data-expires-at="{{ $appt->expires_at->toISOString() }}"
+                                                    title="Authoritative expiration deadline: {{ $appt->expires_at->format('M j, Y g:i A') }}"
+                                                >
+                                                    <i data-lucide="clock" class="w-2.5 h-2.5 text-rose-500 shrink-0"></i>
+                                                    <span class="countdown-text">Calculating...</span>
+                                                </span>
+                                            @endif
+
+                                            @if($isToday)
+                                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 animate-pulse">
+                                                    Today
+                                                </span>
+                                            @else
+                                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                                                    {{ $apptDate->format('M j') }}
+                                                </span>
+                                            @endif
+                                        </div>
                                     </div>
 
                                     <div class="mt-2 text-xs text-gray-600 dark:text-gray-400">
@@ -472,6 +486,58 @@
     document.addEventListener('DOMContentLoaded', function () {
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
             window.lucide.createIcons();
+        }
+
+        // Initialize pending expiration countdowns
+        const badges = document.querySelectorAll('.pending-countdown-badge');
+        if (badges.length) {
+            function formatRemaining(totalSeconds) {
+                if (totalSeconds <= 0) return 'Expired — refreshing status...';
+                if (totalSeconds < 60) return `${totalSeconds}s`;
+
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
+
+                if (hours > 0) return `${hours}h ${minutes}m`;
+                if (minutes > 0) return `${minutes}m ${seconds}s`;
+                return '<1m';
+            }
+
+            function updateCountdowns() {
+                const now = Date.now();
+                let hasExpired = false;
+
+                badges.forEach(badge => {
+                    const iso = badge.getAttribute('data-expires-at');
+                    if (!iso) return;
+                    const textEl = badge.querySelector('.countdown-text');
+                    if (!textEl) return;
+
+                    const deadline = new Date(iso).getTime();
+                    const diffSeconds = Math.floor((deadline - now) / 1000);
+
+                    if (diffSeconds <= 0) {
+                        textEl.textContent = 'Expired';
+                        badge.classList.remove('bg-rose-50', 'text-rose-700', 'border-rose-200');
+                        badge.classList.add('bg-gray-100', 'text-gray-700', 'border-gray-300', 'animate-pulse');
+                        hasExpired = true;
+                    } else {
+                        textEl.textContent = formatRemaining(diffSeconds);
+                    }
+                });
+
+                if (hasExpired) {
+                    setTimeout(() => window.location.reload(), 3000);
+                }
+            }
+
+            updateCountdowns();
+            const interval = setInterval(updateCountdowns, 1000);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) updateCountdowns();
+            });
+            window.addEventListener('beforeunload', () => clearInterval(interval));
         }
     });
 </script>

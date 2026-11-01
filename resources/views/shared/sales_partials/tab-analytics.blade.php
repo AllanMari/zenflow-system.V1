@@ -1147,7 +1147,7 @@
                     </div>
                     <div>
                         <h2 class="text-base font-semibold text-gray-900 dark:text-white">Therapist Retention &amp; Client Loyalty</h2>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">Repeat booking and client loyalty rates for each therapist.</p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">Share of clients served in this period who previously completed visits with the same therapist.</p>
                     </div>
                 </div>
                 <span class="inline-flex w-fit items-center rounded-full bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">

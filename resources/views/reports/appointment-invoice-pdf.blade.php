@@ -368,16 +368,13 @@
 
 @php
 
-    $customerName = $customer
-        ? trim(
-            ($customer->first_name ?? '') . ' ' .
-            ($customer->last_name ?? '')
-        )
-        : 'Walk-in Customer';
+    $customerName = !empty($clientName)
+        ? $clientName
+        : ($appointment->client_name ?? ($customerName ?? 'Walk-in Customer'));
 
-    $customerName =
-        $customerName ?: 'Walk-in Customer';
-
+    $customerPhone = !empty($clientPhone)
+        ? $clientPhone
+        : ($appointment->client_phone ?? ($customer->phone_number ?? '—'));
 
     $appointmentDate =
         $appointment->appointment_date
@@ -459,7 +456,7 @@
                     </div>
 
                     <div class="field-value">
-                        {{ $customer->phone_number ?? '—' }}
+                        {{ $customerPhone ?? '—' }}
                     </div>
 
                 </td>

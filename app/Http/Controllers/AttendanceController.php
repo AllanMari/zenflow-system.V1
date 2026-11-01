@@ -594,6 +594,12 @@ class AttendanceController extends Controller
             true
         );
 
+        $data['reportTitle'] = 'Attendance Report';
+        $data['referenceNumber'] = 'ATT-' . now()->format('YmdHis');
+        $data['dateRange'] = ($data['startDate'] ? $data['startDate']->format('M d, Y') : '') . ' - ' . ($data['endDate'] ? $data['endDate']->format('M d, Y') : '');
+        $data['generatedAt'] = now('Asia/Manila')->format('M j, Y g:i A');
+        $data['preparedBy'] = trim(auth()->user()->first_name . ' ' . auth()->user()->last_name);
+
         return view(
             'reports.attendance-report',
             $data
@@ -1079,6 +1085,12 @@ switch ($range) {
                     );
 
                 if (!$working) {
+                    continue;
+                }
+
+                // Exclude business closure dates from synthesized absences
+                $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($d);
+                if (isset($bizWindow['is_open']) && !$bizWindow['is_open']) {
                     continue;
                 }
 

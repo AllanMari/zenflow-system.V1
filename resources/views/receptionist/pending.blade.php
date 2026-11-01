@@ -114,6 +114,7 @@
                 data-phone="{{ $appointment->guest_phone ?: ($appointment->customer?->phone_number ?: 'N/A') }}"
                 data-date="{{ $dateStr }}"
                 data-timestamp="{{ $apptDateTime->timestamp }}"
+                data-expires-at="{{ $appointment->expires_at?->toISOString() }}"
                 data-cancel-url="{{ route('receptionist.cancel', $appointment) }}"
             >
 
@@ -133,6 +134,21 @@
                                 <span class="px-2 py-0.5 rounded-md text-[11px] font-bold border uppercase tracking-wide {{ $urgencyBadge[0] }}">
                                     {{ $urgencyBadge[1] }}
                                 </span>
+
+                                {{-- Live Expiration Countdown Badge --}}
+                                @if($appointment->expires_at)
+                                    <span
+                                        class="pending-countdown-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50"
+                                        data-countdown-id="{{ $appointment->id }}"
+                                        data-expires-at="{{ $appointment->expires_at->toISOString() }}"
+                                        title="Authoritative expiration deadline: {{ $appointment->expires_at->format('M j, Y g:i A') }}"
+                                    >
+                                        <svg class="w-3 h-3 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <span class="countdown-text">Calculating...</span>
+                                    </span>
+                                @endif
 
                                 <span class="text-[11px] font-mono text-gray-400">
                                     #{{ $appointment->id }}
@@ -1336,7 +1352,92 @@ document.addEventListener('DOMContentLoaded', function () {
         .querySelectorAll('.appointment-card')
         .forEach(loadRoomsForAppointment);
 
+    // Initialize live pending expiration countdowns
+    initPendingCountdowns();
+
 });
+
+/* ─── Live Pending Expiration Countdown Manager ─── */
+function initPendingCountdowns() {
+    const badges = document.querySelectorAll('.pending-countdown-badge');
+    if (!badges.length) return;
+
+    let refreshTimeout = null;
+
+    function formatRemaining(totalSeconds) {
+        if (totalSeconds <= 0) {
+            return 'Expired — refreshing status...';
+        }
+        if (totalSeconds < 60) {
+            return `Expires in ${totalSeconds}s`;
+        }
+
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+            return `Expires in ${hours}h ${minutes}m`;
+        }
+        if (minutes > 0) {
+            return `Expires in ${minutes}m ${seconds}s`;
+        }
+        return 'Expires in less than 1 minute';
+    }
+
+    function updateAllCountdowns() {
+        const now = Date.now();
+        let hasExpiredItem = false;
+
+        badges.forEach(badge => {
+            const iso = badge.getAttribute('data-expires-at');
+            if (!iso) return;
+
+            const textEl = badge.querySelector('.countdown-text');
+            if (!textEl) return;
+
+            const deadline = new Date(iso).getTime();
+            const diffSeconds = Math.floor((deadline - now) / 1000);
+
+            if (diffSeconds <= 0) {
+                textEl.textContent = 'Expired — refreshing status...';
+                badge.classList.remove('bg-rose-50', 'text-rose-700', 'border-rose-200');
+                badge.classList.add('bg-gray-100', 'text-gray-700', 'border-gray-300', 'dark:bg-gray-800', 'dark:text-gray-300', 'animate-pulse');
+                hasExpiredItem = true;
+            } else {
+                textEl.textContent = formatRemaining(diffSeconds);
+                if (diffSeconds < 3600) {
+                    badge.classList.add('animate-pulse');
+                }
+            }
+        });
+
+        // If an appointment reached zero, debounce a subtle page reload to reconcile with backend
+        if (hasExpiredItem && !refreshTimeout) {
+            refreshTimeout = setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        }
+    }
+
+    // Run immediately
+    updateAllCountdowns();
+
+    // Recalculate every second against absolute epoch timestamps (handles tab backgrounding & sleep)
+    const countdownInterval = setInterval(updateAllCountdowns, 1000);
+
+    // Refresh immediately when tab regains focus or visibility
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            updateAllCountdowns();
+        }
+    });
+
+    window.addEventListener('beforeunload', () => {
+        clearInterval(countdownInterval);
+        if (refreshTimeout) clearTimeout(refreshTimeout);
+    });
+}
 
 </script>
 

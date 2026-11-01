@@ -47,7 +47,7 @@ class CustomerDashboardTest extends TestCase
         $this->get(route('customer-dashboard'))->assertRedirect(route('login'));
 
         $user = User::factory()->create();
-        $this->actingAs($user)->get(route('customer-dashboard'))->assertUnauthorized();
+        $this->actingAs($user)->get(route('customer-dashboard'))->assertForbidden();
     }
 
     public function test_dashboard_summarizes_only_own_appointments_and_selects_nearest_active_one(): void

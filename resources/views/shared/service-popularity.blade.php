@@ -1,16 +1,9 @@
-@extends('layouts.master', [
-'roleLabel' => Auth::user()->isAdmin() ? 'Admin Panel' : 'Receptionist Panel',
-'userRole' => Auth::user()->isAdmin() ? 'Administrator' : 'Receptionist',
-'settingsRoute' => Auth::user()->isAdmin()
-? 'admin.profile.update'
-: 'receptionist.profile.update',
-])
+@extends(auth()->user()->isAdmin() ? 'layouts.admin' : 'layouts.receptionist')
 
 @section('title', 'Service Popularity')
 
 @php
 $isAdmin = Auth::user()->isAdmin();
-
 
 $reportRoute = $isAdmin
     ? 'admin.service-popularity'
@@ -19,326 +12,12 @@ $reportRoute = $isAdmin
 $pdfRoute = $isAdmin
     ? 'admin.service-popularity.pdf'
     : 'receptionist.service-popularity.pdf';
-
-
 @endphp
-
-@section('logo-icon') <i
-     data-lucide="sparkles"
-     class="h-5 w-5 text-white"
- ></i>
-@endsection
-
-{{-- =========================================================
-SIDEBAR
-========================================================= --}}
-@section('sidebar-nav')
-
-
-<p class="nav-text mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-600">
-    Overview
-</p>
-
-<a
-    href="{{ route($isAdmin ? 'admin-dashboard' : 'receptionist.dashboard') }}"
-    data-label="Dashboard"
-    class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
->
-    <i
-        data-lucide="layout-dashboard"
-        class="h-[18px] w-[18px] shrink-0"
-    ></i>
-
-    <span class="nav-text whitespace-nowrap">
-        Dashboard
-    </span>
-</a>
-
-
-@if ($isAdmin)
-
-    <a
-        href="{{ route('admin.users.index') }}"
-        data-label="Users"
-        class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-    >
-        <i
-            data-lucide="users"
-            class="h-[18px] w-[18px] shrink-0"
-        ></i>
-
-        <span class="nav-text whitespace-nowrap">
-            Users
-        </span>
-    </a>
-
-
-    <p class="nav-text mb-2 mt-6 px-3 text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-600">
-        Management
-    </p>
-
-
-    <a
-        href="{{ route('admin.services.index') }}"
-        data-label="Services"
-        class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-    >
-        <i
-            data-lucide="sparkles"
-            class="h-[18px] w-[18px] shrink-0"
-        ></i>
-
-        <span class="nav-text whitespace-nowrap">
-            Services
-        </span>
-    </a>
-
-
-    <a
-        href="{{ route('admin.rooms.index') }}"
-        data-label="Rooms"
-        class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-    >
-        <i
-            data-lucide="door-open"
-            class="h-[18px] w-[18px] shrink-0"
-        ></i>
-
-        <span class="nav-text whitespace-nowrap">
-            Rooms
-        </span>
-    </a>
-
-
-    <a
-        href="{{ route('admin.landing.editor') }}"
-        data-label="Landing Page"
-        class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-    >
-        <i
-            data-lucide="house"
-            class="h-[18px] w-[18px] shrink-0"
-        ></i>
-
-        <span class="nav-text whitespace-nowrap">
-            Landing Page
-        </span>
-    </a>
-
-@endif
-
-
-{{-- Reports --}}
-<p class="nav-text mb-2 mt-6 px-3 text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-600">
-    Reports
-</p>
-
-
-@if ($isAdmin)
-
-    <a
-        href="{{ route('admin.appointments') }}"
-        data-label="Appointment Report"
-        class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-    >
-        <i
-            data-lucide="calendar-clock"
-            class="h-[18px] w-[18px] shrink-0"
-        ></i>
-
-        <span class="nav-text whitespace-nowrap">
-            Appointment Report
-        </span>
-    </a>
-
-
-    <a
-        href="{{ route('admin.schedules') }}"
-        data-label="Therapist Shift"
-        class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-    >
-        <i
-            data-lucide="calendar-days"
-            class="h-[18px] w-[18px] shrink-0"
-        ></i>
-
-        <span class="nav-text whitespace-nowrap">
-            Therapist Shift
-        </span>
-    </a>
-
-
-    <a
-        href="{{ route('attendance.today') }}"
-        data-label="Attendance"
-        class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-    >
-        <i
-            data-lucide="clipboard-check"
-            class="h-[18px] w-[18px] shrink-0"
-        ></i>
-
-        <span class="nav-text whitespace-nowrap">
-            Attendance
-        </span>
-    </a>
-
-
-    <a
-        href="{{ route('admin.sales') }}"
-        data-label="Sales Report"
-        class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-    >
-        <i
-            data-lucide="chart-column"
-            class="h-[18px] w-[18px] shrink-0"
-        ></i>
-
-        <span class="nav-text whitespace-nowrap">
-            Sales Report
-        </span>
-    </a>
-
-
-    <a
-        href="{{ route('admin.room-tracking') }}"
-        data-label="Room Tracking"
-        class="nav-item mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-    >
-        <i
-            data-lucide="door-open"
-            class="h-[18px] w-[18px] shrink-0"
-        ></i>
-
-        <span class="nav-text whitespace-nowrap">
-            Room Tracking
-        </span>
-    </a>
-
-
-@endif
-
-
-{{-- Active Report --}}
-<a
-    href="{{ route($reportRoute) }}"
-    data-label="Service Popularity"
-    class="nav-item active mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-brand-600 dark:text-brand-400"
->
-    <i
-        data-lucide="sparkles"
-        class="h-[18px] w-[18px] shrink-0"
-    ></i>
-
-    <span class="nav-text whitespace-nowrap">
-        Service Popularity
-    </span>
-</a>
-
-
-@endsection
-
-{{-- =========================================================
-MOBILE SIDEBAR
-========================================================= --}}
-@section('sidebar-nav-mobile')
-
-
-<p class="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-600">
-    Reports
-</p>
-
-
-@if ($isAdmin)
-
-    <a
-        href="{{ route('admin.appointments') }}"
-        class="mb-1 flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold text-gray-600 dark:text-gray-400"
-    >
-        <i
-            data-lucide="calendar-clock"
-            class="h-[18px] w-[18px]"
-        ></i>
-
-        Appointment Report
-    </a>
-
-
-    <a
-        href="{{ route('admin.schedules') }}"
-        class="mb-1 flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold text-gray-600 dark:text-gray-400"
-    >
-        <i
-            data-lucide="calendar-days"
-            class="h-[18px] w-[18px]"
-        ></i>
-
-        Therapist Shift
-    </a>
-
-
-    <a
-        href="{{ route('attendance.today') }}"
-        class="mb-1 flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold text-gray-600 dark:text-gray-400"
-    >
-        <i
-            data-lucide="clipboard-check"
-            class="h-[18px] w-[18px]"
-        ></i>
-
-        Attendance
-    </a>
-
-
-    <a
-        href="{{ route('admin.sales') }}"
-        class="mb-1 flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold text-gray-600 dark:text-gray-400"
-    >
-        <i
-            data-lucide="chart-column"
-            class="h-[18px] w-[18px]"
-        ></i>
-
-        Sales Report
-    </a>
-
-
-    <a
-        href="{{ route('admin.room-tracking') }}"
-        class="mb-1 flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold text-gray-600 dark:text-gray-400"
-    >
-        <i
-            data-lucide="door-open"
-            class="h-[18px] w-[18px]"
-        ></i>
-
-        Room Tracking
-    </a>
-
-
-@endif
-
-
-<a
-    href="{{ route($reportRoute) }}"
-    class="mb-1 flex items-center gap-3 rounded-xl bg-brand-50 px-3 py-3 text-[13px] font-semibold text-brand-600 dark:bg-brand-900/20 dark:text-brand-400"
->
-    <i
-        data-lucide="sparkles"
-        class="h-[18px] w-[18px]"
-    ></i>
-
-    Service Popularity
-</a>
-
-
-@endsection
 
 {{-- =========================================================
 STYLES
 ========================================================= --}}
 @push('styles')
-
 
 <link
     rel="stylesheet"
@@ -347,32 +26,65 @@ STYLES
 
 <style>
     .flatpickr-calendar {
-        border-radius: 12px;
-        border: 1px solid #e5e7eb;
-        box-shadow:
-            0 20px 25px -5px rgb(0 0 0 / 0.10),
-            0 8px 10px -6px rgb(0 0 0 / 0.10);
+        border-radius: 1rem !important;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+        border: 1px solid #e2e8f0 !important;
+        overflow: hidden;
+        font-family: inherit !important;
+    }
+
+    .flatpickr-months .flatpickr-prev-month svg,
+    .flatpickr-months .flatpickr-next-month svg {
+        width: 14px !important;
+        height: 14px !important;
     }
 
     .dark .flatpickr-calendar {
-        background: #1f2937;
-        border-color: #374151;
+        background: #1e293b !important;
+        border-color: #334155 !important;
+        color: #f8fafc !important;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
     }
 
     .dark .flatpickr-months,
     .dark .flatpickr-weekdays {
-        background: #1f2937;
+        background: #1e293b !important;
     }
 
-    .dark .flatpickr-day,
+    .dark .flatpickr-current-month,
     .dark .flatpickr-weekday,
-    .dark .flatpickr-current-month {
-        color: #f9fafb;
+    .dark .flatpickr-day {
+        color: #f8fafc !important;
     }
 
-    .dark .flatpickr-day:hover {
-        background: #374151;
-        border-color: #374151;
+    .dark .flatpickr-day:hover,
+    .dark .flatpickr-day:focus {
+        background: #334155 !important;
+    }
+
+    .dark .flatpickr-day.prevMonthDay,
+    .dark .flatpickr-day.nextMonthDay {
+        color: #64748b !important;
+    }
+
+    .flatpickr-day.selected,
+    .flatpickr-day.startRange,
+    .flatpickr-day.endRange {
+        background: #0d9488 !important;
+        border-color: #0d9488 !important;
+        color: #ffffff !important;
+    }
+
+    .flatpickr-day.inRange {
+        background: #ccfbf1 !important;
+        border-color: #ccfbf1 !important;
+        color: #0f766e !important;
+    }
+
+    .dark .flatpickr-day.inRange {
+        background: #134e4a !important;
+        border-color: #134e4a !important;
+        color: #5eead4 !important;
     }
 
     .flatpickr-input {
@@ -1430,15 +1142,13 @@ SCRIPTS
 ========================================================= --}}
 @push('scripts')
 
-
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
 
-        if (window.lucide) {
-            lucide.createIcons();
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
         }
 
 

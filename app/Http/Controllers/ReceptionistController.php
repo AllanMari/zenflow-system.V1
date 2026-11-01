@@ -21,7 +21,7 @@ class ReceptionistController extends Controller
 {
     use ScheduleTrait;
 
-    /* ─── DASHBOARD ─── */
+    /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ DASHBOARD ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
 
     public function desk()
     {
@@ -143,6 +143,16 @@ class ReceptionistController extends Controller
             $appointment = Appointment::lockForUpdate()->findOrFail($appointment->id);
             $appointment->load(['services.category', 'customer']);
 
+            // Guard: reject confirmation if the appointment is no longer pending
+            // or has already expired. This check runs after the row lock to close
+            // the race window with the expiration sweep command.
+            if ($appointment->status !== 'pending') {
+                return back()->with('error', 'This appointment can no longer be confirmed (current status: ' . $appointment->status . ').');
+            }
+            if ($appointment->is_expired) {
+                return back()->with('error', 'This appointment has expired and cannot be confirmed. Please ask the customer to rebook.');
+            }
+
             $staffAvailable = $this->schedGetAvailableStaff(
                 $appointment->appointment_date,
                 $appointment->start_time,
@@ -188,14 +198,14 @@ class ReceptionistController extends Controller
 
             if ($request->payment_type === 'deposit') {
                 if ($request->amount < $depositRequired) {
-                    return back()->with('error', 'Deposit amount must be at least ₱' . number_format($depositRequired, 2));
+                    return back()->with('error', 'Deposit amount must be at least ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($depositRequired, 2));
                 }
                 if ($request->amount > $appointment->total_price) {
-                    return back()->with('error', 'Deposit cannot exceed total price of ₱' . number_format($appointment->total_price, 2));
+                    return back()->with('error', 'Deposit cannot exceed total price of ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($appointment->total_price, 2));
                 }
             }
             if ($request->payment_type === 'full' && $request->amount < $appointment->total_price) {
-                return back()->with('error', 'Full payment must be at least ₱' . number_format($appointment->total_price, 2));
+                return back()->with('error', 'Full payment must be at least ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($appointment->total_price, 2));
             }
             if ($request->payment_type === 'cash_on_site' && $request->amount != 0) {
                 return back()->with('error', 'Cash on site amount must be 0.');
@@ -226,9 +236,9 @@ class ReceptionistController extends Controller
             }
 
             $msg = match ($request->payment_type) {
-                'deposit' => 'Booking confirmed! Deposit of ₱' . number_format($request->amount, 2) . ' recorded. Balance due at counter.',
-                'full' => 'Booking confirmed! Full payment of ₱' . number_format($request->amount, 2) . ' recorded.',
-                'cash_on_site' => 'Booking confirmed! Customer will pay ₱' . number_format($appointment->total_price, 2) . ' at the counter.',
+                'deposit' => 'Booking confirmed! Deposit of ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($request->amount, 2) . ' recorded. Balance due at counter.',
+                'full' => 'Booking confirmed! Full payment of ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($request->amount, 2) . ' recorded.',
+                'cash_on_site' => 'Booking confirmed! Customer will pay ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($appointment->total_price, 2) . ' at the counter.',
                 default => 'Booking confirmed!',
             };
 
@@ -244,7 +254,7 @@ class ReceptionistController extends Controller
                 NotificationController::sendTo(
                     $appointment->staff,
                     'New Assignment',
-                    ($appointment->client_name ?? 'Walk-in') . ' — ' . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
+                    ($appointment->client_name ?? 'Walk-in') . ' ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ' . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
                     'booking', 'info', route('staff.dashboard'), 'My Schedule'
                 );
             }
@@ -298,8 +308,11 @@ class ReceptionistController extends Controller
     public function pending()
     {
         $now = now();
-
-        Appointment::pendingOverdue()->limit(100)->get()->each->markAsExpired();
+        Appointment::pendingOverdue()->chunkById(50, function ($overdue) {
+            foreach ($overdue as $appt) {
+                $appt->markAsExpired();
+            }
+        });
 
         $appointments = Appointment::pendingValid()
             ->with(['customer', 'services.category'])
@@ -366,7 +379,7 @@ class ReceptionistController extends Controller
     }
 
 
-    /* ─── APPOINTMENT ACTIONS ─── */
+    /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ APPOINTMENT ACTIONS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
 
     public function addExtraService(Request $request, Appointment $appointment)
     {
@@ -393,7 +406,7 @@ class ReceptionistController extends Controller
                 'service_duration' => $service->duration_minutes,
                 'is_extra' => true,
             ]);
-            $message = "Added {$service->name} (₱" . number_format($service->price, 2) . ")";
+            $message = "Added {$service->name} (ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±" . number_format($service->price, 2) . ")";
         } else {
             return back()->with('error', 'Please select a service.');
         }
@@ -494,7 +507,7 @@ class ReceptionistController extends Controller
             $this->notifyCustomerCompletion($lockedAppt);
 
             return redirect()->route('receptionist.active')
-                ->with('success', 'Appointment completed! Payment recorded: ₱' . number_format($balanceDue, 2));
+                ->with('success', 'Appointment completed! Payment recorded: ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($balanceDue, 2));
         });
     }
 
@@ -539,7 +552,7 @@ class ReceptionistController extends Controller
             $appointment->save();
 
             $msg = $hasPayments
-                ? 'Payment of ₱' . number_format($totalPaid, 2) . ' forfeited. Appointment marked as no-show.'
+                ? 'Payment of ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($totalPaid, 2) . ' forfeited. Appointment marked as no-show.'
                 : 'Appointment marked as no-show.';
             return back()->with('success', $msg);
         }
@@ -561,7 +574,7 @@ class ReceptionistController extends Controller
         $appointment->refunded_by = auth()->id();
         $appointment->save();
 
-        return back()->with('success', 'Payment of ₱' . number_format($totalPaid, 2) . ' refunded. Appointment marked as no-show.');
+        return back()->with('success', 'Payment of ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($totalPaid, 2) . ' refunded. Appointment marked as no-show.');
     }
 
 public function active()
@@ -625,106 +638,140 @@ public function active()
 
     public function reassignStaff(Request $request, int $appointmentId)
     {
-        $appointment = Appointment::with(['services.category', 'room'])->findOrFail($appointmentId);
         $request->validate(['staff_id' => 'required|exists:users,id']);
 
-        $available = $this->schedGetAvailableStaff(
-            $appointment->appointment_date,
-            $appointment->start_time,
-            $appointment->end_time,
-            $appointment->id
-        )->firstWhere('user.id', (int) $request->staff_id);
+        return DB::transaction(function () use ($request, $appointmentId) {
+            $appointment = Appointment::lockForUpdate()->with(['services.category', 'room'])->findOrFail($appointmentId);
 
-        if (!$available || !$available['available']) {
-            return back()->with('error', 'Selected staff is not available for this time slot.');
-        }
+            if (!in_array($appointment->status, ['pending', 'confirmed'])) {
+                return back()->with('error', 'Cannot reassign staff for an appointment with status: ' . $appointment->status . '.');
+            }
 
-        if ($appointment->room_id) {
-            $requiredCategoryIds = $appointment->services
-                ->where('requires_room', true)
-                ->whereNotNull('room_category_id')
-                ->pluck('room_category_id')
-                ->unique()
-                ->values();
+            // Lock the selected therapist to serialize concurrent reassignments/reschedules for this staff member
+            User::lockForUpdate()->findOrFail((int) $request->staff_id);
 
-            if ($requiredCategoryIds->isNotEmpty() && $appointment->room->category_id) {
-                if (!$requiredCategoryIds->contains($appointment->room->category_id)) {
-                    return back()->with('error', 'Current room does not match service category requirements. Please reschedule to a compatible room first.');
+            $available = $this->schedGetAvailableStaff(
+                $appointment->appointment_date,
+                $appointment->start_time,
+                $appointment->end_time,
+                $appointment->id
+            )->firstWhere('user.id', (int) $request->staff_id);
+
+            if (!$available || !$available['available']) {
+                return back()->with('error', 'Selected staff is not available for this time slot.');
+            }
+
+            if ($appointment->room_id) {
+                $requiredCategoryIds = $appointment->services
+                    ->where('requires_room', true)
+                    ->whereNotNull('room_category_id')
+                    ->pluck('room_category_id')
+                    ->unique()
+                    ->values();
+
+                if ($requiredCategoryIds->isNotEmpty() && $appointment->room->category_id) {
+                    if (!$requiredCategoryIds->contains($appointment->room->category_id)) {
+                        return back()->with('error', 'Current room does not match service category requirements. Please reschedule to a compatible room first.');
+                    }
                 }
             }
-        }
 
-        $appointment->update(['user_id' => $request->staff_id]);
-        return back()->with('success', 'Staff reassigned to ' . $available['user']->full_name . '.');
+            $appointment->update(['user_id' => $request->staff_id]);
+            return back()->with('success', 'Staff reassigned to ' . $available['user']->full_name . '.');
+        });
     }
 
     public function reschedule(Request $request, int $appointmentId)
     {
-        $appointment = Appointment::findOrFail($appointmentId);
         $request->validate([
             'appointment_date' => 'required|date|after_or_equal:today',
             'start_time' => 'required|date_format:H:i',
             'room_id' => 'nullable|exists:rooms,id',
         ]);
 
-        $duration = $appointment->services->sum('duration_minutes');
-        $newEndTime = Carbon::parse($request->start_time)->addMinutes($duration)->format('H:i:s');
+        return DB::transaction(function () use ($request, $appointmentId) {
+            $appointment = Appointment::lockForUpdate()->with(['services', 'customer.user', 'staff'])->findOrFail($appointmentId);
 
-        if ($appointment->user_id) {
-            $staffAvailable = $this->schedGetAvailableStaff(
-                $request->appointment_date,
-                $request->start_time,
-                $newEndTime,
-                $appointment->id
-            )->firstWhere('user.id', $appointment->user_id);
-
-            if (!$staffAvailable || !$staffAvailable['available']) {
-                return back()->with('error', 'Current staff is not available at the new time. Please reassign staff first.');
+            if (!in_array($appointment->status, ['pending', 'confirmed'])) {
+                return back()->with('error', 'Cannot reschedule an appointment with status: ' . $appointment->status . '.');
             }
-        }
 
-        $oldRoomId = $appointment->room_id;
-        $newRoomId = $request->room_id;
-
-        if ($newRoomId && $newRoomId != $oldRoomId) {
-            $room = Room::find($newRoomId);
-            if ($room && !$room->isAvailableFor($request->appointment_date, $request->start_time, $newEndTime, $appointment->id)) {
-                return back()->with('error', 'Selected room is not available at the new time.');
+            // Validate against business operating window and holiday closures
+            $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($request->appointment_date);
+            if (!$bizWindow['is_open']) {
+                return back()->with('error', $bizWindow['reason'] ?: 'The spa is closed on this date.');
             }
-        }
+            $duration = $appointment->services->sum('duration_minutes');
+            $newEndTime = Carbon::parse($request->start_time)->addMinutes($duration)->format('H:i:s');
+            if (!empty($bizWindow['start']) && !empty($bizWindow['end'])) {
+                $bizOpen = Carbon::parse($request->appointment_date . ' ' . $bizWindow['start']);
+                $bizClose = Carbon::parse($request->appointment_date . ' ' . $bizWindow['end']);
+                $reqStart = Carbon::parse($request->appointment_date . ' ' . $request->start_time);
+                $reqEnd = Carbon::parse($request->appointment_date . ' ' . $newEndTime);
+                if ($reqStart->lt($bizOpen) || $reqEnd->gt($bizClose)) {
+                    return back()->with('error', 'The selected time falls outside business operating hours (' . $bizOpen->format('g:i A') . ' - ' . $bizClose->format('g:i A') . ').');
+                }
+            }
 
-        $appointment->update([
-            'appointment_date' => $request->appointment_date,
-            'start_time' => $request->start_time,
-            'end_time' => $newEndTime,
-            'room_id' => $newRoomId,
-        ]);
+            if ($appointment->user_id) {
+                // Lock the assigned therapist to serialize concurrent reassignments/reschedules for this staff member
+                User::lockForUpdate()->findOrFail((int) $appointment->user_id);
 
-        if ($oldRoomId && $oldRoomId != $newRoomId) {
-            Room::where('id', $oldRoomId)->update(['status' => 'available']);
-        }
-        if ($newRoomId && $newRoomId != $oldRoomId) {
-            Room::where('id', $newRoomId)->update(['status' => 'occupied']);
-        }
+                $staffAvailable = $this->schedGetAvailableStaff(
+                    $request->appointment_date,
+                    $request->start_time,
+                    $newEndTime,
+                    $appointment->id
+                )->firstWhere('user.id', $appointment->user_id);
 
-        if ($appointment->customer && $appointment->customer->user) {
-            \App\Http\Controllers\NotificationController::sendTo(
-                $appointment->customer->user,
-                'Appointment Rescheduled',
-                'Moved to ' . Carbon::parse($appointment->appointment_date)->format('M j, Y') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
-                'booking', 'warning', route('customer-dashboard'), 'My Bookings'
-            );
-        }
-        if ($appointment->staff) {
-            \App\Http\Controllers\NotificationController::sendTo(
-                $appointment->staff,
-                'Appointment Rescheduled',
-                'An appointment was moved to ' . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
-                'booking', 'warning', route('staff.dashboard'), 'My Schedule'
-            );
-        }
+                if (!$staffAvailable || !$staffAvailable['available']) {
+                    return back()->with('error', 'Current staff is not available at the new time. Please reassign staff first.');
+                }
+            }
 
-        return back()->with('success', 'Appointment rescheduled successfully.');
+            $oldRoomId = $appointment->room_id;
+            $newRoomId = $request->room_id;
+
+            if ($newRoomId && $newRoomId != $oldRoomId) {
+                $room = Room::lockForUpdate()->find($newRoomId);
+                if (!$room || !$room->isAvailableFor($request->appointment_date, $request->start_time, $newEndTime, $appointment->id)) {
+                    return back()->with('error', 'Selected room is not available at the new time.');
+                }
+            }
+
+            $appointment->update([
+                'appointment_date' => $request->appointment_date,
+                'start_time' => $request->start_time,
+                'end_time' => $newEndTime,
+                'room_id' => $newRoomId,
+            ]);
+
+            if ($oldRoomId && $oldRoomId != $newRoomId) {
+                Room::where('id', $oldRoomId)->update(['status' => 'available']);
+            }
+            if ($newRoomId && $newRoomId != $oldRoomId) {
+                Room::where('id', $newRoomId)->update(['status' => 'occupied']);
+            }
+
+            if ($appointment->customer && $appointment->customer->user) {
+                \App\Http\Controllers\NotificationController::sendTo(
+                    $appointment->customer->user,
+                    'Appointment Rescheduled',
+                    'Moved to ' . Carbon::parse($appointment->appointment_date)->format('M j, Y') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
+                    'booking', 'warning', route('customer-dashboard'), 'My Bookings'
+                );
+            }
+            if ($appointment->staff) {
+                \App\Http\Controllers\NotificationController::sendTo(
+                    $appointment->staff,
+                    'Appointment Rescheduled',
+                    'An appointment was moved to ' . Carbon::parse($appointment->appointment_date)->format('M j') . ' at ' . Carbon::parse($appointment->start_time)->format('g:i A'),
+                    'booking', 'warning', route('staff.dashboard'), 'My Schedule'
+                );
+            }
+
+            return back()->with('success', 'Appointment rescheduled successfully.');
+        });
     }
 
     public function availableRooms(Request $request, Appointment $appointment)
@@ -767,7 +814,7 @@ public function active()
         ]);
     }
 
-    /* ─── DEPOSIT META ─── */
+    /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ DEPOSIT META ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
 
     private function getAppointmentDepositMeta(Appointment $appointment): array
     {

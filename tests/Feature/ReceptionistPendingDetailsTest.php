@@ -98,12 +98,12 @@ class ReceptionistPendingDetailsTest extends TestCase
         $guestRes = $this->get(route('receptionist.pending'));
         $guestRes->assertRedirect(route('login'));
 
-        // 2. User without receptionist role receives 401 Unauthorized via RoleMiddleware
+        // 2. User without receptionist role receives 403 Forbidden via RoleMiddleware
         $customerRole = Role::firstOrCreate(['name' => 'customer']);
         $customerUser = User::factory()->create();
         $customerUser->roles()->attach($customerRole);
 
         $customerRes = $this->actingAs($customerUser)->get(route('receptionist.pending'));
-        $customerRes->assertStatus(401);
+        $customerRes->assertStatus(403);
     }
 }

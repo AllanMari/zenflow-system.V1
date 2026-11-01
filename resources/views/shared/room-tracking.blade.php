@@ -99,10 +99,18 @@
         ->where('is_active', false)
         ->count();
 
+    $nowManila = \Carbon\Carbon::now('Asia/Manila');
+    $isTrackingToday = $trackingDateCarbon->isToday();
+
     $occupiedRooms = $rooms
-        ->filter(function ($room) {
-            return $room->is_active
-                && strtolower((string) $room->status) === 'occupied';
+        ->filter(function ($room) use ($isTrackingToday, $nowManila) {
+            if (!$room->is_active || strtolower((string) $room->status) === 'maintenance') {
+                return false;
+            }
+            if ($isTrackingToday) {
+                return $room->isCurrentlyOccupied($nowManila);
+            }
+            return strtolower((string) $room->status) === 'occupied';
         })
         ->count();
 
@@ -1165,6 +1173,10 @@
                                         (string) $room->status
                                     );
 
+                                if ($isTrackingToday && $roomStatus === 'occupied' && !$room->isCurrentlyOccupied($nowManila)) {
+                                    $roomStatus = 'available';
+                                }
+
                                 $roomIsActive =
                                     (bool) $room->is_active;
                             @endphp
@@ -1480,26 +1492,7 @@
                                         @elseif($appointment)
 
                                             @php
-                                                $customerName =
-                                                    $appointment->customer?->full_name
-                                                    ??
-                                                    trim(
-                                                        (
-                                                            $appointment
-                                                                ->customer
-                                                                ?->first_name
-                                                            ?? ''
-                                                        )
-                                                        . ' '
-                                                        . (
-                                                            $appointment
-                                                                ->customer
-                                                                ?->last_name
-                                                            ?? ''
-                                                        )
-                                                    )
-                                                    ?:
-                                                    'Walk-in / Guest';
+                                                $customerName = $appointment->client_name;
 
                                                 $serviceNames =
                                                     $appointment
@@ -1781,6 +1774,10 @@
                                 (string) $room->status
                             );
 
+                        if ($isTrackingToday && $roomStatus === 'occupied' && !$room->isCurrentlyOccupied($nowManila)) {
+                            $roomStatus = 'available';
+                        }
+
                         $roomIsActive =
                             (bool) $room->is_active;
                     @endphp
@@ -2010,26 +2007,7 @@
                                     @foreach($roomAppointments as $appointment)
 
                                         @php
-                                            $customerName =
-                                                $appointment->customer?->full_name
-                                                ??
-                                                trim(
-                                                    (
-                                                        $appointment
-                                                            ->customer
-                                                            ?->first_name
-                                                        ?? ''
-                                                    )
-                                                    . ' '
-                                                    . (
-                                                        $appointment
-                                                            ->customer
-                                                            ?->last_name
-                                                        ?? ''
-                                                    )
-                                                )
-                                                ?:
-                                                'Walk-in / Guest';
+                                            $customerName = $appointment->client_name;
 
                                             $serviceNames =
                                                 $appointment

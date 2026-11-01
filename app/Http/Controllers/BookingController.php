@@ -162,8 +162,9 @@ class BookingController extends Controller
             ->get();
 
         $activeNotice = \App\Services\BusinessScheduleService::getActiveNotice();
+        $upcomingNotices = \App\Services\BusinessScheduleService::getUpcomingNotices(7);
 
-        return view('landing', compact('hero', 'benefits', 'categories', 'activeNotice'));
+        return view('landing', compact('hero', 'benefits', 'categories', 'activeNotice', 'upcomingNotices'));
     }
 
     // ==================== PUBLIC WIZARD ====================
@@ -303,6 +304,7 @@ class BookingController extends Controller
         }
 
         $activeNotice = \App\Services\BusinessScheduleService::getActiveNotice();
+        $upcomingNotices = \App\Services\BusinessScheduleService::getUpcomingNotices(7);
         $businessHours = \App\Models\BusinessHour::all();
         $businessExceptions = \App\Models\BusinessException::whereDate('date', '>=', now('Asia/Manila')->startOfDay()->toDateString())->get();
 
@@ -315,6 +317,7 @@ class BookingController extends Controller
                 'defaultPhone',
                 'customerMedicalNotes',
                 'activeNotice',
+                'upcomingNotices',
                 'businessHours',
                 'businessExceptions'
             )
@@ -1831,13 +1834,6 @@ class BookingController extends Controller
 
             if ($existingCustomer) {
                 $customer = $existingCustomer;
-
-                if ($request->filled('medical_notes')) {
-                    $customer->medical_notes =
-                        $request->medical_notes;
-
-                    $customer->save();
-                }
             } else {
                 $nameParts = preg_split(
                     '/\s+/',
@@ -2057,6 +2053,8 @@ class BookingController extends Controller
                 );
         }
 
+        session()->put("authorized_booking_{$appointment->id}", true);
+
         return redirect()->route(
             'booking.confirmation',
             $appointment->id
@@ -2066,6 +2064,25 @@ class BookingController extends Controller
     public function confirmation(
         Appointment $appointment
     ) {
+        $user = auth()->user();
+        $isAuthorized = false;
+
+        if ($user) {
+            if ($user->isAdmin() || $user->isReceptionist()) {
+                $isAuthorized = true;
+            } elseif (($user->customerProfile && $appointment->customer_id === $user->customerProfile->id) || $appointment->user_id === $user->id) {
+                $isAuthorized = true;
+            }
+        }
+
+        if (!$isAuthorized && session()->get("authorized_booking_{$appointment->id}") === true) {
+            $isAuthorized = true;
+        }
+
+        if (!$isAuthorized) {
+            abort(403, 'Unauthorized access to booking confirmation.');
+        }
+
         $appointment->load(
             'services',
             'customer'

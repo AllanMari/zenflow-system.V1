@@ -69,7 +69,7 @@ Route::middleware(['auth', 'role:receptionist'])->get('/receptionist-dashboard',
     return redirect('/receptionist/dashboard');
 });
 
-// ─── Receptionist View Routes (all receptionists can view) ───
+// â”€â”€â”€ Receptionist View Routes (all receptionists can view) â”€â”€â”€
 Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(function () {
     Route::get('/dashboard', [ReceptionistController::class, 'desk'])->name('receptionist.dashboard');
     Route::get('/booking/{appointment}', [ReceptionistController::class, 'booking'])->name('receptionist.booking');
@@ -95,7 +95,7 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     // No-show deposit handling
     Route::post('/appointments/{appointment}/no-show', [ReceptionistController::class, 'handleNoShow'])->name('receptionist.no-show');
 
-    // ─── SCHEDULE VIEW ROUTES (all receptionists can view) ───
+    // â”€â”€â”€ SCHEDULE VIEW ROUTES (all receptionists can view) â”€â”€â”€
     Route::get('/schedules', [ScheduleController::class, 'index'])->name('receptionist.schedules');
     Route::get(
     '/schedules/print',
@@ -134,7 +134,7 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     )->name('receptionist.invoice.download');
 });
 
-// ─── Receptionist Schedule Edit Routes (requires can_manage_schedules) ───
+// â”€â”€â”€ Receptionist Schedule Edit Routes (requires can_manage_schedules) â”€â”€â”€
 Route::middleware(['auth', 'role:receptionist', 'can_manage_schedules'])->prefix('receptionist')->group(function () {
     Route::post('/schedules/bulk-update', [ScheduleController::class, 'bulkUpdate'])->name('receptionist.schedules.bulk-update');
     // FIX: Route order matters! Bulk route must come BEFORE the parameterized route
@@ -164,7 +164,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin-dashboard', [AdminController::class, 'dashboard'])->name('admin-dashboard');
 });
 
-// ─── Admin View Routes ───
+// â”€â”€â”€ Admin View Routes â”€â”€â”€
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     // Users
     Route::get('/users', [AdminController::class, 'index'])->name('admin.users.index');
@@ -220,7 +220,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     [AdminController::class, 'appointmentReportPdf']
 )->name('admin.appointments.report-pdf');
 
-    // ─── SCHEDULE VIEW ROUTES ───
+    // â”€â”€â”€ SCHEDULE VIEW ROUTES â”€â”€â”€
     Route::get('/schedules', [ScheduleController::class, 'index'])->name('admin.schedules');
     Route::get(
     '/schedules/print',
@@ -268,7 +268,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
 
 
-// ─── Admin Schedule Edit Routes ───
+// â”€â”€â”€ Admin Schedule Edit Routes â”€â”€â”€
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/schedules/bulk-update', [ScheduleController::class, 'bulkUpdate'])->name('admin.schedules.bulk-update');
     // FIX: Route order matters! Bulk route must come BEFORE the parameterized route
@@ -296,6 +296,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/business-hours', [BusinessScheduleController::class, 'index'])->name('business-hours.index');
     Route::post('/business-hours', [BusinessScheduleController::class, 'updateHours'])->name('business-hours.update');
     Route::post('/business-exceptions', [BusinessScheduleController::class, 'storeException'])->name('business-exceptions.store');
+    Route::put('/business-exceptions/{exception}', [BusinessScheduleController::class, 'updateException'])->name('business-exceptions.update');
     Route::delete('/business-exceptions/{exception}', [BusinessScheduleController::class, 'destroyException'])->name('business-exceptions.destroy');
 });
 
@@ -322,8 +323,7 @@ Route::middleware(['web', 'auth'])->prefix('api/notifications')->group(function 
     Route::post('/read-all', [NotificationController::class, 'markAllAsRead'])->name('api.notifications.read-all');
 });
 
-Route::middleware(['auth'])->group(function () {
-
+Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin/reports/service-popularity', [
         ServicePopularityController::class,
         'index'
@@ -333,7 +333,9 @@ Route::middleware(['auth'])->group(function () {
         ServicePopularityController::class,
         'pdf'
     ])->name('admin.service-popularity.pdf');
+});
 
+Route::middleware(['auth', 'role:receptionist'])->group(function () {
     Route::get('/receptionist/reports/service-popularity', [
         ServicePopularityController::class,
         'index'
@@ -343,5 +345,4 @@ Route::middleware(['auth'])->group(function () {
         ServicePopularityController::class,
         'pdf'
     ])->name('receptionist.service-popularity.pdf');
-
 });

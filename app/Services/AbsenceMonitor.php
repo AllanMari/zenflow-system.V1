@@ -77,6 +77,12 @@ class AbsenceMonitor
                 $currentDate->subDay();
                 continue;
             }
+            // SKIP 3: Check if the establishment was closed (business holiday or closure)
+            $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($dateStr);
+            if (isset($bizWindow['is_open']) && !$bizWindow['is_open']) {
+                $currentDate->subDay();
+                continue;
+            }
 
             // This IS a working day — check attendance
             $attendance = Attendance::where('user_id', $staffId)

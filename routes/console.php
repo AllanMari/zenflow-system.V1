@@ -18,6 +18,12 @@ Schedule::call(function () {
     $now = \Carbon\Carbon::now();
     $dayOfWeek = $today->dayOfWeek;
 
+    // Check establishment-wide operating window; skip automatic attendance marking if closed all day
+    $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($today);
+    if (isset($bizWindow['is_open']) && !$bizWindow['is_open']) {
+        return;
+    }
+
     $staffIds = \App\Models\User::whereHas('roles', fn($q) => $q->where('name', 'staff'))
         ->where('is_active', true)
         ->pluck('id');
@@ -92,3 +98,36 @@ Schedule::call(function () {
         }
     }
 })->everyFiveMinutes()->name('attendance:sync')->withoutOverlapping();
+
+/* ───────────────────────────────────────────
+   ZenFlow Pending Appointment Expiration
+   ─────────────────────────────────────────── */
+
+Artisan::command('appointments:expire-pending', function () {
+    $now = \Carbon\Carbon::now('Asia/Manila');
+    $this->info("[{$now->toDateTimeString()}] Checking for overdue pending appointments...");
+
+    $expiredCount = 0;
+
+    \App\Models\Appointment::pendingOverdue()
+        ->chunkById(100, function ($appointments) use (&$expiredCount, $now) {
+            foreach ($appointments as $appointment) {
+                if ($appointment->markAsExpired()) {
+                    $expiredCount++;
+                    \Illuminate\Support\Facades\Log::info("Pending appointment #{$appointment->id} expired automatically.", [
+                        'appointment_id' => $appointment->id,
+                        'created_at' => (string) $appointment->created_at,
+                        'appointment_date' => (string) $appointment->appointment_date,
+                        'start_time' => (string) $appointment->start_time,
+                        'expired_at' => $now->toDateTimeString(),
+                    ]);
+                }
+            }
+        });
+
+    $this->info("[{$now->toDateTimeString()}] Completed sweep. Expired {$expiredCount} pending appointment(s).");
+})->purpose('Expire pending appointments older than 24 hours or whose start time has arrived');
+
+Schedule::command('appointments:expire-pending')
+    ->everyMinute()
+    ->withoutOverlapping();

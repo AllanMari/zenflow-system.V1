@@ -271,6 +271,9 @@ class GuestBookingNameRegressionTest extends TestCase
         $this->assertEquals('Registered User', $appointment->client_name);
     }
 
+
+
+
     public function test_receptionist_quick_book_preserves_guest_name()
     {
         $tomorrow = Carbon::tomorrow();
@@ -297,6 +300,130 @@ class GuestBookingNameRegressionTest extends TestCase
         $this->assertEquals('Walkin Guest QuickBook', $appointment->client_name);
     }
 
+    public function test_session_card_displays_guest_name_on_phone_collision()
+    {
+        $receptionistRole = Role::firstOrCreate(['name' => 'receptionist']);
+        $receptionist = User::factory()->create(['is_active' => true]);
+        $receptionist->roles()->attach($receptionistRole);
+
+        // 1. Create a registered customer
+        $customer = Customer::create([
+            'first_name' => 'Original',
+            'last_name' => 'Customer',
+            'phone_number' => '09171234567',
+            'nickname' => 'OriginalNickname'
+        ]);
+
+        // 2. Create an appointment linked to that customer but with a different guest name (collision scenario)
+        $appointment = Appointment::create([
+            'customer_id' => $customer->id,
+            'guest_first_name' => 'Jane Doe',
+            'guest_phone' => '09171234567',
+            'appointment_date' => Carbon::today(),
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'confirmed',
+            'total_price' => 1000.00,
+        ]);
+
+        // 3. Render the session card partial
+        $view = $this->actingAs($receptionist)
+            ->view('receptionist._session_card', ['appointment' => $appointment]);
+
+        // 4. Assertions
+        $view->assertSee('Jane Doe');
+        $view->assertDontSee('Original Customer');
+        $view->assertDontSee('OriginalNickname');
+
+        // 5. Verify customer profile is unchanged
+        $customer->refresh();
+        $this->assertEquals('Original', $customer->first_name);
+        $this->assertEquals('09171234567', $customer->phone_number);
+
+        // 6. Verify walk-in fallback
+        $walkinCustomer = Customer::create([
+            'first_name' => 'Walk-in',
+            'last_name' => 'Customer',
+            'phone_number' => '09121212121',
+        ]);
+        $walkin = Appointment::create([
+            'customer_id' => $walkinCustomer->id,
+            'appointment_date' => Carbon::today(),
+            'start_time' => '12:00:00',
+            'end_time' => '13:00:00',
+            'status' => 'confirmed',
+            'total_price' => 500.00,
+        ]);
+        $walkinView = $this->view('receptionist._session_card', ['appointment' => $walkin]);
+        $walkinView->assertSee('Walk-in');
+    }
+
+    public function test_receptionist_active_calendar_displays_guest_name_on_phone_collision()
+    {
+        $receptionistRole = Role::firstOrCreate(['name' => 'receptionist']);
+        $receptionist = User::factory()->create(['is_active' => true]);
+        $receptionist->roles()->attach($receptionistRole);
+
+        $customer = Customer::create([
+            'first_name' => 'Original',
+            'last_name' => 'Customer',
+            'phone_number' => '09171234567',
+            'nickname' => 'OriginalNickname'
+        ]);
+
+        $room = Room::create(['name' => 'Room A', 'status' => 'available', 'is_active' => true]);
+
+        Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $room->id,
+            'guest_first_name' => 'Jane Doe',
+            'guest_phone' => '09171234567',
+            'appointment_date' => Carbon::today(),
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'confirmed',
+            'total_price' => 1000.00,
+        ]);
+
+        $response = $this->actingAs($receptionist)->get(route('receptionist.active'));
+        $response->assertStatus(200);
+        $response->assertSee('Jane Doe');
+        $response->assertDontSee('Original Customer');
+        $response->assertDontSee('OriginalNickname');
+    }
+
+    public function test_room_tracking_displays_guest_name_on_phone_collision()
+    {
+        $adminRole = Role::firstOrCreate(['name' => 'admin']);
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->roles()->attach($adminRole);
+
+        $customer = Customer::create([
+            'first_name' => 'Original',
+            'last_name' => 'Customer',
+            'phone_number' => '09171234567',
+            'nickname' => 'OriginalNickname'
+        ]);
+
+        $room = Room::create(['name' => 'Room B', 'status' => 'available', 'is_active' => true]);
+
+        Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $room->id,
+            'guest_first_name' => 'Jane Doe',
+            'guest_phone' => '09171234567',
+            'appointment_date' => Carbon::today(),
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'confirmed',
+            'total_price' => 1000.00,
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('admin.room-tracking'));
+        $response->assertStatus(200);
+        $response->assertSee('Jane Doe');
+    }
+
     public function test_financial_and_transaction_integrity()
     {
         $customer = Customer::create(['first_name' => 'Finance', 'last_name' => 'Test', 'phone_number' => '09333333333']);
@@ -315,5 +442,304 @@ class GuestBookingNameRegressionTest extends TestCase
         $this->assertEquals(1000.00, $appointment->total_paid);
         $this->assertEquals(0.00, $appointment->remaining_balance);
         $this->assertEquals('Guest Name', $appointment->client_name);
+    }
+
+    public function test_invoice_web_and_pdf_display_guest_name_and_phone_on_collision()
+    {
+        $adminRole = Role::firstOrCreate(['name' => 'admin']);
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->roles()->attach($adminRole);
+
+        $customer = Customer::create([
+            'first_name' => 'RegisteredFirst',
+            'last_name' => 'RegisteredLast',
+            'phone_number' => '09171234567',
+        ]);
+
+        $appointment = Appointment::create([
+            'customer_id' => $customer->id,
+            'guest_first_name' => 'Specific Guest Name',
+            'guest_phone' => '09998887777',
+            'appointment_date' => Carbon::today(),
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'completed',
+            'total_price' => 1500.00,
+        ]);
+
+        $appointment->payments()->create([
+            'amount' => 1500.00,
+            'payment_method' => 'cash',
+            'paid_at' => Carbon::now(),
+        ]);
+
+        // 1. Web Invoice Detail View
+        $response = $this->actingAs($admin)->get(route('admin.invoice', $appointment));
+        $response->assertStatus(200);
+        $response->assertSee('Specific Guest Name');
+        $response->assertSee('09998887777');
+        $response->assertDontSee('RegisteredFirst RegisteredLast');
+
+        // 2. Web Invoice List Table View
+        $listResponse = $this->actingAs($admin)->get(route('admin.appointment-invoice'));
+        $listResponse->assertStatus(200);
+        $listResponse->assertSee('Specific Guest Name');
+        $listResponse->assertSee('09998887777');
+        $listResponse->assertDontSee('RegisteredFirst RegisteredLast');
+
+        // 3. PDF Invoice Preview View
+        $pdfResponse = $this->actingAs($admin)->get(route('admin.invoice.preview', $appointment));
+        $pdfResponse->assertStatus(200);
+
+        // 4. Verify template rendering directly for exact HTML assertions
+        $pdfView = $this->view('reports.appointment-invoice-pdf', [
+            'appointment' => $appointment,
+            'customer' => $customer,
+            'clientName' => $appointment->client_name,
+            'clientPhone' => $appointment->client_phone,
+            'referenceNumber' => '#SPA-' . $appointment->id,
+            'reportTitle' => 'Appointment Invoice',
+            'dateRange' => 'Today',
+            'generatedAt' => Carbon::now(),
+            'preparedBy' => 'Admin User',
+            'paymentMethods' => collect(['cash']),
+            'payments' => $appointment->payments,
+            'paidPayments' => $appointment->payments,
+            'refundPayments' => collect(),
+            'total' => 1500.00,
+            'totalPaid' => 1500.00,
+            'totalRefunded' => 0.00,
+            'netPaid' => 1500.00,
+            'balance' => 0.00,
+            'services' => collect(),
+        ]);
+        $pdfView->assertSee('Specific Guest Name');
+        $pdfView->assertSee('09998887777');
+        $pdfView->assertDontSee('RegisteredFirst RegisteredLast');
+    }
+
+    public function test_transaction_log_and_cancelled_reports_use_guest_name()
+    {
+        $customer = Customer::create([
+            'first_name' => 'RegisteredFirst',
+            'last_name' => 'RegisteredLast',
+            'phone_number' => '09171234567',
+        ]);
+
+        $appointment = Appointment::create([
+            'customer_id' => $customer->id,
+            'guest_first_name' => 'Guest Transactor',
+            'guest_phone' => '09991112222',
+            'appointment_date' => Carbon::today(),
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'completed',
+            'total_price' => 2000.00,
+        ]);
+
+        $appointment->payments()->create([
+            'amount' => 2000.00,
+            'payment_method' => 'cash',
+            'paid_at' => Carbon::now(),
+        ]);
+
+        $analytics = app(\App\Services\SalesAnalyticsService::class);
+        $request = new \Illuminate\Http\Request(['status' => 'completed']);
+        $data = $analytics->getDashboardData($request);
+
+        $this->assertNotEmpty($data['txLogData']['rows']);
+        $matchedRow = collect($data['txLogData']['rows'])->firstWhere('customerName', 'Guest Transactor');
+        $this->assertNotNull($matchedRow);
+        $this->assertNull(collect($data['txLogData']['rows'])->firstWhere('customerName', 'RegisteredFirst RegisteredLast'));
+    }
+
+    public function test_guest_booking_does_not_overwrite_registered_customer_medical_notes_on_phone_collision()
+    {
+        $customer = Customer::create([
+            'first_name' => 'RegisteredFirst',
+            'last_name' => 'RegisteredLast',
+            'phone_number' => '09175556677',
+            'medical_notes' => 'Critical Allergy: Penicillin and Shellfish',
+        ]);
+
+        $tomorrow = Carbon::tomorrow();
+        $service = $this->setupBookingEnvironment($tomorrow);
+
+        // Guest booking with same phone number but different guest medical notes
+        $response = $this->post(route('booking.store'), [
+            'services' => [$service->id],
+            'appointment_date' => $tomorrow->toDateString(),
+            'start_time' => '10:00',
+            'guest_first_name' => 'Guest Visitor',
+            'guest_phone' => '09175556677',
+            'medical_notes' => 'Temporary sore shoulder',
+            'source' => 'public',
+        ]);
+
+        $response->assertRedirect();
+
+        // Ensure the registered customer profile's medical notes were NOT overwritten
+        $customer->refresh();
+        $this->assertEquals('Critical Allergy: Penicillin and Shellfish', $customer->medical_notes);
+
+        // Ensure the appointment captured the guest's medical notes in appointment notes
+        $appointment = Appointment::where('guest_phone', '09175556677')->latest('id')->first();
+        $this->assertNotNull($appointment);
+        $this->assertEquals('Temporary sore shoulder', $appointment->notes);
+        $this->assertEquals('Guest Visitor', $appointment->client_name);
+    }
+
+    public function test_therapist_retention_counts_only_prior_period_returning_clients_to_same_therapist()
+    {
+        $staffRole = Role::firstOrCreate(['name' => 'staff']);
+        $therapistA = User::factory()->create(['is_active' => true]);
+        $therapistA->roles()->attach($staffRole);
+
+        $therapistB = User::factory()->create(['is_active' => true]);
+        $therapistB->roles()->attach($staffRole);
+
+        $client1 = Customer::create(['first_name' => 'Client', 'last_name' => 'One', 'phone_number' => '09110000001']);
+        $client2 = Customer::create(['first_name' => 'Client', 'last_name' => 'Two', 'phone_number' => '09110000002']);
+        $client3 = Customer::create(['first_name' => 'Client', 'last_name' => 'Three', 'phone_number' => '09110000003']);
+
+        $reportingStart = Carbon::parse('2026-10-01');
+        $reportingEnd = Carbon::parse('2026-10-31');
+        $priorDate = Carbon::parse('2026-09-15');
+
+        // Scenario 1: Client 1 completed visit with Therapist A prior, and returns to Therapist A in period -> Retained for A
+        Appointment::create([
+            'customer_id' => $client1->id,
+            'user_id' => $therapistA->id,
+            'appointment_date' => $priorDate,
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'completed',
+            'total_price' => 500,
+        ]);
+        Appointment::create([
+            'customer_id' => $client1->id,
+            'user_id' => $therapistA->id,
+            'appointment_date' => Carbon::parse('2026-10-05'),
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'completed',
+            'total_price' => 500,
+        ]);
+
+        // Scenario 2: Client 2 completed visit with Therapist A prior, but sees Therapist B in period -> Retained for B? NO.
+        Appointment::create([
+            'customer_id' => $client2->id,
+            'user_id' => $therapistA->id,
+            'appointment_date' => $priorDate,
+            'start_time' => '12:00:00',
+            'end_time' => '13:00:00',
+            'status' => 'completed',
+            'total_price' => 500,
+        ]);
+        Appointment::create([
+            'customer_id' => $client2->id,
+            'user_id' => $therapistB->id,
+            'appointment_date' => Carbon::parse('2026-10-10'),
+            'start_time' => '12:00:00',
+            'end_time' => '13:00:00',
+            'status' => 'completed',
+            'total_price' => 500,
+        ]);
+
+        // Scenario 3: Client 3 has NO prior visit with Therapist A, but completes TWO visits with Therapist A during period -> NOT retained
+        Appointment::create([
+            'customer_id' => $client3->id,
+            'user_id' => $therapistA->id,
+            'appointment_date' => Carbon::parse('2026-10-12'),
+            'start_time' => '14:00:00',
+            'end_time' => '15:00:00',
+            'status' => 'completed',
+            'total_price' => 500,
+        ]);
+        Appointment::create([
+            'customer_id' => $client3->id,
+            'user_id' => $therapistA->id,
+            'appointment_date' => Carbon::parse('2026-10-20'),
+            'start_time' => '14:00:00',
+            'end_time' => '15:00:00',
+            'status' => 'completed',
+            'total_price' => 500,
+        ]);
+
+        // Scenario 4: Several completed visits by Client 1 with Therapist A in the period do not increase numerator > 1
+        Appointment::create([
+            'customer_id' => $client1->id,
+            'user_id' => $therapistA->id,
+            'appointment_date' => Carbon::parse('2026-10-25'),
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'completed',
+            'total_price' => 500,
+        ]);
+
+        // Scenario 5: Cancelled, no-show, confirmed, pending do not count towards numerator or denominator
+        Appointment::create([
+            'customer_id' => $client1->id,
+            'user_id' => $therapistA->id,
+            'appointment_date' => Carbon::parse('2026-10-28'),
+            'start_time' => '16:00:00',
+            'end_time' => '17:00:00',
+            'status' => 'cancelled',
+            'total_price' => 500,
+        ]);
+        Appointment::create([
+            'customer_id' => $client1->id,
+            'user_id' => $therapistA->id,
+            'appointment_date' => Carbon::parse('2026-10-29'),
+            'start_time' => '16:00:00',
+            'end_time' => '17:00:00',
+            'status' => 'no_show',
+            'total_price' => 500,
+        ]);
+
+        $analytics = app(\App\Services\SalesAnalyticsService::class);
+        $request = new \Illuminate\Http\Request([
+            'period' => 'custom',
+            'start_date' => '2026-10-01',
+            'end_date' => '2026-10-31',
+        ]);
+        $data = $analytics->getDashboardData($request);
+
+        $therapistRetention = collect($data['therapistRetentionData']);
+
+        // Check Therapist A:
+        // Unique clients in period: Client 1 and Client 3 = 2 clients
+        // Retained clients from prior period: Client 1 only = 1 client
+        // Retention rate = (1 / 2) * 100 = 50.0%
+        $rowA = $therapistRetention->firstWhere('therapist_id', $therapistA->id);
+        $this->assertNotNull($rowA);
+        $this->assertEquals(2, $rowA->unique_clients);
+        $this->assertEquals(1, $rowA->repeat_clients);
+        $this->assertEquals(50.0, $rowA->retention_rate);
+        $this->assertEquals(4, $rowA->total_appointments); // 2 from Client 1 (Oct 5, Oct 25) + 2 from Client 3 (Oct 12, Oct 20) = 4 completed.
+
+        // Check Therapist B:
+        // Unique clients in period: Client 2 only = 1 client
+        // Retained clients from prior period with Therapist B: None (Client 2 saw Therapist A prior) = 0
+        // Retention rate = 0.0%
+        $rowB = $therapistRetention->firstWhere('therapist_id', $therapistB->id);
+        $this->assertNotNull($rowB);
+        $this->assertEquals(1, $rowB->unique_clients);
+        $this->assertEquals(0, $rowB->repeat_clients);
+        $this->assertEquals(0.0, $rowB->retention_rate);
+    }
+
+    public function test_therapist_retention_handles_zero_clients_without_division_by_zero()
+    {
+        $analytics = app(\App\Services\SalesAnalyticsService::class);
+        $request = new \Illuminate\Http\Request([
+            'period' => 'custom',
+            'start_date' => '2026-11-01',
+            'end_date' => '2026-11-30',
+        ]);
+        $data = $analytics->getDashboardData($request);
+
+        $this->assertIsArray($data['therapistRetentionData']);
+        $this->assertEmpty($data['therapistRetentionData']);
     }
 }

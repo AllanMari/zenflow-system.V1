@@ -180,6 +180,15 @@ class CustomerNotificationTest extends TestCase
 
         // Check user2 received no notification
         $this->assertCount(0, $user2->notifications);
+
+        $this->actingAs($user1)->post(route('customer.appointments.cancel', $appointment), [
+            'cancellation_note' => 'Duplicate request',
+        ])->assertRedirect();
+
+        $this->assertCount(1, $user1->fresh()->notifications);
+        $this->assertCount(0, $user2->fresh()->notifications);
+        $this->assertDatabaseCount('notifications', 1);
+        $this->assertStringNotContainsString('Duplicate request', $appointment->fresh()->notes ?? '');
     }
 
     public function test_booking_wizard_navigation_for_customer_and_guest()

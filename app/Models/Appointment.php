@@ -52,7 +52,7 @@ class Appointment extends Model
         'reminder_sent_at' => 'datetime',
     ];
 
-    /* ─── Relationships ─── */
+    /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Relationships Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
     public function customer()
     {
@@ -90,7 +90,7 @@ class Appointment extends Model
         return $this->belongsTo(Room::class, 'requested_room_id');
     }
 
-    /* ─── Accessors ─── */
+    /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Accessors Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
     public function getTotalPaidAttribute()
     {
@@ -134,13 +134,72 @@ class Appointment extends Model
         return 'Walk-in';
     }
 
+    public function getClientPhoneAttribute()
+    {
+        if (!empty($this->guest_phone)) {
+            return trim($this->guest_phone);
+        }
+
+        $customer = $this->relationLoaded('customer') ? $this->customer : $this->customer()->first();
+
+        return $customer?->phone_number ?: null;
+    }
+
     public function getTimeRangeAttribute()
     {
         return Carbon::parse($this->start_time)->format('g:i A') . ' - ' .
                Carbon::parse($this->end_time)->format('g:i A');
     }
 
-    /* ─── Scopes ─── */
+    /**
+     * Authoritative expiration deadline for pending appointments.
+     * Earlier of:
+     *   (a) created_at + 24 hours, OR
+     *   (b) midnight at the start of the following day after the scheduled appointment date (app timezone).
+     *
+     * A pending appointment is expired when the current time reaches or passes
+     * this deadline. An appointment scheduled for today remains valid throughout
+     * today unless created_at + 24h expires first. start_time is NOT used as an
+     * expiration trigger.
+     */
+    public function getExpiresAtAttribute(): ?Carbon
+    {
+        if ($this->status !== 'pending') {
+            return null;
+        }
+
+        $tz = config('app.timezone', 'UTC');
+
+        $createdAt = $this->created_at
+            ? Carbon::parse($this->created_at)->timezone($tz)
+            : Carbon::now($tz);
+
+        $creationDeadline = $createdAt->copy()->addHours(24);
+
+        $dateStr = $this->appointment_date instanceof Carbon
+            ? $this->appointment_date->toDateString()
+            : substr((string) $this->appointment_date, 0, 10);
+
+        // Deadline (b): midnight at start of the day AFTER appointment date — NOT start_time, NOT start of today.
+        $dateDeadline = Carbon::parse($dateStr, $tz)->addDay()->startOfDay();
+
+        return $creationDeadline->lt($dateDeadline) ? $creationDeadline : $dateDeadline;
+    }
+
+    /**
+     * Determine if a pending appointment has reached its expiration deadline.
+     */
+    public function getIsExpiredAttribute(): bool
+    {
+        if ($this->status !== 'pending') {
+            return false;
+        }
+
+        $expiresAt = $this->expires_at;
+        return $expiresAt ? $expiresAt->isPast() : false;
+    }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Scopes Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
     public function scopePending(Builder $query): Builder
     {
@@ -149,14 +208,35 @@ class Appointment extends Model
 
     public function scopePendingValid(Builder $query): Builder
     {
+        $now = Carbon::now(config('app.timezone', 'UTC'));
+        $todayStr = $now->toDateString();
+        $cutoff24h = $now->copy()->subHours(24);
+
+        // An appointment is still valid when BOTH of the following hold:
+        //   1. created_at is within the last 24 hours (submission deadline not yet passed), AND
+        //   2. appointment_date is today or in the future (calendar date has not passed).
+        // start_time is intentionally excluded â€” expiry fires at midnight on the appt date.
         return $query->where('status', 'pending')
-                     ->whereDate('appointment_date', '>=', today());
+            ->where('created_at', '>', $cutoff24h)
+            ->whereDate('appointment_date', '>=', $todayStr);
     }
 
     public function scopePendingOverdue(Builder $query): Builder
     {
+        $now = Carbon::now(config('app.timezone', 'UTC'));
+        $todayStr = $now->toDateString();
+        $cutoff24h = $now->copy()->subHours(24);
+
+        // An appointment is overdue when EITHER of the following holds:
+        //   1. created_at has passed the 24-hour submission deadline, OR
+        //   2. appointment_date is before today (calendar date has passed).
+        // start_time is intentionally excluded â€” expiry fires at midnight on the appt date,
+        // not at the moment the scheduled start time arrives within that day.
         return $query->where('status', 'pending')
-                     ->whereDate('appointment_date', '<', today());
+            ->where(function ($q) use ($cutoff24h, $todayStr) {
+                $q->where('created_at', '<=', $cutoff24h)
+                  ->orWhereDate('appointment_date', '<', $todayStr);
+            });
     }
 
     public function scopeConfirmed(Builder $query): Builder
@@ -192,21 +272,41 @@ class Appointment extends Model
         return $query->where('user_id', $staffId);
     }
 
-    /* ─── Actions ─── */
+    /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Actions Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
     /**
      * Mark a pending appointment as expired (cancelled).
-     * Idempotent — safe to call multiple times.
+     * Idempotent and concurrency-safe Ã¢â‚¬â€ only transitions if status is currently 'pending'.
      */
-    public function markAsExpired(): void
+    public function markAsExpired(): bool
     {
-        if ($this->status !== 'pending') {
-            return;
+        $updated = static::where('id', $this->id)
+            ->where('status', 'pending')
+            ->update([
+                'status' => 'cancelled',
+                'cancellation_reason' => 'expired',
+                'updated_at' => now(),
+            ]);
+
+        if ($updated > 0) {
+            $this->status = 'cancelled';
+            $this->cancellation_reason = 'expired';
+
+            if ($this->room_id) {
+                $hasActiveOther = static::where('room_id', $this->room_id)
+                    ->where('id', '!=', $this->id)
+                    ->whereDate('appointment_date', $this->appointment_date)
+                    ->whereIn('status', ['confirmed', 'in_progress'])
+                    ->exists();
+
+                if (!$hasActiveOther) {
+                    Room::where('id', $this->room_id)->update(['status' => 'available']);
+                }
+            }
+
+            return true;
         }
 
-        $this->update([
-            'status' => 'cancelled',
-            'cancellation_reason' => 'expired',
-        ]);
+        return false;
     }
 }

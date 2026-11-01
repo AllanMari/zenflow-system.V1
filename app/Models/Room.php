@@ -43,6 +43,23 @@ class Room extends Model
     }
 
     /**
+     * Check if the room currently has an active in-progress confirmed appointment.
+     */
+    public function isCurrentlyOccupied(?Carbon $atTime = null): bool
+    {
+        $at = $atTime ? $atTime->copy()->timezone('Asia/Manila') : Carbon::now('Asia/Manila');
+        $dateStr = $at->toDateString();
+        $timeStr = $at->format('H:i:s');
+
+        return $this->appointments()
+            ->whereDate('appointment_date', $dateStr)
+            ->whereIn('status', ['confirmed', 'in_progress'])
+            ->where('start_time', '<=', $timeStr)
+            ->where('end_time', '>', $timeStr)
+            ->exists();
+    }
+
+    /**
      * Check if room is free for a given time slot.
      *
      * @param string|\Carbon\Carbon $date

@@ -405,9 +405,7 @@
 @section('content')
 @php
     $calendarEvents = $appointments->map(function ($appointment) {
-        $customerName = $appointment->customer?->nickname
-            ?: $appointment->customer?->full_name
-            ?: 'Walk-in Customer';
+        $customerName = $appointment->client_name;
 
         return [
             'id' => (string) $appointment->id,
@@ -495,7 +493,126 @@
         </div>
     </div>
 
-        <section
+    <section
+        x-show="showCalendar"
+        x-cloak
+        x-transition
+        class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+    >
+        <div class="border-b border-slate-200 bg-gradient-to-r from-teal-50/60 to-sky-50/40 px-5 py-4 dark:border-slate-800 dark:from-teal-950/20 dark:to-slate-900">
+
+            <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400">
+                        <i data-lucide="calendar-check-2" class="h-5 w-5"></i>
+                    </div>
+
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-900 dark:text-white">
+                            Appointment Calendar
+                        </h2>
+
+                        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            Confirmed spa sessions
+                        </p>
+                    </div>
+
+                </div>
+
+                <div class="hidden items-center gap-3 text-xs text-slate-500 dark:text-slate-400 sm:flex">
+                    <span class="inline-flex items-center gap-1.5">
+                        <span class="h-2.5 w-2.5 rounded-sm bg-teal-600"></span>
+                        Confirmed
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 md:p-5">
+
+            <div class="zen-calendar-toolbar">
+
+                <div class="zen-calendar-toolbar-left">
+
+                    <button
+                        type="button"
+                        class="zen-calendar-icon-btn"
+                        title="Previous"
+                        @click="calendarPrev()"
+                    >
+                        <i data-lucide="chevron-left"></i>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="zen-calendar-icon-btn"
+                        title="Next"
+                        @click="calendarNext()"
+                    >
+                        <i data-lucide="chevron-right"></i>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="zen-calendar-today"
+                        @click="calendarToday()"
+                    >
+                        Today
+                    </button>
+
+                </div>
+
+                <div class="zen-calendar-title" x-text="calendarTitle">
+                    Calendar
+                </div>
+
+                <div class="zen-calendar-toolbar-right">
+
+                    <div class="zen-calendar-views">
+
+                        <button
+                            type="button"
+                            class="zen-calendar-view-btn"
+                            :class="{ 'active': currentView === 'dayGridMonth' }"
+                            @click="changeCalendarView('dayGridMonth')"
+                        >
+                            Month
+                        </button>
+
+                        <button
+                            type="button"
+                            class="zen-calendar-view-btn"
+                            :class="{ 'active': currentView === 'timeGridWeek' }"
+                            @click="changeCalendarView('timeGridWeek')"
+                        >
+                            Week
+                        </button>
+
+                        <button
+                            type="button"
+                            class="zen-calendar-view-btn"
+                            :class="{ 'active': currentView === 'listWeek' }"
+                            @click="changeCalendarView('listWeek')"
+                        >
+                            List
+                        </button>
+
+                    </div>
+
+                </div>
+            </div>
+
+            <div
+                x-ref="calendar"
+                id="activeSessionsCalendar"
+                class="active-calendar"
+            ></div>
+
+        </div>
+    </section>
+
+    <section
         x-show="!showCalendar"
         x-cloak
         x-transition

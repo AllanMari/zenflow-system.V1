@@ -348,12 +348,23 @@
                 <div>
                     <h4 class="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
                         <span>{{ $activeNotice['title'] }}</span>
-                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-800/60 text-amber-800 dark:text-amber-300 font-semibold lowercase">Notice</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-800/60 text-amber-800 dark:text-amber-300 font-semibold uppercase">
+                            {{ !empty($activeNotice['is_closed']) ? 'Closed Today' : 'Today\'s Notice' }}
+                        </span>
                     </h4>
                     <p class="text-xs text-amber-800/90 dark:text-amber-300/90 mt-1 leading-relaxed">
                         {{ $activeNotice['message'] ?? 'We have special operating hours or closure today.' }}
                     </p>
                 </div>
+            </div>
+        @endif
+
+        @if(!empty($upcomingNotices) && $upcomingNotices->isNotEmpty())
+            <div class="mb-8 space-y-3">
+                <div class="sr-only">Upcoming Schedule Notices</div>
+                @foreach($upcomingNotices as $notice)
+                    @include('shared._business_notice_banner', ['notice' => $notice])
+                @endforeach
             </div>
         @endif
 
