@@ -896,6 +896,11 @@
                 >
 
                     <div>
+                        @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
+                            <div class="mb-3">
+                                <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-10 w-auto object-contain">
+                            </div>
+                        @endif
 
                         <div
                             class="text-sm

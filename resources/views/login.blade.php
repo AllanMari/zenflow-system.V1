@@ -152,9 +152,15 @@
 
                 {{-- Brand --}}
                 <a href="{{ route('landing') }}" data-hero class="absolute left-8 top-8 z-10 flex items-center gap-3 xl:left-10 xl:top-10">
-                    <span class="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white ring-1 ring-white/30 backdrop-blur">
-                        <i data-lucide="sparkles" class="h-5 w-5"></i>
-                    </span>
+                    @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
+                        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1.5 shadow-md">
+                            <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-8 w-8 object-contain">
+                        </span>
+                    @else
+                        <span class="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white ring-1 ring-white/30 backdrop-blur">
+                            <i data-lucide="sparkles" class="h-5 w-5"></i>
+                        </span>
+                    @endif
                     <span>
                         <span class="block text-sm font-semibold text-white">Spa Alexandria</span>
                         <span class="block text-xs text-white/70">Wellness &amp; Care</span>
@@ -188,9 +194,15 @@
 
                 {{-- Mobile brand --}}
                 <a href="{{ route('landing') }}" class="mb-10 flex items-center gap-3 lg:hidden">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-700 text-white dark:bg-brand-600">
-                        <i data-lucide="sparkles" class="h-5 w-5"></i>
-                    </span>
+                    @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200 dark:border-slate-700">
+                            <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-8 w-8 object-contain">
+                        </span>
+                    @else
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-700 text-white dark:bg-brand-600">
+                            <i data-lucide="sparkles" class="h-5 w-5"></i>
+                        </span>
+                    @endif
                     <span class="min-w-0">
                         <span class="block text-sm font-semibold leading-5 text-slate-900 dark:text-white">Spa Alexandria</span>
                         <span class="block text-xs leading-4 text-slate-500 dark:text-slate-400">Wellness &amp; Care</span>

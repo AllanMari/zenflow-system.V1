@@ -107,9 +107,15 @@
     <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
         <a href="{{ $backRoute }}" class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-sm" style="background-color: #159582">
-                <i data-lucide="sparkles" class="h-5 w-5"></i>
-            </div>
+            @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200/80 dark:border-slate-700/80">
+                    <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-8 w-8 object-contain">
+                </div>
+            @else
+                <div class="flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-sm" style="background-color: #159582">
+                    <i data-lucide="sparkles" class="h-5 w-5"></i>
+                </div>
+            @endif
 
             <div class="hidden sm:block">
                 <div class="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">

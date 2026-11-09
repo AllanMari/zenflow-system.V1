@@ -214,9 +214,15 @@
 
         {{-- Brand --}}
         <a href="{{ route('landing') }}" class="flex items-center gap-3">
-            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-700 text-white dark:bg-brand-600">
-                <i data-lucide="sparkles" class="h-5 w-5"></i>
-            </span>
+            @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200/80 dark:border-slate-700/80">
+                    <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-8 w-8 object-contain">
+                </span>
+            @else
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-700 text-white dark:bg-brand-600">
+                    <i data-lucide="sparkles" class="h-5 w-5"></i>
+                </span>
+            @endif
             <span class="leading-tight">
                 <span class="block text-sm font-semibold text-slate-900 dark:text-white">Spa Alexandria</span>
                 <span class="block text-xs text-slate-500 dark:text-slate-400">Wellness &amp; Relaxation</span>
@@ -851,9 +857,16 @@
 
     <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
 
-        <div>
-            <div class="text-sm font-semibold text-slate-900 dark:text-white">Spa Alexandria</div>
-            <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">ZenFlow</div>
+        <div class="flex items-center gap-3">
+            @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200 dark:border-slate-700">
+                    <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-7 w-7 object-contain">
+                </span>
+            @endif
+            <div>
+                <div class="text-sm font-semibold text-slate-900 dark:text-white">Spa Alexandria</div>
+                <div class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">ZenFlow</div>
+            </div>
         </div>
 
         <div class="flex items-center gap-6 text-xs font-medium text-slate-500 dark:text-slate-400">
