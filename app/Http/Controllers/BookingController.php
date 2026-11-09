@@ -242,9 +242,7 @@ class BookingController extends Controller
                         'deposit_percentage_min' => (float) $depMin,
                         'deposit_percentage_max' => (float) $depMax,
                         'description' => $s->description,
-                        'image' => $s->image
-                            ? asset($s->image)
-                            : null,
+                        'image' => $s->image_url,
                         'requires_room' => $s->requires_room,
                         'room_category_id' => $s->room_category_id,
                     ];

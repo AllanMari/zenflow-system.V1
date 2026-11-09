@@ -151,9 +151,17 @@
             return $path;
         }
 
-        $path = preg_replace('#^/?storage/#i', '', $path);
+        $cleanPath = ltrim(preg_replace('#^/?(storage|uploads)/#i', '', $path), '/');
 
-        return asset('storage/' . ltrim($path, '/'));
+        if (file_exists(public_path('uploads/' . $cleanPath))) {
+            return asset('uploads/' . $cleanPath);
+        }
+
+        if (file_exists(public_path('storage/' . $cleanPath))) {
+            return asset('storage/' . $cleanPath);
+        }
+
+        return null;
     };
 
     $heroImage = $resolveImage($hero->image ?? null);

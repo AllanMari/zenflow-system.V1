@@ -446,10 +446,11 @@ public function index(Request $request)
             'description' => 'nullable|string',
             'landing_description' => 'nullable|string|max:500',
 
-            // Image upload
+            // Image upload — JPEG, PNG, WebP only; SVG excluded
             'image' => [
                 'nullable',
-                'image',
+                'file',
+                'mimes:jpeg,png,jpg,webp',
                 'max:2048',
             ],
 
@@ -486,7 +487,7 @@ public function index(Request $request)
         |--------------------------------------------------------------------------
         */
         if ($request->hasFile('image')) {
-            $validated['image'] = $request->file('image')->store('services', 'public');
+            $validated['image'] = $request->file('image')->store('services', 'uploads');
         }
 
         Service::create($validated);
@@ -520,10 +521,11 @@ public function index(Request $request)
             'is_active' => 'boolean',
             'landing_description' => 'nullable|string|max:500',
 
-            // Image upload
+            // Image upload — JPEG, PNG, WebP only; SVG excluded
             'image' => [
                 'nullable',
-                'image',
+                'file',
+                'mimes:jpeg,png,jpg,webp',
                 'max:2048',
             ],
 
@@ -560,28 +562,24 @@ public function index(Request $request)
         | Image handling
         |--------------------------------------------------------------------------
         | New upload takes priority over removal.
+        | Transactional order: save new file -> update DB -> delete old file.
         |--------------------------------------------------------------------------
         */
+        $oldImageToDelete = null;
+
         if ($request->hasFile('image')) {
-
-            // Delete existing image first
-            if ($service->image) {
-                $this->deleteServiceImage($service->image);
-            }
-
-            // Store only relative path
-            $validated['image'] = $request->file('image')->store('services', 'public');
-
+            $oldImageToDelete = $service->image;
+            $validated['image'] = $request->file('image')->store('services', 'uploads');
         } elseif ($request->boolean('remove_image')) {
-
-            if ($service->image) {
-                $this->deleteServiceImage($service->image);
-            }
-
+            $oldImageToDelete = $service->image;
             $validated['image'] = null;
         }
 
         $service->update($validated);
+
+        if ($oldImageToDelete) {
+            $this->deleteServiceImage($oldImageToDelete);
+        }
 
         return redirect()
             ->route('admin.services.index')
@@ -596,7 +594,24 @@ public function index(Request $request)
 
         $path = $this->normalizeStoragePath($imagePath);
 
-        if ($path) {
+        if (!$path) {
+            return;
+        }
+
+        // Do not delete if another service record references the same image path
+        $sharedCount = Service::where('image', $imagePath)
+            ->orWhere('image', $path)
+            ->count();
+
+        if ($sharedCount > 0) {
+            return;
+        }
+
+        if (Storage::disk('uploads')->exists($path)) {
+            Storage::disk('uploads')->delete($path);
+        }
+
+        if (Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
         }
     }
@@ -609,7 +624,15 @@ public function index(Request $request)
 
         $path = $this->normalizeStoragePath($imagePath);
 
-        if ($path) {
+        if (!$path) {
+            return;
+        }
+
+        if (Storage::disk('uploads')->exists($path)) {
+            Storage::disk('uploads')->delete($path);
+        }
+
+        if (Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
         }
     }
@@ -626,7 +649,7 @@ public function index(Request $request)
         |--------------------------------------------------------------------------
         | Full URL
         | Example:
-        | http://localhost/storage/services/example.jpg
+        | http://localhost/storage/services/example.jpg or /uploads/...
         |--------------------------------------------------------------------------
         */
         if (filter_var($imagePath, FILTER_VALIDATE_URL)) {
@@ -641,10 +664,10 @@ public function index(Request $request)
 
         /*
         |--------------------------------------------------------------------------
-        | Remove /storage/ prefix
+        | Remove /storage/ or /uploads/ prefix
         |--------------------------------------------------------------------------
         */
-        $imagePath = preg_replace('#^/storage/#', '', $imagePath);
+        $imagePath = preg_replace('#^/?(storage|uploads)/#i', '', $imagePath);
 
         /*
         |--------------------------------------------------------------------------
@@ -821,8 +844,9 @@ public function index(Request $request)
 
             'hero_image' => [
                 'nullable',
-                'image',
-                'max:2048',
+                'file',
+                'mimes:jpeg,png,jpg,webp',
+                'max:3072',
             ],
 
             'remove_hero_image' => 'nullable|boolean',
@@ -839,7 +863,8 @@ public function index(Request $request)
             'service_images' => 'nullable|array',
             'service_images.*' => [
                 'nullable',
-                'image',
+                'file',
+                'mimes:jpeg,png,jpg,webp',
                 'max:2048',
             ],
         ]);
@@ -851,31 +876,35 @@ public function index(Request $request)
         */
         $heroSetting = LandingSetting::where('key', 'hero_image')->first();
 
-        // New image uploaded -> replace old image
+        // New image uploaded -> replace old image (transactional order)
         if ($request->hasFile('hero_image')) {
 
-            if ($heroSetting && $heroSetting->value) {
-                $this->deleteStorageImage($heroSetting->value);
-            }
+            $oldHero = $heroSetting ? $heroSetting->value : null;
 
-            $path = $request->file('hero_image')->store('landing', 'public');
+            $path = $request->file('hero_image')->store('landing', 'uploads');
 
             LandingSetting::updateOrCreate(
                 ['key' => 'hero_image'],
                 ['value' => $path]
             );
 
+            if ($oldHero) {
+                $this->deleteStorageImage($oldHero);
+            }
+
         // No new image, but admin requested removal
         } elseif ($request->boolean('remove_hero_image')) {
 
-            if ($heroSetting && $heroSetting->value) {
-                $this->deleteStorageImage($heroSetting->value);
-            }
+            $oldHero = $heroSetting ? $heroSetting->value : null;
 
             LandingSetting::updateOrCreate(
                 ['key' => 'hero_image'],
                 ['value' => null]
             );
+
+            if ($oldHero) {
+                $this->deleteStorageImage($oldHero);
+            }
         }
 
         /*
@@ -962,17 +991,19 @@ public function index(Request $request)
                     continue;
                 }
 
-                // Delete old image before replacement
-                if ($service->image) {
-                    $this->deleteServiceImage($service->image);
-                }
+                $oldImage = $service->image;
 
-                // Store only relative path
-                $path = $file->store('services', 'public');
+                // Store in uploads disk first
+                $path = $file->store('services', 'uploads');
 
                 $service->update([
                     'image' => $path,
                 ]);
+
+                // Delete old image only after successful DB update
+                if ($oldImage) {
+                    $this->deleteServiceImage($oldImage);
+                }
             }
         }
 

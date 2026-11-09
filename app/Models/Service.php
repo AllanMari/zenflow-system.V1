@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Service extends Model
 {
@@ -71,5 +72,47 @@ class Service extends Model
     public function roomCategory()
     {
         return $this->belongsTo(ServiceCategory::class, 'room_category_id');
+    }
+
+    /**
+     * Get a fully-qualified, publicly accessible URL for the service image.
+     *
+     * Resolution order:
+     *  1. External URLs are passed through unchanged.
+     *  2. File found on the `uploads` disk  → uploads URL.
+     *  3. File found on the `public` disk   → storage URL (legacy symlink).
+     *  4. File not found anywhere           → null (caller renders a fallback).
+     */
+    public function getImageUrlAttribute(): ?string
+    {
+        if (!$this->image) {
+            return null;
+        }
+
+        // Pass through external URLs (http/https)
+        if (preg_match('/^https?:\/\//i', $this->image)) {
+            return $this->image;
+        }
+
+        // Normalize: strip any disk-prefix so we always work with a relative key
+        // e.g. "/uploads/services/abc.jpg" → "services/abc.jpg"
+        //      "storage/services/abc.jpg"  → "services/abc.jpg"
+        $cleanPath = ltrim(
+            preg_replace('#^/?(storage|uploads)/#i', '', $this->image),
+            '/'
+        );
+
+        // Check the new uploads disk first
+        if (Storage::disk('uploads')->exists($cleanPath)) {
+            return Storage::disk('uploads')->url($cleanPath);
+        }
+
+        // Fall back to legacy public disk (storage/ symlink)
+        if (Storage::disk('public')->exists($cleanPath)) {
+            return Storage::disk('public')->url($cleanPath);
+        }
+
+        // File is missing — return null; the view handles the fallback display
+        return null;
     }
 }

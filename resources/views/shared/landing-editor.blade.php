@@ -25,15 +25,17 @@
             return $path;
         }
 
-        if (str_starts_with($path, '/storage/')) {
-            return asset(ltrim($path, '/'));
+        $cleanPath = ltrim(preg_replace('#^/?(storage|uploads)/#i', '', $path), '/');
+
+        if (file_exists(public_path('uploads/' . $cleanPath))) {
+            return asset('uploads/' . $cleanPath);
         }
 
-        if (str_starts_with($path, 'storage/')) {
-            return asset($path);
+        if (file_exists(public_path('storage/' . $cleanPath))) {
+            return asset('storage/' . $cleanPath);
         }
 
-        return \Illuminate\Support\Facades\Storage::url($path);
+        return null;
     };
 
     $heroImageUrl = $resolveImage(

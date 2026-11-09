@@ -106,11 +106,18 @@
                 $registerImage = null;
 
                 if (isset($hero) && !empty($hero->image)) {
-                    $registerImage = trim($hero->image);
-
-                    if (!preg_match('/^https?:\/\//i', $registerImage)) {
-                        $registerImage = preg_replace('#^/?storage/#i', '', $registerImage);
-                        $registerImage = asset('storage/' . ltrim($registerImage, '/'));
+                    $raw = trim($hero->image);
+                    if (preg_match('/^https?:\/\//i', $raw)) {
+                        $registerImage = $raw;
+                    } else {
+                        $clean = ltrim(preg_replace('#^/?(storage|uploads)/#i', '', $raw), '/');
+                        if (file_exists(public_path('uploads/' . $clean))) {
+                            $registerImage = asset('uploads/' . $clean);
+                        } elseif (file_exists(public_path('storage/' . $clean))) {
+                            $registerImage = asset('storage/' . $clean);
+                        } else {
+                            $registerImage = null;
+                        }
                     }
                 }
             @endphp

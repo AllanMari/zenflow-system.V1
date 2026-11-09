@@ -516,7 +516,7 @@
          data-is-package="{{ $service->is_package ? '1' : '0' }}"
          data-included="{{ json_encode($incServices) }}"
          data-is-active="{{ $service->is_active ? '1' : '0' }}"
-         data-image="{{ $service->image ?? '' }}"
+         data-image="{{ $service->image_url ?? '' }}"
          data-deposit-min="{{ $service->deposit_percentage_min ?? 0 }}"
          data-deposit-max="{{ $service->deposit_percentage_max ?? 0 }}">
     </div>

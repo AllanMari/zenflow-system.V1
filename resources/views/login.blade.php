@@ -111,11 +111,18 @@
                 $loginImage = null;
 
                 if (isset($hero) && !empty($hero->image)) {
-                    $loginImage = trim($hero->image);
-
-                    if (!preg_match('/^https?:\/\//i', $loginImage)) {
-                        $loginImage = preg_replace('#^/?storage/#i', '', $loginImage);
-                        $loginImage = asset('storage/' . ltrim($loginImage, '/'));
+                    $raw = trim($hero->image);
+                    if (preg_match('/^https?:\/\//i', $raw)) {
+                        $loginImage = $raw;
+                    } else {
+                        $clean = ltrim(preg_replace('#^/?(storage|uploads)/#i', '', $raw), '/');
+                        if (file_exists(public_path('uploads/' . $clean))) {
+                            $loginImage = asset('uploads/' . $clean);
+                        } elseif (file_exists(public_path('storage/' . $clean))) {
+                            $loginImage = asset('storage/' . $clean);
+                        } else {
+                            $loginImage = null;
+                        }
                     }
                 }
             @endphp
