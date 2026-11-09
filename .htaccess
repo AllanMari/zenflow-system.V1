@@ -1,0 +1,13 @@
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Deny access to sensitive Laravel files and directories
+    RewriteRule ^(\.env|\.git|composer\.(json|lock)|artisan|package(-lock)?\.json|vite\.config\.js|phpunit\.xml)$ - [F,L,NC]
+
+    RewriteRule ^(app|bootstrap|config|database|resources|routes|storage|tests|vendor)(/|$) - [F,L,NC]
+
+    # Route requests to Laravel's public directory
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
