@@ -27,7 +27,7 @@
     <meta name="twitter:image"       content="{{ asset('uploads/branding/spa-alexandria-logo.png') }}">
 
     {{-- Favicon --}}
-    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
+    @include('partials.favicon')
 
     {{-- Dark mode: apply before render to avoid a flash --}}
     <script>

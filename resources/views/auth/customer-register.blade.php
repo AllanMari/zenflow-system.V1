@@ -15,7 +15,7 @@
 
     <title>Create Account – Spa Alexandria | Bacolod City</title>
     <meta name="description" content="Register for a Spa Alexandria account to manage your spa appointments in Bacolod City, Negros Occidental.">
-    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
+    @include('partials.favicon')
 
     {{-- Fonts: Fraunces (headings) + Inter (UI) --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">

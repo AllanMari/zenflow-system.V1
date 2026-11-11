@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terms of Service — Spa Alexandria</title>
+    @include('partials.favicon')
     <script src="https://cdn.tailwindcss.com"></script>
     <script>if(localStorage.getItem('darkMode')==='enabled')document.documentElement.classList.add('dark');tailwind.config={darkMode:'class'}</script>
 </head>

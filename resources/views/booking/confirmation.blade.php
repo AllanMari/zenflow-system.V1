@@ -8,6 +8,9 @@
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    {{-- Favicon --}}
+    @include('partials.favicon')
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 

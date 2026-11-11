@@ -7,6 +7,9 @@
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    {{-- Favicon --}}
+    @include('partials.favicon')
+
     <title>Book an Appointment | Spa Alexandria</title>
 
     <!-- Dark mode: apply before render to avoid flash -->

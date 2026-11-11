@@ -15,7 +15,7 @@
 
     <title>Sign In – Spa Alexandria | Bacolod City Wellness</title>
     <meta name="description" content="Sign in to your Spa Alexandria account to manage your appointments in Bacolod City.">
-    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
+    @include('partials.favicon')
 
     {{-- Fonts: Fraunces (headings) + Inter (UI) --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
