@@ -12,8 +12,8 @@
     placeholders until the full Spa Alexandria logo PNG is uploaded to Hostinger.
     Once uploaded, regenerate these assets from the logo for maximum fidelity.
 --}}
-<link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
-<link rel="icon" href="{{ asset('favicon-32x32.png') }}" type="image/png" sizes="32x32">
-<link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
-<link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
+<link rel="icon" href="{{ asset('favicon.ico') }}?v=2" sizes="any">
+<link rel="icon" href="{{ asset('favicon-32x32.png') }}?v=2" type="image/png" sizes="32x32">
+<link rel="icon" href="{{ asset('favicon.svg') }}?v=2" type="image/svg+xml">
+<link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}?v=2">
 <meta name="theme-color" content="#0f766e">
