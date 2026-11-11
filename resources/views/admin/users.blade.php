@@ -182,11 +182,11 @@ $roleStyles = [
                                 </div>
 
                                 <div class="min-w-0">
-                                    <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                                    <p class="break-words text-sm font-semibold text-gray-900 dark:text-white">
                                         {{ $fullName ?: 'Unnamed User' }}
                                     </p>
 
-                                    <p class="truncate text-xs text-gray-500 dark:text-gray-400">
+                                    <p class="break-words text-xs text-gray-500 dark:text-gray-400">
                                         {{ $user->username }}
                                     </p>
                                 </div>

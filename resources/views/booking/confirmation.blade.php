@@ -108,8 +108,8 @@
 
         <a href="{{ $backRoute }}" class="flex items-center gap-3">
             @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200/80 dark:border-slate-700/80">
-                    <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-8 w-8 object-contain">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200/80 dark:border-slate-700/80">
+                    <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-10 w-10 object-contain">
                 </div>
             @else
                 <div class="flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-sm" style="background-color: #159582">

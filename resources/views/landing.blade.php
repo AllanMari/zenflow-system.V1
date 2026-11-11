@@ -296,8 +296,8 @@
         {{-- Brand --}}
         <a href="{{ route('landing') }}" class="flex min-w-0 items-center gap-2 sm:gap-3">
             @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
-                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200/80 dark:border-slate-700/80">
-                    <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-8 w-8 object-contain">
+                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200/80 dark:border-slate-700/80">
+                    <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-10 w-10 object-contain">
                 </span>
             @else
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-700 text-white dark:bg-brand-600">
@@ -948,8 +948,8 @@
 
         <div class="flex items-center gap-3">
             @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
-                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200 dark:border-slate-700">
-                    <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-7 w-7 object-contain">
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200 dark:border-slate-700">
+                    <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-9 w-9 object-contain">
                 </span>
             @endif
             <div>

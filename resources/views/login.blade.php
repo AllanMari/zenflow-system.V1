@@ -158,8 +158,8 @@
                 {{-- Brand --}}
                 <a href="{{ route('landing') }}" data-hero class="absolute left-8 top-8 z-10 flex items-center gap-3 xl:left-10 xl:top-10">
                     @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
-                        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1.5 shadow-md">
-                            <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-8 w-8 object-contain">
+                        <span class="flex h-[52px] w-[52px] items-center justify-center rounded-xl bg-white p-1.5 shadow-md">
+                            <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-10 w-10 object-contain">
                         </span>
                     @else
                         <span class="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white ring-1 ring-white/30 backdrop-blur">
@@ -200,8 +200,8 @@
                 {{-- Mobile brand --}}
                 <a href="{{ route('landing') }}" class="mb-10 flex items-center gap-3 lg:hidden">
                     @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200 dark:border-slate-700">
-                            <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-8 w-8 object-contain">
+                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200 dark:border-slate-700">
+                            <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-10 w-10 object-contain">
                         </span>
                     @else
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-700 text-white dark:bg-brand-600">

@@ -379,7 +379,7 @@
 
                         <div class="min-w-0">
 
-                            <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                            <p class="break-words text-sm font-semibold text-gray-900 dark:text-white">
                                 {{ $topServiceName }}
                             </p>
 

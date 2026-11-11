@@ -237,8 +237,8 @@
 <aside id="desktopSidebar" class="hidden md:flex fixed left-0 top-0 h-full w-[260px] bg-white dark:bg-[#0f172a] flex-col border-r border-gray-200/80 dark:border-gray-800/60 z-40 shadow-[4px_0_24px_rgba(0,0,0,0.04)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.3)] transition-colors duration-300">
     <div class="h-[72px] flex items-center gap-3 px-5 shrink-0 border-b border-gray-100 dark:border-gray-800/60">
         @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
-            <div class="w-9 h-9 rounded-xl bg-white border border-gray-200/80 dark:border-gray-700/60 p-1 flex items-center justify-center shadow-sm shrink-0">
-                <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="w-7 h-7 object-contain">
+            <div class="w-11 h-11 rounded-xl bg-white border border-gray-200/80 dark:border-gray-700/60 p-1 flex items-center justify-center shadow-sm shrink-0">
+                <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="w-9 h-9 object-contain">
             </div>
         @else
             <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20 shrink-0">
@@ -278,8 +278,8 @@
         <div class="h-[72px] flex items-center justify-between px-5 shrink-0 border-b border-gray-100 dark:border-gray-800/60">
             <div class="flex items-center gap-3">
                 @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
-                    <div class="w-9 h-9 rounded-xl bg-white border border-gray-200/80 dark:border-gray-700/60 p-1 flex items-center justify-center shadow-sm shrink-0">
-                        <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="w-7 h-7 object-contain">
+                    <div class="w-11 h-11 rounded-xl bg-white border border-gray-200/80 dark:border-gray-700/60 p-1 flex items-center justify-center shadow-sm shrink-0">
+                        <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="w-9 h-9 object-contain">
                     </div>
                 @else
                     <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20 shrink-0">

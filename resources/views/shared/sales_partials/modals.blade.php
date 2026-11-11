@@ -30,7 +30,7 @@
                 <div class="min-w-0">
                     <h3
                         id="txModalTitle"
-                        class="truncate text-base font-bold text-gray-900 dark:text-white"
+                        class="break-words text-base font-bold text-gray-900 dark:text-white"
                     >
                         Transaction Analytics
                     </h3>
@@ -127,7 +127,7 @@
                                     </div>
 
                                     <div class="min-w-0">
-                                        <p class="truncate text-sm font-semibold capitalize text-gray-800 dark:text-neutral-200">
+                                        <p class="break-words text-sm font-semibold capitalize text-gray-800 dark:text-neutral-200">
                                             {{ $type }}
                                         </p>
 
@@ -205,7 +205,7 @@
                                     </div>
 
                                     <div class="min-w-0">
-                                        <p class="truncate text-sm font-semibold capitalize text-gray-800 dark:text-neutral-200">
+                                        <p class="break-words text-sm font-semibold capitalize text-gray-800 dark:text-neutral-200">
                                             {{ str_replace('_', ' ', $method) }}
                                         </p>
 
@@ -299,7 +299,7 @@
                 <div class="min-w-0">
                     <h3
                         id="noShowModalTitle"
-                        class="truncate text-base font-bold text-gray-900 dark:text-white"
+                        class="break-words text-base font-bold text-gray-900 dark:text-white"
                     >
                         No Show Details
                     </h3>
@@ -426,7 +426,7 @@
                                         </div>
 
                                         <div class="min-w-0">
-                                            <p class="truncate text-sm font-bold text-gray-900 dark:text-white">
+                                            <p class="break-words text-sm font-bold text-gray-900 dark:text-white">
                                                 {{ $ns['customer'] }}
                                             </p>
 

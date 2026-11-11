@@ -18,8 +18,8 @@
                 <table style="border-collapse: collapse; margin-bottom: 0;">
                     <tr>
                         @if($logoBase64)
-                            <td style="vertical-align: middle; padding-right: 12px; width: 38px;">
-                                <img src="{{ $logoBase64 }}" alt="Spa Alexandria" style="width: 36px; height: 36px; object-fit: contain;">
+                            <td style="vertical-align: middle; padding-right: 14px; width: 54px;">
+                                <img src="{{ $logoBase64 }}" alt="Spa Alexandria" style="width: 48px; height: 48px; object-fit: contain;">
                             </td>
                         @endif
                         <td style="vertical-align: middle; padding: 0;">

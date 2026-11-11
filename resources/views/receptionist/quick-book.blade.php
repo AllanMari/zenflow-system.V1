@@ -228,9 +228,9 @@
                                         </div>
 
                                         <div class="min-w-0 flex-1">
-                                            <div class="flex items-center gap-2">
+                                            <div class="flex items-center gap-2 flex-wrap">
                                                 <p
-                                                    class="truncate text-sm font-bold text-gray-800 dark:text-gray-100"
+                                                    class="break-words text-sm font-bold text-gray-800 dark:text-gray-100"
                                                     x-text="item.name"
                                                 ></p>
 
@@ -243,7 +243,7 @@
                                             </div>
 
                                             <p
-                                                class="mt-0.5 truncate text-xs text-gray-400"
+                                                class="mt-0.5 break-words text-xs text-gray-400"
                                                 x-text="item.real_name && item.real_name !== item.name ? item.real_name + ' · ' + item.phone : item.phone"
                                             ></p>
                                         </div>
@@ -410,7 +410,7 @@
 
                                         <div class="min-w-0">
                                             <p
-                                                class="truncate text-sm font-bold text-gray-800 dark:text-gray-100"
+                                                class="break-words text-sm font-bold text-gray-800 dark:text-gray-100"
                                                 x-text="category.name"
                                             ></p>
 
@@ -700,7 +700,7 @@
 
                                         <div class="min-w-0">
                                             <p
-                                                class="truncate text-sm font-bold text-gray-800 dark:text-gray-100"
+                                                class="break-words text-sm font-bold text-gray-800 dark:text-gray-100"
                                                 x-text="slot.staff_name"
                                             ></p>
 
@@ -1022,7 +1022,7 @@
 
                                             <div class="min-w-0">
                                                 <p
-                                                    class="truncate text-sm font-bold text-gray-800 dark:text-gray-100"
+                                                    class="break-words text-sm font-bold text-gray-800 dark:text-gray-100"
                                                     x-text="room.name"
                                                 ></p>
 
@@ -1128,7 +1128,7 @@
 
                                 <div class="min-w-0">
                                     <p
-                                        class="truncate text-xs font-bold text-gray-700 dark:text-gray-200"
+                                        class="break-words text-xs font-bold text-gray-700 dark:text-gray-200"
                                         x-text="service.name"
                                     ></p>
 
@@ -1158,7 +1158,7 @@
                         <div class="flex items-center justify-between gap-3">
                             <span class="text-xs text-gray-400">Customer</span>
                             <span
-                                class="max-w-[200px] truncate text-right text-xs font-bold text-gray-700 dark:text-gray-200"
+                                class="max-w-[200px] break-words text-right text-xs font-bold text-gray-700 dark:text-gray-200"
                                 x-text="customer.name || '—'"
                             ></span>
                         </div>
@@ -1190,7 +1190,7 @@
                         <div class="flex items-center justify-between gap-3">
                             <span class="text-xs text-gray-400">Staff</span>
                             <span
-                                class="max-w-[200px] truncate text-right text-xs font-bold text-gray-700 dark:text-gray-200"
+                                class="max-w-[200px] break-words text-right text-xs font-bold text-gray-700 dark:text-gray-200"
                                 x-text="selectedStaffName || '—'"
                             ></span>
                         </div>
@@ -1198,7 +1198,7 @@
                         <div class="flex items-center justify-between gap-3">
                             <span class="text-xs text-gray-400">Room</span>
                             <span
-                                class="max-w-[200px] truncate text-right text-xs font-bold text-gray-700 dark:text-gray-200"
+                                class="max-w-[200px] break-words text-right text-xs font-bold text-gray-700 dark:text-gray-200"
                                 x-text="selectedRoomName || (!requiresRoom ? 'Not required' : '—')"
                             ></span>
                         </div>

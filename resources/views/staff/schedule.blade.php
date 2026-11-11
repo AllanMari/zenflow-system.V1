@@ -512,7 +512,7 @@
                             @endif
 
                             @if($ex->reason)
-                                <p class="text-xs text-gray-500 dark:text-gray-400 italic mt-1 truncate" title="{{ $ex->reason }}">
+                                <p class="text-xs text-gray-500 dark:text-gray-400 italic mt-1 break-words" title="{{ $ex->reason }}">
                                     &ldquo;{{ $ex->reason }}&rdquo;
                                 </p>
                             @endif

@@ -172,7 +172,7 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
               <button type="button" @click="templateManager.startEdit(tpl); selectedStaffId = '';" class="flex items-center gap-3 flex-1 min-w-0 text-left">
                 <div class="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0" :style="'background: ' + (tpl.name.length > 0 ? 'hsl(' + (tpl.name.charCodeAt(0) * 15 % 360) + ', 60%, 45%)' : '#78716c')" x-text="tpl.name.charAt(0).toUpperCase()"></div>
                 <div class="min-w-0 flex-1">
-                  <div class="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate" x-text="tpl.name"></div>
+                  <div class="text-xs font-semibold text-gray-800 dark:text-gray-100 break-words" x-text="tpl.name"></div>
                   <div class="flex gap-1 mt-1">
                     <template x-for="(p, idx) in (tpl.pattern || [])" :key="idx">
                       <div class="w-1.5 h-1.5 rounded-full" :class="p && p.is_day_off ? 'bg-gray-300 dark:bg-gray-600' : 'bg-brand-500'"></div>
@@ -211,7 +211,7 @@ $days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
               x-show="staffMatchesFilter({{ json_encode(strtolower($s->first_name.' '.$s->last_name), JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) }})">
               <div class="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0" style="background: #78716c;">{{ substr($s->first_name,0,1) }}{{ substr($s->last_name,0,1) }}</div>
               <div class="min-w-0 flex-1">
-                <div class="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">{{ $s->first_name }} {{ $s->last_name }}</div>
+                <div class="text-xs font-semibold text-gray-800 dark:text-gray-100 break-words">{{ $s->first_name }} {{ $s->last_name }}</div>
                 <div class="text-[10px] text-gray-400 dark:text-gray-500">Weekly schedule & exceptions</div>
               </div>
             </button>

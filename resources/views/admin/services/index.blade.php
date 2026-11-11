@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin')
+@extends('layouts.admin')
 
 @section('title', 'Service Catalog')
 
@@ -201,7 +201,7 @@
                             {{ strtoupper(substr($cat->name, 0, 1)) }}
                         </div>
                         <div class="flex-1 min-w-0">
-                            <h3 class="font-bold text-gray-900 dark:text-white truncate">{{ $cat->name }}</h3>
+                            <h3 class="font-bold text-gray-900 dark:text-white break-words">{{ $cat->name }}</h3>
                             <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                 <span>{{ $catSingle->count() }} services</span>
                                 @if($catPackages->count() > 0)
@@ -235,7 +235,7 @@
                                 @if($svc->is_package)
                                     <span class="shrink-0 text-[10px] font-bold text-purple-600 bg-purple-100 dark:bg-purple-900 px-1.5 py-0.5 rounded">PKG</span>
                                 @endif
-                                <span class="truncate {{ !$svc->is_active ? 'line-through opacity-50' : 'text-gray-700 dark:text-gray-300' }}">{{ $svc->name }}</span>
+                                <span class="break-words {{ !$svc->is_active ? 'line-through opacity-50' : 'text-gray-700 dark:text-gray-300' }}">{{ $svc->name }}</span>
                             </div>
                             <span class="text-xs text-gray-500 dark:text-gray-400 shrink-0">₱{{ number_format($svc->price, 0) }}</span>
                         </div>

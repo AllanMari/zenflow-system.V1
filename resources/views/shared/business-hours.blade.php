@@ -392,7 +392,7 @@
                 <div class="min-w-0 pr-2">
                     <p class="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Next Change</p>
                     @if(!empty($nextScheduledChange))
-                        <h3 class="text-sm font-bold text-gray-900 dark:text-white mt-1 truncate" title="{{ $nextScheduledChange->title }}">
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white mt-1 break-words" title="{{ $nextScheduledChange->title }}">
                             {{ \Carbon\Carbon::parse($nextScheduledChange->date)->format('M d') }} — {{ $nextScheduledChange->title }}
                         </h3>
                         <p class="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5 font-medium capitalize">

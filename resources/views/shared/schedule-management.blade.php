@@ -252,7 +252,7 @@ $todayStr = now()->toDateString();
           >
             <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm" style="background: {{ $colors[$si % 8] }};">{{ $initials }}</div>
             <div class="min-w-0 flex-1">
-              <div class="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{{ $s->first_name }} {{ $s->last_name }}</div>
+              <div class="text-sm font-semibold text-gray-800 dark:text-gray-100 break-words">{{ $s->first_name }} {{ $s->last_name }}</div>
               <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
                 @if(count($stats['days']))
                   <span class="font-medium text-brand-600 dark:text-brand-400">{{ implode(', ', $stats['days']) }}</span>
@@ -405,7 +405,7 @@ $todayStr = now()->toDateString();
                 <div class="w-52 shrink-0 flex items-center gap-3 px-4 py-4 bg-gray-50 dark:bg-slate-800/50 border-r border-gray-200 dark:border-slate-700">
                   <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm" style="background: {{ $colors[$loop->index % 8] }};">{{ $initials }}</div>
                   <div class="min-w-0">
-                    <div class="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{{ $s->first_name }} {{ $s->last_name }}</div>
+                    <div class="text-sm font-semibold text-gray-800 dark:text-gray-100 break-words">{{ $s->first_name }} {{ $s->last_name }}</div>
                     <div class="text-xs text-gray-500 dark:text-gray-400">{{ $row['statusLabel'] }}</div>
                   </div>
                 </div>

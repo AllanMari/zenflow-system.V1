@@ -281,8 +281,8 @@
 
             <a href="{{ $backRoute }}" class="flex items-center gap-3">
                 @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
-                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200/80 dark:border-slate-700/80">
-                        <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-8 w-8 object-contain">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200/80 dark:border-slate-700/80">
+                        <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-10 w-10 object-contain">
                     </div>
                 @else
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-zen-600 text-white shadow-sm">
@@ -410,7 +410,7 @@
 
                             <div class="min-w-0">
                                 <p
-                                    class="truncate text-xs font-bold sm:text-sm"
+                                    class="break-words text-xs font-bold sm:text-sm leading-tight"
                                     :class="step >= 1 ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
                                 >
                                     Services
@@ -450,7 +450,7 @@
 
                             <div class="min-w-0">
                                 <p
-                                    class="truncate text-xs font-bold sm:text-sm"
+                                    class="break-words text-xs font-bold sm:text-sm leading-tight"
                                     :class="step >= 2 ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
                                 >
                                     Date &amp; Time
@@ -490,7 +490,7 @@
 
                             <div class="min-w-0">
                                 <p
-                                    class="truncate text-xs font-bold sm:text-sm"
+                                    class="break-words text-xs font-bold sm:text-sm leading-tight"
                                     :class="step >= 3 ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
                                 >
                                     Your Details
@@ -665,7 +665,7 @@
 
                                                     <div class="min-w-0 flex-1 pr-6">
 
-                                                        <h4 class="line-clamp-2 text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">
+                                                        <h4 class="break-words text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">
                                                             <span x-text="service.name"></span>
                                                         </h4>
 
