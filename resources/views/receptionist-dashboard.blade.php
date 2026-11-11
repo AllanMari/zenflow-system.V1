@@ -282,7 +282,7 @@
                                     {{-- Client & Service info --}}
                                     <div class="min-w-0">
                                         <div class="flex items-center gap-2 flex-wrap">
-                                            <span class="text-sm font-bold text-gray-900 dark:text-white truncate">
+                                            <span class="text-sm font-bold text-gray-900 dark:text-white break-words">
                                                 {{ $appt->client_name }}
                                             </span>
                                             @if($customerPhone)
@@ -294,7 +294,7 @@
                                             @endif
                                         </div>
 
-                                        <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate" title="{{ $serviceNames }}">
+                                        <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 break-words" title="{{ $serviceNames }}">
                                             <span class="font-medium text-gray-500 dark:text-gray-400">Services:</span>
                                             {{ $serviceNames ?: '—' }}
                                         </p>
@@ -392,7 +392,7 @@
                                 <div>
                                     <div class="flex items-start justify-between gap-2">
                                         <div class="min-w-0">
-                                            <span class="text-sm font-bold text-gray-900 dark:text-white truncate block">
+                                            <span class="text-sm font-bold text-gray-900 dark:text-white break-words block">
                                                 {{ $appt->client_name }}
                                             </span>
                                             @if($customerPhone)
@@ -435,7 +435,7 @@
                                         </span>
                                     </div>
 
-                                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate" title="{{ $serviceNames }}">
+                                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words" title="{{ $serviceNames }}">
                                         <span>Services:</span> {{ $serviceNames ?: '—' }}
                                     </div>
                                 </div>

@@ -166,7 +166,7 @@
                             </div>
 
                             <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-0.5">
-                                <h3 class="text-base font-bold text-gray-900 dark:text-white truncate">
+                                <h3 class="text-base font-bold text-gray-900 dark:text-white break-words">
                                     {{ $appointment->client_name }}
                                 </h3>
 
@@ -415,7 +415,7 @@
                                                     {{ collect(explode(' ', $staff->full_name))->map(fn($n) => substr($n, 0, 1))->take(2)->join('') }}
                                                 </div>
 
-                                                <p class="text-xs font-bold text-gray-900 dark:text-white truncate w-full">
+                                                <p class="text-xs font-bold text-gray-900 dark:text-white break-words w-full">
                                                     {{ $staff->full_name }}
                                                 </p>
 

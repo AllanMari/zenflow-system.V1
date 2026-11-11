@@ -31,7 +31,7 @@
             <div class="w-8 h-8 rounded-lg {{ $iconBg }} flex items-center justify-center shrink-0 shadow-2xs transition-colors duration-200">
                 <i data-lucide="{{ $iconName }}" class="w-4 h-4"></i>
             </div>
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 break-words">
                 SPA ALEXANDRIA · BUSINESS NOTICE
             </span>
         </div>

@@ -116,7 +116,7 @@
                         <div class="min-w-0 flex-1 space-y-1">
                             <!-- Line 1: Title and Status Pill -->
                             <div class="flex flex-wrap items-center gap-2">
-                                <h4 class="text-sm font-bold text-gray-900 dark:text-white leading-tight truncate transition-colors duration-200">
+                                <h4 class="text-sm font-bold text-gray-900 dark:text-white leading-tight break-words transition-colors duration-200">
                                     {{ $exc->title }}
                                 </h4>
                                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-colors duration-200 {{ $pillClass }}">
@@ -161,7 +161,7 @@
                             @if(!empty($exc->description))
                                 <div class="text-[11px] text-gray-400 dark:text-gray-500 flex items-center gap-1.5 pt-0.5 transition-colors duration-200">
                                     <span class="font-semibold uppercase text-[9px] tracking-wider text-gray-400 border border-gray-200 dark:border-gray-700 rounded px-1">Staff Note</span>
-                                    <span class="truncate">{{ $exc->description }}</span>
+                                    <span class="break-words">{{ $exc->description }}</span>
                                 </div>
                             @endif
                         </div>

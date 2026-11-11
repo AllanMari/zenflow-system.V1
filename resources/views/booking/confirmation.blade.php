@@ -117,12 +117,12 @@
                 </div>
             @endif
 
-            <div class="hidden sm:block">
-                <div class="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            <div class="block">
+                <div class="text-xs sm:text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap">
                     Spa Alexandria
                 </div>
 
-                <div class="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 dark:text-slate-400">
                     Wellness &amp; Relaxation
                 </div>
             </div>
@@ -240,7 +240,7 @@
                             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                                 Appointment Date
                             </p>
-                            <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            <p class="text-sm font-semibold text-gray-900 dark:text-white break-words">
                                 {{ $appointmentDate }}
                             </p>
                         </div>
@@ -255,7 +255,7 @@
                             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                                 Scheduled Time
                             </p>
-                            <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            <p class="text-sm font-semibold text-gray-900 dark:text-white break-words">
                                 {{ $startTime }} – {{ $endTime }}
                             </p>
                         </div>
@@ -276,11 +276,11 @@
                                     <div class="w-5 h-5 rounded-md bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
                                         <i data-lucide="check" class="w-3.5 h-3.5"></i>
                                     </div>
-                                    <span class="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">
+                                    <span class="text-xs font-semibold text-gray-800 dark:text-gray-200 break-words">
                                         {{ $service->name }}
                                     </span>
                                     @if(!empty($service->duration_minutes))
-                                        <span class="text-[10px] text-gray-400 dark:text-gray-500">
+                                        <span class="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">
                                             ({{ $service->duration_minutes }} mins)
                                         </span>
                                     @endif

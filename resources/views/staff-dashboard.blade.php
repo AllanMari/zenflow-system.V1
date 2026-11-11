@@ -307,7 +307,7 @@
                                         {{-- Client & Services --}}
                                         <div class="min-w-0">
                                             <div class="flex items-center gap-2 flex-wrap">
-                                                <span class="text-sm font-bold text-gray-900 dark:text-white truncate">
+                                                <span class="text-sm font-bold text-gray-900 dark:text-white break-words">
                                                     {{ $appointment->client_name }}
                                                 </span>
                                                 @if($customerPhone)
@@ -319,7 +319,7 @@
                                                 @endif
                                             </div>
 
-                                            <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate" title="{{ $serviceNames }}">
+                                            <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 break-words" title="{{ $serviceNames }}">
                                                 <span class="font-medium text-gray-500 dark:text-gray-400">Services:</span>
                                                 {{ $serviceNames ?: 'Spa Service' }}
                                                 @if($durationMins > 0)
@@ -450,8 +450,8 @@
 
                                     {{-- Client & Service info --}}
                                     <div class="min-w-0">
-                                        <div class="flex items-center gap-1.5">
-                                            <span class="text-sm font-bold text-gray-900 dark:text-white truncate">
+                                        <div class="flex items-center gap-1.5 flex-wrap">
+                                            <span class="text-sm font-bold text-gray-900 dark:text-white break-words">
                                                 {{ $appointment->client_name }}
                                             </span>
                                             @if($hasNotes)
@@ -460,7 +460,7 @@
                                                 </span>
                                             @endif
                                         </div>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5" title="{{ $serviceNames }}">
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 break-words mt-0.5" title="{{ $serviceNames }}">
                                             {{ $serviceNames ?: 'Spa Service' }}
                                         </p>
                                         <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">

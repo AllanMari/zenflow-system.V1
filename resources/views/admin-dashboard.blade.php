@@ -359,10 +359,10 @@
                     </div>
                     <div class="w-px h-8 bg-gray-200 dark:bg-gray-700 shrink-0"></div>
                     <div class="flex-1 min-w-0">
-                        <p class="font-semibold text-sm text-gray-800 dark:text-gray-200 truncate">
+                        <p class="font-semibold text-sm text-gray-800 dark:text-gray-200 break-words">
                             {{ $appt->client_name }}
                         </p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 break-words">
                             {{ $appt->staff ? trim($appt->staff->first_name . ' ' . $appt->staff->last_name) : 'Unassigned' }}
                         </p>
                     </div>

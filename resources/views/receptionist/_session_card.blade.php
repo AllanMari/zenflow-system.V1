@@ -23,7 +23,7 @@
                 </div>
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
-                        <h3 class="truncate text-sm font-bold text-slate-900 dark:text-white">
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white break-words">
                             {{ $customerName }}
                         </h3>
                         @if($isPastUnresolved)
@@ -77,7 +77,7 @@
                 @forelse($services as $service)
                     <div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/70">
                         <div class="min-w-0">
-                            <p class="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                            <p class="text-sm font-medium text-slate-800 dark:text-slate-200 break-words">
                                 {{ $service->pivot->service_name ?? $service->name }}
                             </p>
                             @if($service->pivot->is_extra)

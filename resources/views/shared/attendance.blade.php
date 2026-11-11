@@ -132,9 +132,9 @@
                         <div class="flex flex-col gap-3 rounded-lg border border-amber-200 bg-white/80 px-3 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900/50 dark:bg-slate-900/70">
 
                             <div class="min-w-0">
-                                <div class="flex items-center gap-2">
+                                <div class="flex items-center gap-2 flex-wrap">
                                     <p
-                                        class="truncate text-sm font-semibold text-gray-900 dark:text-white"
+                                        class="break-words text-sm font-semibold text-gray-900 dark:text-white"
                                         x-text="s.name"
                                     ></p>
 
@@ -343,12 +343,12 @@
 
                             <div class="min-w-0">
                                 <p
-                                    class="truncate text-sm font-semibold text-gray-900 dark:text-white"
+                                    class="break-words text-sm font-semibold text-gray-900 dark:text-white"
                                     x-text="s.name"
                                 ></p>
 
                                 <p
-                                    class="truncate text-xs text-gray-500 dark:text-gray-400"
+                                    class="break-words text-xs text-gray-500 dark:text-gray-400"
                                     x-text="s.username"
                                 ></p>
                             </div>

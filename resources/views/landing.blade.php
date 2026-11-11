@@ -304,10 +304,10 @@
                     <i data-lucide="sparkles" class="h-5 w-5"></i>
                 </span>
             @endif
-            {{-- min-w-0 + overflow-hidden prevent this column from pushing the CTA buttons off-screen --}}
+            {{-- Brand text: never truncate "Spa Alexandria"; allow subtitle to wrap naturally --}}
             <span class="min-w-0 leading-tight">
-                <span class="block truncate text-sm font-semibold text-slate-900 dark:text-white">Spa Alexandria</span>
-                <span class="block truncate text-xs text-slate-500 dark:text-slate-400">Wellness &amp; Relaxation</span>
+                <span class="block whitespace-nowrap text-xs font-bold text-slate-900 sm:text-sm dark:text-white">Spa Alexandria</span>
+                <span class="block text-[11px] leading-3 text-slate-500 sm:text-xs sm:leading-tight dark:text-slate-400">Wellness &amp; Relaxation</span>
             </span>
         </a>
 
@@ -450,7 +450,7 @@
                                         <div class="w-8 h-8 rounded-lg {{ $iconBg }} flex items-center justify-center shrink-0 shadow-2xs">
                                             <i data-lucide="{{ $iconName }}" class="w-4 h-4"></i>
                                         </div>
-                                        <span class="text-[10px] font-bold uppercase tracking-wider text-teal-200/90 truncate">
+                                        <span class="text-[10px] font-bold uppercase tracking-wider text-teal-200/90 break-words">
                                             SPA ALEXANDRIA · BUSINESS NOTICE
                                         </span>
                                     </div>

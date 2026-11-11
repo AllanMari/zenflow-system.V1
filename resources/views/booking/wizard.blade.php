@@ -290,12 +290,12 @@
                     </div>
                 @endif
 
-                <div class="hidden sm:block">
-                    <div class="text-sm font800 font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                <div class="block">
+                    <div class="text-xs sm:text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap">
                         Spa Alexandria
                     </div>
 
-                    <div class="text-[11px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 dark:text-slate-400">
                         Wellness &amp; Relaxation
                     </div>
                 </div>
@@ -1374,7 +1374,7 @@
                                     <template x-for="service in selectedServiceObjects" :key="service.id">
                                         <div class="flex items-center justify-between gap-4 rounded-xl border border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 p-3.5">
                                             <div class="min-w-0">
-                                                <p class="truncate text-sm font-bold text-slate-800 dark:text-slate-200">
+                                                <p class="text-sm font-bold text-slate-800 dark:text-slate-200 break-words">
                                                     <span x-text="service.name"></span>
                                                 </p>
 
@@ -1719,7 +1719,7 @@
 
                     <template x-if="selectedServices.length > 0">
                         <div>
-                            <p class="truncate text-xs font-bold text-slate-800 dark:text-slate-200">
+                            <p class="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">
                                 <span x-text="selectedServices.length"></span>
                                 <span x-text="selectedServices.length === 1 ? 'service' : 'services'"></span>
 
