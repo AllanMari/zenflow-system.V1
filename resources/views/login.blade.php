@@ -8,9 +8,14 @@
         }
     </script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{-- viewport-fit=cover: safe-area insets work correctly on notch/Dynamic Island devices --}}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    {{-- noindex: auth pages should not appear in search results --}}
+    <meta name="robots" content="noindex, nofollow">
 
-    <title>Login | Spa Alexandria</title>
+    <title>Sign In – Spa Alexandria | Bacolod City Wellness</title>
+    <meta name="description" content="Sign in to your Spa Alexandria account to manage your appointments in Bacolod City.">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
 
     {{-- Fonts: Fraunces (headings) + Inter (UI) --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -98,7 +103,7 @@
     </style>
 </head>
 
-<body class="min-h-screen bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
+<body class="min-h-screen overflow-x-hidden bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
 
     <main class="min-h-screen lg:grid lg:h-screen lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:overflow-hidden">
 
@@ -264,7 +269,7 @@
                                 required
                                 autofocus
                                 placeholder="Enter your username"
-                                class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
+                                class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
                             >
                         </div>
                     </div>
@@ -289,7 +294,7 @@
                                 x-on:keydown="caps = $event.getModifierState && $event.getModifierState('CapsLock')"
                                 x-on:keyup="caps = $event.getModifierState && $event.getModifierState('CapsLock')"
                                 x-on:blur="caps = false"
-                                class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-12 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
+                                class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-12 text-base text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
                             >
                             <button
                                 type="button"

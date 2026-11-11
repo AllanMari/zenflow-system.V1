@@ -2,7 +2,8 @@
 <html lang="en" x-data="spaBookingWizard()">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Book your spa appointment online at Spa Alexandria in Bacolod City. Choose treatments, preferred date and time easily.">
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
@@ -382,26 +383,26 @@
         <section class="mb-8">
             <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-card sm:p-4">
 
-                <div class="grid grid-cols-4 gap-1 sm:gap-2">
+                <div class="grid grid-cols-3 gap-1 sm:gap-2">
 
                     <!-- Step 1 -->
 
                     <button
                         type="button"
                         @click="goToStep(1)"
-                        class="group rounded-xl px-2 py-2.5 text-left transition sm:px-3"
+                        class="group rounded-xl p-1.5 sm:px-3 sm:py-2.5 text-left transition"
                         :class="step >= 1
                             ? 'bg-zen-50 dark:bg-teal-900/20'
                             : 'bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50'"
                     >
-                        <div class="flex items-center gap-2 sm:gap-3">
+                        <div class="flex items-center gap-1.5 sm:gap-3">
                             <div
-                                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition sm:h-9 sm:w-9"
+                                class="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition"
                                 :class="step >= 1
                                     ? 'bg-zen-600 text-white'
                                     : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400'"
                             >
-                                <svg x-show="step > 1" x-cloak class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <svg x-show="step > 1" x-cloak class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
                                 </svg>
                                 <span x-show="step <= 1">1</span>
@@ -423,35 +424,25 @@
                     </button>
 
 
-                    <!-- Connector -->
-
-                    <div class="hidden items-center sm:flex">
-                        <div
-                            class="h-px w-full"
-                            :class="step >= 2 ? 'bg-zen-300' : 'bg-slate-200'"
-                        ></div>
-                    </div>
-
-
                     <!-- Step 2 -->
 
                     <button
                         type="button"
                         @click="goToStep(2)"
                         :disabled="!canEnterStep(2)"
-                        class="group rounded-xl px-2 py-2.5 text-left transition sm:px-3"
+                        class="group rounded-xl p-1.5 sm:px-3 sm:py-2.5 text-left transition"
                         :class="step >= 2
                             ? 'bg-zen-50 dark:bg-teal-900/20'
                             : 'bg-transparent hover:bg-slate-50 dark:bg-slate-900 disabled:hover:bg-transparent'"
                     >
-                        <div class="flex items-center gap-2 sm:gap-3">
+                        <div class="flex items-center gap-1.5 sm:gap-3">
                             <div
-                                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition sm:h-9 sm:w-9"
+                                class="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition"
                                 :class="step >= 2
                                     ? 'bg-zen-600 text-white'
                                     : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400'"
                             >
-                                <svg x-show="step > 2" x-cloak class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <svg x-show="step > 2" x-cloak class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
                                 </svg>
                                 <span x-show="step <= 2">2</span>
@@ -462,7 +453,7 @@
                                     class="truncate text-xs font-bold sm:text-sm"
                                     :class="step >= 2 ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
                                 >
-                                    Date & Time
+                                    Date &amp; Time
                                 </p>
 
                                 <p class="hidden text-[11px] text-slate-400 dark:text-slate-500 sm:block">
@@ -473,35 +464,25 @@
                     </button>
 
 
-                    <!-- Connector -->
-
-                    <div class="hidden items-center sm:flex">
-                        <div
-                            class="h-px w-full"
-                            :class="step >= 3 ? 'bg-zen-300' : 'bg-slate-200'"
-                        ></div>
-                    </div>
-
-
                     <!-- Step 3 -->
 
                     <button
                         type="button"
                         @click="goToStep(3)"
                         :disabled="!canEnterStep(3)"
-                        class="group rounded-xl px-2 py-2.5 text-left transition sm:px-3"
+                        class="group rounded-xl p-1.5 sm:px-3 sm:py-2.5 text-left transition"
                         :class="step >= 3
                             ? 'bg-zen-50 dark:bg-teal-900/20'
                             : 'bg-transparent hover:bg-slate-50 dark:bg-slate-900 disabled:hover:bg-transparent'"
                     >
-                        <div class="flex items-center gap-2 sm:gap-3">
+                        <div class="flex items-center gap-1.5 sm:gap-3">
                             <div
-                                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition sm:h-9 sm:w-9"
+                                class="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition"
                                 :class="step >= 3
                                     ? 'bg-zen-600 text-white'
                                     : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400'"
                             >
-                                <svg x-show="step > 3" x-cloak class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <svg x-show="step > 3" x-cloak class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
                                 </svg>
                                 <span x-show="step <= 3">3</span>
@@ -1093,7 +1074,7 @@
                                             autocomplete="name"
                                             maxlength="100"
                                             placeholder="Enter your full name"
-                                            class="block w-full rounded-xl border py-3.5 pl-11 pr-12 text-sm text-slate-900 dark:text-slate-100 outline-none transition placeholder:text-slate-400 dark:text-slate-500 focus:ring-4"
+                                            class="block w-full rounded-xl border py-3.5 pl-11 pr-12 text-base text-slate-900 dark:text-slate-100 outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-4"
                                             :class="guestName.trim().length >= 2
                                                 ? 'border-emerald-300 bg-emerald-50/30 dark:bg-emerald-900/20 focus:border-emerald-500 focus:ring-emerald-500/10'
                                                 : guestName.trim().length > 0
@@ -1150,7 +1131,7 @@
                                             maxlength="11"
                                             inputmode="numeric"
                                             placeholder="09XXXXXXXXX"
-                                            class="block w-full rounded-xl border py-3.5 pl-11 pr-12 text-sm text-slate-900 dark:text-slate-100 outline-none transition placeholder:text-slate-400 dark:text-slate-500 focus:ring-4"
+                                            class="block w-full rounded-xl border py-3.5 pl-11 pr-12 text-base text-slate-900 dark:text-slate-100 outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-4"
                                             :class="phone.length === 11 && phoneValid
                                                 ? 'border-emerald-300 bg-emerald-50/30 dark:bg-emerald-900/20 focus:border-emerald-500 focus:ring-emerald-500/10'
                                                 : phone.length > 0
@@ -1208,7 +1189,7 @@
                                         rows="5"
                                         maxlength="1000"
                                         placeholder="Let us know about allergies, sensitivities, preferences, or anything our therapists should be aware of."
-                                        class="block w-full resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3.5 text-sm leading-6 text-slate-900 dark:text-slate-100 outline-none transition placeholder:text-slate-400 dark:text-slate-500 focus:border-zen-500 focus:ring-4 focus:ring-zen-500/10"
+                                        class="block w-full resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3.5 text-base leading-6 text-slate-900 dark:text-slate-100 outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-zen-500 focus:ring-4 focus:ring-zen-500/10"
                                     ></textarea>
 
                                     <div class="mt-1.5 flex justify-end">

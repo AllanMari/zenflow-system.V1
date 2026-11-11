@@ -1,2 +1,10 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /admin
+Disallow: /receptionist
+Disallow: /staff
+Disallow: /customer
+Disallow: /login
+Disallow: /customer/register
+
+Sitemap: https://spa-alexandria.test/sitemap.xml

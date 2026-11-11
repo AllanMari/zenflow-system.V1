@@ -2,7 +2,9 @@
 <html lang="en" class="{{ session('dark_mode') === 'enabled' ? 'dark' : '' }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', $userRole ?? 'Dashboard') — Spa Alexandria</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -397,11 +399,11 @@
                 @csrf @method('PUT')
                 <div>
                     <label class="block mb-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">First Name</label>
-                    <input type="text" name="first_name" value="{{ auth()->user()->first_name }}" class="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-xl p-3 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition text-sm font-medium" required>
+                    <input type="text" name="first_name" value="{{ auth()->user()->first_name }}" class="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-xl p-3 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition text-base font-medium" required>
                 </div>
                 <div>
                     <label class="block mb-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Name</label>
-                    <input type="text" name="last_name" value="{{ auth()->user()->last_name }}" class="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-xl p-3 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition text-sm font-medium" required>
+                    <input type="text" name="last_name" value="{{ auth()->user()->last_name }}" class="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-xl p-3 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition text-base font-medium" required>
                 </div>
                 <div class="flex justify-end gap-3 pt-2">
                     <button type="button" onclick="closeSettingsModal()" class="px-5 py-2.5 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition">Cancel</button>

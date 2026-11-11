@@ -8,9 +8,14 @@
         }
     </script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{-- viewport-fit=cover: safe-area insets work correctly on notch/Dynamic Island devices --}}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    {{-- noindex: auth pages should not appear in search results --}}
+    <meta name="robots" content="noindex, nofollow">
 
-    <title>Create Account | Spa Alexandria</title>
+    <title>Create Account – Spa Alexandria | Bacolod City</title>
+    <meta name="description" content="Register for a Spa Alexandria account to manage your spa appointments in Bacolod City, Negros Occidental.">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
 
     {{-- Fonts: Fraunces (headings) + Inter (UI) --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -93,7 +98,7 @@
     </style>
 </head>
 
-<body class="min-h-screen bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
+<body class="min-h-screen overflow-x-hidden bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
 
     <main class="min-h-screen lg:grid lg:h-screen lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:overflow-hidden">
 
@@ -258,7 +263,7 @@
                                     autocomplete="given-name"
                                     required
                                     placeholder="First name"
-                                    class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
+                                    class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
                                 >
                             </div>
                         </div>
@@ -279,7 +284,7 @@
                                     autocomplete="family-name"
                                     required
                                     placeholder="Last name"
-                                    class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
+                                    class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
                                 >
                             </div>
                         </div>
@@ -303,7 +308,7 @@
                                 autocomplete="username"
                                 required
                                 placeholder="Choose a username"
-                                class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
+                                class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
                             >
                         </div>
                     </div>
@@ -328,7 +333,7 @@
                                 x-on:keydown="caps = ($event.getModifierState && $event.getModifierState('CapsLock')) ? 'password' : ''"
                                 x-on:keyup="caps = ($event.getModifierState && $event.getModifierState('CapsLock')) ? 'password' : ''"
                                 x-on:blur="caps = ''"
-                                class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-12 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
+                                class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-12 text-base text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
                             >
                             <button
                                 type="button"
@@ -367,7 +372,7 @@
                                 x-on:keydown="caps = ($event.getModifierState && $event.getModifierState('CapsLock')) ? 'confirm' : ''"
                                 x-on:keyup="caps = ($event.getModifierState && $event.getModifierState('CapsLock')) ? 'confirm' : ''"
                                 x-on:blur="caps = ''"
-                                class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-12 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
+                                class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-12 text-base text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:hover:border-slate-600"
                             >
                             <button
                                 type="button"

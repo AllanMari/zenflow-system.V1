@@ -3,9 +3,31 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{-- viewport-fit=cover enables safe-area insets on iOS notch/Dynamic Island devices --}}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-    <title>{{ $hero->title ?? 'Spa Alexandria' }}</title>
+    {{-- SEO: title, description, canonical --}}
+    <title>Spa Alexandria – Wellness &amp; Relaxation in Bacolod City</title>
+    <meta name="description" content="Book a relaxing spa appointment at Spa Alexandria in Bacolod City, Negros Occidental. Choose from massage, facial, and body treatments. Online booking available.">
+    <link rel="canonical" href="{{ url('/') }}">
+
+    {{-- Open Graph --}}
+    <meta property="og:type"        content="website">
+    <meta property="og:url"         content="{{ url('/') }}">
+    <meta property="og:title"       content="Spa Alexandria – Wellness &amp; Relaxation in Bacolod City">
+    <meta property="og:description" content="Book a relaxing spa appointment at Spa Alexandria in Bacolod City. Choose from massage, facial, and body treatments. Online booking available.">
+    <meta property="og:image"       content="{{ asset('uploads/branding/spa-alexandria-logo.png') }}">
+    <meta property="og:locale"      content="en_PH">
+    <meta property="og:site_name"   content="Spa Alexandria">
+
+    {{-- Twitter Card --}}
+    <meta name="twitter:card"        content="summary_large_image">
+    <meta name="twitter:title"       content="Spa Alexandria – Wellness &amp; Relaxation in Bacolod City">
+    <meta name="twitter:description" content="Book a relaxing spa appointment at Spa Alexandria in Bacolod City. Online booking available.">
+    <meta name="twitter:image"       content="{{ asset('uploads/branding/spa-alexandria-logo.png') }}">
+
+    {{-- Favicon --}}
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
 
     {{-- Dark mode: apply before render to avoid a flash --}}
     <script>
@@ -44,6 +66,11 @@
         }
     </script>
 
+    {{-- Fonts: Inter with font-display:swap --}}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
     {{-- Swiper (service carousels), pinned --}}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11.1.14/swiper-bundle.min.css">
     <script src="https://cdn.jsdelivr.net/npm/swiper@11.1.14/swiper-bundle.min.js"></script>
@@ -61,6 +88,12 @@
     <style>
         html { scroll-behavior: smooth; }
         body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+
+        /* ── Safe-area: pad sticky header on notch/Dynamic Island devices ── */
+        #siteHeader {
+            padding-left:  env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
 
         /* Hero photo follows the theme: it dims slightly in dark mode */
         .hero-img { transition: filter .7s ease; animation: kenburns 26s ease-in-out infinite alternate; }
@@ -125,6 +158,12 @@
             mix-blend-mode: overlay;
             opacity: .22;
         }
+
+        /* ── Hero heading: scale down gracefully at 320px ── */
+        @media (max-width: 374px) {
+            .hero-title { font-size: clamp(2rem, 10vw, 3rem); }
+        }
+
         @media (prefers-reduced-motion: reduce) {
             html { scroll-behavior: auto; }
             .ripple, .blob, .map-pin::after { animation: none; }
@@ -132,6 +171,48 @@
             .hero-img { transition: none; animation: none; }
         }
     </style>
+    {{-- JSON-LD: LocalBusiness / DaySpa structured data --}}
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "DaySpa",
+        "name": "Spa Alexandria",
+        "description": "Wellness and relaxation spa offering massage, facial, and body treatments in Bacolod City.",
+        "url": "{{ url('/') }}",
+        "logo": "{{ asset('uploads/branding/spa-alexandria-logo.png') }}",
+        "image": "{{ asset('uploads/branding/spa-alexandria-logo.png') }}",
+        "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "25th Lacson St",
+            "addressLocality": "Bacolod City",
+            "addressRegion": "Negros Occidental",
+            "addressCountry": "PH"
+        },
+        "geo": {
+            "@type": "GeoCoordinates",
+            "latitude": 10.6854287,
+            "longitude": 122.956771
+        },
+        "hasMap": "https://www.google.com/maps?q=10.6854287,122.956771",
+        "priceRange": "₱₱",
+        "currenciesAccepted": "PHP",
+        "paymentAccepted": "Cash",
+        "openingHoursSpecification": [
+            {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+                "opens": "09:00",
+                "closes": "21:00"
+            }
+        ],
+        "makesOffer": [
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Massage Therapy" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Facial Treatment" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Body Treatment" } }
+        ],
+        "sameAs": []
+    }
+    </script>
 </head>
 
 
@@ -210,10 +291,10 @@
 ========================================================== --}}
 <header id="siteHeader" class="sticky top-0 z-50 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl transition-colors duration-500 dark:border-slate-800 dark:bg-slate-950/80">
 
-    <nav class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+    <nav class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
 
         {{-- Brand --}}
-        <a href="{{ route('landing') }}" class="flex items-center gap-3">
+        <a href="{{ route('landing') }}" class="flex min-w-0 items-center gap-2 sm:gap-3">
             @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm border border-slate-200/80 dark:border-slate-700/80">
                     <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="h-8 w-8 object-contain">
@@ -223,14 +304,15 @@
                     <i data-lucide="sparkles" class="h-5 w-5"></i>
                 </span>
             @endif
-            <span class="leading-tight">
-                <span class="block text-sm font-semibold text-slate-900 dark:text-white">Spa Alexandria</span>
-                <span class="block text-xs text-slate-500 dark:text-slate-400">Wellness &amp; Relaxation</span>
+            {{-- min-w-0 + overflow-hidden prevent this column from pushing the CTA buttons off-screen --}}
+            <span class="min-w-0 leading-tight">
+                <span class="block truncate text-sm font-semibold text-slate-900 dark:text-white">Spa Alexandria</span>
+                <span class="block truncate text-xs text-slate-500 dark:text-slate-400">Wellness &amp; Relaxation</span>
             </span>
         </a>
 
         {{-- Dark mode + account links --}}
-        <div class="flex items-center gap-2 sm:gap-3">
+        <div class="flex shrink-0 items-center gap-2 sm:gap-3">
 
             <button
                 type="button"
@@ -271,9 +353,12 @@
 {{-- =========================================================
      HERO
 ========================================================== --}}
+{{-- pt-4 on section gives breathing room below the sticky 64px header.
+     The inner content uses pt-14 sm:pt-16 so text never crowds the top edge
+     at any viewport size (including iPhone SE 320px). --}}
 <section class="px-4 pt-4 sm:px-6 lg:px-8">
 
-    <div data-hero-frame class="relative mx-auto min-h-[640px] max-w-7xl overflow-hidden rounded-[2rem] bg-brand-900">
+    <div data-hero-frame class="relative mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-brand-900" style="min-height: min(640px, 85svh)">
 
         @if($heroImage)
 
@@ -311,7 +396,7 @@
         @endif
 
 
-        <div class="relative flex min-h-[640px] items-center px-6 pb-28 pt-16 sm:px-10 lg:px-16">
+        <div class="relative flex min-h-[min(640px,85svh)] items-center px-4 pb-28 pt-14 sm:px-10 sm:pt-16 lg:px-16">
 
             <div class="max-w-2xl">
 
@@ -421,16 +506,18 @@
                     </p>
                 @endif
 
-                <h1 data-hero class="max-w-2xl text-5xl font-extrabold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl">
+                {{-- Hero H1: clamp-based size works at 320px and up --}}
+                <h1 data-hero class="hero-title max-w-2xl text-4xl font-extrabold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-7xl">
                     {{ $hero->title ?? 'Relax, restore, and feel your best.' }}
                 </h1>
 
-                <p data-hero class="mt-6 max-w-xl text-base leading-7 text-white/80 sm:text-lg">
+                <p data-hero class="mt-5 max-w-xl text-base leading-7 text-white/80 sm:mt-6 sm:text-lg">
                     Choose your services, find an available date and time,
                     and book your appointment as a guest or registered customer.
                 </p>
 
-                <div data-hero class="mt-9 flex flex-col gap-3 sm:flex-row">
+                {{-- CTAs: stack on mobile, row on sm+ --}}
+                <div data-hero class="mt-8 flex flex-col gap-3 sm:mt-9 sm:flex-row">
 
                     <a href="{{ route('booking.wizard') }}" class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-brand-900 shadow-sm transition hover:bg-brand-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40">
                         Book an appointment
@@ -456,8 +543,10 @@
 
 {{-- =========================================================
      BOOKING OPTIONS (overlaps the bottom edge of the hero)
+     On mobile (<640px) the overlap is reduced to -6 so the card
+     doesn't sit flush against the hero edge without breathing room.
 ========================================================== --}}
-<section class="relative z-10 -mt-12 px-4 sm:px-6 lg:px-8">
+<section class="relative z-10 -mt-6 px-4 sm:-mt-12 sm:px-6 lg:px-8">
 
     <div data-reveal class="mx-auto max-w-7xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-brand-950/10 transition-colors duration-500 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/40">
 
@@ -855,7 +944,7 @@
 ========================================================== --}}
 <footer class="border-t border-slate-200 bg-slate-50 transition-colors duration-500 dark:border-slate-800 dark:bg-slate-900">
 
-    <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+    <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8" style="padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); padding-bottom: max(2rem, env(safe-area-inset-bottom))">
 
         <div class="flex items-center gap-3">
             @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
