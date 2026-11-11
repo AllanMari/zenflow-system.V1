@@ -174,22 +174,22 @@
     {{-- JSON-LD: LocalBusiness / DaySpa structured data --}}
     <script type="application/ld+json">
     {
-        "@context": "https://schema.org",
-        "@type": "DaySpa",
+        "@@context": "https://schema.org",
+        "@@type": "DaySpa",
         "name": "Spa Alexandria",
         "description": "Wellness and relaxation spa offering massage, facial, and body treatments in Bacolod City.",
         "url": "{{ url('/') }}",
         "logo": "{{ asset('uploads/branding/spa-alexandria-logo.png') }}",
         "image": "{{ asset('uploads/branding/spa-alexandria-logo.png') }}",
         "address": {
-            "@type": "PostalAddress",
+            "@@type": "PostalAddress",
             "streetAddress": "25th Lacson St",
             "addressLocality": "Bacolod City",
             "addressRegion": "Negros Occidental",
             "addressCountry": "PH"
         },
         "geo": {
-            "@type": "GeoCoordinates",
+            "@@type": "GeoCoordinates",
             "latitude": 10.6854287,
             "longitude": 122.956771
         },
@@ -199,16 +199,16 @@
         "paymentAccepted": "Cash",
         "openingHoursSpecification": [
             {
-                "@type": "OpeningHoursSpecification",
+                "@@type": "OpeningHoursSpecification",
                 "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
                 "opens": "09:00",
                 "closes": "21:00"
             }
         ],
         "makesOffer": [
-            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Massage Therapy" } },
-            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Facial Treatment" } },
-            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Body Treatment" } }
+            { "@@type": "Offer", "itemOffered": { "@@type": "Service", "name": "Massage Therapy" } },
+            { "@@type": "Offer", "itemOffered": { "@@type": "Service", "name": "Facial Treatment" } },
+            { "@@type": "Offer", "itemOffered": { "@@type": "Service", "name": "Body Treatment" } }
         ],
         "sameAs": []
     }
