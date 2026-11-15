@@ -717,7 +717,7 @@
                                             dark:bg-gray-900
                                         "
                                     >
-                                        spaalexandria.com
+                                        spaalexandria.online
                                     </div>
                                 </div>
 

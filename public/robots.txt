@@ -7,4 +7,4 @@ Disallow: /customer
 Disallow: /login
 Disallow: /customer/register
 
-Sitemap: https://spaalexandria.com/sitemap.xml
+Sitemap: https://spaalexandria.online/sitemap.xml
