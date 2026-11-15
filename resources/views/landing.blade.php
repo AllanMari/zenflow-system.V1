@@ -7,23 +7,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
     {{-- SEO: title, description, canonical --}}
-    <title>Spa Alexandria – Wellness &amp; Relaxation in Bacolod City</title>
-    <meta name="description" content="Book a relaxing spa appointment at Spa Alexandria in Bacolod City, Negros Occidental. Choose from massage, facial, and body treatments. Online booking available.">
+    <title>Spa Alexandria | Massage &amp; Wellness Spa in Bacolod City</title>
+    <meta name="description" content="Discover Spa Alexandria in Bacolod City. Explore our massage treatments, spa services, and appointment booking options.">
     <link rel="canonical" href="{{ url('/') }}">
 
     {{-- Open Graph --}}
     <meta property="og:type"        content="website">
     <meta property="og:url"         content="{{ url('/') }}">
-    <meta property="og:title"       content="Spa Alexandria – Wellness &amp; Relaxation in Bacolod City">
-    <meta property="og:description" content="Book a relaxing spa appointment at Spa Alexandria in Bacolod City. Choose from massage, facial, and body treatments. Online booking available.">
+    <meta property="og:title"       content="Spa Alexandria | Massage &amp; Wellness Spa in Bacolod City">
+    <meta property="og:description" content="Discover Spa Alexandria in Bacolod City. Explore our massage treatments, spa services, and appointment booking options.">
     <meta property="og:image"       content="{{ asset('uploads/branding/spa-alexandria-logo.png') }}">
     <meta property="og:locale"      content="en_PH">
     <meta property="og:site_name"   content="Spa Alexandria">
 
     {{-- Twitter Card --}}
     <meta name="twitter:card"        content="summary_large_image">
-    <meta name="twitter:title"       content="Spa Alexandria – Wellness &amp; Relaxation in Bacolod City">
-    <meta name="twitter:description" content="Book a relaxing spa appointment at Spa Alexandria in Bacolod City. Online booking available.">
+    <meta name="twitter:title"       content="Spa Alexandria | Massage &amp; Wellness Spa in Bacolod City">
+    <meta name="twitter:description" content="Discover Spa Alexandria in Bacolod City. Explore our massage treatments, spa services, and appointment booking options.">
     <meta name="twitter:image"       content="{{ asset('uploads/branding/spa-alexandria-logo.png') }}">
 
     {{-- Favicon --}}
@@ -171,13 +171,22 @@
             .hero-img { transition: none; animation: none; }
         }
     </style>
-    {{-- JSON-LD: LocalBusiness / DaySpa structured data --}}
+    {{-- JSON-LD: WebSite & LocalBusiness / DaySpa structured data --}}
+    <script type="application/ld+json">
+    {
+        "@@context": "https://schema.org",
+        "@@type": "WebSite",
+        "name": "Spa Alexandria",
+        "alternateName": "Spa Alexandria Bacolod",
+        "url": "{{ url('/') }}"
+    }
+    </script>
     <script type="application/ld+json">
     {
         "@@context": "https://schema.org",
         "@@type": "DaySpa",
         "name": "Spa Alexandria",
-        "description": "Wellness and relaxation spa offering massage, facial, and body treatments in Bacolod City.",
+        "description": "Discover Spa Alexandria in Bacolod City. Explore our massage treatments, spa services, and appointment booking options.",
         "url": "{{ url('/') }}",
         "logo": "{{ asset('uploads/branding/spa-alexandria-logo.png') }}",
         "image": "{{ asset('uploads/branding/spa-alexandria-logo.png') }}",
