@@ -357,6 +357,8 @@
 
 </header>
 
+@include('partials.academic-capstone-notice')
+
 
 
 {{-- =========================================================

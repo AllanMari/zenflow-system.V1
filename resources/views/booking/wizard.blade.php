@@ -323,6 +323,8 @@
         </div>
     </header>
 
+    @include('partials.academic-capstone-notice')
+
 
     <!-- ============================================================
          PAGE

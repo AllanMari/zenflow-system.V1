@@ -105,6 +105,8 @@
 
 <body class="min-h-screen overflow-x-hidden bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
 
+    @include('partials.academic-capstone-notice')
+
     <main class="min-h-screen lg:grid lg:h-screen lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:overflow-hidden">
 
         {{-- =====================================================
