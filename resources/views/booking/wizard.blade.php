@@ -323,7 +323,11 @@
         </div>
     </header>
 
-    @include('partials.academic-capstone-notice')
+    <div class="sticky top-16 z-40 px-4 pt-2.5 sm:px-6 sm:pt-3 lg:px-8">
+        <div class="mx-auto max-w-7xl">
+            @include('partials.academic-capstone-notice')
+        </div>
+    </div>
 
 
     <!-- ============================================================

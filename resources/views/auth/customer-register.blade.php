@@ -100,8 +100,6 @@
 
 <body class="min-h-screen overflow-x-hidden bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
 
-    @include('partials.academic-capstone-notice')
-
     <main class="min-h-screen lg:grid lg:h-screen lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:overflow-hidden">
 
         {{-- =====================================================
@@ -193,6 +191,10 @@
         <section class="form-scroll flex min-h-screen w-full items-center justify-center px-5 py-10 sm:px-8 lg:h-screen lg:overflow-y-auto lg:px-12 xl:px-20">
 
             <div class="form-in w-full max-w-md">
+
+                <div class="sticky top-4 z-30 mb-6">
+                    @include('partials.academic-capstone-notice')
+                </div>
 
                 {{-- Mobile brand --}}
                 <a href="{{ route('landing') }}" class="mb-8 flex items-center gap-3 lg:hidden">
