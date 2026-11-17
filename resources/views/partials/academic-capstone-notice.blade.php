@@ -32,7 +32,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 14v7" />
                     </svg>
                 </span>
-                <span class="truncate text-[11px] font-bold tracking-wider uppercase text-teal-50">
+                <span class="text-[10px] font-bold tracking-wider uppercase text-teal-50 leading-tight">
                     Academic Capstone Notice
                 </span>
             </div>

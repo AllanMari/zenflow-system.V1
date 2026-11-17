@@ -399,12 +399,15 @@
                     <label class="flex cursor-pointer items-start gap-3">
                         <input
                             type="checkbox"
-                            name="terms"
+                            name="terms_accepted"
                             value="1"
+                            id="terms_accepted"
                             required
                             class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-brand-600 focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:border-slate-600 dark:focus:ring-offset-slate-950"
-                            {{ old('terms') ? 'checked' : '' }}
+                            {{ old('terms_accepted') ? 'checked' : '' }}
+                            x-on:change="$event.target.checked ? $el.closest('form').querySelector('[name=privacy_consented]').value = '1' : $el.closest('form').querySelector('[name=privacy_consented]').value = '0'"
                         >
+                        <input type="hidden" name="privacy_consented" value="{{ old('terms_accepted') ? '1' : '0' }}">
                         <span class="text-xs leading-5 text-slate-500 dark:text-slate-400">
                             I agree to the
                             <a href="{{ route('terms') }}" target="_blank" rel="noopener" class="font-semibold text-brand-700 underline-offset-4 hover:underline dark:text-brand-400">Terms of Service</a>
