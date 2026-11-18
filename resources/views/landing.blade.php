@@ -256,19 +256,51 @@
 
     $heroImage = $resolveImage($hero->image ?? null);
 
-    $serviceMeta = function ($service) use ($resolveImage) {
+    $allServicesById = isset($categories)
+        ? $categories->flatMap(fn ($category) => $category->services)->keyBy('id')
+        : collect();
+
+    $serviceMeta = function ($service) use ($resolveImage, $allServicesById) {
 
         $hasDiscount = $service->discount_price &&
             $service->price &&
             $service->discount_price < $service->price;
 
+        $includedServices = collect();
+        if ($service->is_package && !empty($service->included_services)) {
+            $ids = is_string($service->included_services)
+                ? json_decode($service->included_services, true)
+                : $service->included_services;
+
+            if (is_array($ids) && !empty($ids)) {
+                $includedServices = $allServicesById->only($ids)->values();
+                if ($includedServices->count() < count($ids)) {
+                    $missing = array_diff($ids, $includedServices->pluck('id')->all());
+                    if (!empty($missing)) {
+                        $extra = \App\Models\Service::whereIn('id', $missing)->get();
+                        $includedServices = $includedServices->concat($extra);
+                    }
+                }
+            }
+        }
+
+        $choiceGroups = collect();
+        if ($service->is_package) {
+            $choiceGroups = $service->relationLoaded('choiceGroups')
+                ? $service->choiceGroups
+                : $service->choiceGroups()->with('options.service')->get();
+        }
+
         return [
-            'image'        => $resolveImage($service->image ?? null),
-            'hasDiscount'  => $hasDiscount,
-            'displayPrice' => $hasDiscount ? $service->discount_price : $service->price,
-            'description'  => !empty($service->landing_description)
+            'image'            => $resolveImage($service->image ?? null),
+            'hasDiscount'      => $hasDiscount,
+            'displayPrice'     => $hasDiscount ? $service->discount_price : $service->price,
+            'description'      => !empty($service->landing_description)
                 ? $service->landing_description
                 : ($service->description ?? null),
+            'isPackage'        => (bool) $service->is_package,
+            'includedServices' => $includedServices,
+            'choiceGroups'     => $choiceGroups,
         ];
     };
 
@@ -730,6 +762,15 @@
 
                                                 <div class="relative aspect-[4/3] overflow-hidden bg-brand-50 dark:bg-brand-950/60">
 
+                                                    @if($meta['isPackage'])
+                                                        <div class="absolute left-3 top-3 z-10">
+                                                            <span class="inline-flex items-center gap-1.5 rounded-full bg-purple-700/90 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-xs backdrop-blur-sm dark:bg-purple-600/90">
+                                                                <i data-lucide="package" class="h-3 w-3"></i>
+                                                                Package
+                                                            </span>
+                                                        </div>
+                                                    @endif
+
                                                     @if($meta['image'])
 
                                                         <img
@@ -758,9 +799,11 @@
 
                                                     <div class="flex items-start justify-between gap-3">
 
-                                                        <h4 class="text-base font-semibold leading-6 text-slate-900 dark:text-white">
-                                                            {{ $service->name }}
-                                                        </h4>
+                                                        <div class="min-w-0 flex-1">
+                                                            <h4 class="text-base font-semibold leading-6 text-slate-900 dark:text-white">
+                                                                {{ $service->name }}
+                                                            </h4>
+                                                        </div>
 
                                                         @if($meta['displayPrice'] !== null)
                                                             <div class="shrink-0 text-right">
@@ -783,12 +826,93 @@
                                                         </p>
                                                     @endif
 
+                                                    @if($meta['isPackage'] && ($meta['includedServices']->isNotEmpty() || $meta['choiceGroups']->isNotEmpty() || !empty($service->description)))
+                                                        <details class="group/pkg mt-3.5 rounded-xl border border-purple-100/90 bg-purple-50/60 p-3 dark:border-purple-900/30 dark:bg-purple-950/20 transition-all">
+                                                            <summary class="flex items-center justify-between cursor-pointer select-none list-none text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                                                                <span class="flex items-center gap-1">
+                                                                    <i data-lucide="sparkles" class="h-3 w-3 text-purple-600"></i>
+                                                                    Package Inclusions @if($meta['includedServices']->isNotEmpty())({{ $meta['includedServices']->count() }})@endif
+                                                                </span>
+                                                                <span class="text-[10px] font-semibold text-purple-600 dark:text-purple-400 group-open/pkg:hidden">
+                                                                    Details ▾
+                                                                </span>
+                                                                <span class="text-[10px] font-semibold text-purple-600 dark:text-purple-400 hidden group-open/pkg:inline">
+                                                                    Hide ▴
+                                                                </span>
+                                                            </summary>
+
+                                                            <div class="mt-2 space-y-2 pt-2 border-t border-purple-100 dark:border-purple-900/40">
+                                                                @if($meta['includedServices']->isNotEmpty())
+                                                                    <div class="flex flex-wrap gap-1.5">
+                                                                        @foreach($meta['includedServices'] as $inc)
+                                                                            <span class="inline-flex items-center gap-1 rounded-md border border-purple-100 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 shadow-2xs dark:border-purple-900/40 dark:bg-slate-800 dark:text-slate-200">
+                                                                                <span class="h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                                                                                <span>{{ $inc->name }}</span>
+                                                                                @if(!empty($inc->duration_minutes))
+                                                                                    <span class="text-[10px] text-slate-400 dark:text-slate-500">({{ $inc->duration_minutes }}m)</span>
+                                                                                @endif
+                                                                            </span>
+                                                                        @endforeach
+                                                                    </div>
+                                                                @endif
+
+                                                                @if($meta['choiceGroups']->isNotEmpty())
+                                                                    <div class="space-y-1.5 pt-1">
+                                                                        @foreach($meta['choiceGroups'] as $grp)
+                                                                            <div class="rounded-lg bg-white/80 p-2 border border-purple-100 dark:bg-slate-800/80 dark:border-purple-900/40">
+                                                                                <p class="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                                                                                    {{ $grp->label ?? $grp->name }} (Choice):
+                                                                                </p>
+                                                                                <p class="text-xs font-semibold text-slate-700 dark:text-slate-200 mt-0.5">
+                                                                                    {{ $grp->options->map(fn($o) => $o->name ?? $o->service?->name)->filter()->join(' OR ') }}
+                                                                                </p>
+                                                                            </div>
+                                                                        @endforeach
+                                                                    </div>
+                                                                @endif
+
+                                                                @if(!empty($service->description) && $service->description !== $service->landing_description)
+                                                                    <p class="text-xs leading-5 text-slate-600 dark:text-slate-400 pt-1">
+                                                                        {{ $service->description }}
+                                                                    </p>
+                                                                @endif
+
+                                                                <div class="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                                                    @if(($service->participants_required ?? 1) > 1)
+                                                                        <span class="inline-flex items-center gap-1 text-purple-700 dark:text-purple-300 font-medium">
+                                                                            <i data-lucide="users" class="h-3 w-3"></i>
+                                                                            {{ $service->participants_required }} Guests
+                                                                        </span>
+                                                                    @endif
+                                                                    @if(($service->therapists_required ?? 1) > 1)
+                                                                        <span class="inline-flex items-center gap-1 text-purple-700 dark:text-purple-300 font-medium">
+                                                                            <i data-lucide="user-check" class="h-3 w-3"></i>
+                                                                            {{ $service->therapists_required }} Therapists
+                                                                        </span>
+                                                                    @endif
+                                                                    @if($meta['hasDiscount'])
+                                                                        <span class="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                                                                            <i data-lucide="badge-percent" class="h-3 w-3"></i>
+                                                                            Save ₱{{ number_format($service->price - $service->discount_price, 2) }}
+                                                                        </span>
+                                                                    @endif
+                                                                </div>
+                                                            </div>
+                                                        </details>
+                                                    @endif
+
                                                     @if(!empty($service->duration_minutes))
-                                                        <div class="mt-auto flex items-center border-t border-slate-100 pt-4 dark:border-slate-800">
+                                                        <div class="mt-auto flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
                                                             <span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
                                                                 <i data-lucide="clock-3" class="h-4 w-4"></i>
                                                                 {{ $service->duration_minutes }} min
                                                             </span>
+
+                                                            @if($meta['isPackage'])
+                                                                <span class="text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+                                                                    Combined package
+                                                                </span>
+                                                            @endif
                                                         </div>
                                                     @endif
 

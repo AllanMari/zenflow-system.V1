@@ -27,12 +27,12 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('appointments', function (Blueprint $table) {
+            $table->dropConstrainedForeignId('refunded_by');
+            $table->dropConstrainedForeignId('rescheduled_from');
             $table->dropColumn([
                 'deposit_required',
                 'no_show_reason',
-                'refunded_by',
                 'refund_approved_at',
-                'rescheduled_from',
                 'rescheduled_at',
             ]);
             

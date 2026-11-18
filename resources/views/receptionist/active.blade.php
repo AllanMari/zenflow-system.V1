@@ -708,7 +708,7 @@
 
             </div>
 
-            <form :action="extraUrl" method="POST">
+            <form :action="extraUrl" method="POST" @submit.prevent="if(!submitting){ submitting=true; $el.submit(); }">
                 @csrf
 
                 <div class="space-y-4 p-5">
@@ -752,9 +752,11 @@
 
                     <button
                         type="submit"
-                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700"
+                        :disabled="submitting"
+                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Add Service
+                        <span x-show="!submitting">Add Service</span>
+                        <span x-show="submitting">Adding...</span>
                     </button>
 
                 </div>
@@ -799,7 +801,7 @@
 
             </div>
 
-            <form :action="completeUrl" method="POST">
+            <form :action="completeUrl" method="POST" @submit.prevent="if(!submitting){ submitting=true; $el.submit(); }">
                 @csrf
 
                 <input
@@ -869,9 +871,11 @@
 
                     <button
                         type="submit"
-                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700"
+                        :disabled="submitting"
+                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <span x-text="fullyPaid ? 'Complete Appointment' : 'Complete & Collect'"></span>
+                        <span x-show="!submitting" x-text="fullyPaid ? 'Complete Appointment' : 'Complete &amp; Collect'"></span>
+                        <span x-show="submitting">Processing...</span>
                     </button>
 
                 </div>
@@ -916,7 +920,7 @@
 
             </div>
 
-            <form :action="reassignUrl" method="POST">
+            <form :action="reassignUrl" method="POST" @submit.prevent="if(!submitting){ submitting=true; $el.submit(); }">
                 @csrf
 
                 <div class="p-5">
@@ -961,9 +965,11 @@
 
                     <button
                         type="submit"
-                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700"
+                        :disabled="submitting"
+                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Reassign Staff
+                        <span x-show="!submitting">Reassign Staff</span>
+                        <span x-show="submitting">Reassigning...</span>
                     </button>
 
                 </div>
@@ -1008,7 +1014,7 @@
 
             </div>
 
-            <form :action="rescheduleUrl" method="POST">
+            <form :action="rescheduleUrl" method="POST" @submit.prevent="if(!submitting){ submitting=true; $el.submit(); }">
                 @csrf
 
                 <div class="space-y-4 p-5">
@@ -1089,9 +1095,11 @@
 
                     <button
                         type="submit"
-                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700"
+                        :disabled="submitting"
+                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Reschedule
+                        <span x-show="!submitting">Reschedule</span>
+                        <span x-show="submitting">Rescheduling...</span>
                     </button>
 
                 </div>
@@ -1136,7 +1144,7 @@
 
             </div>
 
-            <form :action="noShowUrl" method="POST">
+            <form :action="noShowUrl" method="POST" @submit.prevent="if(!submitting){ submitting=true; $el.submit(); }">
                 @csrf
 
                 <div class="p-5">
@@ -1257,10 +1265,11 @@
 
                     <button
                         type="submit"
-                        :disabled="noShowReason === 'custom' && !noShowCustomText.trim()"
+                        :disabled="(noShowReason === 'custom' && !noShowCustomText.trim()) || submitting"
                         class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Mark No-show
+                        <span x-show="!submitting">Mark No-show</span>
+                        <span x-show="submitting">Processing...</span>
                     </button>
 
                 </div>
@@ -1283,6 +1292,8 @@
         return {
             showCalendar: false,
             activeTab: 'active', // Added
+
+            submitting: false,
 
             modal: null,
 
@@ -1607,6 +1618,7 @@
 
             closeModal() {
                 this.modal = null;
+                this.submitting = false;
             }
         };
     }

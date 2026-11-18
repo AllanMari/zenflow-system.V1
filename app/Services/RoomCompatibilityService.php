@@ -10,31 +10,40 @@ class RoomCompatibilityService
 {
     /**
      * Find rooms compatible with ALL services requiring rooms.
+     *
+     * Strict Room Compatibility Rules:
+     * 1. Rooms must be active (is_active = true) and not under maintenance (status != 'maintenance').
+     * 2. Compatibility is determined strictly by the new many-to-many roomCategories relationship.
+     * 3. Legacy rooms.category_id is never used as a substitute for roomCategories.
+     * 4. Unclassified rooms (rooms without assigned roomCategories) are NEVER treated as universally compatible.
+     * 5. For services with requires_room = true and null room_category_id: no general-room policy is invented;
+     *    such services cannot be matched to rooms until a room category is configured by the admin.
      */
     public static function findCompatibleForServices($services): Collection
     {
-        $roomReqServices = $services->filter(fn($s) => $s->requires_room);
+        $roomReqServices = $services->filter(fn($s) => (bool) $s->requires_room);
         if ($roomReqServices->isEmpty()) {
             return collect();
         }
 
-        $categoryIds = $roomReqServices->map(function ($s) {
-            return $s->room_category_id ?: $s->category_id;
-        })->filter()->unique();
+        // If any service requires a room but has no room_category_id configured,
+        // it cannot be matched to any room under strict category architecture.
+        if ($roomReqServices->contains(fn($s) => is_null($s->room_category_id))) {
+            return collect();
+        }
+
+        $roomCategoryIds = $roomReqServices->pluck('room_category_id')->filter()->unique();
+        if ($roomCategoryIds->isEmpty()) {
+            return collect();
+        }
 
         $query = Room::active()->where('status', '!=', 'maintenance');
 
-        if ($categoryIds->count() === 1) {
-            $catId = $categoryIds->first();
-            $query->where(function ($q) use ($catId) {
-                $q->where('category_id', $catId)
-                  ->orWhereNull('category_id');
+        // A room must explicitly possess EVERY required room category via the roomCategories pivot
+        foreach ($roomCategoryIds as $rcId) {
+            $query->whereHas('roomCategories', function ($sub) use ($rcId) {
+                $sub->where('room_categories.id', $rcId);
             });
-        } elseif ($categoryIds->count() > 1) {
-            // Multiple different categories required -> only General Rooms can accommodate all
-            $query->whereNull('category_id');
-        } else {
-            // requires_room = true but no category specified -> any active non-maintenance room
         }
 
         return $query->get();
@@ -46,25 +55,7 @@ class RoomCompatibilityService
      */
     public static function findPhysicallyFreeForServices($services, $date, $startTime, $endTime, ?int $excludeAppointmentId = null): Collection
     {
-        $roomReqServices = $services->filter(fn($s) => $s->requires_room);
-        if ($roomReqServices->isEmpty()) {
-            return collect();
-        }
-
-        $categoryIds = $roomReqServices->map(function ($s) {
-            return $s->room_category_id ?: $s->category_id;
-        })->filter()->unique();
-
-        $query = Room::active()->where('status', '!=', 'maintenance');
-
-        if ($categoryIds->isNotEmpty()) {
-            $query->where(function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds)
-                  ->orWhereNull('category_id');
-            });
-        }
-
-        $rooms = $query->get();
+        $rooms = self::findCompatibleForServices($services);
 
         return $rooms->filter(function ($room) use ($date, $startTime, $endTime, $excludeAppointmentId) {
             return $room->isAvailableFor($date, $startTime, $endTime, $excludeAppointmentId);

@@ -27,6 +27,15 @@ class Room extends Model
         return $this->belongsTo(ServiceCategory::class, 'category_id');
     }
 
+    /**
+     * Many-to-many: the room categories this physical room belongs to.
+     */
+    public function roomCategories()
+    {
+        return $this->belongsToMany(RoomCategory::class, 'room_category_room')
+                    ->withTimestamps();
+    }
+
     public function appointments()
     {
         return $this->hasMany(Appointment::class);
@@ -157,22 +166,6 @@ class Room extends Model
 
     public static function findAvailableFor(Service $service, $date, $startTime, $endTime, ?int $excludeAppointmentId = null)
     {
-        $query = self::active()
-            ->where('status', '!=', 'maintenance');
-
-        if ($service->requires_room && $service->room_category_id) {
-            $query->where(function ($q) use ($service) {
-                $q->where('category_id', $service->room_category_id)
-                  ->orWhereNull('category_id');
-            });
-        } elseif (! $service->requires_room) {
-            return collect();
-        }
-
-        $rooms = $query->get();
-
-        return $rooms->filter(function ($room) use ($date, $startTime, $endTime, $excludeAppointmentId) {
-            return $room->isAvailableFor($date, $startTime, $endTime, $excludeAppointmentId);
-        });
+        return self::findAvailableForServices(collect([$service]), $date, $startTime, $endTime, $excludeAppointmentId);
     }
 }

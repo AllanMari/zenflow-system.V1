@@ -29,6 +29,8 @@ class Service extends Model
         'requires_room',
         'room_category_id',
         'code',
+        'participants_required',
+        'therapists_required',
     ];
 
     protected $casts = [
@@ -41,7 +43,43 @@ class Service extends Model
         'deposit_percentage_min' => 'integer',
         'deposit_percentage_max' => 'integer',
         'requires_room' => 'boolean',
+        'participants_required' => 'integer',
+        'therapists_required' => 'integer',
+        // duration_minutes intentionally NOT cast so null is preserved as null
     ];
+
+    /**
+     * Default attribute values so new model instances surface correct
+     * defaults even before the row is saved to the database.
+     */
+    protected $attributes = [
+        'participants_required' => 1,
+        'therapists_required'   => 1,
+    ];
+
+    /**
+     * Mutator to ensure participants_required cannot be set to 0 or negative.
+     */
+    public function setParticipantsRequiredAttribute($value): void
+    {
+        $intVal = (int) $value;
+        if ($intVal < 1) {
+            throw new \InvalidArgumentException('participants_required must be a positive integer greater than or equal to 1.');
+        }
+        $this->attributes['participants_required'] = $intVal;
+    }
+
+    /**
+     * Mutator to ensure therapists_required cannot be set to 0 or negative.
+     */
+    public function setTherapistsRequiredAttribute($value): void
+    {
+        $intVal = (int) $value;
+        if ($intVal < 1) {
+            throw new \InvalidArgumentException('therapists_required must be a positive integer greater than or equal to 1.');
+        }
+        $this->attributes['therapists_required'] = $intVal;
+    }
 
     public function category()
     {
@@ -71,7 +109,15 @@ class Service extends Model
 
     public function roomCategory()
     {
-        return $this->belongsTo(ServiceCategory::class, 'room_category_id');
+        return $this->belongsTo(RoomCategory::class, 'room_category_id');
+    }
+
+    /**
+     * Choice groups for this package service.
+     */
+    public function choiceGroups()
+    {
+        return $this->hasMany(PackageChoiceGroup::class, 'service_id');
     }
 
     /**

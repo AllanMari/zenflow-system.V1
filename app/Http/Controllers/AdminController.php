@@ -15,6 +15,7 @@ use App\Models\ScheduleException;
 use App\Models\LandingSetting;
 use App\Models\ShiftTemplate;
 use App\Models\Room;
+use App\Models\RoomCategory;
 use App\Models\Payment;
 use App\Models\Appointment;
 use Illuminate\Http\Request;
@@ -22,6 +23,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 use App\Traits\ScheduleTrait;
+use App\Models\PackageChoiceGroup;
+use App\Models\PackageChoiceOption;
 
 class AdminController extends Controller
 {
@@ -360,7 +363,7 @@ public function index(Request $request)
         }
 
         $blockers = [];
-        $staffAppts = Appointment::where('user_id', $user->id)->count();
+        $staffAppts = Appointment::forStaff($user->id)->count();
         if ($staffAppts > 0) $blockers[] = $staffAppts.' appointment(s) as assigned staff';
         $createdAppts = Appointment::where('created_by', $user->id)->count();
         if ($createdAppts > 0) $blockers[] = $createdAppts.' appointment(s) created by this user';
@@ -429,10 +432,11 @@ public function index(Request $request)
 
     public function servicesIndex()
     {
-        $services = Service::with(['category', 'roomCategory'])->orderBy('category_id')->orderBy('name')->get();
+        $services = Service::with(['category', 'roomCategory', 'choiceGroups.options.service'])->orderBy('category_id')->orderBy('name')->get();
         $categories = ServiceCategory::withCount('services')->get();
-        $singleServices = Service::where('is_package', false)->where('is_active', true)->get();
-        return view('admin.services.index', compact('services', 'categories', 'singleServices'));
+        $roomCategories = RoomCategory::orderBy('name')->get();
+        $singleServices = Service::where('is_active', true)->orderBy('is_package')->orderBy('name')->get();
+        return view('admin.services.index', compact('services', 'categories', 'roomCategories', 'singleServices'));
     }
 
     public function servicesStore(Request $request)
@@ -440,7 +444,7 @@ public function index(Request $request)
         $validated = $request->validate([
             'category_id' => 'required|exists:service_categories,id',
             'name' => 'required|string|max:255',
-            'duration_minutes' => 'required|integer|min:15|max:480',
+            'duration_minutes' => 'nullable|integer|min:15|max:480',
             'price' => 'required|numeric|min:0',
             'discount_price' => 'nullable|numeric|min:0|lt:price',
             'description' => 'nullable|string',
@@ -462,7 +466,9 @@ public function index(Request $request)
             'deposit_percentage_min' => 'nullable|integer|min:0|max:100',
             'deposit_percentage_max' => 'nullable|integer|min:0|max:100|gte:deposit_percentage_min',
             'requires_room' => 'boolean',
-            'room_category_id' => 'nullable|exists:service_categories,id',
+            'room_category_id' => 'nullable|exists:room_categories,id',
+            'participants_required' => 'required|integer|min:1',
+            'therapists_required' => 'required|integer|min:1',
         ]);
 
         $validated['is_package'] = $request->boolean('is_package');
@@ -470,11 +476,20 @@ public function index(Request $request)
         $validated['show_on_landing'] = $request->boolean('show_on_landing', true);
         $validated['requires_room'] = $request->boolean('requires_room', true);
 
+        // If duration is missing, force draft mode (inactive and hidden from landing)
+        if (empty($validated['duration_minutes']) && !$validated['is_package']) {
+            $validated['duration_minutes'] = null;
+            $validated['is_active'] = false;
+            $validated['show_on_landing'] = false;
+        }
+
         if (!$validated['requires_room']) {
             $validated['room_category_id'] = null;
         }
 
-        if (!$validated['is_package']) {
+        if ($validated['is_package'] && !empty($validated['included_services'])) {
+            $validated['included_services'] = array_values(array_unique(array_map('intval', (array) $validated['included_services'])));
+        } else {
             $validated['included_services'] = null;
         }
 
@@ -500,7 +515,11 @@ public function index(Request $request)
     public function servicesUpdate(Request $request, Service $service)
     {
         // Handle simple active/inactive status toggle
-        if ($request->has('is_active') && count($request->all()) <= 3) {
+        if ($request->has('is_active') && !$request->has('name') && count($request->all()) <= 3) {
+            if ($request->boolean('is_active') && $service->duration_minutes === null && !$service->is_package) {
+                return back()->with('error', 'Cannot activate a service without a confirmed duration.');
+            }
+
             $service->update([
                 'is_active' => $request->boolean('is_active')
             ]);
@@ -511,7 +530,7 @@ public function index(Request $request)
         $validated = $request->validate([
             'category_id' => 'required|exists:service_categories,id',
             'name' => 'required|string|max:255',
-            'duration_minutes' => 'required|integer|min:15|max:480',
+            'duration_minutes' => 'nullable|integer|min:15|max:480',
             'price' => 'required|numeric|min:0',
             'discount_price' => 'nullable|numeric|min:0|lt:price',
             'description' => 'nullable|string',
@@ -534,7 +553,9 @@ public function index(Request $request)
             'deposit_percentage_min' => 'nullable|integer|min:0|max:100',
             'deposit_percentage_max' => 'nullable|integer|min:0|max:100|gte:deposit_percentage_min',
             'requires_room' => 'boolean',
-            'room_category_id' => 'nullable|exists:service_categories,id',
+            'room_category_id' => 'nullable|exists:room_categories,id',
+            'participants_required' => 'required|integer|min:1',
+            'therapists_required' => 'required|integer|min:1',
         ]);
 
         $validated['is_package'] = $request->boolean('is_package');
@@ -542,11 +563,22 @@ public function index(Request $request)
         $validated['show_on_landing'] = $request->boolean('show_on_landing', true);
         $validated['requires_room'] = $request->boolean('requires_room', true);
 
+        // If duration is missing on non-package, force draft mode
+        if (empty($validated['duration_minutes']) && !$validated['is_package']) {
+            $validated['duration_minutes'] = null;
+            $validated['is_active'] = false;
+            $validated['show_on_landing'] = false;
+        }
+
         if (!$validated['requires_room']) {
             $validated['room_category_id'] = null;
         }
 
-        if (!$validated['is_package']) {
+        if ($validated['is_package'] && !empty($validated['included_services'])) {
+            $included = array_values(array_unique(array_map('intval', (array) $validated['included_services'])));
+            $included = array_values(array_filter($included, fn($id) => $id !== (int) $service->id));
+            $validated['included_services'] = !empty($included) ? $included : null;
+        } else {
             $validated['included_services'] = null;
         }
 
@@ -700,6 +732,174 @@ public function index(Request $request)
         $service->delete();
         return redirect()->route('admin.services.index')
             ->with('success', 'Service '.$service->name.' deleted permanently.');
+    }
+
+    public function packageChoiceGroupsStore(Request $request, Service $service)
+    {
+        if (!$service->is_package) {
+            return back()->with('error', 'Choice groups can only be added to packages.');
+        }
+
+        $validated = $request->validate([
+            'label' => 'required|string|max:255',
+            'is_required' => 'boolean',
+            'max_selections' => 'nullable|integer|min:1|max:10',
+        ]);
+
+        $group = PackageChoiceGroup::create([
+            'service_id' => $service->id,
+            'label' => $validated['label'],
+            'is_required' => $request->boolean('is_required', true),
+            'max_selections' => $validated['max_selections'] ?? 1,
+        ]);
+
+        $this->logActivity('package_choice_group_created', $group, 'Created choice group: ' . $group->label);
+
+        return back()->with('success', 'Choice group created successfully.');
+    }
+
+    public function packageChoiceGroupsDestroy(PackageChoiceGroup $group)
+    {
+        $label = $group->label;
+        $group->delete();
+
+        $this->logActivity('package_choice_group_deleted', null, 'Deleted choice group: ' . $label);
+
+        return back()->with('success', 'Choice group deleted successfully.');
+    }
+
+    public function packageChoiceOptionsStore(Request $request, PackageChoiceGroup $group)
+    {
+        $validated = $request->validate([
+            'service_id' => 'required|exists:services,id',
+            'sort_order' => 'nullable|integer|min:0',
+        ]);
+
+        $serviceId = (int) $validated['service_id'];
+
+        // Prevent self-inclusion: option service cannot be the package itself
+        if ($serviceId === (int) $group->service_id) {
+            return back()->with('error', 'A package cannot include itself as a choice option.');
+        }
+
+        // Prevent duplicate option within the same group
+        $exists = PackageChoiceOption::where('choice_group_id', $group->id)
+            ->where('service_id', $serviceId)
+            ->exists();
+
+        if ($exists) {
+            return back()->with('error', 'This service is already an option in this choice group.');
+        }
+
+        $option = PackageChoiceOption::create([
+            'choice_group_id' => $group->id,
+            'service_id' => $serviceId,
+            'sort_order' => $validated['sort_order'] ?? 0,
+        ]);
+
+        $this->logActivity('package_choice_option_created', $option, 'Added option ID ' . $serviceId . ' to group ' . $group->id);
+
+        return back()->with('success', 'Choice option added successfully.');
+    }
+
+    public function packageChoiceOptionsDestroy(PackageChoiceOption $option)
+    {
+        $option->delete();
+
+        return back()->with('success', 'Choice option removed successfully.');
+    }
+
+    public function packageChoicesSync(Request $request, Service $service)
+    {
+        if (!$service->is_package) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Choice groups can only be added to packages.'], 422);
+            }
+            return back()->with('error', 'Choice groups can only be added to packages.');
+        }
+
+        $validated = $request->validate([
+            'enabled' => 'nullable',
+            'label' => 'nullable|string|max:255',
+            'is_required' => 'nullable',
+            'option_ids' => 'nullable|array',
+            'option_ids.*' => 'nullable|integer|exists:services,id',
+        ]);
+
+        $enabled = $request->boolean('enabled', true);
+        $rawOptionIds = (array) ($request->input('option_ids') ?? []);
+        $optionIds = array_values(array_filter(array_unique(array_map('intval', $rawOptionIds)), fn($id) => $id > 0 && $id !== $service->id));
+
+        $label = !empty($validated['label']) ? trim($validated['label']) : 'Choose Your Massage';
+        $isRequired = $request->boolean('is_required', true);
+
+        // If disabled or no options selected, clear choice groups for this package
+        if (!$enabled || empty($optionIds)) {
+            $service->choiceGroups()->delete();
+            $this->logActivity('package_choices_cleared', $service, 'Cleared choice groups for ' . $service->name);
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Treatment choices disabled.',
+                    'has_choices' => false,
+                    'options' => [],
+                    'formatted_text' => '',
+                ]);
+            }
+            return redirect(route('admin.services.index') . '#packages')->with('success', 'Treatment choices disabled.');
+        }
+
+        // Get or create standard group for this package
+        $group = $service->choiceGroups()->first();
+        if (!$group) {
+            $group = PackageChoiceGroup::create([
+                'service_id' => $service->id,
+                'label' => $label,
+                'is_required' => $isRequired,
+                'max_selections' => 1,
+            ]);
+        } else {
+            $group->update([
+                'label' => $label,
+                'is_required' => $isRequired,
+            ]);
+            $group->options()->delete();
+        }
+
+        // Insert new options
+        $optionsData = [];
+        foreach ($optionIds as $idx => $sId) {
+            $opt = PackageChoiceOption::create([
+                'choice_group_id' => $group->id,
+                'service_id' => $sId,
+                'sort_order' => $idx + 1,
+            ]);
+            $opt->load('service');
+            $optionsData[] = [
+                'id' => $opt->id,
+                'service_id' => $sId,
+                'name' => $opt->service?->name ?? 'Option #' . $sId,
+            ];
+        }
+
+        $formattedText = implode(' OR ', array_column($optionsData, 'name'));
+        $this->logActivity('package_choices_synced', $group, 'Synced choices for ' . $service->name . ': ' . $formattedText);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Treatment choices saved successfully!',
+                'has_choices' => true,
+                'group_id' => $group->id,
+                'label' => $group->label,
+                'is_required' => (bool) $group->is_required,
+                'options' => $optionsData,
+                'formatted_text' => $formattedText,
+            ]);
+        }
+
+        return redirect(route('admin.services.index') . '#packages')->with('success', 'Treatment choices saved successfully!');
     }
 
     /* ─── CATEGORIES ─── */
@@ -1027,9 +1227,10 @@ public function index(Request $request)
 
     public function roomsIndex()
     {
-        $rooms = Room::with('category')->orderBy('name')->get();
+        $rooms = Room::with(['category', 'roomCategories'])->orderBy('name')->get();
         $categories = ServiceCategory::where('is_active', true)->orderBy('name')->get();
-        return view('admin.rooms', compact('rooms', 'categories'));
+        $roomCategories = RoomCategory::orderBy('name')->get();
+        return view('admin.rooms', compact('rooms', 'categories', 'roomCategories'));
     }
 
     public function roomsStore(Request $request)
@@ -1039,14 +1240,21 @@ public function index(Request $request)
             'category_id' => 'nullable|exists:service_categories,id',
             'status' => 'required|in:available,occupied,maintenance',
             'notes' => 'nullable|string|max:1000',
+            'room_category_ids' => 'nullable|array',
+            'room_category_ids.*' => 'exists:room_categories,id',
         ]);
-        Room::create([
+        $room = Room::create([
             'name' => $request->name,
             'category_id' => $request->category_id,
             'status' => $request->status,
             'notes' => $request->notes,
             'is_active' => $request->boolean('is_active', true),
         ]);
+
+        if ($request->has('room_category_ids')) {
+            $room->roomCategories()->sync($request->input('room_category_ids', []));
+        }
+
         return redirect()->route('admin.rooms.index')->with('success', 'Room created successfully.');
     }
 
@@ -1058,6 +1266,8 @@ public function index(Request $request)
             'status' => 'required|in:available,occupied,maintenance',
             'notes' => 'nullable|string|max:1000',
             'is_active' => 'boolean',
+            'room_category_ids' => 'nullable|array',
+            'room_category_ids.*' => 'exists:room_categories,id',
         ]);
         $room->update([
             'name' => $request->name,
@@ -1066,6 +1276,9 @@ public function index(Request $request)
             'notes' => $request->notes,
             'is_active' => $request->boolean('is_active', true),
         ]);
+
+        $room->roomCategories()->sync($request->input('room_category_ids', []));
+
         return redirect()->route('admin.rooms.index')->with('success', 'Room updated successfully.');
     }
 
@@ -1076,6 +1289,83 @@ public function index(Request $request)
         }
         $room->delete();
         return redirect()->route('admin.rooms.index')->with('success', 'Room deleted.');
+    }
+
+    /* ─── ROOM CATEGORIES ─── */
+
+    public function roomCategoriesIndex()
+    {
+        $roomCategories = RoomCategory::withCount(['rooms', 'services'])->orderBy('name')->get();
+        return view('admin.room-categories.index', compact('roomCategories'));
+    }
+
+    public function roomCategoriesStore(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'code' => 'required|string|max:50|unique:room_categories,code',
+            'description' => 'nullable|string|max:500',
+            'is_active' => 'boolean',
+        ]);
+
+        $validated['is_active'] = $request->boolean('is_active', true);
+        $validated['code'] = strtoupper(trim($validated['code']));
+
+        RoomCategory::create($validated);
+
+        return redirect()->route('admin.room-categories.index')->with('success', 'Room category created successfully.');
+    }
+
+    public function roomCategoriesUpdate(Request $request, RoomCategory $roomCategory)
+    {
+        // Handle simple active toggle
+        if ($request->has('is_active') && !$request->has('name') && count($request->all()) <= 3) {
+            $roomCategory->update([
+                'is_active' => $request->boolean('is_active')
+            ]);
+            $msg = $roomCategory->is_active ? 'Room category activated.' : 'Room category deactivated.';
+            return back()->with('success', $msg);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'code' => 'required|string|max:50|unique:room_categories,code,' . $roomCategory->id,
+            'description' => 'nullable|string|max:500',
+            'is_active' => 'boolean',
+        ]);
+
+        $validated['is_active'] = $request->boolean('is_active', true);
+        $validated['code'] = strtoupper(trim($validated['code']));
+
+        $roomCategory->update($validated);
+
+        return redirect()->route('admin.room-categories.index')->with('success', 'Room category updated successfully.');
+    }
+
+    public function roomCategoriesDestroy(RoomCategory $roomCategory)
+    {
+        $blockers = [];
+
+        $assignedRoomsCount = $roomCategory->rooms()->count();
+        if ($assignedRoomsCount > 0) {
+            $blockers[] = $assignedRoomsCount . ' room(s)';
+        }
+
+        $referencedServicesCount = $roomCategory->services()->count();
+        if ($referencedServicesCount > 0) {
+            $blockers[] = $referencedServicesCount . ' service(s) or package(s)';
+        }
+
+        if (!empty($blockers)) {
+            return redirect()->route('admin.room-categories.index')->with(
+                'error',
+                'Cannot delete room category [' . $roomCategory->name . '] because it is assigned to ' . implode(' and referenced by ', $blockers) . '. Deactivate it instead.'
+            );
+        }
+
+        $roomCategory->delete();
+
+        return redirect()->route('admin.room-categories.index')->with('success', 'Room category deleted successfully.');
     }
 
     /* ─── APPOINTMENTS ─── */
@@ -1157,6 +1447,7 @@ public function index(Request $request)
         'customer',
         'services',
         'staff',
+        'assignedStaff',
         'room',
         'payments',
     ])
@@ -1211,9 +1502,8 @@ public function index(Request $request)
         )
         ->when(
             $request->filled('staff_id'),
-            fn ($q) => $q->where(
-                'user_id',
-                $request->staff_id
+            fn ($q) => $q->forStaff(
+                (int) $request->staff_id
             )
         )
         ->when(
@@ -1241,6 +1531,7 @@ public function appointmentReportPdf(
         'customer',
         'services',
         'staff',
+        'assignedStaff',
         'room',
         'payments',
     ]);
@@ -1295,7 +1586,7 @@ public function appointmentReportPdf(
     */
 
     if ($staffId) {
-        $query->where('user_id', $staffId);
+        $query->forStaff((int) $staffId);
     }
 
     /*

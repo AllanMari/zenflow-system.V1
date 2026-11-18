@@ -77,6 +77,8 @@ class ImageStorageTest extends TestCase
             'image' => $file,
             'is_active' => 1,
             'show_on_landing' => 1,
+            'participants_required' => 1,
+            'therapists_required' => 1,
         ]);
 
         $response->assertRedirect(route('admin.services.index'));
@@ -163,6 +165,8 @@ class ImageStorageTest extends TestCase
             'duration_minutes' => 60,
             'price' => 700,
             'image' => $newFile,
+            'participants_required' => 1,
+            'therapists_required' => 1,
         ]);
 
         $response->assertRedirect(route('admin.services.index'));
@@ -194,6 +198,8 @@ class ImageStorageTest extends TestCase
             'duration_minutes' => 45,
             'price' => 400,
             'remove_image' => 1,
+            'participants_required' => 1,
+            'therapists_required' => 1,
         ]);
 
         $response->assertRedirect(route('admin.services.index'));

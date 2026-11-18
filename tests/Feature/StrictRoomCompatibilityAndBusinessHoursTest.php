@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\{BusinessHour, Customer, Role, Room, Service, ServiceCategory, User, WorkSchedule};
+use App\Models\{BusinessHour, Customer, Role, Room, RoomCategory, Service, ServiceCategory, User, WorkSchedule};
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -15,11 +15,13 @@ class StrictRoomCompatibilityAndBusinessHoursTest extends TestCase
     {
         $catA = ServiceCategory::create(['name' => 'Category A', 'is_active' => true]);
         $catB = ServiceCategory::create(['name' => 'Category B', 'is_active' => true]);
+        $rcA  = RoomCategory::create(['name' => 'Room Cat A', 'code' => 'rc_a']);
+        $rcB  = RoomCategory::create(['name' => 'Room Cat B', 'code' => 'rc_b']);
 
         $srvA = Service::create([
             'name' => 'Service A',
             'category_id' => $catA->id,
-            'room_category_id' => $catA->id,
+            'room_category_id' => $rcA->id,
             'duration_minutes' => 60,
             'price' => 100,
             'requires_room' => true,
@@ -28,15 +30,17 @@ class StrictRoomCompatibilityAndBusinessHoursTest extends TestCase
         $srvB = Service::create([
             'name' => 'Service B',
             'category_id' => $catB->id,
-            'room_category_id' => $catB->id,
+            'room_category_id' => $rcB->id,
             'duration_minutes' => 60,
             'price' => 100,
             'requires_room' => true,
             'is_active' => true
         ]);
 
-        $room1 = Room::create(['name' => 'Room 1 (A)', 'category_id' => $catA->id, 'status' => 'available', 'is_active' => true]);
-        $room2 = Room::create(['name' => 'Room 2 (B)', 'category_id' => $catB->id, 'status' => 'available', 'is_active' => true]);
+        $room1 = Room::create(['name' => 'Room 1 (A)', 'status' => 'available', 'is_active' => true]);
+        $room1->roomCategories()->attach($rcA->id);
+        $room2 = Room::create(['name' => 'Room 2 (B)', 'status' => 'available', 'is_active' => true]);
+        $room2->roomCategories()->attach($rcB->id);
 
         $staffRole = Role::firstOrCreate(['name' => 'staff']);
         $staff = User::create([
@@ -81,8 +85,12 @@ class StrictRoomCompatibilityAndBusinessHoursTest extends TestCase
             $this->assertFalse($slot['room_available'], "Slot {$slot['time']} should have room_available = false");
             $this->assertEmpty($slot['compatible_rooms'] ?? $slot['free_rooms'], "Slot {$slot['time']} should have 0 compatible rooms");
         }
-        // Now add a General Room
-        $generalRoom = Room::create(['name' => 'General Room', 'category_id' => null, 'status' => 'available', 'is_active' => true]);
+        // An unclassified room (without roomCategories) must NOT satisfy the requirement
+        $unclassifiedRoom = Room::create(['name' => 'Unclassified Room', 'status' => 'available', 'is_active' => true]);
+
+        // A dual-category room explicitly assigned to both rcA and rcB satisfies the multi-service requirement
+        $dualRoom = Room::create(['name' => 'Dual Suite', 'status' => 'available', 'is_active' => true]);
+        $dualRoom->roomCategories()->attach([$rcA->id, $rcB->id]);
 
         $response2 = $this->getJson("/api/booking/slots?date={$tomorrowStr}&duration=120&services[]={$srvA->id}&services[]={$srvB->id}");
         $response2->assertStatus(200);
@@ -91,11 +99,11 @@ class StrictRoomCompatibilityAndBusinessHoursTest extends TestCase
         $slotsArray2 = isset($slots2['slots']) ? $slots2['slots'] : $slots2;
 
         $availableSlots = collect($slotsArray2)->filter(fn($s) => $s['room_available'] === true);
-        $this->assertNotEmpty($availableSlots, "Slots should be available once General Room is added");
+        $this->assertNotEmpty($availableSlots, "Slots should be available once Dual Suite is added");
 
         $firstSlot = $availableSlots->first();
         $this->assertCount(1, $firstSlot['compatible_rooms'] ?? $firstSlot['free_rooms']);
-        $this->assertEquals($generalRoom->id, ($firstSlot['compatible_rooms'] ?? $firstSlot['free_rooms'])[0]['id']);
+        $this->assertEquals($dualRoom->id, ($firstSlot['compatible_rooms'] ?? $firstSlot['free_rooms'])[0]['id']);
     }
 
     public function test_business_hours_open_on_sunday_allows_booking()
@@ -131,17 +139,19 @@ class StrictRoomCompatibilityAndBusinessHoursTest extends TestCase
         ]);
 
         $cat = ServiceCategory::create(['name' => 'General', 'is_active' => true]);
+        $rc = RoomCategory::create(['name' => 'General Room Cat', 'code' => 'gen_rc_sun']);
         $srv = Service::create([
             'name' => 'Simple Service',
             'category_id' => $cat->id,
-            'room_category_id' => $cat->id,
+            'room_category_id' => $rc->id,
             'duration_minutes' => 60,
             'price' => 50,
             'requires_room' => true,
             'is_active' => true
         ]);
 
-        $room = Room::create(['name' => 'Room Sun', 'category_id' => $cat->id, 'status' => 'available', 'is_active' => true]);
+        $room = Room::create(['name' => 'Room Sun', 'status' => 'available', 'is_active' => true]);
+        $room->roomCategories()->attach($rc->id);
 
         $response = $this->getJson("/api/booking/slots?date={$sundayStr}&duration=60&services[]={$srv->id}");
         $response->assertStatus(200);
@@ -186,17 +196,19 @@ class StrictRoomCompatibilityAndBusinessHoursTest extends TestCase
         ]);
 
         $cat = ServiceCategory::create(['name' => 'General', 'is_active' => true]);
+        $rc = RoomCategory::create(['name' => 'General Room Cat', 'code' => 'gen_rc_sun']);
         $srv = Service::create([
             'name' => 'Simple Service',
             'category_id' => $cat->id,
-            'room_category_id' => $cat->id,
+            'room_category_id' => $rc->id,
             'duration_minutes' => 60,
             'price' => 50,
             'requires_room' => true,
             'is_active' => true
         ]);
 
-        $room = Room::create(['name' => 'Room Sun', 'category_id' => $cat->id, 'status' => 'available', 'is_active' => true]);
+        $room = Room::create(['name' => 'Room Sun', 'status' => 'available', 'is_active' => true]);
+        $room->roomCategories()->attach($rc->id);
 
         $response = $this->getJson("/api/booking/slots?date={$sundayStr}&duration=60&services[]={$srv->id}");
         $response->assertStatus(200);

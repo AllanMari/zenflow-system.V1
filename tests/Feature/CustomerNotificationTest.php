@@ -44,9 +44,12 @@ class CustomerNotificationTest extends TestCase
             'is_active' => true,
         ]);
 
+        $roomCat = \App\Models\RoomCategory::firstOrCreate(['name' => 'Standard Room', 'code' => 'std_room']);
+
         $service = Service::create([
             'name' => 'Massage',
             'category_id' => $category->id,
+            'room_category_id' => $roomCat->id,
             'duration_minutes' => 60,
             'price' => 1000.00,
             'is_active' => true,
@@ -57,6 +60,7 @@ class CustomerNotificationTest extends TestCase
             'status' => 'available',
             'is_active' => true,
         ]);
+        $room->roomCategories()->attach($roomCat->id);
 
         $tomorrow = Carbon::tomorrow();
         \App\Models\BusinessHour::create([

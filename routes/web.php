@@ -60,6 +60,7 @@ Route::middleware(['auth', 'role:customer'])->prefix('customer')->group(function
 Route::middleware(['auth', 'role:staff'])->prefix('staff')->name('staff.')->group(function () {
     Route::get('/dashboard', [StaffController::class, 'index'])->name('dashboard');
     Route::get('/appointments', [StaffController::class, 'myAppointments'])->name('appointments');
+    Route::get('/appointments/{appointment}/treatment-notes', [StaffController::class, 'getTreatmentNotes'])->name('appointments.treatment-notes');
     Route::get('/schedule', [StaffController::class, 'mySchedule'])->name('schedule');
     Route::post('/schedule/update', [StaffController::class, 'updateMySchedule'])->name('schedule.update');
 });
@@ -74,6 +75,7 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     Route::get('/dashboard', [ReceptionistController::class, 'desk'])->name('receptionist.dashboard');
     Route::get('/booking/{appointment}', [ReceptionistController::class, 'booking'])->name('receptionist.booking');
     Route::post('/booking/{appointment}/confirm', [ReceptionistController::class, 'confirm'])->name('receptionist.confirm');
+    Route::post('/booking/{appointment}/treatment-notes', [ReceptionistController::class, 'updateTreatmentNotes'])->name('receptionist.update-treatment-notes');
     Route::post('/booking/{appointment}/cancel', [ReceptionistController::class, 'cancel'])->name('receptionist.cancel');
     Route::post('/appointments/{appointment}/complete', [ReceptionistController::class, 'complete'])->name('receptionist.complete');
     Route::get('/pending', [ReceptionistController::class, 'pending'])->name('receptionist.pending');
@@ -180,6 +182,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/services', [AdminController::class, 'servicesStore'])->name('admin.services.store');
     Route::put('/services/{service}', [AdminController::class, 'servicesUpdate'])->name('admin.services.update');
     Route::delete('/services/{service}', [AdminController::class, 'servicesDestroy'])->name('admin.services.destroy');
+    Route::post('/services/{service}/choice-groups', [AdminController::class, 'packageChoiceGroupsStore'])->name('admin.choice-groups.store');
+    Route::delete('/choice-groups/{group}', [AdminController::class, 'packageChoiceGroupsDestroy'])->name('admin.choice-groups.destroy');
+    Route::post('/choice-groups/{group}/options', [AdminController::class, 'packageChoiceOptionsStore'])->name('admin.choice-options.store');
+    Route::delete('/choice-options/{option}', [AdminController::class, 'packageChoiceOptionsDestroy'])->name('admin.choice-options.destroy');
+    Route::post('/services/{service}/choices-sync', [AdminController::class, 'packageChoicesSync'])->name('admin.choice-groups.sync');
 
     // Categories
     Route::get('/categories', [AdminController::class, 'categoriesIndex'])->name('admin.categories.index');
@@ -192,6 +199,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/rooms', [AdminController::class, 'roomsStore'])->name('admin.rooms.store');
     Route::put('/rooms/{room}', [AdminController::class, 'roomsUpdate'])->name('admin.rooms.update');
     Route::delete('/rooms/{room}', [AdminController::class, 'roomsDestroy'])->name('admin.rooms.destroy');
+
+    // Room Categories
+    Route::get('/room-categories', [AdminController::class, 'roomCategoriesIndex'])->name('admin.room-categories.index');
+    Route::post('/room-categories', [AdminController::class, 'roomCategoriesStore'])->name('admin.room-categories.store');
+    Route::put('/room-categories/{roomCategory}', [AdminController::class, 'roomCategoriesUpdate'])->name('admin.room-categories.update');
+    Route::delete('/room-categories/{roomCategory}', [AdminController::class, 'roomCategoriesDestroy'])->name('admin.room-categories.destroy');
 
     // Landing permissions
     Route::put('/receptionists/{user}/toggle-landing', [AdminController::class, 'toggleLandingPermission'])->name('admin.receptionist.toggle-landing');

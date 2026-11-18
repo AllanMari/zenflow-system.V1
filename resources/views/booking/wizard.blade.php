@@ -579,7 +579,7 @@
                                 <template x-for="category in categories" :key="category.id">
                                     <button
                                         type="button"
-                                        @click="activeCategory = category.id"
+                                        @click="activeCategory = category.id; $nextTick(() => refreshIcons())"
                                         class="whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition"
                                         :class="activeCategory === category.id
                                             ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-sm'
@@ -626,83 +626,166 @@
                                             :key="service.id"
                                         >
 
-                                            <button
-                                                type="button"
-                                                @click="toggleService(service)"
-                                                class="service-card group relative overflow-hidden rounded-2xl border p-4 text-left"
+                                            <div
+                                                class="service-card group relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-200"
                                                 :class="isSelected(service.id)
-                                                    ? 'border-zen-500 bg-zen-50/70 shadow-md shadow-zen-100'
+                                                    ? 'border-zen-500 bg-zen-50/70 shadow-md shadow-zen-100 dark:border-teal-600 dark:bg-teal-950/20'
                                                     : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-zen-200 dark:hover:border-teal-700 hover:bg-slate-50 dark:hover:bg-slate-800/80'"
                                             >
 
                                                 <!-- Selected indicator -->
-
-                                                <div
-                                                    class="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full transition"
+                                                <button
+                                                    type="button"
+                                                    @click.stop="toggleService(service)"
+                                                    class="absolute right-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full transition focus:outline-none"
                                                     :class="isSelected(service.id)
                                                         ? 'bg-zen-600 text-white'
                                                         : 'bg-slate-100 dark:bg-slate-800/60 text-transparent group-hover:bg-slate-200'"
+                                                    :aria-label="isSelected(service.id) ? 'Deselect service' : 'Select service'"
                                                 >
-                                                    <i data-lucide="check" class="h-3.5 w-3.5"></i>
+                                                    <i data-lucide="check" class="h-3.5 w-3.5" :class="isSelected(service.id) ? 'text-white' : 'text-slate-400 opacity-0 group-hover:opacity-100'"></i>
+                                                </button>
+
+                                                <!-- Clickable card top area for selection -->
+                                                <div
+                                                    class="cursor-pointer select-none"
+                                                    @click="toggleService(service)"
+                                                >
+                                                    <div class="flex gap-4">
+
+                                                        <!-- Image -->
+                                                        <div
+                                                            class="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800/60"
+                                                        >
+                                                            <template x-if="service.image">
+                                                                <img
+                                                                    :src="service.image"
+                                                                    :alt="service.name"
+                                                                    class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                                                                >
+                                                            </template>
+
+                                                            <template x-if="!service.image">
+                                                                <div class="flex h-full w-full items-center justify-center text-slate-300">
+                                                                    <i data-lucide="sparkles" class="h-7 w-7"></i>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+
+                                                        <!-- Info Summary -->
+                                                        <div class="min-w-0 flex-1 pr-6">
+
+                                                            <h4 class="break-words text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">
+                                                                <span x-text="service.name"></span>
+                                                            </h4>
+
+                                                            <!-- Short preview description -->
+                                                            <p
+                                                                x-show="service.description"
+                                                                class="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400"
+                                                                x-text="service.description"
+                                                            ></p>
+
+                                                            <!-- Summary Badges & Pricing -->
+                                                            <div class="mt-2 flex flex-wrap items-center gap-2">
+
+                                                                <span class="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                                                    <i data-lucide="clock-3" class="h-3.5 w-3.5"></i>
+                                                                    <span x-text="service.duration_minutes"></span> min
+                                                                </span>
+
+                                                                <span class="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
+
+                                                                <span class="text-sm font-extrabold text-zen-700 dark:text-teal-400">
+                                                                    ₱<span x-text="formatMoney(service.discount_price || service.price)"></span>
+                                                                </span>
+
+                                                                <template x-if="service.discount_price && service.discount_price < service.price">
+                                                                    <span class="text-xs text-slate-400 line-through">
+                                                                        ₱<span x-text="formatMoney(service.price)"></span>
+                                                                    </span>
+                                                                </template>
+
+                                                                <template x-if="service.is_package">
+                                                                    <span class="rounded bg-purple-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+                                                                        Package
+                                                                    </span>
+                                                                </template>
+
+                                                                <template x-if="service.participants_required > 1">
+                                                                    <span class="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                                                                        <i data-lucide="users" class="h-2.5 w-2.5"></i>
+                                                                        <span x-text="service.participants_required + ' Guests'"></span>
+                                                                    </span>
+                                                                </template>
+
+                                                            </div>
+
+                                                        </div>
+
+                                                    </div>
                                                 </div>
 
-
-                                                <div class="flex gap-4">
-
-                                                    <!-- Image -->
-
-                                                    <div
-                                                        class="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800/60"
+                                                <!-- Card Bottom Action Bar: View Details Modal trigger -->
+                                                <div class="mt-2.5 flex items-center justify-between border-t border-slate-100 dark:border-slate-700/50 pt-2">
+                                                    <button
+                                                        type="button"
+                                                        @click.stop="openServiceDetails(service, $event)"
+                                                        class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-zen-700 hover:bg-zen-50 dark:text-teal-400 dark:hover:bg-slate-700/50 transition-colors focus:outline-none"
                                                     >
-                                                        <template x-if="service.image">
-                                                            <img
-                                                                :src="service.image"
-                                                                :alt="service.name"
-                                                                class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                                                            >
-                                                        </template>
+                                                        <i data-lucide="info" class="h-3.5 w-3.5"></i>
+                                                        <span>View full details</span>
+                                                    </button>
 
-                                                        <template x-if="!service.image">
-                                                            <div class="flex h-full w-full items-center justify-center text-slate-300">
-                                                                <i data-lucide="sparkles" class="h-7 w-7"></i>
+                                                    <template x-if="isSelected(service.id)">
+                                                        <span class="inline-flex items-center gap-1 text-[11px] font-bold text-zen-700 dark:text-teal-400">
+                                                            <i data-lucide="check-circle" class="h-3 w-3"></i>
+                                                            <span>Selected</span>
+                                                        </span>
+                                                    </template>
+                                                </div>
+
+                                                <!-- Package Choice Selection (When Selected) -->
+                                                <template x-if="service.is_package && service.choice_groups && service.choice_groups.length > 0 && isSelected(service.id)">
+                                                    <div class="mt-2.5 rounded-xl border border-zen-300 bg-white p-2.5 text-left shadow-2xs dark:border-teal-700/80 dark:bg-slate-900" @click.stop>
+                                                        <template x-for="group in service.choice_groups" :key="group.id">
+                                                            <div class="space-y-1.5">
+                                                                <div class="flex items-center justify-between">
+                                                                    <span class="text-xs font-bold text-slate-800 dark:text-slate-200" x-text="group.name || group.label"></span>
+                                                                    <span class="rounded bg-zen-100 px-1.5 py-0.5 text-[10px] font-bold text-zen-700 dark:bg-teal-900/40 dark:text-teal-300" x-show="group.is_required">Required</span>
+                                                                </div>
+                                                                <div class="grid gap-1">
+                                                                    <template x-for="opt in group.options" :key="opt.id">
+                                                                        <label
+                                                                            class="flex cursor-pointer items-center justify-between rounded-lg border p-2 text-xs transition"
+                                                                            :class="packageChoices[group.id] === opt.id || packageChoices[group.id] === opt.service_id
+                                                                                ? 'border-zen-500 bg-zen-50/80 font-bold text-zen-900 dark:border-teal-500 dark:bg-teal-950/40 dark:text-teal-100'
+                                                                                : 'border-slate-200 bg-slate-50/50 font-normal text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-800'"
+                                                                            @click.stop="selectChoiceOption(group.id, opt.id)"
+                                                                        >
+                                                                            <div class="flex items-center gap-2">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    :name="'pkg_choice_' + service.id + '_' + group.id"
+                                                                                    :value="opt.id"
+                                                                                    :checked="packageChoices[group.id] === opt.id || packageChoices[group.id] === opt.service_id"
+                                                                                    class="h-3.5 w-3.5 text-zen-600 focus:ring-zen-500 border-slate-300 dark:border-slate-600"
+                                                                                    @click.stop="selectChoiceOption(group.id, opt.id)"
+                                                                                >
+                                                                                <span x-text="opt.name || opt.service_name"></span>
+                                                                            </div>
+                                                                            <span class="text-[10px] text-slate-400 dark:text-slate-500" x-show="opt.service_duration">
+                                                                                <span x-text="opt.service_duration"></span>m
+                                                                            </span>
+                                                                        </label>
+                                                                    </template>
+                                                                </div>
                                                             </div>
                                                         </template>
                                                     </div>
+                                                </template>
 
-
-                                                    <!-- Info -->
-
-                                                    <div class="min-w-0 flex-1 pr-6">
-
-                                                        <h4 class="break-words text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">
-                                                            <span x-text="service.name"></span>
-                                                        </h4>
-
-                                                        <p
-                                                            x-show="service.description"
-                                                            class="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400 dark:text-slate-500"
-                                                            x-text="service.description"
-                                                        ></p>
-
-                                                        <div class="mt-3 flex flex-wrap items-center gap-2">
-
-                                                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                                                                <i data-lucide="clock-3" class="h-3.5 w-3.5"></i>
-                                                                <span x-text="service.duration_minutes"></span> min
-                                                            </span>
-
-                                                            <span class="h-1 w-1 rounded-full bg-slate-300"></span>
-
-                                                            <span class="text-sm font-extrabold text-zen-700 dark:text-teal-400">
-                                                                ₱<span x-text="formatMoney(service.discount_price || service.price)"></span>
-                                                            </span>
-
-                                                        </div>
-                                                    </div>
-
-                                                </div>
-
-                                            </button>
+                                            </div>
 
                                         </template>
 
@@ -1381,20 +1464,62 @@
                                 <div class="space-y-2">
 
                                     <template x-for="service in selectedServiceObjects" :key="service.id">
-                                        <div class="flex items-center justify-between gap-4 rounded-xl border border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 p-3.5">
-                                            <div class="min-w-0">
-                                                <p class="text-sm font-bold text-slate-800 dark:text-slate-200 break-words">
-                                                    <span x-text="service.name"></span>
-                                                </p>
+                                        <div class="rounded-xl border border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 p-3.5">
+                                            <div class="flex items-center justify-between gap-4">
+                                                <div class="min-w-0">
+                                                    <div class="flex items-center gap-2">
+                                                        <p class="text-sm font-bold text-slate-800 dark:text-slate-200 break-words">
+                                                            <span x-text="service.name"></span>
+                                                        </p>
+                                                        <template x-if="service.is_package">
+                                                            <span class="rounded bg-purple-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                                                Package
+                                                            </span>
+                                                        </template>
+                                                    </div>
 
-                                                <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                                                    <span x-text="service.duration_minutes"></span> minutes
+                                                    <div class="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                                                        <span x-text="service.duration_minutes + ' minutes'"></span>
+                                                        <template x-if="service.participants_required > 1">
+                                                            <span class="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400">
+                                                                • <span x-text="service.participants_required + ' Guests'"></span>
+                                                            </span>
+                                                        </template>
+                                                        <template x-if="service.room_category_name">
+                                                            <span class="inline-flex items-center gap-1 font-medium text-slate-500 dark:text-slate-400">
+                                                                • <span x-text="service.room_category_name"></span>
+                                                            </span>
+                                                        </template>
+                                                    </div>
+                                                </div>
+
+                                                <p class="shrink-0 text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                                                    ₱<span x-text="formatMoney(service.discount_price || service.price)"></span>
                                                 </p>
                                             </div>
 
-                                            <p class="shrink-0 text-sm font-extrabold text-slate-900 dark:text-slate-100">
-                                                ₱<span x-text="formatMoney(service.discount_price || service.price)"></span>
-                                            </p>
+                                            <template x-if="service.is_package && service.included_services && service.included_services.length > 0">
+                                                <div class="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2 text-xs dark:border-slate-700/60">
+                                                    <span class="text-[11px] font-semibold text-purple-700 dark:text-purple-300">Includes:</span>
+                                                    <template x-for="(inc, idx) in service.included_services" :key="idx">
+                                                        <span class="inline-flex items-center gap-1 rounded bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
+                                                            <span class="h-1 w-1 rounded-full bg-purple-400"></span>
+                                                            <span x-text="inc.name"></span>
+                                                        </span>
+                                                    </template>
+                                                </div>
+                                            </template>
+
+                                            <template x-if="service.is_package && service.choice_groups && service.choice_groups.length > 0">
+                                                <div class="mt-2 space-y-1 border-t border-slate-100 pt-2 text-xs dark:border-slate-700/60">
+                                                    <template x-for="grp in service.choice_groups" :key="grp.id">
+                                                        <div class="flex items-center gap-1.5 text-[11px]">
+                                                            <span class="font-semibold text-zen-700 dark:text-teal-400" x-text="(grp.name || grp.label) + ':'"></span>
+                                                            <span class="font-medium text-slate-800 dark:text-slate-200" x-text="getOptionName(grp, packageChoices[grp.id])"></span>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
                                         </div>
                                     </template>
 
@@ -1574,11 +1699,23 @@
                                                 <div class="min-w-0">
                                                     <p class="text-sm font-semibold leading-5 text-slate-800 dark:text-slate-200">
                                                         <span x-text="service.name"></span>
+                                                        <span x-show="service.is_package" class="ml-1 text-[10px] font-bold text-purple-600 dark:text-purple-400">(Package)</span>
                                                     </p>
 
                                                     <p class="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
                                                         <span x-text="service.duration_minutes"></span> min
                                                     </p>
+
+                                                    <template x-if="service.is_package && service.choice_groups && service.choice_groups.length > 0">
+                                                        <div class="mt-1 space-y-0.5">
+                                                            <template x-for="grp in service.choice_groups" :key="grp.id">
+                                                                <p class="text-[10px] text-zen-700 dark:text-teal-400">
+                                                                    <span x-text="(grp.name || grp.label) + ': '"></span>
+                                                                    <span class="font-semibold" x-text="getOptionName(grp, packageChoices[grp.id])"></span>
+                                                                </p>
+                                                            </template>
+                                                        </div>
+                                                    </template>
                                                 </div>
 
                                                 <p class="shrink-0 text-sm font-bold text-slate-900 dark:text-slate-100">
@@ -1696,6 +1833,188 @@
 
             </aside>
 
+        </div>
+
+
+        <!-- ============================================================
+             SERVICE DETAILS MODAL (MODULE)
+        ============================================================= -->
+        <div
+            x-show="activeDetailService"
+            x-cloak
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            @keydown.escape.window="closeServiceDetails()"
+        >
+            <!-- Backdrop -->
+            <div
+                x-show="activeDetailService"
+                x-transition:enter="ease-out duration-200"
+                x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100"
+                x-transition:leave="ease-in duration-150"
+                x-transition:leave-start="opacity-100"
+                x-transition:leave-end="opacity-0"
+                class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
+                @click="closeServiceDetails()"
+            ></div>
+
+            <!-- Modal Dialog Panel -->
+            <div
+                x-show="activeDetailService"
+                x-transition:enter="ease-out duration-250"
+                x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+                x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                x-transition:leave="ease-in duration-150"
+                x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                x-transition:leave-end="opacity-0 scale-95 translate-y-2"
+                class="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 z-10 max-h-[90vh] flex flex-col"
+                @click.stop
+            >
+                <!-- Modal Header -->
+                <div class="flex items-start justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2">
+                            <template x-if="activeDetailService?.is_package">
+                                <span class="rounded bg-purple-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:bg-purple-950/50 dark:text-purple-300">
+                                    Package
+                                </span>
+                            </template>
+                            <template x-if="activeDetailService?.participants_required > 1">
+                                <span class="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                                    <i data-lucide="users" class="h-3 w-3"></i>
+                                    <span x-text="activeDetailService?.participants_required + ' Guests'"></span>
+                                </span>
+                            </template>
+                        </div>
+                        <h3 class="mt-1.5 text-lg font-extrabold text-slate-900 dark:text-white" x-text="activeDetailService?.name"></h3>
+                    </div>
+                    <button
+                        type="button"
+                        @click="closeServiceDetails()"
+                        class="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-500 transition-colors focus:outline-none"
+                        aria-label="Close modal"
+                    >
+                        <i data-lucide="x" class="h-5 w-5"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Scrollable Body -->
+                <div class="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+                    <!-- Full Description / Experience -->
+                    <template x-if="activeDetailService?.description">
+                        <div>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Service Description & Amenities</h4>
+                            <div class="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-700 dark:text-slate-300 font-normal" x-text="activeDetailService?.description"></div>
+                        </div>
+                    </template>
+
+                    <!-- Package Inclusions Breakdown (when package) -->
+                    <template x-if="activeDetailService?.is_package && activeDetailService?.included_services && activeDetailService?.included_services.length > 0">
+                        <div class="rounded-2xl border border-purple-100 bg-purple-50/50 p-4 dark:border-purple-900/40 dark:bg-purple-950/20">
+                            <p class="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                                Included Treatments (<span x-text="activeDetailService?.included_services.length"></span>):
+                            </p>
+                            <div class="mt-2.5 grid gap-2 sm:grid-cols-2">
+                                <template x-for="(inc, idx) in activeDetailService?.included_services" :key="idx">
+                                    <div class="flex items-center justify-between rounded-xl border border-purple-200/60 bg-white px-3 py-2 text-xs text-slate-800 shadow-2xs dark:border-purple-900/40 dark:bg-slate-800 dark:text-slate-200">
+                                        <div class="flex items-center gap-2">
+                                            <span class="h-2 w-2 rounded-full bg-purple-500"></span>
+                                            <span class="font-semibold" x-text="inc.name"></span>
+                                        </div>
+                                        <span class="text-[11px] text-slate-400 dark:text-slate-500" x-show="inc.duration_minutes">
+                                            <span x-text="inc.duration_minutes"></span>m
+                                        </span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Customizable Massage Choices Preview -->
+                    <template x-if="activeDetailService?.is_package && activeDetailService?.choice_groups && activeDetailService?.choice_groups.length > 0">
+                        <div class="rounded-2xl border border-zen-200/80 bg-zen-50/40 p-4 dark:border-teal-900/40 dark:bg-teal-950/20">
+                            <p class="text-xs font-bold uppercase tracking-wider text-zen-800 dark:text-teal-300">
+                                Customizable Choices:
+                            </p>
+                            <div class="mt-2 space-y-2">
+                                <template x-for="grp in activeDetailService?.choice_groups" :key="grp.id">
+                                    <div class="rounded-xl border border-zen-200/60 bg-white p-2.5 text-xs dark:border-teal-800/40 dark:bg-slate-800">
+                                        <span class="font-bold text-slate-800 dark:text-slate-200" x-text="(grp.name || grp.label) + ':'"></span>
+                                        <span class="ml-1 text-slate-600 dark:text-slate-300 font-medium" x-text="grp.options.map(o => o.name || o.service_name).join(' OR ')"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Specifications Card -->
+                    <div class="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-3.5 dark:bg-slate-800/50 text-xs sm:grid-cols-3">
+                        <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                            <i data-lucide="clock" class="h-4 w-4 text-zen-600 dark:text-teal-400"></i>
+                            <div>
+                                <div class="text-[10px] text-slate-400 uppercase font-bold">Duration</div>
+                                <div class="font-bold text-slate-900 dark:text-white" x-text="activeDetailService?.duration_minutes + ' mins'"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                            <i data-lucide="users" class="h-4 w-4 text-zen-600 dark:text-teal-400"></i>
+                            <div>
+                                <div class="text-[10px] text-slate-400 uppercase font-bold">Guests</div>
+                                <div class="font-bold text-slate-900 dark:text-white" x-text="activeDetailService?.participants_required + ' Guest' + (activeDetailService?.participants_required > 1 ? 's' : '')"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                            <i data-lucide="user-check" class="h-4 w-4 text-zen-600 dark:text-teal-400"></i>
+                            <div>
+                                <div class="text-[10px] text-slate-400 uppercase font-bold">Therapists</div>
+                                <div class="font-bold text-slate-900 dark:text-white" x-text="activeDetailService?.therapists_required + ' Therapist' + (activeDetailService?.therapists_required > 1 ? 's' : '')"></div>
+                            </div>
+                        </div>
+                        <template x-if="activeDetailService?.room_category_name">
+                            <div class="col-span-2 sm:col-span-3 flex items-center gap-2 text-slate-600 dark:text-slate-300 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                                <i data-lucide="door-closed" class="h-4 w-4 text-zen-600 dark:text-teal-400"></i>
+                                <div>
+                                    <span class="text-[10px] text-slate-400 uppercase font-bold">Room Suite: </span>
+                                    <span class="font-bold text-slate-900 dark:text-white" x-text="activeDetailService?.room_category_name"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Modal Footer Actions -->
+                <div class="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-slate-400">Treatment Price</div>
+                        <div class="text-lg font-extrabold text-zen-700 dark:text-teal-400">
+                            ₱<span x-text="formatMoney(activeDetailService?.discount_price || activeDetailService?.price)"></span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            @click="closeServiceDetails()"
+                            class="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                            Close
+                        </button>
+                        <button
+                            type="button"
+                            @click="toggleService(activeDetailService); closeServiceDetails()"
+                            class="inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-sm transition"
+                            :class="isSelected(activeDetailService?.id)
+                                ? 'bg-rose-600 hover:bg-rose-700'
+                                : 'bg-zen-600 hover:bg-zen-700'"
+                        >
+                            <i :data-lucide="isSelected(activeDetailService?.id) ? 'x' : 'check'" class="h-4 w-4"></i>
+                            <span x-text="isSelected(activeDetailService?.id) ? 'Remove Service' : 'Select Treatment'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
     </main>
@@ -1984,6 +2303,14 @@
                 :value="serviceId"
             >
         </template>
+
+        <template x-for="(optId, grpId) in packageChoices" :key="grpId">
+            <input
+                type="hidden"
+                :name="'package_choices[' + grpId + ']'"
+                :value="optId"
+            >
+        </template>
     </form>
 
 
@@ -2029,6 +2356,10 @@
 
                 selectedServices: [],
 
+                packageChoices: {},
+
+                activeDetailService: null,
+
                 appointmentDate: '',
 
                 selectedTime: '',
@@ -2069,9 +2400,22 @@
 
                     this.initializeRebook();
 
+                    this.initIconObserver();
+
+                    this.$watch('activeCategory', () => {
+                        this.$nextTick(() => {
+                            this.refreshIcons();
+                            setTimeout(() => this.refreshIcons(), 30);
+                            setTimeout(() => this.refreshIcons(), 100);
+                        });
+                    });
+
                     this.$nextTick(() => {
                         this.refreshIcons();
                         this.initializeCalendar();
+                        setTimeout(() => this.refreshIcons(), 50);
+                        setTimeout(() => this.refreshIcons(), 150);
+                        setTimeout(() => this.refreshIcons(), 300);
                     });
 
                     this.initialized = true;
@@ -2160,6 +2504,22 @@
                     return this.selectedServices.includes(Number(serviceId));
                 },
 
+                openServiceDetails(service, event) {
+                    if (event) {
+                        event.stopPropagation();
+                        event.preventDefault();
+                    }
+                    this.activeDetailService = service;
+                    this.$nextTick(() => {
+                        this.refreshIcons();
+                        setTimeout(() => this.refreshIcons(), 30);
+                    });
+                },
+
+                closeServiceDetails() {
+                    this.activeDetailService = null;
+                },
+
 
                 toggleService(service) {
 
@@ -2170,6 +2530,14 @@
                         this.selectedServices = this.selectedServices.filter(
                             serviceId => serviceId !== id
                         );
+
+                        if (service.choice_groups) {
+                            const newChoices = { ...this.packageChoices };
+                            service.choice_groups.forEach(g => {
+                                delete newChoices[g.id];
+                            });
+                            this.packageChoices = newChoices;
+                        }
 
                     } else {
 
@@ -2192,6 +2560,35 @@
                     }
 
                     this.$nextTick(() => this.refreshIcons());
+                },
+
+
+                selectChoiceOption(groupId, optionId) {
+                    this.packageChoices = {
+                        ...this.packageChoices,
+                        [groupId]: Number(optionId)
+                    };
+                },
+
+
+                arePackageChoicesValid() {
+                    for (const service of this.selectedServiceObjects) {
+                        if (service.is_package && Array.isArray(service.choice_groups)) {
+                            for (const group of service.choice_groups) {
+                                if (group.is_required && !this.packageChoices[group.id]) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                    return true;
+                },
+
+
+                getOptionName(group, optionId) {
+                    if (!group || !group.options || !optionId) return 'Not selected';
+                    const opt = group.options.find(o => Number(o.id) === Number(optionId) || Number(o.service_id) === Number(optionId));
+                    return opt ? (opt.name || opt.service_name || 'Selected') : 'Not selected';
                 },
 
 
@@ -2660,12 +3057,13 @@
                     }
 
                     if (targetStep === 2) {
-                        return this.selectedServices.length > 0;
+                        return this.selectedServices.length > 0 && this.arePackageChoicesValid();
                     }
 
                     if (targetStep === 3) {
                         return (
                             this.selectedServices.length > 0 &&
+                            this.arePackageChoicesValid() &&
                             this.appointmentDate &&
                             this.selectedTime
                         );
@@ -2674,6 +3072,7 @@
                     if (targetStep === 4) {
                         return (
                             this.selectedServices.length > 0 &&
+                            this.arePackageChoicesValid() &&
                             this.appointmentDate &&
                             this.selectedTime &&
                             this.guestName.trim().length > 0 &&
@@ -2688,7 +3087,7 @@
                 get canContinue() {
 
                     if (this.step === 1) {
-                        return this.selectedServices.length > 0;
+                        return this.selectedServices.length > 0 && this.arePackageChoicesValid();
                     }
 
                     if (this.step === 2) {
@@ -2768,7 +3167,7 @@
                      * Don't allow jumping over unfinished steps.
                      */
 
-                    if (targetStep === 2 && !this.selectedServices.length) {
+                    if (targetStep === 2 && (!this.selectedServices.length || !this.arePackageChoicesValid())) {
                         return;
                     }
 
@@ -2776,6 +3175,7 @@
                         targetStep >= 3 &&
                         !(
                             this.selectedServices.length &&
+                            this.arePackageChoicesValid() &&
                             this.appointmentDate &&
                             this.selectedTime
                         )
@@ -2817,11 +3217,23 @@
 
                     if (this.step === 1) {
 
-                        this.showMessage(
-                            'Choose a service',
-                            'Please select at least one service before continuing.',
-                            'info'
-                        );
+                        if (!this.selectedServices.length) {
+                            this.showMessage(
+                                'Choose a service',
+                                'Please select at least one service before continuing.',
+                                'info'
+                            );
+                            return;
+                        }
+
+                        if (!this.arePackageChoicesValid()) {
+                            this.showMessage(
+                                'Select Package Option',
+                                'Please select your preferred treatment option for the package before continuing.',
+                                'info'
+                            );
+                            return;
+                        }
 
                         return;
                     }
@@ -3171,6 +3583,16 @@
                 /* -------------------------------------------------
                    UI helpers
                 ------------------------------------------------- */
+
+                initIconObserver() {
+                    if (typeof MutationObserver === 'undefined') return;
+                    let debounceTimer = null;
+                    const observer = new MutationObserver(() => {
+                        clearTimeout(debounceTimer);
+                        debounceTimer = setTimeout(() => this.refreshIcons(), 16);
+                    });
+                    observer.observe(document.body, { childList: true, subtree: true });
+                },
 
                 refreshIcons() {
 

@@ -33,9 +33,11 @@ class BusinessHolidayMultiDayAndRedesignTest extends TestCase
     private function createService(int $duration = 60, float $price = 500.00): Service
     {
         $category = ServiceCategory::firstOrCreate(['name' => 'General Massage']);
+        $roomCat = \App\Models\RoomCategory::firstOrCreate(['name' => 'General Room', 'code' => 'gen_room']);
 
         return Service::create([
             'category_id' => $category->id,
+            'room_category_id' => $roomCat->id,
             'name' => 'Swedish Massage ' . $duration . 'm',
             'duration_minutes' => $duration,
             'price' => $price,
@@ -398,7 +400,7 @@ class BusinessHolidayMultiDayAndRedesignTest extends TestCase
         $admin = $this->makeUserWithRole('admin');
         $staff = $this->makeUserWithRole('staff');
         $service = $this->createService(60);
-        $eventDate = '2026-11-18';
+        $eventDate = Carbon::today()->addDays(5)->toDateString();
         $dow = Carbon::parse($eventDate)->dayOfWeek;
 
         for ($i = 0; $i < 7; $i++) {
@@ -417,7 +419,8 @@ class BusinessHolidayMultiDayAndRedesignTest extends TestCase
             'end_time' => '20:00:00',
             'is_day_off' => false,
         ]);
-        Room::create(['name' => 'Room 1', 'status' => 'available', 'is_active' => true]);
+        $room = Room::create(['name' => 'Room 1', 'status' => 'available', 'is_active' => true]);
+        $room->roomCategories()->attach(\App\Models\RoomCategory::where('code', 'gen_room')->first()->id);
 
         // Create Special Event
         $response = $this->actingAs($admin)->post(route('business-exceptions.store'), [

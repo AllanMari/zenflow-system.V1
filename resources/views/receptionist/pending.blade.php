@@ -303,6 +303,18 @@
 
                                 @endforeach
 
+                                @if($appointment->packageSelections && $appointment->packageSelections->isNotEmpty())
+                                    <div class="mt-2 space-y-1 rounded-lg border border-purple-200 bg-purple-50/70 p-2.5 text-xs dark:border-purple-900/40 dark:bg-purple-950/30">
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">Package Choices:</p>
+                                        @foreach($appointment->packageSelections as $sel)
+                                            <div class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
+                                                <span class="font-medium">{{ $sel->choiceGroupName }}:</span>
+                                                <span class="font-bold text-purple-700 dark:text-purple-300">{{ $sel->selectedName }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+
                                 <div class="pt-3 border-t border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
 
                                     <div>
@@ -339,7 +351,7 @@
                         </div>
 
                         {{-- Medical Notes --}}
-                        @if($appointment->customer->medical_notes)
+                        @if($appointment->customer && $appointment->customer->medical_notes)
 
                             <div class="p-4 bg-rose-50 dark:bg-rose-900/15 border border-rose-200 dark:border-rose-800/30 rounded-xl flex items-start gap-3">
 
@@ -356,6 +368,31 @@
 
                                     <p class="text-sm text-rose-800 dark:text-rose-200 leading-relaxed">
                                         {{ $appointment->customer->medical_notes }}
+                                    </p>
+                                </div>
+
+                            </div>
+
+                        @endif
+
+                        {{-- Session Treatment Notes --}}
+                        @if($appointment->treatment_notes)
+
+                            <div class="p-4 bg-teal-50 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-800/30 rounded-xl flex items-start gap-3">
+
+                                <div class="shrink-0 w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                    </svg>
+                                </div>
+
+                                <div>
+                                    <p class="text-xs font-bold text-teal-700 dark:text-teal-300 uppercase tracking-wider mb-1">
+                                        Session Treatment Notes (Therapists Only)
+                                    </p>
+
+                                    <p class="text-sm text-teal-800 dark:text-teal-200 leading-relaxed">
+                                        {{ $appointment->treatment_notes }}
                                     </p>
                                 </div>
 
@@ -630,19 +667,35 @@
                         </div>
 
                         {{-- Notes --}}
-                        <div>
+                        <div class="space-y-4">
 
-                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                                Receptionist Notes
-                                <span class="text-gray-300 dark:text-gray-600 font-normal">(optional)</span>
-                            </label>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                                    Receptionist Notes
+                                    <span class="text-gray-300 dark:text-gray-600 font-normal">(operational, parking, scheduling)</span>
+                                </label>
 
-                            <textarea
-                                name="notes"
-                                rows="2"
-                                placeholder="Special requests, preferences, parking needs..."
-                                class="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 dark:bg-gray-700 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition resize-none"
-                            ></textarea>
+                                <textarea
+                                    name="notes"
+                                    rows="2"
+                                    placeholder="Special requests, preferences, parking needs..."
+                                    class="w-full border border-gray-200 dark:border-gray-600 rounded-xl p-3 dark:bg-gray-700 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition resize-none"
+                                >{{ $appointment->notes }}</textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider mb-2">
+                                    Treatment Notes (Therapists Only)
+                                    <span class="text-gray-400 font-normal">(confidential health / treatment info)</span>
+                                </label>
+
+                                <textarea
+                                    name="treatment_notes"
+                                    rows="2"
+                                    placeholder="Allergies, pressure preferences, areas to focus or avoid..."
+                                    class="w-full border border-teal-200 dark:border-teal-700/60 rounded-xl p-3 dark:bg-gray-700 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition resize-none"
+                                >{{ $appointment->treatment_notes }}</textarea>
+                            </div>
 
                         </div>
 
@@ -655,6 +708,7 @@
                     <button
                         type="submit"
                         form="confirm-form-{{ $appointment->id }}"
+                        onclick="if(this.disabled) return false; this.disabled=true; this.textContent='Confirming...'; this.form.submit();"
                         class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                         {{ $hasAvailableStaff ? '' : 'disabled' }}
                     >
@@ -800,6 +854,7 @@
 
                     <button
                         type="submit"
+                        onclick="if(this.disabled) return false; this.disabled=true; this.textContent='Cancelling...'; this.form.submit();"
                         class="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold transition shadow-sm"
                     >
                         Cancel Booking

@@ -128,10 +128,18 @@
                                 <p class="text-xs text-gray-500 dark:text-neutral-400">{{ \Carbon\Carbon::parse($appointment->appointment_date)->format('M j, Y') }}</p>
                             </div>
                         </div>
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border {{ $sc['bg'] }} {{ $sc['text'] }} {{ $sc['border'] }} {{ $sc['darkBg'] }} {{ $sc['darkText'] }} {{ $sc['darkBorder'] }}">
-                            <span class="size-1.5 rounded-full {{ $sc['dot'] }}"></span>
-                            {{ ucwords(str_replace('_', ' ', $displayStatus)) }}
-                        </span>
+                        <div class="flex items-center gap-1.5">
+                            @php
+                                $myRole = $appointment->user_id === Auth::id() ? 'Primary' : 'Assisting';
+                            @endphp
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase {{ $myRole === 'Primary' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' : 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800' }}">
+                                {{ $myRole }}
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border {{ $sc['bg'] }} {{ $sc['text'] }} {{ $sc['border'] }} {{ $sc['darkBg'] }} {{ $sc['darkText'] }} {{ $sc['darkBorder'] }}">
+                                <span class="size-1.5 rounded-full {{ $sc['dot'] }}"></span>
+                                {{ ucwords(str_replace('_', ' ', $displayStatus)) }}
+                            </span>
+                        </div>
                     </div>
 
                     <!-- Card Body: Time + Customer + Services -->
@@ -169,22 +177,53 @@
                                     </span>
                                 @endforeach
                             </div>
+
+                            @if($appointment->packageSelections && $appointment->packageSelections->isNotEmpty())
+                                <div class="mt-2 space-y-1">
+                                    <p class="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Package Choices</p>
+                                    <div class="flex flex-wrap gap-1">
+                                        @foreach($appointment->packageSelections as $sel)
+                                            <span class="inline-flex items-center gap-1 text-[11px] font-medium bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-2 py-0.5 rounded-md">
+                                                <span>{{ $sel->choiceGroupName }}:</span>
+                                                <span class="font-bold">{{ $sel->selectedName }}</span>
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                     </div>
 
                     <!-- Card Footer: Notes -->
-                    <div class="px-4 pb-4">
-                        @if($appointment->customer && $appointment->customer->medical_notes)
+                    <div class="px-4 pb-4 space-y-2">
+                        @php
+                            $hasTreatmentNotes = !empty($appointment->treatment_notes) && $appointment->canViewTreatmentNotes();
+                            $hasMedicalNotes = $appointment->customer && !empty($appointment->customer->medical_notes);
+                        @endphp
+
+                        @if($hasTreatmentNotes)
+                            <button onclick="showTreatmentNote('{{ addslashes(str_replace(["\r", "\n"], ['\r', '\n'], $appointment->treatment_notes)) }}', '{{ addslashes($appointment->client_name) }}')"
+                                    class="no-print w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 dark:text-teal-400 dark:bg-teal-900/20 dark:hover:bg-teal-900/40 dark:border-teal-800 transition-colors shadow-sm cursor-pointer">
+                                <svg class="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                View Session Treatment Notes
+                            </button>
+                        @endif
+
+                        @if($hasMedicalNotes)
                             <button onclick="showNote('{{ addslashes(str_replace(["\r", "\n"], ['\r', '\n'], $appointment->customer->medical_notes)) }}', '{{ addslashes($appointment->client_name) }}')"
                                     class="no-print w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 dark:text-rose-400 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 dark:border-rose-800 transition-colors shadow-sm cursor-pointer">
                                 <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
                                 </svg>
-                                View Medical Notes
+                                View Medical Profile
                             </button>
-                        @else
+                        @endif
+
+                        @if(!$hasTreatmentNotes && !$hasMedicalNotes)
                             <div class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-gray-400 dark:text-neutral-600 bg-gray-50 dark:bg-neutral-800/50 border border-gray-100 dark:border-neutral-800">
-                                No medical notes
+                                No session or medical notes
                             </div>
                         @endif
                     </div>
@@ -201,6 +240,44 @@
             </div>
         @endif
     @endif
+</div>
+
+<!-- Treatment Note Modal -->
+<div id="treatmentNoteModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" onclick="closeTreatmentNoteModal()"></div>
+
+    <div class="relative bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-md shadow-2xl border border-teal-200 dark:border-teal-700/60 transform transition-all">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-teal-100 dark:border-teal-800/50 bg-teal-50/50 dark:bg-teal-900/30 rounded-t-2xl">
+            <h3 class="text-base font-bold text-gray-900 dark:text-neutral-200 flex items-center gap-2">
+                <svg class="w-5 h-5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Session Treatment Notes
+            </h3>
+            <button onclick="closeTreatmentNoteModal()" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-neutral-300 dark:hover:bg-neutral-800 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <div class="p-6">
+            <div class="mb-4">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-neutral-400">Client</span>
+                <p id="treatmentCustomerName" class="text-sm font-semibold text-gray-900 dark:text-neutral-200 mt-0.5"></p>
+            </div>
+            <div>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 mb-1.5 block">Health Considerations & Therapist Notes</span>
+                <div class="bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-800/50 rounded-xl p-4">
+                    <p id="treatmentNoteContent" class="text-teal-900 dark:text-teal-200 text-sm leading-relaxed whitespace-pre-wrap"></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 dark:bg-neutral-800/80 border-t border-gray-100 dark:border-neutral-800 rounded-b-2xl flex justify-end">
+            <button onclick="closeTreatmentNoteModal()" class="px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700 dark:hover:bg-neutral-700 rounded-lg shadow-sm transition-colors">
+                Close
+            </button>
+        </div>
+    </div>
 </div>
 
 <!-- Medical Note Modal -->
@@ -242,6 +319,16 @@
 </div>
 
 <script>
+function showTreatmentNote(note, customerName) {
+    document.getElementById('treatmentNoteContent').textContent = note;
+    document.getElementById('treatmentCustomerName').textContent = customerName;
+    document.body.style.overflow = 'hidden';
+    document.getElementById('treatmentNoteModal').classList.remove('hidden');
+}
+function closeTreatmentNoteModal() {
+    document.body.style.overflow = '';
+    document.getElementById('treatmentNoteModal').classList.add('hidden');
+}
 function showNote(note, customerName) {
     document.getElementById('noteContent').textContent = note;
     document.getElementById('noteCustomerName').textContent = customerName;
@@ -253,8 +340,13 @@ function closeNoteModal() {
     document.getElementById('noteModal').classList.add('hidden');
 }
 document.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape' && !document.getElementById('noteModal').classList.contains('hidden')) {
-        closeNoteModal();
+    if (event.key === 'Escape') {
+        if (!document.getElementById('noteModal').classList.contains('hidden')) {
+            closeNoteModal();
+        }
+        if (!document.getElementById('treatmentNoteModal').classList.contains('hidden')) {
+            closeTreatmentNoteModal();
+        }
     }
 });
 </script>

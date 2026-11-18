@@ -38,8 +38,17 @@ class GuestBookingNameRegressionTest extends TestCase
         ]);
 
         $cat = ServiceCategory::create(['name' => 'Massages', 'is_active' => true]);
-        $service = Service::create(['name' => 'Massage', 'category_id' => $cat->id, 'duration_minutes' => 60, 'price' => 1000.00, 'is_active' => true]);
-        Room::create(['name' => 'Room 1', 'status' => 'available', 'is_active' => true]);
+        $roomCat = \App\Models\RoomCategory::firstOrCreate(['name' => 'Standard Room', 'code' => 'std_room']);
+        $service = Service::create([
+            'name' => 'Massage',
+            'category_id' => $cat->id,
+            'room_category_id' => $roomCat->id,
+            'duration_minutes' => 60,
+            'price' => 1000.00,
+            'is_active' => true,
+        ]);
+        $room = Room::create(['name' => 'Room 1', 'status' => 'available', 'is_active' => true]);
+        $room->roomCategories()->attach($roomCat->id);
 
         return $service;
     }
@@ -582,10 +591,10 @@ class GuestBookingNameRegressionTest extends TestCase
         $customer->refresh();
         $this->assertEquals('Critical Allergy: Penicillin and Shellfish', $customer->medical_notes);
 
-        // Ensure the appointment captured the guest's medical notes in appointment notes
+        // Ensure the appointment captured the guest's medical notes in treatment notes (or notes for legacy)
         $appointment = Appointment::where('guest_phone', '09175556677')->latest('id')->first();
         $this->assertNotNull($appointment);
-        $this->assertEquals('Temporary sore shoulder', $appointment->notes);
+        $this->assertEquals('Temporary sore shoulder', $appointment->treatment_notes ?? $appointment->notes);
         $this->assertEquals('Guest Visitor', $appointment->client_name);
     }
 

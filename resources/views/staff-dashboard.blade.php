@@ -198,6 +198,12 @@
                             <span class="px-2.5 py-0.5 rounded-full text-xs font-bold {{ $isInProgress ? 'bg-brand-600 text-white' : 'bg-teal-100 dark:bg-teal-900/50 text-teal-800 dark:text-teal-300' }}">
                                 {{ $isInProgress ? '● In Progress' : 'Next Up' }}
                             </span>
+                            @php
+                                $nextRole = $nextSession->user_id === Auth::id() ? 'Primary' : 'Assisting';
+                            @endphp
+                            <span class="px-2 py-0.5 rounded text-xs font-bold uppercase {{ $nextRole === 'Primary' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300' : 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300' }}">
+                                {{ $nextRole }}
+                            </span>
                             <span class="text-sm font-bold text-gray-500 dark:text-gray-400">
                                 {{ \Carbon\Carbon::parse($nextSession->start_time)->format('g:i A') }} &ndash; {{ \Carbon\Carbon::parse($nextSession->end_time)->format('g:i A') }}
                                 ({{ $nextDuration }} mins)
@@ -229,6 +235,15 @@
 
                 {{-- Action / Notes Indicator --}}
                 <div class="flex items-center gap-3 shrink-0">
+                    @php
+                        $hasNextTreatmentNotes = !empty($nextSession->treatment_notes) && $nextSession->canViewTreatmentNotes();
+                    @endphp
+                    @if($hasNextTreatmentNotes)
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/50 text-xs font-bold text-teal-700 dark:text-teal-300">
+                            <i data-lucide="clipboard-list" class="w-4 h-4 text-teal-600"></i>
+                            <span>Treatment Notes</span>
+                        </span>
+                    @endif
                     @if($hasNotes)
                         <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 text-xs font-bold text-rose-700 dark:text-rose-300">
                             <i data-lucide="alert-circle" class="w-4 h-4 text-rose-500"></i>
@@ -237,6 +252,17 @@
                     @endif
                 </div>
             </div>
+
+            {{-- Treatment notes alert box if present --}}
+            @if(!empty($nextSession->treatment_notes) && $nextSession->canViewTreatmentNotes())
+                <div class="mt-4 p-3.5 rounded-xl bg-teal-50/80 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 text-xs text-teal-900 dark:text-teal-200">
+                    <p class="font-bold flex items-center gap-1 mb-0.5 text-teal-800 dark:text-teal-300">
+                        <i data-lucide="clipboard-list" class="w-3.5 h-3.5 text-teal-600 dark:text-teal-400"></i>
+                        Session Treatment Notes:
+                    </p>
+                    <p class="text-teal-900 dark:text-teal-200 pl-4 whitespace-pre-wrap">{{ $nextSession->treatment_notes }}</p>
+                </div>
+            @endif
 
             {{-- Medical notes alert box if present --}}
             @if($hasNotes)
@@ -338,6 +364,12 @@
 
                                     {{-- Status Pill & Notes Action --}}
                                     <div class="shrink-0 flex items-center sm:flex-col sm:items-end justify-between sm:justify-center gap-1.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100 dark:border-gray-700/40">
+                                        @php
+                                            $isMyRole = $appointment->user_id === Auth::id() ? 'Primary' : 'Assisting';
+                                        @endphp
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase {{ $isMyRole === 'Primary' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' : 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800' }}">
+                                            {{ $isMyRole }}
+                                        </span>
                                         @if($isCompleted)
                                             <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
                                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -359,6 +391,20 @@
                                             </span>
                                         @endif
 
+                                        @php
+                                            $hasCardTreatmentNotes = !empty($appointment->treatment_notes) && $appointment->canViewTreatmentNotes();
+                                        @endphp
+
+                                        {{-- Treatment Notes Button --}}
+                                        @if($hasCardTreatmentNotes)
+                                            <button type="button"
+                                                    onclick="document.getElementById('treatment-notes-{{ $appointment->id }}').classList.toggle('hidden')"
+                                                    class="inline-flex items-center gap-1 text-xs font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 hover:underline">
+                                                <i data-lucide="clipboard-list" class="w-3 h-3"></i>
+                                                <span>Treatment Notes</span>
+                                            </button>
+                                        @endif
+
                                         {{-- Medical Notes Button --}}
                                         @if($hasNotes)
                                             <button type="button"
@@ -370,6 +416,17 @@
                                         @endif
                                     </div>
                                 </div>
+
+                                {{-- Expandable Treatment Notes Section --}}
+                                @if($hasCardTreatmentNotes)
+                                    <div id="treatment-notes-{{ $appointment->id }}" class="hidden mt-1 p-3 rounded-xl bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200/70 dark:border-teal-800/50 text-xs text-teal-900 dark:text-teal-200">
+                                        <p class="font-bold flex items-center gap-1 mb-0.5 text-teal-800 dark:text-teal-300">
+                                            <i data-lucide="clipboard-list" class="w-3.5 h-3.5 text-teal-600 dark:text-teal-400"></i>
+                                            Session Treatment Notes:
+                                        </p>
+                                        <p class="text-teal-900 dark:text-teal-200 pl-4 whitespace-pre-wrap">{{ $appointment->treatment_notes }}</p>
+                                    </div>
+                                @endif
 
                                 {{-- Expandable Medical Notes Section --}}
                                 @if($hasNotes)

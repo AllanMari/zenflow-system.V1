@@ -95,6 +95,18 @@
                         No services recorded.
                     </p>
                 @endforelse
+
+                @if($appointment->packageSelections && $appointment->packageSelections->isNotEmpty())
+                    <div class="mt-2 space-y-1 rounded-lg border border-purple-200 bg-purple-50/70 p-2 text-xs dark:border-purple-900/40 dark:bg-purple-950/30">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">Package Choices:</p>
+                        @foreach($appointment->packageSelections as $sel)
+                            <div class="flex items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
+                                <span class="font-medium">{{ $sel->choiceGroupName }}:</span>
+                                <span class="font-semibold text-purple-800 dark:text-purple-200">{{ $sel->selectedName }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         </div>
         <div>

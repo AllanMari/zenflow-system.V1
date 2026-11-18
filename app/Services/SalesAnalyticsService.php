@@ -60,6 +60,14 @@ class SalesAnalyticsService
         'Couple 2'                  => 'C2',
         'Couple 3'                  => 'C3',
         'VIP Suite Package'         => 'VIP',
+        'Royal Vip Package'         => 'RVP',
+        'Royal VIP Package'         => 'RVP',
+        'Deluxe Vip Package'        => 'DVP',
+        'Deluxe VIP Package'        => 'DVP',
+        'Signature Vip Package'     => 'SVP',
+        'Signature VIP Package'     => 'SVP',
+        'Refreshing Vip Package'    => 'FVP',
+        'Refreshing VIP Package'    => 'FVP',
         'Home Service'              => 'HS',
     ];
 

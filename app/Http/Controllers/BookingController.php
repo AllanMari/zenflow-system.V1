@@ -66,36 +66,18 @@ class BookingController extends Controller
         $freeRooms = [];
 
         if ($requiresRoom) {
-            $roomCategoryIds = $services
-                ->where('requires_room', true)
-                ->whereNotNull('room_category_id')
-                ->pluck('room_category_id')
-                ->unique()
-                ->values();
+            $availableRooms = \App\Services\RoomCompatibilityService::findPhysicallyFreeForServices(
+                $services,
+                $date,
+                $startTime->format('H:i:s'),
+                $endTime->format('H:i:s')
+            );
 
-            $roomsQuery = Room::active()
-                ->where('status', '!=', 'maintenance');
-
-            if ($roomCategoryIds->isNotEmpty()) {
-                $roomsQuery->where(function ($q) use ($roomCategoryIds) {
-                    $q->whereIn('category_id', $roomCategoryIds)
-                        ->orWhereNull('category_id');
-                });
-            }
-
-            foreach ($roomsQuery->get() as $room) {
-                if (
-                    $room->isAvailableFor(
-                        $date,
-                        $startTime->format('H:i:s'),
-                        $endTime->format('H:i:s')
-                    )
-                ) {
-                    $freeRooms[] = [
-                        'id' => $room->id,
-                        'name' => $room->name,
-                    ];
-                }
+            foreach ($availableRooms as $room) {
+                $freeRooms[] = [
+                    'id' => $room->id,
+                    'name' => $room->name,
+                ];
             }
 
             if (empty($freeRooms)) {
@@ -193,8 +175,11 @@ class BookingController extends Controller
                         'image',
                         'landing_description',
                         'requires_room',
-                        'room_category_id'
-                    ),
+                        'room_category_id',
+                        'participants_required',
+                        'therapists_required'
+                    )
+                    ->with(['choiceGroups.options.service', 'roomCategory']),
             ])
             ->get();
 
@@ -216,11 +201,35 @@ class BookingController extends Controller
                                 ->select(
                                     'id',
                                     'name',
-                                    'duration_minutes'
+                                    'duration_minutes',
+                                    'price'
                                 )
                                 ->get()
                                 ->toArray();
                         }
+                    }
+
+                    $choiceGroups = [];
+                    if ($s->is_package && $s->choiceGroups) {
+                        $choiceGroups = $s->choiceGroups->map(function ($cg) {
+                            return [
+                                'id' => $cg->id,
+                                'label' => $cg->label,
+                                'name' => $cg->label,
+                                'is_required' => (bool) $cg->is_required,
+                                'max_selections' => (int) $cg->max_selections,
+                                'options' => $cg->options->map(function ($opt) {
+                                    return [
+                                        'id' => $opt->id,
+                                        'service_id' => $opt->service_id,
+                                        'name' => $opt->service ? $opt->service->name : '',
+                                        'service_name' => $opt->service ? $opt->service->name : '',
+                                        'service_duration' => $opt->service ? $opt->service->duration_minutes : null,
+                                        'service_price' => $opt->service ? (float) $opt->service->price : 0,
+                                    ];
+                                })->values()->toArray(),
+                            ];
+                        })->values()->toArray();
                     }
 
                     $depMin = $s->deposit_percentage_min
@@ -239,12 +248,17 @@ class BookingController extends Controller
                         'duration_minutes' => $s->duration_minutes,
                         'is_package' => $s->is_package,
                         'included_services' => $included,
+                        'choice_groups' => $choiceGroups,
                         'deposit_percentage_min' => (float) $depMin,
                         'deposit_percentage_max' => (float) $depMax,
                         'description' => $s->description,
+                        'landing_description' => $s->landing_description,
                         'image' => $s->image_url,
                         'requires_room' => $s->requires_room,
                         'room_category_id' => $s->room_category_id,
+                        'room_category_name' => $s->roomCategory ? $s->roomCategory->name : null,
+                        'participants_required' => (int) ($s->participants_required ?? 1),
+                        'therapists_required' => (int) ($s->therapists_required ?? 1),
                     ];
                 }),
             ];
@@ -1472,6 +1486,10 @@ class BookingController extends Controller
                 'required|string|regex:/^09\d{9}$/',
             'medical_notes' =>
                 'nullable|string|max:2000',
+            'treatment_notes' =>
+                'nullable|string|max:2000',
+            'notes' =>
+                'nullable|string|max:2000',
             'staff_id' =>
                 'nullable|exists:users,id',
             'room_id' =>
@@ -1576,6 +1594,43 @@ class BookingController extends Controller
                 ->withInput()
                 ->with('error', $message);
         };
+
+        // Validate services: draft or inactive services cannot be booked
+        foreach ($services as $svc) {
+            if (!$svc->is_active || ($svc->duration_minutes === null && !$svc->is_package)) {
+                return $fail('The service "' . $svc->name . '" is not currently available for booking.');
+            }
+        }
+
+        // Validate package choice groups: exactly one option must be selected for each required group
+        $validatedPackageChoices = [];
+        foreach ($services as $svc) {
+            if ($svc->is_package) {
+                $svc->load('choiceGroups.options.service');
+                foreach ($svc->choiceGroups as $cg) {
+                    $selectedOptionServiceId = $request->input("package_choices.{$cg->id}");
+                    if ($cg->is_required && empty($selectedOptionServiceId)) {
+                        return $fail("Please select an option for '{$cg->label}' in {$svc->name}.");
+                    }
+
+                    if (!empty($selectedOptionServiceId)) {
+                        $validOption = $cg->options->first(function ($opt) use ($selectedOptionServiceId) {
+                            return (int) $opt->service_id === (int) $selectedOptionServiceId
+                                || (int) $opt->id === (int) $selectedOptionServiceId;
+                        });
+                        if (!$validOption) {
+                            return $fail("Invalid option selected for '{$cg->label}'.");
+                        }
+                        $validatedPackageChoices[] = [
+                            'choice_group_id' => $cg->id,
+                            'selected_service_id' => (int) $validOption->service_id,
+                            'group_label_snapshot' => $cg->label,
+                            'selected_service_name_snapshot' => $validOption->service ? $validOption->service->name : 'Selected Service',
+                        ];
+                    }
+                }
+            }
+        }
 
         $bizError = $this->validateBusinessHours(
             $request->appointment_date,
@@ -1818,7 +1873,8 @@ class BookingController extends Controller
                     $request->guest_phone;
             }
 
-            if ($request->filled('medical_notes')) {
+            // Do not overwrite existing customer medical notes with appointment-specific information.
+            if ($request->filled('medical_notes') && empty($customer->medical_notes)) {
                 $customer->medical_notes =
                     $request->medical_notes;
             }
@@ -1852,9 +1908,7 @@ class BookingController extends Controller
                     'customer_type' => 'regular',
                     'phone_number' =>
                         $request->guest_phone,
-                    'medical_notes' =>
-                        $request->medical_notes
-                            ?? null,
+                    'medical_notes' => null,
                 ]);
             }
         }
@@ -1867,7 +1921,11 @@ class BookingController extends Controller
             $confirmedAt = now();
         }
 
+        $assignedStaffId = $isReceptionist && $request->filled('staff_id') ? (int) $request->staff_id : null;
+        $assistingStaffIds = $isReceptionist ? array_map('intval', (array) $request->input('assisting_staff_ids', [])) : [];
+
         $appointment = null;
+        $isDuplicateSubmission = false;
 
         DB::transaction(function () use (
             $customer,
@@ -1880,11 +1938,33 @@ class BookingController extends Controller
             $confirmedAt,
             $user,
             $requestedRoomId,
-            &$appointment
+            $isReceptionist,
+            $assignedStaffId,
+            $assistingStaffIds,
+            $validatedPackageChoices,
+            &$appointment,
+            &$isDuplicateSubmission
         ) {
+            // Duplicate-submission idempotency protection:
+            // If the exact same customer submitted an identical appointment within the last 10 seconds,
+            // reuse the existing appointment instead of creating duplicate records.
+            $recentDuplicate = Appointment::where('customer_id', $customer->id)
+                ->whereDate('appointment_date', $request->appointment_date)
+                ->where('start_time', $startTime->format('H:i:s'))
+                ->where('end_time', $endTime->format('H:i:s'))
+                ->where('created_at', '>=', now()->subSeconds(10))
+                ->latest('id')
+                ->first();
+
+            if ($recentDuplicate) {
+                $appointment = $recentDuplicate;
+                $isDuplicateSubmission = true;
+                return;
+            }
+
             $appointment = Appointment::create([
                 'customer_id' => $customer->id,
-                'user_id' => $request->staff_id,
+                'user_id' => $assignedStaffId,
                 'room_id' => $request->room_id,
                 'requested_room_id' => $requestedRoomId,
                 'appointment_date' =>
@@ -1898,13 +1978,19 @@ class BookingController extends Controller
                 'created_by' => $user?->id,
                 'confirmed_at' => $confirmedAt,
                 'notes' =>
-                    $request->medical_notes
-                    ?? $request->notes
+                    $request->notes ?? null,
+                'treatment_notes' =>
+                    $request->treatment_notes
+                    ?? $request->medical_notes
                     ?? null,
                 'ip_address' => $request->ip(),
                 'guest_first_name' => $request->guest_first_name ? trim($request->guest_first_name) : null,
                 'guest_phone' => $request->guest_phone ?? null,
             ]);
+
+            if ($isReceptionist && $assignedStaffId) {
+                $appointment->syncStaff($assignedStaffId, $assistingStaffIds);
+            }
 
             foreach ($services as $service) {
                 AppointmentService::create([
@@ -1915,6 +2001,16 @@ class BookingController extends Controller
                     'price_at_booking' =>
                         $service->discount_price
                         ?? $service->price,
+                ]);
+            }
+
+            foreach ($validatedPackageChoices as $choice) {
+                \App\Models\AppointmentPackageSelection::create([
+                    'appointment_id' => $appointment->id,
+                    'choice_group_id' => $choice['choice_group_id'],
+                    'selected_service_id' => $choice['selected_service_id'],
+                    'group_label_snapshot' => $choice['group_label_snapshot'],
+                    'selected_service_name_snapshot' => $choice['selected_service_name_snapshot'],
                 ]);
             }
 
@@ -1948,7 +2044,7 @@ class BookingController extends Controller
             }
         });
 
-        if (!$isReceptionist) {
+        if (!$isReceptionist && !$isDuplicateSubmission) {
             if ($customer && $customer->user) {
                 NotificationController::sendTo(
                     $customer->user,
@@ -2382,51 +2478,18 @@ class BookingController extends Controller
             ];
 
             if ($requiresRoom) {
-                $roomCategoryIds = $services
-                    ->where('requires_room', true)
-                    ->whereNotNull('room_category_id')
-                    ->pluck('room_category_id')
-                    ->unique()
-                    ->values();
+                $availableRooms = \App\Services\RoomCompatibilityService::findPhysicallyFreeForServices(
+                    $services,
+                    $date,
+                    $timeStr . ':00',
+                    $endStr . ':00'
+                );
 
-                $roomsQuery = Room::active()
-                    ->where(
-                        'status',
-                        '!=',
-                        'maintenance'
-                    );
-
-                if ($roomCategoryIds->isNotEmpty()) {
-                    $roomsQuery->where(
-                        function ($q)
-                        use ($roomCategoryIds) {
-                            $q->whereIn(
-                                'category_id',
-                                $roomCategoryIds
-                            )
-                                ->orWhereNull(
-                                    'category_id'
-                                );
-                        }
-                    );
-                }
-
-                foreach (
-                    $roomsQuery->get()
-                    as $room
-                ) {
-                    if (
-                        $room->isAvailableFor(
-                            $date,
-                            $timeStr . ':00',
-                            $endStr . ':00'
-                        )
-                    ) {
-                        $gap['free_rooms'][] = [
-                            'id' => $room->id,
-                            'name' => $room->name,
-                        ];
-                    }
+                foreach ($availableRooms as $room) {
+                    $gap['free_rooms'][] = [
+                        'id' => $room->id,
+                        'name' => $room->name,
+                    ];
                 }
             }
 

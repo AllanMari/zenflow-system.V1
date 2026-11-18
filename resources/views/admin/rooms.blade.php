@@ -39,16 +39,19 @@
 
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">{{ $room->name }}</h3>
 
-                <div class="flex flex-wrap gap-2 mb-3">
-                    @if($room->category)
-                        <span class="px-2 py-1 rounded-md text-xs font-semibold bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border border-teal-200 dark:border-teal-800">
-                            {{ $room->category->name }}
+                <div class="flex flex-wrap gap-1.5 mb-3">
+                    @forelse($room->roomCategories as $rc)
+                        <span class="px-2 py-0.5 rounded-md text-xs font-semibold {{ $rc->is_active ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-600' }}" title="{{ $rc->code }}{{ $rc->is_active ? '' : ' (Inactive)' }}">
+                            {{ $rc->name }}
+                            @if(!$rc->is_active)
+                                <span class="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 ml-1">(Inactive)</span>
+                            @endif
                         </span>
-                    @else
-                        <span class="px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
-                            General Use
+                    @empty
+                        <span class="px-2 py-0.5 rounded-md text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
+                            Uncategorized
                         </span>
-                    @endif
+                    @endforelse
 
                     @php
                         $statusBadge = match($room->status) {
@@ -58,12 +61,12 @@
                             default => 'bg-gray-100 text-gray-600 border-gray-200',
                         };
                     @endphp
-                    <span class="px-2 py-1 rounded-md text-xs font-semibold border {{ $statusBadge }}">
+                    <span class="px-2 py-0.5 rounded-md text-xs font-semibold border {{ $statusBadge }}">
                         {{ ucfirst($room->status) }}
                     </span>
 
                     @if(!$room->is_active)
-                        <span class="px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
+                        <span class="px-2 py-0.5 rounded-md text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
                             Inactive
                         </span>
                     @endif
@@ -106,15 +109,31 @@
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Category</label>
-                <select name="category_id" id="roomCategory"
-                        class="w-full border border-gray-200 dark:border-gray-600 rounded-lg p-2.5 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition">
-                    <option value="">General / Multi-purpose</option>
-                    @foreach($categories as $cat)
-                        <option value="{{ $cat->id }}">{{ $cat->name }}</option>
-                    @endforeach
-                </select>
-                <p class="text-xs text-gray-400 mt-1">Leave empty for general-use rooms</p>
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Room Categories</label>
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400 select-none">
+                        <input type="checkbox" id="selectAllCategories" onchange="toggleSelectAllCategories(this.checked)" class="w-3.5 h-3.5 rounded text-teal-600 focus:ring-teal-500 border-gray-300 dark:border-gray-600">
+                        <span>Select All (General Room)</span>
+                    </label>
+                </div>
+                <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-3 dark:bg-gray-700/50 max-h-44 overflow-y-auto space-y-2">
+                    @forelse($roomCategories as $rc)
+                        <label class="flex items-center gap-2.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1.5 rounded transition {{ !$rc->is_active ? 'opacity-75' : '' }}">
+                            <input type="checkbox" name="room_category_ids[]" value="{{ $rc->id }}"
+                                   data-is-active="{{ $rc->is_active ? '1' : '0' }}"
+                                   onchange="syncSelectAllCategories()"
+                                   class="room-cat-checkbox w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600">
+                            <span class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ $rc->name }}</span>
+                            <span class="text-xs font-mono text-gray-400">({{ $rc->code }})</span>
+                            @if(!$rc->is_active)
+                                <span class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">Inactive</span>
+                            @endif
+                        </label>
+                    @empty
+                        <p class="text-xs text-gray-400 italic">No room categories available. <a href="{{ route('admin.room-categories.index') }}" class="text-teal-600 underline">Create one first</a>.</p>
+                    @endforelse
+                </div>
+                <p class="text-xs text-gray-400 mt-1">Select all categories this physical room supports (e.g. Regular, Couple, or Select All for general multi-purpose suites).</p>
             </div>
 
             <div>
@@ -182,12 +201,38 @@
         }, 300);
     }
 
+    function toggleSelectAllCategories(checked) {
+        document.querySelectorAll('.room-cat-checkbox').forEach(cb => {
+            if (!cb.closest('label').classList.contains('hidden')) {
+                cb.checked = checked;
+            }
+        });
+    }
+
+    function syncSelectAllCategories() {
+        const visibleCbs = Array.from(document.querySelectorAll('.room-cat-checkbox')).filter(cb => !cb.closest('label').classList.contains('hidden'));
+        const selectAll = document.getElementById('selectAllCategories');
+        if (!selectAll) return;
+        if (visibleCbs.length === 0) {
+            selectAll.checked = false;
+            return;
+        }
+        selectAll.checked = visibleCbs.every(cb => cb.checked);
+    }
+
     function resetForm() {
         document.getElementById('modalTitle').textContent = 'Add Room';
         roomForm.action = '{{ route('admin.rooms.store') }}';
         methodField.innerHTML = '';
         document.getElementById('roomName').value = '';
-        document.getElementById('roomCategory').value = '';
+        document.querySelectorAll('.room-cat-checkbox').forEach(cb => {
+            cb.checked = false;
+            const isActive = cb.dataset.isActive === '1';
+            // Hide or disable inactive categories for new rooms
+            cb.closest('label').classList.toggle('hidden', !isActive);
+        });
+        const selectAll = document.getElementById('selectAllCategories');
+        if (selectAll) selectAll.checked = false;
         document.querySelectorAll('.room-status-radio').forEach(r => r.checked = false);
         document.querySelector('.room-status-radio[value="available"]').checked = true;
         document.getElementById('roomActive').checked = true;
@@ -200,7 +245,18 @@
         methodField.innerHTML = '<input type="hidden" name="_method" value="PUT">';
         
         document.getElementById('roomName').value = room.name;
-        document.getElementById('roomCategory').value = room.category_id ?? '';
+        
+        const assignedCatIds = (room.room_categories || []).map(c => c.id);
+        document.querySelectorAll('.room-cat-checkbox').forEach(cb => {
+            const isAssigned = assignedCatIds.includes(parseInt(cb.value));
+            cb.checked = isAssigned;
+            const isActive = cb.dataset.isActive === '1';
+            // In edit mode: show if active, or if currently assigned (even if inactive)
+            cb.closest('label').classList.toggle('hidden', !isActive && !isAssigned);
+        });
+
+        syncSelectAllCategories();
+
         document.querySelectorAll('.room-status-radio').forEach(r => r.checked = (r.value === room.status));
         document.getElementById('roomActive').checked = room.is_active;
         document.getElementById('roomNotes').value = room.notes ?? '';

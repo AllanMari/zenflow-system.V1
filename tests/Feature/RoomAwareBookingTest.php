@@ -1,6 +1,6 @@
 <?php
 namespace Tests\Feature;
-use App\Models\{Appointment, BusinessHour, Customer, Role, Room, Service, ServiceCategory, User, WorkSchedule};
+use App\Models\{Appointment, BusinessHour, Customer, Role, Room, RoomCategory, Service, ServiceCategory, User, WorkSchedule};
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -38,8 +38,10 @@ class RoomAwareBookingTest extends TestCase {
 
     public function test_get_slots_returns_free_rooms() {
         $cat = ServiceCategory::create(['name' => 'M', 'is_active' => true]);
-        $srv = Service::create(['name' => 'S', 'category_id' => $cat->id, 'room_category_id' => $cat->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
-        $room = Room::create(['name' => 'Room A', 'category_id' => $cat->id, 'status' => 'available', 'is_active' => true]);
+        $roomCat = RoomCategory::create(['name' => 'M Room', 'code' => 'm_room']);
+        $srv = Service::create(['name' => 'S', 'category_id' => $cat->id, 'room_category_id' => $roomCat->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
+        $room = Room::create(['name' => 'Room A', 'status' => 'available', 'is_active' => true]);
+        $room->roomCategories()->attach($roomCat->id);
         
         $res = $this->getJson(route('booking.slots', ['date' => Carbon::tomorrow()->toDateString(), 'duration' => 60, 'services' => [$srv->id]]));
         
@@ -67,18 +69,25 @@ class RoomAwareBookingTest extends TestCase {
     public function test_room_filtering_rules() {
         $cat1 = ServiceCategory::create(['name' => 'M', 'is_active' => true]);
         $cat2 = ServiceCategory::create(['name' => 'F', 'is_active' => true]);
-        $s1 = Service::create(['name' => 'S1', 'category_id' => $cat1->id, 'room_category_id' => $cat1->id, 'duration_minutes' => 30, 'price' => 50, 'requires_room' => true, 'is_active' => true]);
-        $s2 = Service::create(['name' => 'S2', 'category_id' => $cat2->id, 'room_category_id' => $cat2->id, 'duration_minutes' => 30, 'price' => 50, 'requires_room' => true, 'is_active' => true]);
-        $room1 = Room::create(['name' => 'R1', 'category_id' => $cat1->id, 'status' => 'available', 'is_active' => true]);
-        $room2 = Room::create(['name' => 'R2', 'category_id' => null, 'status' => 'available', 'is_active' => true]);
+        $rc1 = RoomCategory::create(['name' => 'RC1', 'code' => 'rc1']);
+        $rc2 = RoomCategory::create(['name' => 'RC2', 'code' => 'rc2']);
+        $s1 = Service::create(['name' => 'S1', 'category_id' => $cat1->id, 'room_category_id' => $rc1->id, 'duration_minutes' => 30, 'price' => 50, 'requires_room' => true, 'is_active' => true]);
+        $s2 = Service::create(['name' => 'S2', 'category_id' => $cat2->id, 'room_category_id' => $rc2->id, 'duration_minutes' => 30, 'price' => 50, 'requires_room' => true, 'is_active' => true]);
+        $room1 = Room::create(['name' => 'R1', 'status' => 'available', 'is_active' => true]);
+        $room1->roomCategories()->attach($rc1->id);
+        $room2 = Room::create(['name' => 'R2', 'status' => 'available', 'is_active' => true]);
+        $room2->roomCategories()->attach([$rc1->id, $rc2->id]);
+        $unclassifiedRoom = Room::create(['name' => 'R_Unclassified', 'status' => 'available', 'is_active' => true]);
 
         $comp = Room::findCompatibleForServices(collect([$s1]));
         $this->assertTrue($comp->contains('id', $room1->id));
         $this->assertTrue($comp->contains('id', $room2->id));
+        $this->assertFalse($comp->contains('id', $unclassifiedRoom->id));
 
         $comp2 = Room::findCompatibleForServices(collect([$s1, $s2]));
         $this->assertFalse($comp2->contains('id', $room1->id));
         $this->assertTrue($comp2->contains('id', $room2->id));
+        $this->assertFalse($comp2->contains('id', $unclassifiedRoom->id));
     }
 
     public function test_room_availability_and_blocking() {
@@ -107,8 +116,10 @@ class RoomAwareBookingTest extends TestCase {
         $customer = Customer::create(['user_id' => $user->id, 'first_name' => 'Test', 'last_name' => 'C', 'email' => $user->email, 'phone_number' => '1234567890']);
         
         $cat = ServiceCategory::create(['name' => 'G', 'is_active' => true]);
-        $srv = Service::create(['name' => 'S', 'category_id' => $cat->id, 'room_category_id' => $cat->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
-        $room = Room::create(['name' => 'R', 'category_id' => $cat->id, 'status' => 'available', 'is_active' => true]);
+        $rc = RoomCategory::create(['name' => 'G Room', 'code' => 'g_room']);
+        $srv = Service::create(['name' => 'S', 'category_id' => $cat->id, 'room_category_id' => $rc->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
+        $room = Room::create(['name' => 'R', 'status' => 'available', 'is_active' => true]);
+        $room->roomCategories()->attach($rc->id);
         $date = Carbon::tomorrow()->toDateString();
 
         $res = $this->actingAs($user)->post(route('booking.store'), [
@@ -133,8 +144,10 @@ class RoomAwareBookingTest extends TestCase {
         $customer = Customer::create(['user_id' => $user->id, 'first_name' => 'T', 'last_name' => 'C', 'email' => $user->email, 'phone_number' => '1234567890']);
         
         $cat = ServiceCategory::create(['name' => 'G', 'is_active' => true]);
-        $srv = Service::create(['name' => 'S', 'category_id' => $cat->id, 'room_category_id' => $cat->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
-        $room = Room::create(['name' => 'R', 'category_id' => $cat->id, 'status' => 'available', 'is_active' => true]);
+        $rc = RoomCategory::create(['name' => 'G Room', 'code' => 'g_room']);
+        $srv = Service::create(['name' => 'S', 'category_id' => $cat->id, 'room_category_id' => $rc->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
+        $room = Room::create(['name' => 'R', 'status' => 'available', 'is_active' => true]);
+        $room->roomCategories()->attach($rc->id);
         $date = Carbon::tomorrow()->toDateString();
         
         // 1. Another appointment takes Room
@@ -163,8 +176,10 @@ class RoomAwareBookingTest extends TestCase {
         $customer = Customer::create(['user_id' => $user->id, 'first_name' => 'Test', 'last_name' => 'C', 'email' => $user->email, 'phone_number' => '1234567890']);
         
         $cat = ServiceCategory::create(['name' => 'Category 1', 'is_active' => true]);
-        $srv = Service::create(['name' => 'Service 1', 'category_id' => $cat->id, 'room_category_id' => $cat->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
-        $room2 = Room::create(['name' => 'Room 2', 'category_id' => $cat->id, 'status' => 'available', 'is_active' => true]);
+        $rc = RoomCategory::create(['name' => 'Cat 1 Room', 'code' => 'cat1_room']);
+        $srv = Service::create(['name' => 'Service 1', 'category_id' => $cat->id, 'room_category_id' => $rc->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
+        $room2 = Room::create(['name' => 'Room 2', 'status' => 'available', 'is_active' => true]);
+        $room2->roomCategories()->attach($rc->id);
         $date = Carbon::tomorrow()->toDateString();
 
         $res = $this->actingAs($user)->post(route('booking.store'), [
@@ -193,8 +208,10 @@ class RoomAwareBookingTest extends TestCase {
         $customer = Customer::create(['user_id' => $user->id, 'first_name' => 'Test', 'last_name' => 'C', 'email' => $user->email, 'phone_number' => '1234567890']);
         
         $cat = ServiceCategory::create(['name' => 'Category 1', 'is_active' => true]);
-        $srv = Service::create(['name' => 'Service 1', 'category_id' => $cat->id, 'room_category_id' => $cat->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
-        $room1 = Room::create(['name' => 'Room 1', 'category_id' => $cat->id, 'status' => 'available', 'is_active' => true]);
+        $rc = RoomCategory::create(['name' => 'Cat 1 Room', 'code' => 'cat1_room']);
+        $srv = Service::create(['name' => 'Service 1', 'category_id' => $cat->id, 'room_category_id' => $rc->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
+        $room1 = Room::create(['name' => 'Room 1', 'status' => 'available', 'is_active' => true]);
+        $room1->roomCategories()->attach($rc->id);
         $date = Carbon::tomorrow()->toDateString();
 
         // room_id not provided / no preference
@@ -221,9 +238,12 @@ class RoomAwareBookingTest extends TestCase {
         $receptionist->roles()->attach($receptionistRole);
         
         $cat = ServiceCategory::create(['name' => 'Cat', 'is_active' => true]);
-        $srv = Service::create(['name' => 'Srv', 'category_id' => $cat->id, 'room_category_id' => $cat->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
-        $room2 = Room::create(['name' => 'Room 2', 'category_id' => $cat->id, 'status' => 'available', 'is_active' => true]);
-        $room1 = Room::create(['name' => 'Room 1', 'category_id' => $cat->id, 'status' => 'available', 'is_active' => true]);
+        $rc = RoomCategory::create(['name' => 'Cat Room', 'code' => 'cat_room']);
+        $srv = Service::create(['name' => 'Srv', 'category_id' => $cat->id, 'room_category_id' => $rc->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
+        $room2 = Room::create(['name' => 'Room 2', 'status' => 'available', 'is_active' => true]);
+        $room2->roomCategories()->attach($rc->id);
+        $room1 = Room::create(['name' => 'Room 1', 'status' => 'available', 'is_active' => true]);
+        $room1->roomCategories()->attach($rc->id);
         $staff = User::factory()->create();
         $staff->roles()->attach(Role::where('name', 'staff')->first());
         $staff->is_active = true;
@@ -273,8 +293,10 @@ class RoomAwareBookingTest extends TestCase {
         $receptionist->roles()->attach($receptionistRole);
 
         $cat = ServiceCategory::create(['name' => 'Cat', 'is_active' => true]);
-        $srv = Service::create(['name' => 'Srv', 'category_id' => $cat->id, 'room_category_id' => $cat->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
-        $room = Room::create(['name' => 'Special Room', 'category_id' => $cat->id, 'status' => 'available', 'is_active' => true]);
+        $rc = RoomCategory::create(['name' => 'Cat Room', 'code' => 'cat_room']);
+        $srv = Service::create(['name' => 'Srv', 'category_id' => $cat->id, 'room_category_id' => $rc->id, 'duration_minutes' => 60, 'price' => 100, 'requires_room' => true, 'is_active' => true]);
+        $room = Room::create(['name' => 'Special Room', 'status' => 'available', 'is_active' => true]);
+        $room->roomCategories()->attach($rc->id);
         $customer = Customer::create(['first_name' => 'C', 'last_name' => 'D', 'phone_number' => '09123456789']);
 
         // 1. Appointment with explicit preference

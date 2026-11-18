@@ -381,6 +381,14 @@
                             ?? $appointment->staff->name
                             ?? 'Unassigned';
 
+                        $assistingStaff = $appointment->assignedStaff
+                            ? $appointment->assignedStaff->where('pivot.role', 'assisting')->map(fn($s) => $s->full_name ?? $s->name)->filter()->implode(', ')
+                            : '';
+
+                        if ($assistingStaff !== '') {
+                            $staffName .= ' (Assisting: ' . $assistingStaff . ')';
+                        }
+
                         $roomName =
                             $appointment->room->name
                             ?? $appointment->room->room_name

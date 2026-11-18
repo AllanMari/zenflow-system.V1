@@ -20,16 +20,16 @@ class StaffController extends Controller
         $currentTime = Carbon::now('Asia/Manila')->format('H:i:s');
 
         // 1. Today's Appointments for authenticated staff member (with customer, services, room)
-        $myToday = Appointment::with(['customer', 'services', 'room'])
-            ->where('user_id', $userId)
+        $myToday = Appointment::with(['customer', 'services', 'room', 'assignedStaff', 'packageSelections'])
+            ->forStaff($userId)
             ->whereDate('appointment_date', $today)
             ->whereIn('status', ['confirmed', 'completed', 'pending', 'cancelled'])
             ->orderBy('start_time')
             ->get();
 
         // 2. Upcoming Appointments for authenticated staff member (next 5 eligible future appointments)
-        $myUpcoming = Appointment::with(['customer', 'services', 'room'])
-            ->where('user_id', $userId)
+        $myUpcoming = Appointment::with(['customer', 'services', 'room', 'assignedStaff', 'packageSelections'])
+            ->forStaff($userId)
             ->whereDate('appointment_date', '>', $today)
             ->whereIn('status', ['confirmed', 'pending'])
             ->orderBy('appointment_date')
@@ -50,7 +50,7 @@ class StaffController extends Controller
         // Weekly completed sessions (Mon-Sun in Asia/Manila)
         $weekStart = $today->copy()->startOfWeek();
         $weekEnd = $today->copy()->endOfWeek();
-        $weeklyCompleted = Appointment::where('user_id', $userId)
+        $weeklyCompleted = Appointment::forStaff($userId)
             ->whereBetween('appointment_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
             ->where('status', 'completed')
             ->count();
@@ -139,8 +139,8 @@ class StaffController extends Controller
 
         $status = $request->input('status', 'all');
 
-        $query = Appointment::with(['customer', 'services'])
-            ->where('user_id', $userId);
+        $query = Appointment::with(['customer', 'services', 'assignedStaff', 'packageSelections'])
+            ->forStaff($userId);
 
         // Date filter handling: single date takes precedence, then valid date range (date_from & date_to)
         $hasSingleDate = false;
@@ -211,7 +211,7 @@ class StaffController extends Controller
             ->withQueryString();
 
         $countBase = Appointment::query()
-            ->where('user_id', $userId);
+            ->forStaff($userId);
 
         if ($hasSingleDate) {
             $countBase->whereDate('appointment_date', $parsedDate);
@@ -513,5 +513,24 @@ class StaffController extends Controller
             $start->diffInMinutes($end) / 60,
             1
         );
+    }
+
+    /**
+     * Retrieve treatment notes for an assigned appointment.
+     * Authorized only for the primary therapist or assisting therapists.
+     */
+    public function getTreatmentNotes(Appointment $appointment)
+    {
+        $user = Auth::user();
+
+        if (!$appointment->canViewTreatmentNotes($user)) {
+            abort(403, 'Unauthorized access to treatment notes.');
+        }
+
+        return response()->json([
+            'success' => true,
+            'appointment_id' => $appointment->id,
+            'treatment_notes' => $appointment->treatment_notes,
+        ]);
     }
 }

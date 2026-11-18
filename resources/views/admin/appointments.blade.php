@@ -1162,6 +1162,12 @@
 
                                         </p>
 
+                                        @if($appt->assignedStaff && $appt->assignedStaff->where('pivot.role', 'assisting')->isNotEmpty())
+                                            <p class="text-[10px] text-gray-500 dark:text-gray-400">
+                                                Assisting: {{ $appt->assignedStaff->where('pivot.role', 'assisting')->map(fn($s) => $s->full_name ?? trim($s->first_name . ' ' . $s->last_name))->filter()->implode(', ') }}
+                                            </p>
+                                        @endif
+
                                         <div class="flex items-center
                                                     gap-1 mt-1">
 

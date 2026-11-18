@@ -21,6 +21,7 @@ class Appointment extends Model
         'total_price',
         'deposit_required',
         'notes',
+        'treatment_notes',
         'created_by',
         'confirmed_at',
         'confirmed_by',
@@ -36,6 +37,14 @@ class Appointment extends Model
         'ip_address',
         'guest_first_name',
         'guest_phone',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     * Prevents treatment notes from leaking into API responses or JSON payloads.
+     */
+    protected $hidden = [
+        'treatment_notes',
     ];
 
     protected $casts = [
@@ -59,15 +68,95 @@ class Appointment extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    /**
+     * Legacy single-therapist relationship (backward-compatible).
+     * Returns the primary therapist from appointments.user_id.
+     */
     public function staff()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Multi-therapist pivot relationship via appointment_staff.
+     * Includes all assigned therapists with their role (primary/assisting).
+     */
+    public function assignedStaff()
+    {
+        return $this->belongsToMany(User::class, 'appointment_staff')
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
+
+    /**
+     * The primary therapist assigned to this appointment.
+     */
+    public function primaryTherapist()
+    {
+        return $this->belongsToMany(User::class, 'appointment_staff')
+                    ->wherePivot('role', 'primary')
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Assisting therapists assigned to this appointment.
+     */
+    public function assistingTherapists()
+    {
+        return $this->belongsToMany(User::class, 'appointment_staff')
+                    ->wherePivot('role', 'assisting')
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Assign staff to this appointment enforcing the primary therapist invariant:
+     * - Exactly one primary therapist
+     * - Zero or more assisting therapists
+     * - Synchronizes legacy appointments.user_id with the primary therapist
+     *
+     * @param int $primaryTherapistId
+     * @param array<int> $assistingTherapistIds
+     * @return void
+     * @throws \InvalidArgumentException
+     */
+    public function syncStaff(int $primaryTherapistId, array $assistingTherapistIds = []): void
+    {
+        $uniqueAssisting = array_values(array_unique(array_filter($assistingTherapistIds)));
+
+        if (in_array($primaryTherapistId, $uniqueAssisting, true)) {
+            throw new \InvalidArgumentException('A primary therapist cannot also be assigned as an assisting therapist on the same appointment.');
+        }
+
+        $syncData = [
+            $primaryTherapistId => ['role' => 'primary'],
+        ];
+
+        foreach ($uniqueAssisting as $assistantId) {
+            $syncData[$assistantId] = ['role' => 'assisting'];
+        }
+
+        $this->assignedStaff()->sync($syncData);
+
+        // Keep legacy appointments.user_id synchronized with the primary therapist
+        if ($this->user_id !== $primaryTherapistId) {
+            $this->update(['user_id' => $primaryTherapistId]);
+        }
     }
 
     public function services()
     {
         return $this->belongsToMany(Service::class, 'appointment_services')
                     ->withPivot('price_at_booking', 'service_name', 'service_duration', 'is_extra');
+    }
+
+    /**
+     * Resolves the required number of therapists for this appointment using TherapistAssignmentService.
+     */
+    public function getTherapistsRequiredAttribute(): int
+    {
+        return \App\Services\TherapistAssignmentService::resolveRequiredCount($this);
     }
 
     public function payments()
@@ -85,9 +174,54 @@ class Appointment extends Model
         return $this->belongsTo(Room::class);
     }
 
+    public function packageSelections()
+    {
+        return $this->hasMany(\App\Models\AppointmentPackageSelection::class);
+    }
+
     public function requestedRoom()
     {
         return $this->belongsTo(Room::class, 'requested_room_id');
+    }
+
+    /**
+     * Check if a given user is authorized to view this appointment's treatment notes.
+     *
+     * Treatment notes contain confidential session health information and considerations.
+     * Authorized:
+     * - Primary therapist assigned to this appointment
+     * - Assisting therapists assigned to this appointment
+     * - Receptionist and Admin staff (operational oversight)
+     *
+     * Unauthorized:
+     * - Unrelated staff members
+     * - Customers and guests
+     * - Public visitors
+     */
+    public function canViewTreatmentNotes(?User $user = null): bool
+    {
+        $user = $user ?? auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isReceptionist()) {
+            return true;
+        }
+
+        if ($user->hasRole('staff')) {
+            if ($this->user_id === $user->id) {
+                return true;
+            }
+
+            if ($this->relationLoaded('assignedStaff')) {
+                return $this->assignedStaff->contains('id', $user->id);
+            }
+
+            return $this->assignedStaff()->where('users.id', $user->id)->exists();
+        }
+
+        return false;
     }
 
     /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Accessors Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
@@ -269,7 +403,12 @@ class Appointment extends Model
 
     public function scopeForStaff(Builder $query, int $staffId): Builder
     {
-        return $query->where('user_id', $staffId);
+        return $query->where(function ($q) use ($staffId) {
+            $q->where('user_id', $staffId)
+              ->orWhereHas('assignedStaff', function ($sq) use ($staffId) {
+                  $sq->where('users.id', $staffId);
+              });
+        });
     }
 
     /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Actions Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
