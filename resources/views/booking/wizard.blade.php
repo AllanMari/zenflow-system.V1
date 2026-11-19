@@ -273,7 +273,7 @@
     }
 @endphp
 
-<body class="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased">
+<body class="min-h-screen overflow-x-hidden bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased">
 
     <!-- ============================================================
          NAVIGATION
@@ -527,7 +527,7 @@
                  LEFT / MAIN CONTENT
             ===================================================== -->
 
-            <div>
+            <div class="min-w-0">
 
                 <!-- =================================================
                      STEP 1 — SERVICES
@@ -539,7 +539,7 @@
                     class="fade-up"
                 >
 
-                    <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
+                    <div class="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
 
                         <div class="border-b border-slate-100 dark:border-slate-700/50 p-5 sm:p-7">
                             <div class="flex items-start justify-between gap-4">
@@ -552,7 +552,7 @@
                                         What would you like today?
                                     </h2>
 
-                                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                                    <p class="mt-2 break-words text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                         Select one or more treatments for your appointment.
                                     </p>
                                 </div>
@@ -574,18 +574,31 @@
                         <!-- Category navigation -->
 
                         <div class="border-b border-slate-100 dark:border-slate-700/50 px-5 pt-4 sm:px-7">
-                            <div class="nice-scrollbar flex gap-2 overflow-x-auto pb-4">
+                            <div class="grid grid-cols-2 gap-2 pb-4">
 
                                 <template x-for="category in categories" :key="category.id">
                                     <button
                                         type="button"
                                         @click="activeCategory = category.id; $nextTick(() => refreshIcons())"
-                                        class="whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition"
+                                        class="flex flex-col justify-between h-full rounded-2xl border p-3 text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-zen-500"
                                         :class="activeCategory === category.id
-                                            ? 'bg-slate-900 dark:bg-teal-600 text-white shadow-sm'
-                                            : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-200'"
+                                            ? 'border-zen-500 bg-zen-50 dark:border-teal-600 dark:bg-teal-950/20'
+                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-zen-200 dark:hover:border-teal-700 hover:bg-slate-50 dark:hover:bg-slate-800/80'"
                                     >
-                                        <span x-text="category.name"></span>
+                                        <p
+                                            class="text-sm font-semibold leading-tight"
+                                            :class="activeCategory === category.id
+                                                ? 'text-zen-700 dark:text-teal-300'
+                                                : 'text-slate-800 dark:text-slate-200'"
+                                            x-text="category.name"
+                                        ></p>
+                                        <p
+                                            class="mt-0.5 text-xs"
+                                            :class="activeCategory === category.id
+                                                ? 'text-zen-500 dark:text-teal-400'
+                                                : 'text-slate-400 dark:text-slate-500'"
+                                            x-text="category.services.length + ' services'"
+                                        ></p>
                                     </button>
                                 </template>
 
@@ -600,22 +613,15 @@
                             <template x-if="activeCategoryObject">
                                 <div>
 
-                                    <div class="mb-4 flex items-center justify-between">
-                                        <div>
-                                            <h3
-                                                class="font-bold text-slate-900 dark:text-slate-100"
-                                                x-text="activeCategoryObject.name"
-                                            ></h3>
+                                    <div class="mb-4">
+                                        <h3
+                                            class="font-bold text-slate-900 dark:text-slate-100"
+                                            x-text="activeCategoryObject.name"
+                                        ></h3>
 
-                                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                                                Select the treatments you want to include.
-                                            </p>
-                                        </div>
-
-                                        <span
-                                            class="rounded-full bg-slate-100 dark:bg-slate-800/60 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500"
-                                            x-text="activeCategoryServices.length + ' services'"
-                                        ></span>
+                                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                            Select the treatments you want to include.
+                                        </p>
                                     </div>
 
 
@@ -655,7 +661,7 @@
 
                                                         <!-- Image -->
                                                         <div
-                                                            class="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800/60"
+                                                            class="h-16 w-16 sm:h-20 sm:w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800/60"
                                                         >
                                                             <template x-if="service.image">
                                                                 <img
@@ -673,7 +679,7 @@
                                                         </div>
 
                                                         <!-- Info Summary -->
-                                                        <div class="min-w-0 flex-1 pr-6">
+                                                        <div class="min-w-0 flex-1 pr-7">
 
                                                             <h4 class="break-words text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">
                                                                 <span x-text="service.name"></span>
@@ -829,7 +835,7 @@
                     class="fade-up"
                 >
 
-                    <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
+                    <div class="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
 
                         <div class="border-b border-slate-100 dark:border-slate-700/50 p-5 sm:p-7">
                             <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
@@ -985,7 +991,7 @@
 
                                                             <!-- Animated Room Drawer -->
                                                             <div x-show="selectedTime === slot.time" x-cloak x-transition class="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 shadow-inner">
-                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider" 'Room preference (optional)'></p>
+                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider">Room preference (optional)</p>
                                                                 <div class="mt-3 space-y-2">
                                                                     <template x-for="r in (slot.compatible_rooms || slot.free_rooms || [])" :key="r.id">
                                                                         <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition">
@@ -1034,7 +1040,7 @@
 
                                                             <!-- Animated Room Drawer -->
                                                             <div x-show="selectedTime === slot.time" x-cloak x-transition class="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 shadow-inner">
-                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider" 'Room preference (optional)'></p>
+                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider">Room preference (optional)</p>
                                                                 <div class="mt-3 space-y-2">
                                                                     <template x-for="r in (slot.compatible_rooms || slot.free_rooms || [])" :key="r.id">
                                                                         <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition">
@@ -1083,7 +1089,7 @@
 
                                                             <!-- Animated Room Drawer -->
                                                             <div x-show="selectedTime === slot.time" x-cloak x-transition class="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 shadow-inner">
-                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider" 'Room preference (optional)'></p>
+                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider">Room preference (optional)</p>
                                                                 <div class="mt-3 space-y-2">
                                                                     <template x-for="r in (slot.compatible_rooms || slot.free_rooms || [])" :key="r.id">
                                                                         <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition">
@@ -1122,7 +1128,7 @@
                     class="fade-up"
                 >
 
-                    <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
+                    <div class="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
 
                         <div class="border-b border-slate-100 dark:border-slate-700/50 p-5 sm:p-7">
                             <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
@@ -1354,7 +1360,7 @@
                     class="fade-up"
                 >
 
-                    <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
+                    <div class="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card">
 
                         <div class="border-b border-slate-100 dark:border-slate-700/50 p-5 sm:p-7">
                             <p class="text-xs font-bold uppercase tracking-wider text-zen-600">
