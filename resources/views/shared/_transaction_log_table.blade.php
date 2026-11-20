@@ -197,6 +197,81 @@
         color: #86efac;
     }
 
+    .tx-floating-notes-card {
+        position: fixed;
+        z-index: 999999;
+        min-width: 220px;
+        max-width: 320px;
+        padding: 9px 12px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 9px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        pointer-events: none;
+        font-size: 11px;
+        line-height: 1.4;
+        color: #1f2937;
+        text-align: left;
+    }
+
+    .dark .tx-floating-notes-card {
+        background: #1f2937;
+        border-color: #374151;
+        color: #f3f4f6;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    .tx-floating-notes-card .note-sec {
+        margin-bottom: 7px;
+    }
+
+    .tx-floating-notes-card .note-sec:last-child {
+        margin-bottom: 0;
+    }
+
+    .tx-floating-notes-card .note-sec-title {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 2px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .tx-floating-notes-card .note-sec-title.tx-title {
+        color: #0f766e;
+    }
+    .dark .tx-floating-notes-card .note-sec-title.tx-title {
+        color: #5eead4;
+    }
+
+    .tx-floating-notes-card .note-sec-title.med-title {
+        color: #be123c;
+    }
+    .dark .tx-floating-notes-card .note-sec-title.med-title {
+        color: #fda4af;
+    }
+
+    .tx-floating-notes-card .note-sec-title.gen-title {
+        color: #15803d;
+    }
+    .dark .tx-floating-notes-card .note-sec-title.gen-title {
+        color: #86efac;
+    }
+
+    .tx-floating-notes-card .note-sec-body {
+        font-size: 11px;
+        color: #4b5563;
+        white-space: pre-wrap;
+        word-break: break-word;
+        padding-left: 2px;
+    }
+    .dark .tx-floating-notes-card .note-sec-body {
+        color: #d1d5db;
+    }
+
     .tx-service-button {
         display: inline-flex;
         align-items: center;
@@ -459,10 +534,27 @@
                         </td>
 
                         <td class="tx-note">
-                            @if($row['noteText'] && trim($row['noteText']) !== '')
+                            @php
+                                $hasTx = !empty($row['treatmentNotes'] ?? '');
+                                $hasMed = !empty($row['medicalNotes'] ?? '');
+                                $hasOp = !empty(trim($row['noteText'] ?? ''));
+                                $hasAnyNote = $hasTx || $hasMed || $hasOp;
+
+                                $notesPayload = [
+                                    'treatment' => $hasTx ? $row['treatmentNotes'] : null,
+                                    'medical' => $hasMed ? $row['medicalNotes'] : null,
+                                    'operational' => $hasOp ? $row['noteText'] : null,
+                                ];
+                            @endphp
+
+                            @if($hasAnyNote)
                                 <span
                                     class="tx-com-badge"
-                                    title="{{ $row['noteText'] }}"
+                                    data-tx-notes-wrap="1"
+                                    data-notes="{{ base64_encode(json_encode($notesPayload)) }}"
+                                    @if($hasTx) data-treatment="{{ $row['treatmentNotes'] }}" @endif
+                                    @if($hasMed) data-medical="{{ $row['medicalNotes'] }}" @endif
+                                    @if($hasOp) data-operational="{{ $row['noteText'] }}" @endif
                                 >
                                     ✓
                                 </span>
@@ -710,5 +802,123 @@
 
     window.addEventListener('scroll', closeMenu, true);
     window.addEventListener('resize', closeMenu);
+
+    // -----------------------------------------------------------------
+    // Floating Notes Hover Card
+    // -----------------------------------------------------------------
+    let notesCard = null;
+    let activeNotesTarget = null;
+
+    function hideNotesCard() {
+        if (notesCard) {
+            notesCard.remove();
+            notesCard = null;
+            activeNotesTarget = null;
+        }
+    }
+
+    function showNotesCard(target) {
+        hideNotesCard();
+
+        let data = null;
+        try {
+            data = JSON.parse(atob(target.dataset.notes));
+        } catch (e) {
+            return;
+        }
+
+        if (!data || (!data.treatment && !data.medical && !data.operational)) {
+            return;
+        }
+
+        notesCard = document.createElement('div');
+        notesCard.className = 'tx-floating-notes-card';
+
+        // 1. Treatment Notes (if present)
+        if (data.treatment) {
+            const sec = document.createElement('div');
+            sec.className = 'note-sec';
+            const title = document.createElement('div');
+            title.className = 'note-sec-title tx-title';
+            title.textContent = '📋 Session Treatment Notes';
+            const body = document.createElement('div');
+            body.className = 'note-sec-body';
+            body.textContent = data.treatment;
+            sec.appendChild(title);
+            sec.appendChild(body);
+            notesCard.appendChild(sec);
+        }
+
+        // 2. Medical Notes (if present)
+        if (data.medical) {
+            const sec = document.createElement('div');
+            sec.className = 'note-sec';
+            const title = document.createElement('div');
+            title.className = 'note-sec-title med-title';
+            title.textContent = '🏥 Client Medical Notes';
+            const body = document.createElement('div');
+            body.className = 'note-sec-body';
+            body.textContent = data.medical;
+            sec.appendChild(title);
+            sec.appendChild(body);
+            notesCard.appendChild(sec);
+        }
+
+        // 3. Operational / Booking Note (if present)
+        if (data.operational) {
+            const sec = document.createElement('div');
+            sec.className = 'note-sec';
+            const title = document.createElement('div');
+            title.className = 'note-sec-title gen-title';
+            title.textContent = '📝 Booking Note';
+            const body = document.createElement('div');
+            body.className = 'note-sec-body';
+            body.textContent = data.operational;
+            sec.appendChild(title);
+            sec.appendChild(body);
+            notesCard.appendChild(sec);
+        }
+
+        document.body.appendChild(notesCard);
+        activeNotesTarget = target;
+
+        const rect = target.getBoundingClientRect();
+        let left = rect.left;
+        let top = rect.bottom + 6;
+
+        if (left + notesCard.offsetWidth > window.innerWidth - 12) {
+            left = window.innerWidth - notesCard.offsetWidth - 12;
+        }
+
+        if (top + notesCard.offsetHeight > window.innerHeight - 12) {
+            top = rect.top - notesCard.offsetHeight - 6;
+        }
+
+        notesCard.style.left = `${Math.max(12, left)}px`;
+        notesCard.style.top = `${Math.max(12, top)}px`;
+    }
+
+    document.addEventListener('mouseover', function (event) {
+        const wrap = event.target.closest('[data-tx-notes-wrap="1"]');
+        if (wrap) {
+            if (wrap !== activeNotesTarget) {
+                showNotesCard(wrap);
+            }
+            return;
+        }
+        if (notesCard && !notesCard.contains(event.target)) {
+            hideNotesCard();
+        }
+    });
+
+    document.addEventListener('mouseout', function (event) {
+        const wrap = event.target.closest('[data-tx-notes-wrap="1"]');
+        if (wrap && !wrap.contains(event.relatedTarget)) {
+            hideNotesCard();
+        }
+    });
+
+    window.addEventListener('scroll', hideNotesCard, true);
+    window.addEventListener('resize', hideNotesCard);
 })();
 </script>

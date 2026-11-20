@@ -10,6 +10,7 @@ use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\Setting;
 use App\Services\ReportPdfService;
+use App\Services\CsvExportService;
 use App\Models\WorkSchedule;
 use App\Models\ScheduleException;
 use App\Models\LandingSetting;
@@ -1877,6 +1878,205 @@ public function appointmentReportPdf(
         $filename
     );
 }
+
+public function appointmentReportCsv(
+    Request $request,
+    CsvExportService $csvService
+) {
+    $query = Appointment::with([
+        'customer',
+        'services',
+        'staff',
+        'assignedStaff',
+        'room',
+        'payments',
+    ]);
+
+    $search = trim((string) $request->input('search', ''));
+    $status = $request->input('status');
+    $staffId = $request->input('staff_id');
+    $dateFrom = $request->input('date_from');
+    $dateTo = $request->input('date_to');
+
+    // Status filter
+    if ($status === 'no_show') {
+        $query->where(function ($q) {
+            $q->where('status', 'no_show')
+              ->orWhere(function ($sq) {
+                  $sq->where('status', 'cancelled')
+                     ->where('cancellation_reason', 'customer_no_show');
+              });
+        });
+    } elseif ($status === 'cancelled') {
+        $query->where('status', 'cancelled')
+              ->where(function ($q) {
+                  $q->whereNull('cancellation_reason')
+                    ->orWhere('cancellation_reason', '!=', 'customer_no_show');
+              });
+    } elseif ($status === 'cancelled_customer') {
+        $query->where('status', 'cancelled')
+              ->where('cancellation_reason', 'customer_cancelled');
+    } elseif ($status) {
+        $query->where('status', $status);
+    }
+
+    // Staff filter
+    if ($staffId) {
+        $query->forStaff((int) $staffId);
+    }
+
+    // Date filters
+    if ($dateFrom) {
+        $query->whereDate('appointment_date', '>=', Carbon::parse($dateFrom)->toDateString());
+    }
+    if ($dateTo) {
+        $query->whereDate('appointment_date', '<=', Carbon::parse($dateTo)->toDateString());
+    }
+
+    // Customer search
+    if ($search !== '') {
+        $query->where(function ($q) use ($search) {
+            $q->whereHas('customer', function ($customerQuery) use ($search) {
+                $customerQuery->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('nickname', 'like', "%{$search}%")
+                    ->orWhere('phone_number', 'like', "%{$search}%");
+            });
+        });
+    }
+
+    $appointments = $query
+        ->orderByDesc('appointment_date')
+        ->orderByDesc('start_time')
+        ->get();
+
+    $staff = $staffId ? User::find($staffId) : null;
+
+    $dateLabel = 'All Dates';
+    if ($dateFrom && $dateTo) {
+        $dateLabel = Carbon::parse($dateFrom)->format('M d, Y') . ' — ' . Carbon::parse($dateTo)->format('M d, Y');
+    } elseif ($dateFrom) {
+        $dateLabel = 'From ' . Carbon::parse($dateFrom)->format('M d, Y');
+    } elseif ($dateTo) {
+        $dateLabel = 'Until ' . Carbon::parse($dateTo)->format('M d, Y');
+    }
+
+    $statusLabel = match ($status) {
+        'cancelled_customer' => 'Customer Cancelled',
+        'no_show' => 'No-Show',
+        null, '' => 'All Statuses',
+        default => ucwords(str_replace('_', ' ', $status)),
+    };
+
+    $staffLabel = $staff ? $staff->full_name : 'All Staff';
+
+    $meta = [
+        ['ZENFLOW REPORT', 'APPOINTMENTS REPORT'],
+        ['DATE RANGE', $dateLabel],
+        ['STATUS FILTER', $statusLabel],
+        ['STAFF FILTER', $staffLabel],
+        ['SEARCH FILTER', $search ?: 'None'],
+        ['TOTAL APPOINTMENTS', $appointments->count()],
+        ['GENERATED AT', now()->format('F d, Y g:i A')],
+        ['PREPARED BY', auth()->user()->full_name ?? auth()->user()->name],
+    ];
+
+    $headers = [
+        'Reference No',
+        'Date',
+        'Time',
+        'Customer Name',
+        'Phone Number',
+        'Customer Type',
+        'Services',
+        'Assigned Staff',
+        'Room',
+        'Status',
+        'Total Amount (PHP)',
+        'Paid Amount (PHP)',
+        'Outstanding Balance (PHP)',
+        'Payment Status',
+        'Cancellation / No-Show Reason',
+    ];
+
+    $rows = [];
+    foreach ($appointments as $apt) {
+        $customerName = $apt->customer
+            ? $apt->customer->full_name
+            : ($apt->guest_first_name . ' ' . $apt->guest_last_name);
+
+        $customerPhone = $apt->customer
+            ? $apt->customer->phone_number
+            : ($apt->guest_phone ?? 'N/A');
+
+        $customerType = $apt->customer
+            ? ucfirst((string) ($apt->customer->customer_type ?? 'regular'))
+            : 'Guest';
+
+        $servicesList = $apt->services->pluck('name')->implode('; ');
+
+        $staffName = $apt->staff ? ($apt->staff->full_name ?? $apt->staff->name) : 'Unassigned';
+        if ($apt->assignedStaff && $apt->assignedStaff->isNotEmpty()) {
+            $assisting = $apt->assignedStaff->where('pivot.role', 'assisting')->map(fn($s) => $s->full_name ?? $s->name)->filter()->implode(', ');
+            if ($assisting !== '') {
+                $staffName .= ' (Assisting: ' . $assisting . ')';
+            }
+        }
+
+        $roomName = $apt->room ? $apt->room->name : 'N/A';
+
+        $paid = (float) $apt->payments->sum('amount');
+        $total = (float) ($apt->total_price ?? 0);
+        $balance = (float) $apt->active_outstanding_balance;
+
+        $paymentStatus = $paid >= $total && $total > 0
+            ? 'Fully Paid'
+            : ($paid > 0 ? 'Partially Paid' : 'Unpaid');
+
+        $formattedStatus = $apt->status === 'cancelled' && $apt->cancellation_reason === 'customer_no_show'
+            ? 'No-Show'
+            : ucwords(str_replace('_', ' ', (string) $apt->status));
+
+        $reason = $apt->cancellation_reason
+            ? ucwords(str_replace('_', ' ', $apt->cancellation_reason))
+            : ($apt->no_show_notes ?? '');
+
+        $rows[] = [
+            '#' . ($apt->reference_number ?? $apt->id),
+            $apt->appointment_date ? Carbon::parse($apt->appointment_date)->format('Y-m-d') : 'N/A',
+            $apt->start_time ? Carbon::parse($apt->start_time)->format('g:i A') : 'N/A',
+            $customerName,
+            $customerPhone,
+            $customerType,
+            $servicesList,
+            $staffName,
+            $roomName,
+            $formattedStatus,
+            number_format($total, 2, '.', ''),
+            number_format($paid, 2, '.', ''),
+            number_format($balance, 2, '.', ''),
+            $paymentStatus,
+            $reason,
+        ];
+    }
+
+    $format = strtolower($request->query('format', 'csv'));
+    if ($format === 'xlsx') {
+        $xlsxService = app(\App\Services\XlsxSpreadsheetService::class);
+        $binary = $xlsxService->generateReport('Appointments Report', $headers, $rows, $meta);
+        return $xlsxService->downloadResponse('appointments-report-' . now()->format('Y-m-d') . '.xlsx', $binary);
+    }
+
+    $filename = 'appointments-report-' . now()->format('Y-m-d') . '.csv';
+
+    return $csvService->stream($filename, $headers, $rows, $meta);
+}
+
+    public function appointmentReportXlsx(Request $request, CsvExportService $csvService)
+    {
+        $request->merge(['format' => 'xlsx']);
+        return $this->appointmentReportCsv($request, $csvService);
+    }
 
     private function authorizeRoomTracking(): void
     {

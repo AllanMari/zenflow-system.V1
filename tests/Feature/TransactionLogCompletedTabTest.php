@@ -350,4 +350,74 @@ class TransactionLogCompletedTabTest extends TestCase
         $this->assertArrayHasKey('totalFiltered', $data);
         $this->assertArrayHasKey('pagination', $data);
     }
+
+    // -------------------------------------------------------------------------
+    // Test: Treatment and Medical Notes in Transaction Log
+    // -------------------------------------------------------------------------
+
+    public function test_transaction_log_exposes_treatment_and_medical_notes(): void
+    {
+        $date = Carbon::today()->toDateString();
+
+        $this->customer->update(['medical_notes' => 'Severe lavender allergy']);
+
+        $appt = $this->appt(600.00, $date);
+        $appt->update([
+            'treatment_notes' => 'Focus on lower back tension and neck',
+            'notes'           => 'Prefers room at back',
+        ]);
+        $this->pay($appt, 600.00, 'full');
+
+        $data = $this->txData($date, 'completed');
+        $this->assertNotEmpty($data['rows']);
+
+        $row = $data['rows'][0];
+        $this->assertEquals('Focus on lower back tension and neck', $row['treatmentNotes']);
+        $this->assertEquals('Severe lavender allergy', $row['medicalNotes']);
+        $this->assertEquals('Prefers room at back', $row['noteText']);
+
+        // View assertion to ensure single checkmark badge renders with separate hover notes
+        $view = $this->view('shared._transaction_log_table', [
+            'currentStatus' => 'completed',
+            'txLogData'     => $data,
+        ]);
+
+        $view->assertSee('tx-com-badge', false);
+        $view->assertSee('data-treatment="Focus on lower back tension and neck"', false);
+        $view->assertSee('data-medical="Severe lavender allergy"', false);
+        $view->assertSee('data-operational="Prefers room at back"', false);
+        // Ensure no title attribute is placed on badge to prevent Chrome native tooltip overlay
+        $this->assertStringNotContainsString('title="', (string) $view);
+    }
+
+    public function test_transaction_log_shows_dash_when_no_notes_exist(): void
+    {
+        $date = Carbon::today()->toDateString();
+
+        $this->customer->update(['medical_notes' => null]);
+
+        $appt = $this->appt(600.00, $date);
+        $appt->update([
+            'treatment_notes' => null,
+            'notes'           => null,
+        ]);
+        $this->pay($appt, 600.00, 'full');
+
+        $data = $this->txData($date, 'completed');
+        $this->assertNotEmpty($data['rows']);
+
+        $row = $data['rows'][0];
+        $this->assertEmpty($row['treatmentNotes']);
+        $this->assertEmpty($row['medicalNotes']);
+        $this->assertEmpty($row['noteText']);
+
+        $view = $this->view('shared._transaction_log_table', [
+            'currentStatus' => 'completed',
+            'txLogData'     => $data,
+        ]);
+
+        $this->assertStringNotContainsString('Treatment Notes:', (string) $view);
+        $this->assertStringNotContainsString('Medical Notes:', (string) $view);
+        $view->assertSee('—');
+    }
 }

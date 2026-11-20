@@ -50,6 +50,35 @@
         background: rgba(99, 102, 241, 0.2);
     }
 
+    /* Floating services card on hover */
+    .appt-floating-services-card {
+        position: fixed;
+        z-index: 99999;
+        width: 320px;
+        max-width: calc(100vw - 24px);
+        background: #ffffff;
+        color: #1e293b;
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        padding: 0.875rem;
+        font-family: inherit;
+        pointer-events: none;
+        animation: apptFadeIn 0.15s ease-out;
+    }
+
+    .dark .appt-floating-services-card {
+        background: #0f172a;
+        color: #f8fafc;
+        border-color: #334155;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    }
+
+    @keyframes apptFadeIn {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
     .dark .ts-control input {
         color: white !important;
     }
@@ -731,6 +760,50 @@
 
                     </a>
 
+                    {{-- XLSX EXPORT --}}
+                    <a
+                        href="{{ route('admin.appointments.report-xlsx', request()->query()) }}"
+                        class="inline-flex items-center justify-center gap-2
+                               h-10 px-3.5
+                               rounded-xl
+                               bg-teal-600 hover:bg-teal-700
+                               text-white
+                               text-xs font-bold
+                               shadow-sm hover:shadow
+                               transition"
+                    >
+                        <svg class="w-4 h-4"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                        </svg>
+                        Export Excel (.xlsx)
+                    </a>
+
+                    {{-- CSV EXPORT --}}
+                    <a
+                        href="{{ route('admin.appointments.report-csv', request()->query()) }}"
+                        class="inline-flex items-center justify-center gap-2
+                               h-10 px-3.5
+                               rounded-xl
+                               bg-emerald-600 hover:bg-emerald-700
+                               text-white
+                               text-xs font-bold
+                               shadow-sm hover:shadow
+                               transition"
+                    >
+                        <svg class="w-4 h-4"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                        </svg>
+                        Export CSV
+                    </a>
+
                 </div>
 
             </div>
@@ -1075,56 +1148,63 @@
                             <td class="px-5 py-4">
 
                                 @if($appt->services->count())
+                                    @php
+                                        $servicesData = $appt->services->map(function ($s) {
+                                            return [
+                                                'id' => $s->id,
+                                                'name' => $s->name,
+                                                'duration' => $s->pivot->service_duration ?? $s->duration_minutes ?? 60,
+                                                'price' => (float) ($s->pivot->price_at_booking ?? $s->price),
+                                                'is_extra' => (bool) ($s->pivot->is_extra ?? false),
+                                                'category' => $s->category?->name ?? 'Spa Service',
+                                            ];
+                                        });
+                                        $customerName = $appt->customer ? $appt->customer->full_name : ($appt->guest_first_name . ' ' . $appt->guest_last_name);
+                                        $payload = [
+                                            'ref' => '#' . ($appt->reference_number ?? $appt->id),
+                                            'customer' => $customerName,
+                                            'date' => $appt->appointment_date ? \Carbon\Carbon::parse($appt->appointment_date)->format('M d, Y') : '',
+                                            'time' => $appt->start_time ? \Carbon\Carbon::parse($appt->start_time)->format('g:i A') : '',
+                                            'total_services' => $appt->services->count(),
+                                            'total_price' => (float) ($appt->total_price ?? 0),
+                                            'services' => $servicesData,
+                                        ];
+                                        $encodedServices = base64_encode(json_encode($payload));
+                                        $totalCount = $appt->services->count();
+                                    @endphp
 
-                                    <div class="flex flex-wrap gap-1.5
-                                                max-w-[260px]">
+                                    <div class="flex flex-wrap items-center gap-1.5 max-w-[280px]">
 
                                         @foreach($appt->services->take(2) as $service)
-
-                                            <span class="inline-flex
-                                                         items-center
-                                                         px-2.5 py-1
-                                                         rounded-lg
-                                                         bg-brand-50
-                                                         dark:bg-brand-900/20
-                                                         border
-                                                         border-brand-100
-                                                         dark:border-brand-800
-                                                         text-[10px]
-                                                         font-bold
-                                                         text-brand-700
-                                                         dark:text-brand-300">
-
-                                                {{ $service->name }}
-
-                                            </span>
-
+                                            <button type="button"
+                                                    class="appt-service-pill inline-flex items-center px-2.5 py-1 rounded-lg bg-brand-50 hover:bg-brand-100/80 dark:bg-brand-900/20 dark:hover:bg-brand-900/40 border border-brand-100 dark:border-brand-800 text-[10px] font-bold text-brand-700 dark:text-brand-300 transition cursor-pointer text-left active:scale-95"
+                                                    data-services="{{ $encodedServices }}"
+                                                    title="Click or hover to view all booked services">
+                                                <span>{{ $service->name }}</span>
+                                                @if(!empty($service->pivot->is_extra))
+                                                    <span class="ml-1 text-[9px] text-amber-600 dark:text-amber-400 font-extrabold" title="Added Extra Service">(Extra)</span>
+                                                @endif
+                                            </button>
                                         @endforeach
 
-                                        @if($appt->services->count() > 2)
-
-                                            <span class="inline-flex
-                                                         items-center
-                                                         px-2 py-1
-                                                         rounded-lg
-                                                         bg-gray-100
-                                                         dark:bg-gray-800
-                                                         text-[10px]
-                                                         font-bold
-                                                         text-gray-500
-                                                         dark:text-gray-400">
-
-                                                +{{ $appt->services->count() - 2 }}
-
-                                            </span>
-
+                                        @if($totalCount > 2)
+                                            <button type="button"
+                                                    class="appt-services-trigger inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-100 dark:bg-brand-900/40 hover:bg-brand-200 dark:hover:bg-brand-800/60 border border-brand-300/60 dark:border-brand-700/60 text-[10px] font-black text-brand-800 dark:text-brand-200 transition-all cursor-pointer shadow-xs active:scale-95"
+                                                    data-services="{{ $encodedServices }}"
+                                                    aria-label="View all {{ $totalCount }} services"
+                                                    title="Click or hover to view all {{ $totalCount }} services">
+                                                <span>+{{ $totalCount - 2 }} more</span>
+                                                <svg class="w-3 h-3 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                                </svg>
+                                            </button>
                                         @endif
 
                                     </div>
 
                                 @else
 
-                                    <span class="text-xs text-gray-400">
+                                    <span class="text-xs text-gray-400 italic">
                                         No service listed
                                     </span>
 
@@ -1422,6 +1502,49 @@
 
     </div>
 
+</div>
+
+{{-- All Services Details Modal --}}
+<div id="apptServicesModal" class="fixed inset-0 z-[10000] hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-xs transition-opacity" onclick="closeApptServicesModal()"></div>
+    <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+        <div class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-gray-900 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-lg border border-gray-100 dark:border-gray-800">
+            <!-- Modal Header -->
+            <div class="bg-gray-50/80 dark:bg-gray-800/60 px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span id="modalApptRef" class="font-mono text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded border border-brand-200 dark:border-brand-800">#REF</span>
+                        <h3 class="text-base font-bold text-gray-900 dark:text-white" id="modal-title">Booked Services &amp; Treatments</h3>
+                    </div>
+                    <p id="modalApptCustomer" class="text-xs text-gray-500 dark:text-gray-400 mt-1">Client Name • Date &amp; Time</p>
+                </div>
+                <button type="button" onclick="closeApptServicesModal()" class="rounded-xl p-1.5 text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Services List -->
+            <div class="px-6 py-4 max-h-[380px] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800" id="modalServicesList">
+                <!-- Dynamically populated -->
+            </div>
+
+            <!-- Modal Footer with Totals -->
+            <div class="bg-gray-50/80 dark:bg-gray-800/60 px-6 py-3.5 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                <div>
+                    <span id="modalTotalDuration" class="text-xs font-medium text-gray-500 dark:text-gray-400">Total Duration: 0 mins</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="text-right">
+                        <span class="text-[11px] text-gray-400 block">Total Services Value</span>
+                        <span id="modalTotalPrice" class="text-sm font-black text-gray-900 dark:text-white">₱0.00</span>
+                    </div>
+                    <button type="button" onclick="closeApptServicesModal()" class="inline-flex justify-center rounded-xl bg-gray-200 dark:bg-gray-700 px-4 py-2 text-xs font-semibold text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @endsection
@@ -1733,6 +1856,170 @@ document.addEventListener('DOMContentLoaded', function () {
         );
 
     }
+
+    // ─── SERVICES HOVER POPOVER & DETAILS MODAL CONTROLLER ───
+    let activeServicesCard = null;
+
+    function showServicesHoverCard(triggerEl) {
+        if (!triggerEl.dataset.services) return;
+        let data;
+        try {
+            data = JSON.parse(atob(triggerEl.dataset.services));
+        } catch (e) {
+            return;
+        }
+        if (!data || !data.services || !data.services.length) return;
+
+        hideServicesHoverCard();
+
+        const card = document.createElement('div');
+        card.className = 'appt-floating-services-card';
+
+        let html = `
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-100 dark:border-gray-800">
+                <div>
+                    <span class="text-xs font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                        <span>✨ Booked Services (${data.total_services})</span>
+                    </span>
+                    <span class="text-[10px] text-gray-400 font-mono">${data.ref} • ${data.customer}</span>
+                </div>
+                <span class="text-[11px] font-black text-brand-600 dark:text-brand-400 font-mono">₱${Number(data.total_price).toFixed(2)}</span>
+            </div>
+            <div class="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+        `;
+
+        data.services.forEach((s, idx) => {
+            const extraBadge = s.is_extra
+                ? `<span class="ml-1 text-[9px] px-1 py-0.2 rounded font-extrabold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700">Extra</span>`
+                : '';
+            html += `
+                <div class="p-2 rounded-lg bg-gray-50/80 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700/50 flex items-start justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">${idx + 1}. ${s.name}${extraBadge}</p>
+                        <p class="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
+                            <span>⏱ ${s.duration} mins</span>
+                            <span>• ${s.category}</span>
+                        </p>
+                    </div>
+                    <span class="text-xs font-bold text-gray-900 dark:text-gray-200 shrink-0 font-mono">₱${Number(s.price).toFixed(2)}</span>
+                </div>
+            `;
+        });
+
+        html += `
+            </div>
+            <div class="pt-2 mt-2 border-t border-gray-100 dark:border-gray-800 text-[10px] text-gray-400 flex items-center justify-between">
+                <span>💡 Click to open full details modal</span>
+                <span class="font-mono">Esc to dismiss</span>
+            </div>
+        `;
+
+        card.innerHTML = html;
+        document.body.appendChild(card);
+        activeServicesCard = card;
+
+        // Position popup next to trigger element
+        const rect = triggerEl.getBoundingClientRect();
+        const cardRect = card.getBoundingClientRect();
+
+        let top = rect.bottom + 8;
+        let left = rect.left;
+
+        if (top + cardRect.height > window.innerHeight - 12) {
+            top = Math.max(12, rect.top - cardRect.height - 8);
+        }
+        if (left + cardRect.width > window.innerWidth - 12) {
+            left = window.innerWidth - cardRect.width - 12;
+        }
+        if (left < 12) left = 12;
+
+        card.style.top = `${top}px`;
+        card.style.left = `${left}px`;
+    }
+
+    function hideServicesHoverCard() {
+        if (activeServicesCard) {
+            activeServicesCard.remove();
+            activeServicesCard = null;
+        }
+    }
+
+    window.openApptServicesModal = function (data) {
+        hideServicesHoverCard();
+        const modal = document.getElementById('apptServicesModal');
+        if (!modal) return;
+
+        document.getElementById('modalApptRef').textContent = data.ref || '#REF';
+        document.getElementById('modalApptCustomer').textContent = `${data.customer || 'Guest'} • ${data.date} ${data.time}`;
+
+        const list = document.getElementById('modalServicesList');
+        list.innerHTML = '';
+
+        let totalDuration = 0;
+        let totalPrice = 0;
+
+        data.services.forEach((s, idx) => {
+            totalDuration += Number(s.duration) || 0;
+            totalPrice += Number(s.price) || 0;
+
+            const row = document.createElement('div');
+            row.className = 'py-3 flex items-center justify-between gap-3';
+            row.innerHTML = `
+                <div class="flex items-start gap-2.5 min-w-0">
+                    <span class="shrink-0 w-6 h-6 rounded-full bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 text-xs font-bold flex items-center justify-center">
+                        ${idx + 1}
+                    </span>
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <p class="text-sm font-bold text-gray-900 dark:text-white truncate">${s.name}</p>
+                            ${s.is_extra ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700">Extra</span>' : ''}
+                        </div>
+                        <p class="text-xs text-gray-400 mt-0.5">${s.category} • ${s.duration} minutes</p>
+                    </div>
+                </div>
+                <span class="text-sm font-bold text-gray-900 dark:text-white font-mono shrink-0">₱${Number(s.price).toFixed(2)}</span>
+            `;
+            list.appendChild(row);
+        });
+
+        const hours = Math.floor(totalDuration / 60);
+        const mins = totalDuration % 60;
+        const durationLabel = hours > 0 ? `${hours} hr${hours > 1 ? 's' : ''} ${mins > 0 ? mins + ' mins' : ''}` : `${mins} mins`;
+
+        document.getElementById('modalTotalDuration').textContent = `Total Combined Duration: ${durationLabel} (${totalDuration} mins)`;
+        document.getElementById('modalTotalPrice').textContent = `₱${Number(data.total_price || totalPrice).toFixed(2)}`;
+
+        modal.classList.remove('hidden');
+    };
+
+    window.closeApptServicesModal = function () {
+        const modal = document.getElementById('apptServicesModal');
+        if (modal) modal.classList.add('hidden');
+    };
+
+    // Attach hover and click listeners
+    document.querySelectorAll('[data-services]').forEach(el => {
+        el.addEventListener('mouseenter', function () {
+            showServicesHoverCard(this);
+        });
+        el.addEventListener('mouseleave', function () {
+            hideServicesHoverCard();
+        });
+        el.addEventListener('click', function (e) {
+            e.stopPropagation();
+            try {
+                const data = JSON.parse(atob(this.dataset.services));
+                window.openApptServicesModal(data);
+            } catch (err) {}
+        });
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            hideServicesHoverCard();
+            window.closeApptServicesModal();
+        }
+    });
 
 });
 

@@ -199,6 +199,18 @@
             }
             this.salesReportModalOpen = false;
         },
+        exportSalesXlsx() {
+            const params = new URLSearchParams(window.location.search);
+            const url = '{{ route($routeName . '.daily-report-xlsx') }}?' + params.toString();
+            window.location.href = url;
+            this.salesReportModalOpen = false;
+        },
+        exportSalesCsv() {
+            const params = new URLSearchParams(window.location.search);
+            const url = '{{ route($routeName . '.daily-report-csv') }}?' + params.toString();
+            window.location.href = url;
+            this.salesReportModalOpen = false;
+        },
         generateBusinessReport(action) {
             const params = new URLSearchParams(window.location.search);
             params.set('action', action);
@@ -213,6 +225,18 @@
             } else {
                 window.location.href = url;
             }
+            this.businessReportModalOpen = false;
+        },
+        exportBusinessXlsx() {
+            const params = new URLSearchParams(window.location.search);
+            const url = '{{ route($routeName . '.business-report-xlsx') }}?' + params.toString();
+            window.location.href = url;
+            this.businessReportModalOpen = false;
+        },
+        exportBusinessCsv() {
+            const params = new URLSearchParams(window.location.search);
+            const url = '{{ route($routeName . '.business-report-csv') }}?' + params.toString();
+            window.location.href = url;
             this.businessReportModalOpen = false;
         }
     }"
@@ -582,6 +606,14 @@
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
                         Download PDF
                     </button>
+                    <button type="button" @click="exportBusinessXlsx()" class="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 shadow-sm">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                        Export Excel (.xlsx)
+                    </button>
+                    <button type="button" @click="exportBusinessCsv()" class="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 shadow-sm">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                        Export CSV
+                    </button>
                 </div>
             </div>
         </div>
@@ -597,6 +629,14 @@
                     <button type="button" @click="generateSalesReport('download')" class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 shadow-sm">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
                         Download PDF
+                    </button>
+                    <button type="button" @click="exportSalesXlsx()" class="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 shadow-sm">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                        Export Excel (.xlsx)
+                    </button>
+                    <button type="button" @click="exportSalesCsv()" class="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 shadow-sm">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                        Export CSV
                     </button>
                 </div>
             </div>

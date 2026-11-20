@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ReportPdfService;
+use App\Services\CsvExportService;
 use App\Models\Attendance;
 use App\Models\AttendanceLog;
 use App\Models\User;
@@ -652,6 +653,103 @@ class AttendanceController extends Controller
             $filename,
             'landscape'
         );
+    }
+
+    public function attendanceReportCsv(
+        Request $request,
+        CsvExportService $csvService
+    ) {
+        abort_unless(
+            auth()->user()->roles->contains('name', 'admin'),
+            403
+        );
+
+        $data = $this->buildReportData($request, false);
+
+        $dateRange = ($data['startDate'] ? $data['startDate']->format('M d, Y') : '') . ' — ' . ($data['endDate'] ? $data['endDate']->format('M d, Y') : '');
+        $statusFilter = $request->input('status', 'All Statuses');
+        $staffFilter = !empty($data['staff']) ? $data['staff']->full_name : (!empty($data['selectedStaff']) ? $data['selectedStaff']->full_name : 'All Staff');
+
+        $meta = [
+            ['ZENFLOW REPORT', 'ATTENDANCE REPORT'],
+            ['REFERENCE NUMBER', 'ATT-' . now()->format('YmdHis')],
+            ['DATE RANGE', $dateRange],
+            ['STAFF FILTER', $staffFilter],
+            ['STATUS FILTER', $statusFilter ?: 'All Statuses'],
+            ['GENERATED AT', now('Asia/Manila')->format('F d, Y g:i A')],
+            ['PREPARED BY', trim(auth()->user()->first_name . ' ' . auth()->user()->last_name)],
+        ];
+
+        $headers = [
+            'Staff Name',
+            'Staff Username',
+            'Role / Position',
+            'Date',
+            'Status',
+            'Time In',
+            'Time Out',
+            'Work Duration',
+            'Marked By',
+            'Notes',
+        ];
+
+        $rows = [];
+        foreach ($data['attendances'] as $att) {
+            $staffUser = $att->user;
+            $roles = $staffUser && $staffUser->roles ? $staffUser->roles->pluck('name')->map(fn($r) => ucfirst($r))->implode(', ') : 'Staff';
+            $markerName = $att->marker ? $att->marker->full_name : 'System';
+
+            // Calculate duration if check in and out exist
+            $workDuration = '—';
+            if ($att->check_in && $att->check_out) {
+                try {
+                    $in = Carbon::parse($att->date->toDateString() . ' ' . $att->check_in);
+                    $out = Carbon::parse($att->date->toDateString() . ' ' . $att->check_out);
+                    if ($out->greaterThan($in)) {
+                        $diff = $in->diff($out);
+                        $workDuration = sprintf('%dh %02dm', $diff->h, $diff->i);
+                    }
+                } catch (\Throwable $e) {}
+            }
+
+            $rows[] = [
+                $staffUser ? $staffUser->full_name : 'N/A',
+                $staffUser ? $staffUser->username : 'N/A',
+                $roles,
+                $att->date ? $att->date->format('Y-m-d') : 'N/A',
+                ucfirst(str_replace('_', ' ', (string) $att->status)),
+                $att->check_in ? (function () use ($att) {
+                    try { return Carbon::parse($att->check_in)->format('g:i A'); }
+                    catch (\Throwable $e) { return $att->check_in; }
+                })() : '—',
+                $att->check_out ? (function () use ($att) {
+                    try { return Carbon::parse($att->check_out)->format('g:i A'); }
+                    catch (\Throwable $e) { return $att->check_out; }
+                })() : '—',
+                $workDuration,
+                $markerName,
+                $att->notes ?? '',
+            ];
+        }
+
+        $format = strtolower($request->query('format', 'csv'));
+        if ($format === 'xlsx') {
+            $xlsxService = app(\App\Services\XlsxSpreadsheetService::class);
+            $binary = $xlsxService->generateReport('Attendance Report', $headers, $rows, $meta);
+            return $xlsxService->downloadResponse('attendance-report-' . now()->format('Y-m-d') . '.xlsx', $binary);
+        }
+
+        $filename = 'attendance-report-' . now()->format('Y-m-d') . '.csv';
+
+        return $csvService->stream($filename, $headers, $rows, $meta);
+    }
+
+    public function attendanceReportXlsx(
+        Request $request,
+        CsvExportService $csvService
+    ) {
+        $request->merge(['format' => 'xlsx']);
+        return $this->attendanceReportCsv($request, $csvService);
     }
 
     // ============================================================

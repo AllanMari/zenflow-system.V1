@@ -151,6 +151,7 @@ class SalesAnalyticsService
             'payments',
             'customer',
             'staff',
+            'assignedStaff',
             'services',
             'room',
         ])
@@ -625,6 +626,7 @@ class SalesAnalyticsService
             'appointment.customer',
             'appointment.services',
             'appointment.staff',
+            'appointment.assignedStaff',
             'appointment.room',
             'appointment.payments',
         ])
@@ -766,6 +768,7 @@ class SalesAnalyticsService
             'customer',
             'services',
             'staff',
+            'assignedStaff',
             'room',
             'payments',
         ])
@@ -885,12 +888,24 @@ class SalesAnalyticsService
                     true
                 )
             ) {
-                $staffName = $appt->staff->full_name
-                    ?? 'Unassigned';
+                $therapists = $this->getAssignedTherapists($appt);
+                if ($therapists->isEmpty()) {
+                    $staffName = 'Unassigned';
+                    $staffRevenue[$staffName] =
+                        ($staffRevenue[$staffName] ?? 0)
+                        + (float) $payment->amount;
+                } else {
+                    $count = $therapists->count();
+                    $totalCents = (int) round((float) $payment->amount * 100);
+                    $baseCents = intdiv($totalCents, $count);
+                    $remCents = $totalCents % $count;
 
-                $staffRevenue[$staffName] =
-                    ($staffRevenue[$staffName] ?? 0)
-                    + (float) $payment->amount;
+                    foreach ($therapists as $idx => $therapist) {
+                        $sName = $therapist->full_name ?? $therapist->name ?? 'Unnamed Staff';
+                        $share = ($baseCents + ($idx < $remCents ? 1 : 0)) / 100;
+                        $staffRevenue[$sName] = ($staffRevenue[$sName] ?? 0) + $share;
+                    }
+                }
             }
 
             /*
@@ -986,6 +1001,54 @@ class SalesAnalyticsService
 
     /*
     |--------------------------------------------------------------------------
+    | Helper: Resolve all assigned therapists for an appointment (primary + assisting)
+    |--------------------------------------------------------------------------
+    */
+    private function getAssignedTherapists(?Appointment $appt): Collection
+    {
+        if (!$appt) {
+            return collect();
+        }
+
+        $therapists = collect();
+
+        if ($appt->relationLoaded('assignedStaff') && $appt->assignedStaff->isNotEmpty()) {
+            $therapists = $appt->assignedStaff;
+        } elseif ($appt->relationLoaded('staff') && $appt->staff) {
+            $therapists = collect([$appt->staff]);
+        } elseif ($appt->staff) {
+            $therapists = collect([$appt->staff]);
+        } else {
+            $loadedAssigned = $appt->assignedStaff;
+            if ($loadedAssigned && $loadedAssigned->isNotEmpty()) {
+                $therapists = $loadedAssigned;
+            } elseif ($appt->staff) {
+                $therapists = collect([$appt->staff]);
+            }
+        }
+
+        if ($appt->staff && !$therapists->contains('id', $appt->staff->id)) {
+            $therapists = collect([$appt->staff])->merge($therapists);
+        }
+
+        $therapists = $therapists->unique('id');
+
+        // Order primary therapist first for deterministic remainder cent allocation
+        $primary = $therapists->first(function ($t) use ($appt) {
+            return ($t->pivot?->role === 'primary') || ($t->id === $appt->user_id);
+        });
+
+        if ($primary) {
+            return collect([$primary])
+                ->merge($therapists->reject(fn ($t) => $t->id === $primary->id))
+                ->values();
+        }
+
+        return $therapists->values();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | NEW: Staff Performance
     |--------------------------------------------------------------------------
     */
@@ -996,59 +1059,64 @@ class SalesAnalyticsService
         $staff = [];
 
         /*
-        | First create staff records from appointments.
+        | First create staff records from appointments (crediting all assigned therapists).
         */
         foreach ($appointments as $appt) {
-            if (!$appt->staff) {
+            $therapists = $this->getAssignedTherapists($appt);
+            if ($therapists->isEmpty()) {
                 continue;
             }
 
-            $staffId = $appt->staff->id;
-            $staffName = $appt->staff->full_name
-                ?? $appt->staff->name
-                ?? 'Unnamed Staff';
+            foreach ($therapists as $therapist) {
+                $staffId = $therapist->id;
+                $staffName = $therapist->full_name
+                    ?? $therapist->name
+                    ?? 'Unnamed Staff';
 
-            if (!isset($staff[$staffId])) {
-                $staff[$staffId] = [
-                    'id' => $staffId,
-                    'name' => $staffName,
-                    'appointments' => 0,
-                    'completed' => 0,
-                    'cancelled' => 0,
-                    'no_shows' => 0,
-                    'services' => 0,
-                    'revenue' => 0,
-                    'commission' => 0,
-                    'completion_rate' => 0,
-                    'avg_revenue' => 0,
-                ];
-            }
+                if (!isset($staff[$staffId])) {
+                    $staff[$staffId] = [
+                        'id' => $staffId,
+                        'name' => $staffName,
+                        'appointments' => 0,
+                        'completed' => 0,
+                        'cancelled' => 0,
+                        'no_shows' => 0,
+                        'services' => 0,
+                        'revenue' => 0,
+                        'commission' => 0,
+                        'completion_rate' => 0,
+                        'avg_revenue' => 0,
+                    ];
+                }
 
-            $staff[$staffId]['appointments']++;
+                $staff[$staffId]['appointments']++;
 
-            if ($appt->status === 'completed') {
-                $staff[$staffId]['completed']++;
-            }
+                if ($appt->status === 'completed') {
+                    $staff[$staffId]['completed']++;
+                }
 
-            if ($appt->status === 'cancelled' && $appt->cancellation_reason !== 'customer_no_show') {
-                $staff[$staffId]['cancelled']++;
-            }
-            if ($appt->status === 'no_show' || ($appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show')) {
-                $staff[$staffId]['no_shows']++;
-            }
+                if ($appt->status === 'cancelled' && $appt->cancellation_reason !== 'customer_no_show') {
+                    $staff[$staffId]['cancelled']++;
+                }
+                if ($appt->status === 'no_show' || ($appt->status === 'cancelled' && $appt->cancellation_reason === 'customer_no_show')) {
+                    $staff[$staffId]['no_shows']++;
+                }
 
-            /*
-            | Services actually handled by the staff.
-            | We count services on completed appointments.
-            */
-            if ($appt->status === 'completed') {
-                $staff[$staffId]['services'] +=
-                    $appt->services->count();
+                /*
+                | Services actually handled by the staff.
+                | We count services on completed appointments.
+                */
+                if ($appt->status === 'completed') {
+                    $staff[$staffId]['services'] +=
+                        $appt->services->count();
+                }
             }
         }
 
         /*
-        | Add actual collected service revenue.
+        | Add actual collected service revenue and commission.
+        | Revenue and commission are split equally among all assigned therapists,
+        | with any indivisible remainder cents allocated deterministically to the primary therapist.
         */
         foreach ($payments as $payment) {
             if (
@@ -1067,32 +1135,47 @@ class SalesAnalyticsService
 
             $appt = $payment->appointment;
 
-            if (!$appt || !$appt->staff) {
+            if (!$appt) {
                 continue;
             }
 
             /*
             | Only completed appointments contribute to
-            | staff service revenue.
+            | staff service revenue and commission.
             */
             if ($appt->status !== 'completed') {
                 continue;
             }
 
-            $staffId = $appt->staff->id;
-
-            /*
-            | The appointment may fall within the selected
-            | appointment period but the payment may be
-            | outside the range. Only staff already represented
-            | in the period are included.
-            */
-            if (!isset($staff[$staffId])) {
+            $therapists = $this->getAssignedTherapists($appt);
+            if ($therapists->isEmpty()) {
                 continue;
             }
 
-            $staff[$staffId]['revenue'] +=
-                (float) $payment->amount;
+            $count = $therapists->count();
+            $paymentAmount = (float) $payment->amount;
+
+            // Integer cent arithmetic for exact penny reconciliation
+            $totalRevCents = (int) round($paymentAmount * 100);
+            $baseRevCents = intdiv($totalRevCents, $count);
+            $remRevCents = $totalRevCents % $count;
+
+            $totalComCents = (int) round($paymentAmount * self::COMMISSION_RATE * 100);
+            $baseComCents = intdiv($totalComCents, $count);
+            $remComCents = $totalComCents % $count;
+
+            foreach ($therapists as $idx => $therapist) {
+                $staffId = $therapist->id;
+                if (!isset($staff[$staffId])) {
+                    continue;
+                }
+
+                $revShareCents = $baseRevCents + ($idx < $remRevCents ? 1 : 0);
+                $comShareCents = $baseComCents + ($idx < $remComCents ? 1 : 0);
+
+                $staff[$staffId]['revenue'] += ($revShareCents / 100);
+                $staff[$staffId]['commission'] += ($comShareCents / 100);
+            }
         }
 
         /*
@@ -1112,15 +1195,11 @@ class SalesAnalyticsService
 
             $record['avg_revenue'] =
                 $record['completed'] > 0
-                    ? $record['revenue']
-                        / $record['completed']
+                    ? round($record['revenue'] / $record['completed'], 2)
                     : 0;
 
-            $record['commission'] =
-                $record['revenue'] > 0
-                    ? $record['revenue']
-                        * self::COMMISSION_RATE
-                    : 0;
+            $record['revenue'] = round($record['revenue'], 2);
+            $record['commission'] = round($record['commission'], 2);
         }
 
         unset($record);
@@ -1156,51 +1235,54 @@ class SalesAnalyticsService
         $staff = [];
 
         foreach ($appointments as $appt) {
-            if (!$appt->staff) {
+            $therapists = $this->getAssignedTherapists($appt);
+            if ($therapists->isEmpty()) {
                 continue;
             }
 
-            $staffId = $appt->staff->id;
-            $staffName = $appt->staff->full_name
-                ?? $appt->staff->name
-                ?? 'Unnamed Staff';
+            foreach ($therapists as $therapist) {
+                $staffId = $therapist->id;
+                $staffName = $therapist->full_name
+                    ?? $therapist->name
+                    ?? 'Unnamed Staff';
 
-            if (!isset($staff[$staffId])) {
-                $staff[$staffId] = [
-                    'id' => $staffId,
-                    'name' => $staffName,
-                    'appointments' => 0,
-                    'completed' => 0,
-                    'service_minutes' => 0,
-                    'clocked_minutes' => 0,
-                    'clocked_hours' => 0,
-                    'utilization' => 0,
-                    'revenue' => 0,
-                    'revenue_per_hour' => 0,
-                ];
+                if (!isset($staff[$staffId])) {
+                    $staff[$staffId] = [
+                        'id' => $staffId,
+                        'name' => $staffName,
+                        'appointments' => 0,
+                        'completed' => 0,
+                        'service_minutes' => 0,
+                        'clocked_minutes' => 0,
+                        'clocked_hours' => 0,
+                        'utilization' => 0,
+                        'revenue' => 0,
+                        'revenue_per_hour' => 0,
+                    ];
+                }
+
+                $staff[$staffId]['appointments']++;
+
+                if ($appt->status !== 'completed') {
+                    continue;
+                }
+
+                $staff[$staffId]['completed']++;
+
+                if (!$appt->start_time || !$appt->end_time) {
+                    continue;
+                }
+
+                $start = Carbon::parse($appt->start_time);
+                $end = Carbon::parse($appt->end_time);
+
+                if ($end->lessThanOrEqualTo($start)) {
+                    $end->addDay();
+                }
+
+                $staff[$staffId]['service_minutes'] +=
+                    $start->diffInMinutes($end);
             }
-
-            $staff[$staffId]['appointments']++;
-
-            if ($appt->status !== 'completed') {
-                continue;
-            }
-
-            $staff[$staffId]['completed']++;
-
-            if (!$appt->start_time || !$appt->end_time) {
-                continue;
-            }
-
-            $start = Carbon::parse($appt->start_time);
-            $end = Carbon::parse($appt->end_time);
-
-            if ($end->lessThanOrEqualTo($start)) {
-                $end->addDay();
-            }
-
-            $staff[$staffId]['service_minutes'] +=
-                $start->diffInMinutes($end);
         }
 
         foreach ($payments as $payment) {
@@ -1218,7 +1300,7 @@ class SalesAnalyticsService
 
             $appt = $payment->appointment;
 
-            if (!$appt || !$appt->staff) {
+            if (!$appt) {
                 continue;
             }
 
@@ -1226,14 +1308,24 @@ class SalesAnalyticsService
                 continue;
             }
 
-            $staffId = $appt->staff->id;
-
-            if (!isset($staff[$staffId])) {
+            $therapists = $this->getAssignedTherapists($appt);
+            if ($therapists->isEmpty()) {
                 continue;
             }
 
-            $staff[$staffId]['revenue'] +=
-                (float) $payment->amount;
+            $count = $therapists->count();
+            $totalRevCents = (int) round((float) $payment->amount * 100);
+            $baseRevCents = intdiv($totalRevCents, $count);
+            $remRevCents = $totalRevCents % $count;
+
+            foreach ($therapists as $idx => $therapist) {
+                $staffId = $therapist->id;
+                if (!isset($staff[$staffId])) {
+                    continue;
+                }
+                $revShareCents = $baseRevCents + ($idx < $remRevCents ? 1 : 0);
+                $staff[$staffId]['revenue'] += ($revShareCents / 100);
+            }
         }
 
         $attendances = Attendance::with('user')
@@ -1299,6 +1391,7 @@ class SalesAnalyticsService
                     )
                     : 0;
 
+            $record['revenue'] = round($record['revenue'], 2);
             $record['revenue_per_hour'] =
                 $record['clocked_hours'] > 0
                     ? round(
@@ -2043,6 +2136,7 @@ private function getNoShowData(
             'customer',
             'services',
             'staff',
+            'assignedStaff',
             'room',
             'payments',
         ])
@@ -2166,13 +2260,18 @@ private function getNoShowData(
                 ])->filter()->implode(' — ')
             );
 
+            $therapists = $this->getAssignedTherapists($appt);
+            $staffName = $therapists->isNotEmpty()
+                ? $therapists->map(fn ($t) => $t->full_name ?? $t->name ?? 'Unnamed')->join(', ')
+                : 'Unassigned';
+
             $rows[] = [
                 'rowNum'          => $rowNum++,
                 'customerName'    => $appt->client_name ?: 'Walk-in',
                 'room'            => $appt->room->name ?? 'N/A',
                 'startTime'       => Carbon::parse($appt->start_time)->format('g:i A'),
                 'endTime'         => Carbon::parse($appt->end_time)->format('g:i A'),
-                'staffName'       => $appt->staff->full_name ?? 'Unassigned',
+                'staffName'       => $staffName,
                 'durationHrs'     => round($durationMinutes / 60, 1),
                 'serviceList'     => $serviceList,
                 'grossAmount'     => number_format($gross, 2),
@@ -2182,6 +2281,8 @@ private function getNoShowData(
                     : null,
                 'netAmount'       => number_format($net, 2),
                 'noteText'        => $noteText,
+                'treatmentNotes'  => trim($appt->treatment_notes ?? ''),
+                'medicalNotes'    => trim($appt->customer?->medical_notes ?? ''),
                 'comPct'          => (int) (self::COMMISSION_RATE * 100),
                 'therapistCom'    => number_format($commission, 2),
                 'filterKey'       => $appt->status,
@@ -2252,6 +2353,7 @@ private function getNoShowData(
             'customer',
             'services',
             'staff',
+            'assignedStaff',
             'room',
             'payments',
         ])
@@ -2384,13 +2486,18 @@ private function getNoShowData(
                 ])->filter()->implode(' — ')
             );
 
+            $therapists = $this->getAssignedTherapists($appt);
+            $staffName = $therapists->isNotEmpty()
+                ? $therapists->map(fn ($t) => $t->full_name ?? $t->name ?? 'Unnamed')->join(', ')
+                : 'Unassigned';
+
             $rows[] = [
                 'rowNum'          => $rowNum++,
                 'customerName'    => $appt->client_name ?: 'Walk-in',
                 'room'            => $appt->room->name ?? 'N/A',
                 'startTime'       => Carbon::parse($appt->start_time)->format('g:i A'),
                 'endTime'         => Carbon::parse($appt->end_time)->format('g:i A'),
-                'staffName'       => $appt->staff->full_name ?? 'Unassigned',
+                'staffName'       => $staffName,
                 'durationHrs'     => round($durationMinutes / 60, 1),
                 'serviceList'     => $serviceList,
                 'grossAmount'     => number_format($gross, 2),
@@ -2400,6 +2507,8 @@ private function getNoShowData(
                     : null,
                 'netAmount'       => number_format($net, 2),
                 'noteText'        => $noteText,
+                'treatmentNotes'  => trim($appt->treatment_notes ?? ''),
+                'medicalNotes'    => trim($appt->customer?->medical_notes ?? ''),
                 'comPct'          => (int) (self::COMMISSION_RATE * 100),
                 'therapistCom'    => number_format($commission, 2),
                 'filterKey'       => $appt->status,
@@ -2553,8 +2662,10 @@ private function getNoShowData(
 
             $net = max(0, $gross - $discount);
 
+            $therapists = $this->getAssignedTherapists($appt);
+
             $commission =
-                $appt->staff && $net > 0
+                $therapists->isNotEmpty() && $net > 0
                     ? $net * self::COMMISSION_RATE
                     : 0;
 
@@ -2580,6 +2691,10 @@ private function getNoShowData(
 
             $trueStatus = $appt->status;
 
+            $staffName = $therapists->isNotEmpty()
+                ? $therapists->map(fn ($t) => $t->full_name ?? $t->name ?? 'Unnamed')->join(', ')
+                : 'Unassigned';
+
             $rows[] = [
                 'rowNum' =>
                     $rowNum++,
@@ -2601,8 +2716,7 @@ private function getNoShowData(
                     )->format('g:i A'),
 
                 'staffName' =>
-                    $appt->staff->full_name
-                    ?? 'Unassigned',
+                    $staffName,
 
                 'durationHrs' =>
                     round(
@@ -2648,6 +2762,12 @@ private function getNoShowData(
 
                 'noteText' =>
                     $appt->notes ?? '',
+
+                'treatmentNotes' =>
+                    trim($appt->treatment_notes ?? ''),
+
+                'medicalNotes' =>
+                    trim($appt->customer?->medical_notes ?? ''),
 
                 'comPct' =>
                     (int) (
@@ -2739,9 +2859,11 @@ private function getNoShowData(
             $grandGross += $gross;
             $grandNet += $net;
 
+            $therapists = $this->getAssignedTherapists($appt);
+
             $grandCom +=
                 (
-                    $appt->staff
+                    $therapists->isNotEmpty()
                     && $net > 0
                 )
                     ? $net * self::COMMISSION_RATE
@@ -2990,13 +3112,24 @@ private function getNoShowData(
                     continue;
                 }
 
-                $staffName =
-                    $appt->staff->full_name
-                    ?? 'Unassigned';
+                $therapists = $this->getAssignedTherapists($appt);
+                if ($therapists->isEmpty()) {
+                    $staffName = 'Unassigned';
+                    $prevStaffRev[$staffName] =
+                        ($prevStaffRev[$staffName] ?? 0)
+                        + (float) $p->amount;
+                } else {
+                    $count = $therapists->count();
+                    $totalCents = (int) round((float) $p->amount * 100);
+                    $baseCents = intdiv($totalCents, $count);
+                    $remCents = $totalCents % $count;
 
-                $prevStaffRev[$staffName] =
-                    ($prevStaffRev[$staffName] ?? 0)
-                    + $p->amount;
+                    foreach ($therapists as $idx => $therapist) {
+                        $sName = $therapist->full_name ?? $therapist->name ?? 'Unnamed Staff';
+                        $share = ($baseCents + ($idx < $remCents ? 1 : 0)) / 100;
+                        $prevStaffRev[$sName] = ($prevStaffRev[$sName] ?? 0) + $share;
+                    }
+                }
 
                 $svcCount =
                     $appt->services->count();

@@ -12,6 +12,14 @@ $reportRoute = $isAdmin
 $pdfRoute = $isAdmin
     ? 'admin.service-popularity.pdf'
     : 'receptionist.service-popularity.pdf';
+
+$csvRoute = $isAdmin
+    ? 'admin.service-popularity.csv'
+    : 'receptionist.service-popularity.csv';
+
+$xlsxRoute = $isAdmin
+    ? 'admin.service-popularity.xlsx'
+    : 'receptionist.service-popularity.xlsx';
 @endphp
 
 {{-- =========================================================
@@ -176,6 +184,32 @@ CONTENT
             ></i>
 
             Download PDF
+        </a>
+
+        {{-- Export Excel XLSX --}}
+        <a
+            href="{{ route($xlsxRoute, request()->query()) }}"
+            class="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
+        >
+            <i
+                data-lucide="file-spreadsheet"
+                class="h-4 w-4"
+            ></i>
+
+            Export Excel (.xlsx)
+        </a>
+
+        {{-- Export CSV --}}
+        <a
+            href="{{ route($csvRoute, request()->query()) }}"
+            class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+        >
+            <i
+                data-lucide="file-spreadsheet"
+                class="h-4 w-4"
+            ></i>
+
+            Export CSV
         </a>
 
     </div>

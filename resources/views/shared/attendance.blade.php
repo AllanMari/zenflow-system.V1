@@ -39,6 +39,8 @@
             correct: @js(route('attendance.correct', ['staff' => '__ID__'])),
         },
         reportUrl: @js(route('attendance.report-pdf')),
+        reportCsvUrl: @js(route('attendance.report-csv')),
+        reportXlsxUrl: @js(route('attendance.report-xlsx')),
     })"
     x-cloak
     class="max-w-[85rem] px-4 pb-6 sm:px-6 lg:px-8 mx-auto"
@@ -1058,6 +1060,32 @@
                             Download PDF
                         </button>
 
+                        {{-- Export XLSX --}}
+                        <button
+                            type="button"
+                            @click="exportXlsx()"
+                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 shadow-sm"
+                        >
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                            </svg>
+
+                            Export Excel (.xlsx)
+                        </button>
+
+                        {{-- Export CSV --}}
+                        <button
+                            type="button"
+                            @click="exportCsv()"
+                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 shadow-sm"
+                        >
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                            </svg>
+
+                            Export CSV
+                        </button>
+
                     </div>
 
                 </div>
@@ -1843,6 +1871,56 @@ document.addEventListener('alpine:init', () => {
 
 
             window.location.href = url;
+        },
+
+        exportXlsx() {
+            if (this.report.range === 'custom') {
+                if (!this.report.start_date || !this.report.end_date) {
+                    attToast('Please select both a start date and end date.', 'warning');
+                    return;
+                }
+            }
+
+            const params = new URLSearchParams();
+            params.set('range', this.report.range);
+            if (this.report.status) {
+                params.set('status', this.report.status);
+            }
+            if (this.report.range === 'custom') {
+                params.set('start_date', this.report.start_date);
+                params.set('end_date', this.report.end_date);
+            }
+            if (this.report.checked_by) {
+                params.set('checked_by', this.report.checked_by);
+            }
+
+            window.location.href = this.reportXlsxUrl + '?' + params.toString();
+            this.reportModalOpen = false;
+        },
+
+        exportCsv() {
+            if (this.report.range === 'custom') {
+                if (!this.report.start_date || !this.report.end_date) {
+                    attToast('Please select both a start date and end date.', 'warning');
+                    return;
+                }
+            }
+
+            const params = new URLSearchParams();
+            params.set('range', this.report.range);
+            if (this.report.status) {
+                params.set('status', this.report.status);
+            }
+            if (this.report.range === 'custom') {
+                params.set('start_date', this.report.start_date);
+                params.set('end_date', this.report.end_date);
+            }
+            if (this.report.checked_by) {
+                params.set('checked_by', this.report.checked_by);
+            }
+
+            window.location.href = this.reportCsvUrl + '?' + params.toString();
+            this.reportModalOpen = false;
         },
 
 

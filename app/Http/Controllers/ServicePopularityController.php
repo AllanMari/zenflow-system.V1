@@ -7,6 +7,7 @@ use App\Models\AppointmentService;
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Services\ReportPdfService;
+use App\Services\CsvExportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -65,6 +66,99 @@ class ServicePopularityController extends Controller
                 $pdfData,
                 $filename
             );
+    }
+
+    public function csv(Request $request, CsvExportService $csvService)
+    {
+        $data = $this->buildReportData($request);
+
+        $meta = [
+            ['ZENFLOW REPORT', 'SERVICE POPULARITY BREAKDOWN REPORT'],
+            ['REFERENCE NUMBER', 'SP-' . now()->format('YmdHis')],
+            ['PERIOD / DATE RANGE', $data['dateDisplay']],
+            ['CATEGORY FILTER', $data['selectedCategoryName'] ?? 'All Categories'],
+            ['GENERATED AT', now($this->timezone)->format('F d, Y g:i A')],
+            ['PREPARED BY', Auth::user()->full_name ?? Auth::user()->name],
+        ];
+
+        // Section 1: Individual Services
+        $serviceRows = [];
+        $rank = 1;
+        foreach ($data['serviceBreakdown'] ?? [] as $svc) {
+            $serviceRows[] = [
+                $rank++,
+                $svc['name'] ?? 'N/A',
+                $svc['category'] ?? 'General',
+                $svc['count'] ?? 0,
+                number_format((float) ($svc['percentage'] ?? 0), 1) . '%',
+                number_format((float) ($svc['revenue'] ?? 0), 2, '.', ''),
+                number_format((float) ($svc['revenuePercentage'] ?? 0), 1) . '%',
+            ];
+        }
+
+        // Section 2: Packages
+        $packageRows = [];
+        $pkgRank = 1;
+        foreach ($data['packageBreakdown'] ?? [] as $pkg) {
+            $packageRows[] = [
+                $pkgRank++,
+                $pkg['name'] ?? 'N/A',
+                $pkg['category'] ?? 'Packages',
+                $pkg['count'] ?? 0,
+                number_format((float) ($pkg['percentage'] ?? 0), 1) . '%',
+                number_format((float) ($pkg['revenue'] ?? 0), 2, '.', ''),
+                number_format((float) ($pkg['revenuePercentage'] ?? 0), 1) . '%',
+            ];
+        }
+
+        // Section 3: Categories
+        $categoryRows = [];
+        foreach ($data['categoryBreakdown'] ?? [] as $cat) {
+            $categoryRows[] = [
+                $cat['name'] ?? 'N/A',
+                $cat['servicesCount'] ?? 0,
+                $cat['count'] ?? 0,
+                number_format((float) ($cat['revenue'] ?? 0), 2, '.', ''),
+                number_format((float) ($cat['revenuePercentage'] ?? 0), 1) . '%',
+            ];
+        }
+
+        $sections = [
+            [
+                'title' => 'INDIVIDUAL SERVICES POPULARITY BREAKDOWN',
+                'headers' => ['Rank', 'Service Name', 'Category', 'Bookings Count', 'Share of Bookings', 'Total Revenue (PHP)', 'Share of Revenue'],
+                'rows' => $serviceRows,
+            ],
+            [
+                'title' => 'PACKAGES POPULARITY BREAKDOWN',
+                'headers' => ['Rank', 'Package Name', 'Category', 'Bookings Count', 'Share of Bookings', 'Total Revenue (PHP)', 'Share of Revenue'],
+                'rows' => $packageRows,
+            ],
+            [
+                'title' => 'CATEGORY POPULARITY SUMMARY',
+                'headers' => ['Category Name', 'Services Count', 'Total Bookings', 'Total Revenue (PHP)', 'Share of Revenue'],
+                'rows' => $categoryRows,
+            ],
+        ];
+
+        $format = strtolower($request->query('format', 'csv'));
+        if ($format === 'xlsx') {
+            $xlsxService = app(\App\Services\XlsxSpreadsheetService::class);
+            $binary = $xlsxService->generateMultiSectionReport('Service & Package Popularity Report', $sections, $meta);
+            return $xlsxService->downloadResponse('service-popularity-report-' . now()->format('Y-m-d') . '.xlsx', $binary);
+        }
+
+        $filename = 'service-popularity-report-' . now()->format('Y-m-d') . '.csv';
+
+        return $csvService->streamMultiSection($filename, $sections, $meta);
+    }
+
+    public function xlsx(
+        Request $request,
+        CsvExportService $csvService
+    ) {
+        $request->merge(['format' => 'xlsx']);
+        return $this->csv($request, $csvService);
     }
 
     private function buildReportData(Request $request): array

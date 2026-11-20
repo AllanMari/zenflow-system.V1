@@ -134,15 +134,22 @@ class Phase3DReportingAndFinancialIntegrityTest extends TestCase
         $dashboardData = $analyticsService->getDashboardData($request);
         $staffPerformance = $dashboardData['staffPerformance'];
 
-        // Revenue must be credited to primary therapist without duplication
+        // Equal distribution: 30% commission pool divided equally among assigned therapists
+        // Primary therapist: ₱1500 revenue (50%), ₱450 commission (15%)
         $primaryRecord = collect($staffPerformance)->firstWhere('id', $primary->id);
         $this->assertNotNull($primaryRecord);
-        $this->assertEquals(3000, $primaryRecord['revenue']);
+        $this->assertEquals(1500, $primaryRecord['revenue']);
         $this->assertEquals(1, $primaryRecord['completed']);
-        // 30% commission = 3000 * 0.30 = 900
-        $this->assertEquals(900, $primaryRecord['commission']);
+        $this->assertEquals(450, $primaryRecord['commission']);
 
-        // Assisting therapist is assigned on the appointment but transaction revenue is not duplicated
+        // Assisting therapist: ₱1500 revenue (50%), ₱450 commission (15%)
+        $assistingRecord = collect($staffPerformance)->firstWhere('id', $assisting->id);
+        $this->assertNotNull($assistingRecord);
+        $this->assertEquals(1500, $assistingRecord['revenue']);
+        $this->assertEquals(1, $assistingRecord['completed']);
+        $this->assertEquals(450, $assistingRecord['commission']);
+
+        // Revenue is not duplicated: total across staff remains exactly ₱3000
         $totalRevenueAcrossStaff = array_sum(array_column($staffPerformance, 'revenue'));
         $this->assertEquals(3000, $totalRevenueAcrossStaff);
     }

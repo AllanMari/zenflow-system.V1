@@ -1881,33 +1881,33 @@ class BookingController extends Controller
 
             $customer->save();
         } else {
-            $existingCustomer = Customer::where(
-                'phone_number',
-                $request->guest_phone
-            )->first();
+            $nameParts = preg_split(
+                '/\s+/',
+                trim($request->guest_first_name),
+                2
+            );
 
-            if ($existingCustomer) {
-                $customer = $existingCustomer;
+            $firstName = $nameParts[0] ?? '';
+            $lastName = $nameParts[1] ?? '';
+
+            // Guest bookings must NEVER link to a registered customer account (user_id IS NOT NULL)
+            // solely through phone-number matching. Match only unlinked guest profiles (user_id IS NULL)
+            // with matching phone number AND name, or create a dedicated guest customer record.
+            $existingGuest = Customer::where('phone_number', $request->guest_phone)
+                ->whereNull('user_id')
+                ->where('first_name', $firstName)
+                ->where('last_name', $lastName)
+                ->first();
+
+            if ($existingGuest) {
+                $customer = $existingGuest;
             } else {
-                $nameParts = preg_split(
-                    '/\s+/',
-                    trim($request->guest_first_name),
-                    2
-                );
-
-                $firstName =
-                    $nameParts[0] ?? '';
-
-                $lastName =
-                    $nameParts[1] ?? '';
-
                 $customer = Customer::create([
                     'user_id' => null,
                     'first_name' => $firstName,
                     'last_name' => $lastName,
                     'customer_type' => 'regular',
-                    'phone_number' =>
-                        $request->guest_phone,
+                    'phone_number' => $request->guest_phone,
                     'medical_notes' => null,
                 ]);
             }

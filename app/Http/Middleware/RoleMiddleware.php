@@ -13,16 +13,21 @@ class RoleMiddleware
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
-    public function handle(Request $request, Closure $next, string $role): Response
+    public function handle(Request $request, Closure $next, string ...$roles): Response
     {
         if (! $request->user()) {
             abort(401);
         }
 
-        if (! $request->user()->hasRole($role)) {
-            abort(403);
+        foreach ($roles as $role) {
+            $subRoles = array_map('trim', explode(',', $role));
+            foreach ($subRoles as $subRole) {
+                if ($request->user()->hasRole($subRole)) {
+                    return $next($request);
+                }
+            }
         }
 
-        return $next($request);
+        abort(403);
     }
 }

@@ -14,6 +14,7 @@ use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ServicePopularityController;
 use App\Http\Controllers\BusinessScheduleController;
 use App\Http\Controllers\AppointmentInvoiceController;
+use App\Http\Controllers\DataImportController;
 
 
 // ==================== PUBLIC ROUTES (NO LOGIN REQUIRED) ====================
@@ -83,7 +84,11 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     Route::get('/sales', [SalesReportController::class, 'index'])->name('receptionist.sales');
     Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('receptionist.sales.tx-log');
     Route::get('/sales/daily-report-pdf', [SalesReportController::class, 'dailyReportPdf'])->name('receptionist.sales.daily-report-pdf');
+    Route::get('/sales/daily-report-csv', [SalesReportController::class, 'dailyReportCsv'])->name('receptionist.sales.daily-report-csv');
+    Route::get('/sales/daily-report-xlsx', [SalesReportController::class, 'dailyReportXlsx'])->name('receptionist.sales.daily-report-xlsx');
     Route::get('/sales/business-report-pdf', [SalesReportController::class, 'businessReportPdf'])->name('receptionist.sales.business-report-pdf');
+    Route::get('/sales/business-report-csv', [SalesReportController::class, 'businessReportCsv'])->name('receptionist.sales.business-report-csv');
+    Route::get('/sales/business-report-xlsx', [SalesReportController::class, 'businessReportXlsx'])->name('receptionist.sales.business-report-xlsx');
     Route::get('/booking/{appointment}/rooms', [ReceptionistController::class, 'availableRooms'])->name('receptionist.rooms.available');
     Route::get('/quick-book', [BookingController::class, 'quickBook'])->name('receptionist.quick-book');
     Route::get('/api/booking/next-slots', [BookingController::class, 'nextSlots'])->name('api.next-slots');
@@ -222,16 +227,30 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/sales', [SalesReportController::class, 'index'])->name('admin.sales');
     Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('admin.sales.tx-log');
     Route::get('/sales/daily-report-pdf', [SalesReportController::class, 'dailyReportPdf'])->name('admin.sales.daily-report-pdf');
+    Route::get('/sales/daily-report-csv', [SalesReportController::class, 'dailyReportCsv'])->name('admin.sales.daily-report-csv');
+    Route::get('/sales/daily-report-xlsx', [SalesReportController::class, 'dailyReportXlsx'])->name('admin.sales.daily-report-xlsx');
     Route::get('/sales/business-report-pdf', [SalesReportController::class, 'businessReportPdf'])->name('admin.sales.business-report-pdf');
+    Route::get('/sales/business-report-csv', [SalesReportController::class, 'businessReportCsv'])->name('admin.sales.business-report-csv');
+    Route::get('/sales/business-report-xlsx', [SalesReportController::class, 'businessReportXlsx'])->name('admin.sales.business-report-xlsx');
     Route::post('/sales/ai-chat', [SalesReportController::class, 'aiChat'])->name('admin.sales.ai-chat');
 
     // Appointments
     Route::get('/appointments', [AdminController::class, 'appointments'])->name('admin.appointments');
 
     Route::get(
-    '/appointments/report-pdf',
-    [AdminController::class, 'appointmentReportPdf']
-)->name('admin.appointments.report-pdf');
+        '/appointments/report-pdf',
+        [AdminController::class, 'appointmentReportPdf']
+    )->name('admin.appointments.report-pdf');
+
+    Route::get(
+        '/appointments/report-csv',
+        [AdminController::class, 'appointmentReportCsv']
+    )->name('admin.appointments.report-csv');
+
+    Route::get(
+        '/appointments/report-xlsx',
+        [AdminController::class, 'appointmentReportXlsx']
+    )->name('admin.appointments.report-xlsx');
 
     // â”€â”€â”€ SCHEDULE VIEW ROUTES â”€â”€â”€
     Route::get('/schedules', [ScheduleController::class, 'index'])->name('admin.schedules');
@@ -251,6 +270,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
     Route::get('/attendance/report-pdf', [AttendanceController::class, 'attendanceReportPdf'])
     ->name('attendance.report-pdf');
+
+    Route::get('/attendance/report-csv', [AttendanceController::class, 'attendanceReportCsv'])
+    ->name('attendance.report-csv');
+
+    Route::get('/attendance/report-xlsx', [AttendanceController::class, 'attendanceReportXlsx'])
+    ->name('attendance.report-xlsx');
     
     Route::get('/room-tracking', [AdminController::class, 'roomTracking'])
     ->name('admin.room-tracking');
@@ -346,6 +371,16 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         ServicePopularityController::class,
         'pdf'
     ])->name('admin.service-popularity.pdf');
+
+    Route::get('/admin/reports/service-popularity/csv', [
+        ServicePopularityController::class,
+        'csv'
+    ])->name('admin.service-popularity.csv');
+
+    Route::get('/admin/reports/service-popularity/xlsx', [
+        ServicePopularityController::class,
+        'xlsx'
+    ])->name('admin.service-popularity.xlsx');
 });
 
 Route::middleware(['auth', 'role:receptionist'])->group(function () {
@@ -358,4 +393,22 @@ Route::middleware(['auth', 'role:receptionist'])->group(function () {
         ServicePopularityController::class,
         'pdf'
     ])->name('receptionist.service-popularity.pdf');
+
+    Route::get('/receptionist/reports/service-popularity/csv', [
+        ServicePopularityController::class,
+        'csv'
+    ])->name('receptionist.service-popularity.csv');
+
+    Route::get('/receptionist/reports/service-popularity/xlsx', [
+        ServicePopularityController::class,
+        'xlsx'
+    ])->name('receptionist.service-popularity.xlsx');
+});
+
+// ─── Data Import (Admin & Receptionist) ───
+Route::middleware(['auth', 'role:admin,receptionist'])->prefix('admin')->group(function () {
+    Route::get('/data-import', [DataImportController::class, 'index'])->name('admin.data-import.index');
+    Route::get('/data-import/template/{type}', [DataImportController::class, 'downloadTemplate'])->name('admin.data-import.template');
+    Route::post('/data-import/preview', [DataImportController::class, 'preview'])->name('admin.data-import.preview');
+    Route::post('/data-import/confirm', [DataImportController::class, 'confirm'])->name('admin.data-import.confirm');
 });
