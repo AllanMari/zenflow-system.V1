@@ -15,9 +15,9 @@ class GeminiInsightService
 
     public function __construct()
     {
-        $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY', ''));
-        $this->model = config('services.gemini.model', env('GEMINI_MODEL', 'gemini-3.1-flash-lite'));
-        $this->cacheMinutes = (int) config('services.gemini.cache_minutes', env('GEMINI_CACHE_MINUTES', 30));
+        $this->apiKey = (string) (config('services.gemini.api_key') ?? env('GEMINI_API_KEY') ?? '');
+        $this->model = (string) (config('services.gemini.model') ?? env('GEMINI_MODEL') ?? 'gemini-3.1-flash-lite');
+        $this->cacheMinutes = (int) (config('services.gemini.cache_minutes') ?? env('GEMINI_CACHE_MINUTES') ?? 30);
     }
 
     /**

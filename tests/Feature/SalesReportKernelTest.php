@@ -46,4 +46,25 @@ class SalesReportKernelTest extends TestCase
         $response = $this->actingAs($rec)->get(route('admin.sales'));
         $response->assertStatus(403);
     }
+
+    public function test_admin_sales_report_page_loads_when_gemini_api_key_is_null()
+    {
+        config(['services.gemini.api_key' => null]);
+        putenv('GEMINI_API_KEY');
+
+        $adminRole = Role::firstOrCreate(['name' => 'admin'], ['label' => 'Administrator']);
+        $admin = User::firstOrCreate(
+            ['username' => 'test_admin_sales_no_gemini'],
+            [
+                'first_name' => 'Admin',
+                'last_name' => 'Test',
+                'password' => bcrypt('password'),
+                'is_active' => true,
+            ]
+        );
+        $admin->roles()->syncWithoutDetaching([$adminRole->id]);
+
+        $response = $this->actingAs($admin)->get(route('admin.sales'));
+        $response->assertStatus(200);
+    }
 }

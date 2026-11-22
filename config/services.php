@@ -3,7 +3,7 @@
 return [
 
     'gemini' => [
-        'api_key' => env('GEMINI_API_KEY'),
+        'api_key' => env('GEMINI_API_KEY', ''),
         'model' => env('GEMINI_MODEL', 'gemini-3.1-flash-lite'),
         'cache_minutes' => (int) env('GEMINI_CACHE_MINUTES', 30),
     ],
