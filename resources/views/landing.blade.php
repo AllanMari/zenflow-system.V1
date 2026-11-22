@@ -803,6 +803,25 @@
                                                             <h4 class="text-base font-semibold leading-6 text-slate-900 dark:text-white">
                                                                 {{ $service->name }}
                                                             </h4>
+                                                            @php
+                                                                $isDuo = ($service->participants_required ?? 1) >= 2 || str_contains(strtolower($service->name), 'couple');
+                                                                $isFourHands = ($service->participants_required ?? 1) <= 1 && !str_contains(strtolower($service->name), 'couple') && ($service->therapists_required ?? 1) >= 2;
+                                                            @endphp
+                                                            @if($isDuo)
+                                                                <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                                                                    <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-300">
+                                                                        <i data-lucide="heart" class="h-2.5 w-2.5 text-rose-500"></i>
+                                                                        Duo Experience • 2 Guests (Covers Both)
+                                                                    </span>
+                                                                </div>
+                                                            @elseif($isFourHands)
+                                                                <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                                                                    <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-900/40 dark:text-indigo-300">
+                                                                        <i data-lucide="sparkles" class="h-2.5 w-2.5 text-indigo-500"></i>
+                                                                        Four-Hands Luxury • 2 Therapists
+                                                                    </span>
+                                                                </div>
+                                                            @endif
                                                         </div>
 
                                                         @if($meta['displayPrice'] !== null)
@@ -815,6 +834,15 @@
                                                                 <div class="text-sm font-semibold text-brand-700 dark:text-brand-400">
                                                                     ₱{{ number_format($meta['displayPrice'], 2) }}
                                                                 </div>
+                                                                @if($isDuo)
+                                                                    <div class="text-[9px] font-semibold text-rose-600 dark:text-rose-400">
+                                                                        Total for 2 Guests
+                                                                    </div>
+                                                                @elseif($isFourHands)
+                                                                    <div class="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400">
+                                                                        2 Therapists
+                                                                    </div>
+                                                                @endif
                                                             </div>
                                                         @endif
 

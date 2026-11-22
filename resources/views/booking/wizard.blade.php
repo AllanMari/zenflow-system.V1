@@ -718,11 +718,22 @@
                                                                     </span>
                                                                 </template>
 
-                                                                <template x-if="service.participants_required > 1">
-                                                                    <span class="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                                                                        <i data-lucide="users" class="h-2.5 w-2.5"></i>
-                                                                        <span x-text="service.participants_required + ' Guests'"></span>
-                                                                    </span>
+                                                                <template x-if="service.participants_required > 1 || (service.name && service.name.toLowerCase().includes('couple'))">
+                                                                    <div class="mt-1 flex flex-wrap items-center gap-1">
+                                                                        <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[9px] font-bold text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-300">
+                                                                            <i data-lucide="heart" class="h-2.5 w-2.5 text-rose-500"></i>
+                                                                            <span>Duo Experience • 2 Guests (Covers Both)</span>
+                                                                        </span>
+                                                                    </div>
+                                                                </template>
+
+                                                                <template x-if="(!service.participants_required || service.participants_required <= 1) && (!service.name || !service.name.toLowerCase().includes('couple')) && (service.therapists_required > 1)">
+                                                                    <div class="mt-1 flex flex-wrap items-center gap-1">
+                                                                        <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[9px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-900/40 dark:text-indigo-300">
+                                                                            <i data-lucide="sparkles" class="h-2.5 w-2.5 text-indigo-500"></i>
+                                                                            <span>Four-Hands • 2 Therapists on 1 Guest</span>
+                                                                        </span>
+                                                                    </div>
                                                                 </template>
 
                                                             </div>
@@ -1186,6 +1197,30 @@
 
                             <div class="space-y-6">
 
+                                <template x-if="cartHasDuoService">
+                                    <div class="rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200 space-y-1.5 shadow-2xs">
+                                        <div class="flex items-center gap-2 font-bold text-rose-800 dark:text-rose-300">
+                                            <i data-lucide="heart" class="h-4 w-4 text-rose-600"></i>
+                                            <span>Duo / Couple Session: For 2 Guests</span>
+                                        </div>
+                                        <p class="text-rose-700 dark:text-rose-300/90 leading-relaxed">
+                                            You are booking a couple treatment! This session accommodates <strong>2 guests</strong> together in a private couple room with <strong>2 dedicated therapists</strong>. The price covers both guests.
+                                        </p>
+                                    </div>
+                                </template>
+
+                                <template x-if="cartHasFourHandsService">
+                                    <div class="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 text-xs text-indigo-900 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-200 space-y-1.5 shadow-2xs">
+                                        <div class="flex items-center gap-2 font-bold text-indigo-800 dark:text-indigo-300">
+                                            <i data-lucide="sparkles" class="h-4 w-4 text-indigo-600"></i>
+                                            <span>Four-Hands Luxury Session: 1 Guest • 2 Therapists</span>
+                                        </div>
+                                        <p class="text-indigo-700 dark:text-indigo-300/90 leading-relaxed">
+                                            This specialized treatment is dedicated to <strong>one guest</strong> attended simultaneously by <strong>two therapists</strong> for synchronized massage.
+                                        </p>
+                                    </div>
+                                </template>
+
                                 <!-- Name -->
 
                                 <div>
@@ -1523,9 +1558,14 @@
 
                                                     <div class="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
                                                         <span x-text="service.duration_minutes + ' minutes'"></span>
-                                                        <template x-if="service.participants_required > 1">
-                                                            <span class="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400">
-                                                                • <span x-text="service.participants_required + ' Guests'"></span>
+                                                        <template x-if="service.participants_required > 1 || (service.name && service.name.toLowerCase().includes('couple'))">
+                                                            <span class="inline-flex items-center gap-1 font-semibold text-rose-600 dark:text-rose-400">
+                                                                • 👥 2 Guests (Covers Both)
+                                                            </span>
+                                                        </template>
+                                                        <template x-if="(!service.participants_required || service.participants_required <= 1) && (!service.name || !service.name.toLowerCase().includes('couple')) && (service.therapists_required > 1)">
+                                                            <span class="inline-flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400">
+                                                                • ✨ 1 Guest • 2 Therapists
                                                             </span>
                                                         </template>
                                                         <template x-if="service.room_category_name">
@@ -1748,6 +1788,17 @@
                                                     <p class="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
                                                         <span x-text="service.duration_minutes"></span> min
                                                     </p>
+
+                                                    <template x-if="service.participants_required > 1 || (service.name && service.name.toLowerCase().includes('couple'))">
+                                                        <p class="mt-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                                                            👥 2 Guests (Covers Both)
+                                                        </p>
+                                                    </template>
+                                                    <template x-if="(!service.participants_required || service.participants_required <= 1) && (!service.name || !service.name.toLowerCase().includes('couple')) && (service.therapists_required > 1)">
+                                                        <p class="mt-0.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                                                            ✨ 1 Guest • 2 Therapists
+                                                        </p>
+                                                    </template>
 
                                                     <template x-if="service.is_package && service.choice_groups && service.choice_groups.length > 0">
                                                         <div class="mt-1 space-y-0.5">
@@ -2701,6 +2752,14 @@
                         },
                         0
                     );
+                },
+
+                get cartHasDuoService() {
+                    return this.selectedServiceObjects.some(s => (s.participants_required && s.participants_required > 1) || (s.name && s.name.toLowerCase().includes('couple')));
+                },
+
+                get cartHasFourHandsService() {
+                    return this.selectedServiceObjects.some(s => (!s.participants_required || s.participants_required <= 1) && (!s.name || !s.name.toLowerCase().includes('couple')) && (s.therapists_required && s.therapists_required > 1));
                 },
 
 

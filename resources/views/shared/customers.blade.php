@@ -31,7 +31,6 @@
             last_name: '',
             nickname: '',
             phone_number: '',
-            customer_type: 'regular',
             medical_notes: ''
         },
         openHistory(clientId) {
@@ -68,7 +67,6 @@
                 last_name: client.last_name || '',
                 nickname: client.nickname || '',
                 phone_number: client.phone_number || '',
-                customer_type: client.customer_type || 'regular',
                 medical_notes: client.medical_notes || ''
             };
             this.editModalOpen = true;
@@ -85,7 +83,7 @@
                 Client Directory
             </h1>
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Manage customer profiles, visit history, VIP privileges, and medical contraindications.
+                Manage customer profiles, visit history, contact information, and health contraindications.
             </p>
         </div>
         <div class="flex items-center gap-2">
@@ -97,7 +95,7 @@
     </div>
 
     {{-- KPI METRICS CARDS --}}
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {{-- Total Clients --}}
         <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
             <div class="flex items-center justify-between">
@@ -110,28 +108,16 @@
             <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">Registered client profiles</p>
         </div>
 
-        {{-- VIP Clients --}}
-        <div class="rounded-2xl border border-amber-100 bg-white p-4 shadow-xs dark:border-amber-900/30 dark:bg-slate-900">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">VIP Clients</span>
-                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>
-                </span>
-            </div>
-            <p class="mt-2 text-2xl font-black text-amber-600 dark:text-amber-400">{{ number_format($vipCustomers) }}</p>
-            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">Privileged tier members</p>
-        </div>
-
-        {{-- Regular Clients --}}
+        {{-- Active Clients --}}
         <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
             <div class="flex items-center justify-between">
-                <span class="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Regular Clients</span>
-                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                <span class="text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">Active Clients</span>
+                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                 </span>
             </div>
-            <p class="mt-2 text-2xl font-black text-gray-900 dark:text-white">{{ number_format($regularCustomers) }}</p>
-            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">Standard client accounts</p>
+            <p class="mt-2 text-2xl font-black text-teal-600 dark:text-teal-400">{{ number_format($activeCustomers ?? $totalCustomers) }}</p>
+            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">Clients with booking records</p>
         </div>
 
         {{-- Completed Visits --}}
@@ -151,7 +137,7 @@
          SEARCH & FILTER BAR
     ========================================================== --}}
     <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-        <form method="GET" action="{{ route($routeNamePrefix . '.index') }}" class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <form method="GET" action="{{ route($routeNamePrefix . '.index') }}" class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             {{-- Search Bar --}}
             <div class="relative flex-1">
                 <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -166,35 +152,19 @@
                 >
             </div>
 
-            {{-- Type Pills --}}
-            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-                <input type="hidden" name="type" id="filterTypeInput" value="{{ $type }}">
-                
-                <a
-                    href="{{ route($routeNamePrefix . '.index', array_merge(request()->except(['page']), ['type' => 'all'])) }}"
-                    class="px-3 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap {{ $type === 'all' ? 'bg-teal-600 text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-gray-400 dark:hover:bg-slate-700' }}"
+            <div class="flex items-center gap-2">
+                <button
+                    type="submit"
+                    class="px-4 py-2 rounded-xl text-xs font-bold bg-teal-600 text-white hover:bg-teal-700 transition shadow-xs"
                 >
-                    All Clients
-                </a>
-                <a
-                    href="{{ route($routeNamePrefix . '.index', array_merge(request()->except(['page']), ['type' => 'vip'])) }}"
-                    class="px-3 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap {{ $type === 'vip' ? 'bg-amber-500 text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-gray-400 dark:hover:bg-slate-700' }}"
-                >
-                    ★ VIP Only
-                </a>
-                <a
-                    href="{{ route($routeNamePrefix . '.index', array_merge(request()->except(['page']), ['type' => 'regular'])) }}"
-                    class="px-3 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap {{ $type === 'regular' ? 'bg-teal-600 text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-gray-400 dark:hover:bg-slate-700' }}"
-                >
-                    Regular
-                </a>
-
-                @if($search || $type !== 'all')
+                    Search
+                </button>
+                @if($search)
                     <a
                         href="{{ route($routeNamePrefix . '.index') }}"
                         class="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 transition whitespace-nowrap"
                     >
-                        Clear Filters
+                        Clear Search
                     </a>
                 @endif
             </div>
@@ -211,7 +181,6 @@
                     <tr>
                         <th class="px-5 py-3.5">Client Profile</th>
                         <th class="px-4 py-3.5">Contact Details</th>
-                        <th class="px-4 py-3.5">Tier</th>
                         <th class="px-4 py-3.5 text-center">Visits</th>
                         <th class="px-4 py-3.5 text-right">Lifetime Spend</th>
                         <th class="px-4 py-3.5">Medical Notes</th>
@@ -224,7 +193,7 @@
                             {{-- Profile --}}
                             <td class="px-5 py-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-black {{ $client->customer_type === 'vip' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800' : 'bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300' }}">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-black bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
                                         {{ strtoupper(substr($client->first_name ?: ($client->nickname ?: 'C'), 0, 1)) }}
                                     </div>
                                     <div>
@@ -254,20 +223,6 @@
                                     </div>
                                 @else
                                     <span class="text-gray-400 text-[11px]">No phone recorded</span>
-                                @endif
-                            </td>
-
-                            {{-- Tier --}}
-                            <td class="px-4 py-4">
-                                @if($client->customer_type === 'vip')
-                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
-                                        <svg class="w-3 h-3 text-amber-500 fill-amber-500" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                                        VIP
-                                    </span>
-                                @else
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-gray-400">
-                                        Regular
-                                    </span>
                                 @endif
                             </td>
 
@@ -324,7 +279,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-5 py-12 text-center text-gray-400 text-xs">
+                            <td colspan="6" class="px-5 py-12 text-center text-gray-400 text-xs">
                                 No clients matching your criteria found.
                             </td>
                         </tr>
@@ -342,7 +297,7 @@
             <div class="client-card rounded-2xl border border-gray-100 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-3">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2.5">
-                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-black {{ $client->customer_type === 'vip' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800' : 'bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300' }}">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-black bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
                             {{ strtoupper(substr($client->first_name ?: ($client->nickname ?: 'C'), 0, 1)) }}
                         </div>
                         <div>
@@ -354,15 +309,6 @@
                             @endif
                         </div>
                     </div>
-                    @if($client->customer_type === 'vip')
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
-                            ★ VIP
-                        </span>
-                    @else
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-gray-400">
-                            Regular
-                        </span>
-                    @endif
                 </div>
 
                 <div class="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-gray-50 dark:border-slate-800/60">
@@ -449,11 +395,6 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <h3 class="text-base font-bold text-gray-900 dark:text-white" x-text="activeClient ? activeClient.full_name : 'Loading Profile...'"></h3>
-                            <template x-if="activeClient && activeClient.customer_type === 'vip'">
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300">
-                                    ★ VIP Client
-                                </span>
-                            </template>
                         </div>
                         <p class="text-xs text-gray-400 dark:text-gray-500">
                             <span x-text="activeClient ? (activeClient.phone_number || 'No phone') : ''"></span>
@@ -615,7 +556,7 @@
                         </span>
                         <div>
                             <h3 class="text-base font-bold text-gray-900 dark:text-white">Edit Client Profile</h3>
-                            <p class="text-xs text-gray-400 dark:text-gray-500">Update contact info, VIP membership, and medical notes.</p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500">Update contact info and health contraindications.</p>
                         </div>
                     </div>
                     <button type="button" @click="editModalOpen = false" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800 dark:hover:text-gray-200">
@@ -660,28 +601,18 @@
                             >
                         </div>
                         <div>
-                            <label class="block font-bold text-gray-700 dark:text-gray-300 mb-1">Client Tier *</label>
-                            <select
-                                name="customer_type"
-                                x-model="editForm.customer_type"
+                            <label class="block font-bold text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+                            <input
+                                type="text"
+                                name="phone_number"
+                                x-model="editForm.phone_number"
+                                placeholder="e.g. 09171234567"
                                 class="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-xs text-gray-900 focus:border-teal-500 focus:bg-white focus:outline-hidden dark:border-slate-800 dark:bg-slate-800/40 dark:text-white"
                             >
-                                <option value="regular">Regular Client</option>
-                                <option value="vip">★ VIP Member</option>
-                            </select>
                         </div>
                     </div>
 
                     <div>
-                        <label class="block font-bold text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
-                        <input
-                            type="text"
-                            name="phone_number"
-                            x-model="editForm.phone_number"
-                            placeholder="e.g. 09171234567"
-                            class="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-xs text-gray-900 focus:border-teal-500 focus:bg-white focus:outline-hidden dark:border-slate-800 dark:bg-slate-800/40 dark:text-white"
-                        >
-                    </div>
 
                     <div>
                         <div class="flex items-center justify-between mb-1">

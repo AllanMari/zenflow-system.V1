@@ -88,6 +88,20 @@
                             <p class="text-sm font-medium text-slate-800 dark:text-slate-200 break-words">
                                 {{ $service->pivot->service_name ?? $service->name }}
                             </p>
+                            @php
+                                $svcNameLower = strtolower($service->pivot->service_name ?? $service->name ?? '');
+                                $isSvcDuo = ($service->participants_required ?? 1) >= 2 || str_contains($svcNameLower, 'couple');
+                                $isSvcFourHands = ($service->participants_required ?? 1) <= 1 && !str_contains($svcNameLower, 'couple') && ($service->therapists_required ?? 1) >= 2;
+                            @endphp
+                            @if($isSvcDuo)
+                                <span class="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40">
+                                    2 Guests • 2 Therapists
+                                </span>
+                            @elseif($isSvcFourHands)
+                                <span class="inline-flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/40">
+                                    1 Guest • 2 Therapists
+                                </span>
+                            @endif
                             @if($service->pivot->is_extra)
                                 <span class="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
                                     Extra service

@@ -594,6 +594,11 @@
                             $service->pivot->is_extra ?? false
                         );
 
+                        $participantsReq = (int) ($service->participants_required ?? 1);
+                        $therapistsReq = (int) ($service->therapists_required ?? 1);
+                        $isDuo = $participantsReq >= 2 || stripos($serviceName, 'couple') !== false;
+                        $isFourHands = !$isDuo && $therapistsReq >= 2;
+
                     @endphp
 
 
@@ -605,6 +610,15 @@
                                 {{ $serviceName }}
                             </span>
 
+                            @if($isDuo)
+                                <span style="display:inline-block; font-size: 8px; padding: 1px 4px; border-radius: 3px; background: #e0f2fe; color: #0369a1; font-weight: bold; margin-left: 4px; border: 1px solid #bae6fd;">
+                                    Duo (2 Guests · 2 Therapists)
+                                </span>
+                            @elseif($isFourHands)
+                                <span style="display:inline-block; font-size: 8px; padding: 1px 4px; border-radius: 3px; background: #fae8ff; color: #86198f; font-weight: bold; margin-left: 4px; border: 1px solid #f5d0fe;">
+                                    Four-Hands (2 Therapists)
+                                </span>
+                            @endif
 
                             @if($isExtra)
 

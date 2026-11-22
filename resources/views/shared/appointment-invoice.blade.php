@@ -1341,6 +1341,11 @@
                                                 $service->pivot->is_extra ?? false
                                             );
 
+                                            $participantsReq = (int) ($service->participants_required ?? 1);
+                                            $therapistsReq = (int) ($service->therapists_required ?? 1);
+                                            $isDuo = $participantsReq >= 2 || stripos($serviceName, 'couple') !== false;
+                                            $isFourHands = !$isDuo && $therapistsReq >= 2;
+
                                         @endphp
 
 
@@ -1362,6 +1367,15 @@
                                                         {{ $serviceName }}
                                                     </span>
 
+                                                    @if($isDuo)
+                                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                                                            2 Guests · 2 Therapists
+                                                        </span>
+                                                    @elseif($isFourHands)
+                                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                                            1 Guest · 2 Therapists
+                                                        </span>
+                                                    @endif
 
                                                     @if($isExtra)
 

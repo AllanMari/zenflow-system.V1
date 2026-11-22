@@ -53,6 +53,7 @@ class CustomerManagementController extends Controller
         $totalCustomers = Customer::count();
         $vipCustomers = Customer::where('customer_type', 'vip')->count();
         $regularCustomers = Customer::where('customer_type', 'regular')->count();
+        $activeCustomers = Customer::has('appointments')->count();
         $completedVisits = Appointment::where('status', 'completed')->count();
 
         $routeNamePrefix = Auth::user()->isAdmin() ? 'admin.customers' : 'receptionist.customers';
@@ -62,6 +63,7 @@ class CustomerManagementController extends Controller
             'totalCustomers',
             'vipCustomers',
             'regularCustomers',
+            'activeCustomers',
             'completedVisits',
             'search',
             'type',
@@ -138,7 +140,7 @@ class CustomerManagementController extends Controller
     }
 
     /**
-     * Update customer profile, VIP status, and medical notes.
+     * Update customer profile and medical notes.
      */
     public function update(Request $request, Customer $customer)
     {
@@ -147,7 +149,7 @@ class CustomerManagementController extends Controller
             'last_name'     => 'required|string|max:100',
             'nickname'      => 'nullable|string|max:50',
             'phone_number'  => 'nullable|string|max:25',
-            'customer_type' => 'required|in:regular,vip',
+            'customer_type' => 'nullable|in:regular,vip',
             'medical_notes' => 'nullable|string|max:1500',
         ]);
 
