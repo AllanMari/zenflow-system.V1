@@ -955,7 +955,7 @@
                         </div>
 
                         <p class="text-xs text-slate-500 dark:text-slate-400">
-                            1st is <strong>Primary</strong>; 2nd is <strong>Assisting</strong>. Click to assign.
+                            Select <strong>Therapist 1</strong> and <strong>Therapist 2</strong> for this session (both have equal status). Click to assign.
                         </p>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">

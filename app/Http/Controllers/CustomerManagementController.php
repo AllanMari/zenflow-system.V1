@@ -147,7 +147,6 @@ class CustomerManagementController extends Controller
             'last_name'     => 'required|string|max:100',
             'nickname'      => 'nullable|string|max:50',
             'phone_number'  => 'nullable|string|max:25',
-            'email'         => 'nullable|email|max:150',
             'customer_type' => 'required|in:regular,vip',
             'medical_notes' => 'nullable|string|max:1500',
         ]);

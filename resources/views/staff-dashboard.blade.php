@@ -198,11 +198,8 @@
                             <span class="px-2.5 py-0.5 rounded-full text-xs font-bold {{ $isInProgress ? 'bg-brand-600 text-white' : 'bg-teal-100 dark:bg-teal-900/50 text-teal-800 dark:text-teal-300' }}">
                                 {{ $isInProgress ? '● In Progress' : 'Next Up' }}
                             </span>
-                            @php
-                                $nextRole = $nextSession->user_id === Auth::id() ? 'Primary' : 'Assisting';
-                            @endphp
-                            <span class="px-2 py-0.5 rounded text-xs font-bold uppercase {{ $nextRole === 'Primary' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300' : 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300' }}">
-                                {{ $nextRole }}
+                            <span class="px-2 py-0.5 rounded text-xs font-bold uppercase bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300">
+                                Therapist
                             </span>
                             <span class="text-sm font-bold text-gray-500 dark:text-gray-400">
                                 {{ \Carbon\Carbon::parse($nextSession->start_time)->format('g:i A') }} &ndash; {{ \Carbon\Carbon::parse($nextSession->end_time)->format('g:i A') }}
@@ -222,6 +219,16 @@
                                 <i data-lucide="door-closed" class="w-3.5 h-3.5 text-gray-400"></i>
                                 <span class="font-semibold">{{ $nextSession->room?->name ?? 'No room assigned' }}</span>
                             </span>
+                            @php
+                                $nextCoTherapist = $nextSession->assignedStaff?->firstWhere('id', '!=', Auth::id());
+                            @endphp
+                            @if($nextCoTherapist)
+                                <span class="text-gray-300 dark:text-gray-600">&bull;</span>
+                                <span class="inline-flex items-center gap-1 font-semibold text-teal-600 dark:text-teal-400">
+                                    <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                                    <span>Co-Therapist: {{ $nextCoTherapist->full_name ?? $nextCoTherapist->name }}</span>
+                                </span>
+                            @endif
                             @if($nextPhone)
                                 <span class="text-gray-300 dark:text-gray-600">&bull;</span>
                                 <a href="tel:{{ $nextPhone }}" class="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline">
@@ -358,17 +365,23 @@
                                                     <i data-lucide="door-closed" class="w-3 h-3 text-gray-400"></i>
                                                     <span class="font-medium">{{ $appointment->room?->name ?? 'No room assigned' }}</span>
                                                 </span>
+                                                @php
+                                                    $apptCoTherapist = $appointment->assignedStaff?->firstWhere('id', '!=', Auth::id());
+                                                @endphp
+                                                @if($apptCoTherapist)
+                                                    <span class="inline-flex items-center gap-1 font-semibold text-teal-600 dark:text-teal-400">
+                                                        <i data-lucide="users" class="w-3 h-3"></i>
+                                                        <span>With: {{ $apptCoTherapist->full_name ?? $apptCoTherapist->name }}</span>
+                                                    </span>
+                                                @endif
                                             </div>
                                         </div>
                                     </div>
 
                                     {{-- Status Pill & Notes Action --}}
                                     <div class="shrink-0 flex items-center sm:flex-col sm:items-end justify-between sm:justify-center gap-1.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100 dark:border-gray-700/40">
-                                        @php
-                                            $isMyRole = $appointment->user_id === Auth::id() ? 'Primary' : 'Assisting';
-                                        @endphp
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase {{ $isMyRole === 'Primary' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' : 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800' }}">
-                                            {{ $isMyRole }}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800">
+                                            Therapist
                                         </span>
                                         @if($isCompleted)
                                             <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">

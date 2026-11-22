@@ -129,11 +129,8 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-1.5">
-                            @php
-                                $myRole = $appointment->user_id === Auth::id() ? 'Primary' : 'Assisting';
-                            @endphp
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase {{ $myRole === 'Primary' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' : 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800' }}">
-                                {{ $myRole }}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800">
+                                Therapist
                             </span>
                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border {{ $sc['bg'] }} {{ $sc['text'] }} {{ $sc['border'] }} {{ $sc['darkBg'] }} {{ $sc['darkText'] }} {{ $sc['darkBorder'] }}">
                                 <span class="size-1.5 rounded-full {{ $sc['dot'] }}"></span>
@@ -164,6 +161,14 @@
                             <div class="min-w-0">
                                 <p class="text-sm font-bold text-gray-900 dark:text-neutral-100 break-words">{{ $appointment->client_name }}</p>
                                 <p class="text-xs text-gray-500 dark:text-neutral-400">{{ $appointment->customer->phone_number }}</p>
+                                @php
+                                    $coTherapist = $appointment->assignedStaff?->firstWhere('id', '!=', Auth::id());
+                                @endphp
+                                @if($coTherapist)
+                                    <p class="text-xs font-semibold text-teal-600 dark:text-teal-400 mt-0.5">
+                                        Co-Therapist: {{ $coTherapist->full_name ?? $coTherapist->name }}
+                                    </p>
+                                @endif
                             </div>
                         </div>
 

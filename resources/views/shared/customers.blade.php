@@ -31,7 +31,6 @@
             last_name: '',
             nickname: '',
             phone_number: '',
-            email: '',
             customer_type: 'regular',
             medical_notes: ''
         },
@@ -69,7 +68,6 @@
                 last_name: client.last_name || '',
                 nickname: client.nickname || '',
                 phone_number: client.phone_number || '',
-                email: client.email || '',
                 customer_type: client.customer_type || 'regular',
                 medical_notes: client.medical_notes || ''
             };
@@ -163,7 +161,7 @@
                     type="text"
                     name="search"
                     value="{{ $search }}"
-                    placeholder="Search by name, nickname, phone, or email..."
+                    placeholder="Search by name, nickname, or phone number..."
                     class="w-full rounded-xl border border-gray-200 bg-gray-50/50 pl-10 pr-4 py-2 text-xs font-medium text-gray-900 placeholder:text-gray-400 focus:border-teal-500 focus:bg-white focus:outline-hidden dark:border-slate-800 dark:bg-slate-800/40 dark:text-white dark:focus:border-teal-400"
                 >
             </div>
@@ -249,23 +247,14 @@
 
                             {{-- Contact --}}
                             <td class="px-4 py-4">
-                                <div class="space-y-0.5">
-                                    @if($client->phone_number)
-                                        <div class="flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
-                                            <svg class="h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                                            <a href="tel:{{ $client->phone_number }}" class="hover:text-teal-600 transition">{{ $client->phone_number }}</a>
-                                        </div>
-                                    @endif
-                                    @if($client->email)
-                                        <div class="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-[11px]">
-                                            <svg class="h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                                            <a href="mailto:{{ $client->email }}" class="hover:text-teal-600 transition truncate max-w-[170px] inline-block">{{ $client->email }}</a>
-                                        </div>
-                                    @endif
-                                    @if(!$client->phone_number && !$client->email)
-                                        <span class="text-gray-400 text-[11px]">No contact info</span>
-                                    @endif
-                                </div>
+                                @if($client->phone_number)
+                                    <div class="flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
+                                        <svg class="h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                                        <a href="tel:{{ $client->phone_number }}" class="hover:text-teal-600 transition">{{ $client->phone_number }}</a>
+                                    </div>
+                                @else
+                                    <span class="text-gray-400 text-[11px]">No phone recorded</span>
+                                @endif
                             </td>
 
                             {{-- Tier --}}
@@ -468,8 +457,6 @@
                         </div>
                         <p class="text-xs text-gray-400 dark:text-gray-500">
                             <span x-text="activeClient ? (activeClient.phone_number || 'No phone') : ''"></span>
-                            <span x-show="activeClient && activeClient.email"> • </span>
-                            <span x-text="activeClient ? activeClient.email : ''"></span>
                         </p>
                     </div>
                 </div>
@@ -685,27 +672,15 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block font-bold text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
-                            <input
-                                type="text"
-                                name="phone_number"
-                                x-model="editForm.phone_number"
-                                placeholder="e.g. 09171234567"
-                                class="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-xs text-gray-900 focus:border-teal-500 focus:bg-white focus:outline-hidden dark:border-slate-800 dark:bg-slate-800/40 dark:text-white"
-                            >
-                        </div>
-                        <div>
-                            <label class="block font-bold text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
-                            <input
-                                type="email"
-                                name="email"
-                                x-model="editForm.email"
-                                placeholder="client@example.com"
-                                class="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-xs text-gray-900 focus:border-teal-500 focus:bg-white focus:outline-hidden dark:border-slate-800 dark:bg-slate-800/40 dark:text-white"
-                            >
-                        </div>
+                    <div>
+                        <label class="block font-bold text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+                        <input
+                            type="text"
+                            name="phone_number"
+                            x-model="editForm.phone_number"
+                            placeholder="e.g. 09171234567"
+                            class="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-xs text-gray-900 focus:border-teal-500 focus:bg-white focus:outline-hidden dark:border-slate-800 dark:bg-slate-800/40 dark:text-white"
+                        >
                     </div>
 
                     <div>

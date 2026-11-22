@@ -1234,17 +1234,17 @@
 
                                     <div>
 
-                                        <p class="text-xs font-bold
-                                                  text-gray-700
-                                                  dark:text-gray-200">
-
-                                            {{ $staffName }}
-
-                                        </p>
-
-                                        @if($appt->assignedStaff && $appt->assignedStaff->where('pivot.role', 'assisting')->isNotEmpty())
-                                            <p class="text-[10px] text-gray-500 dark:text-gray-400">
-                                                Assisting: {{ $appt->assignedStaff->where('pivot.role', 'assisting')->map(fn($s) => $s->full_name ?? trim($s->first_name . ' ' . $s->last_name))->filter()->implode(', ') }}
+                                        @if($appt->assignedStaff && $appt->assignedStaff->count() > 1)
+                                            <div class="space-y-0.5">
+                                                @foreach($appt->assignedStaff as $assigned)
+                                                    <p class="text-xs font-bold text-gray-700 dark:text-gray-200">
+                                                        {{ $assigned->full_name ?? trim($assigned->first_name . ' ' . $assigned->last_name) }}
+                                                    </p>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <p class="text-xs font-bold text-gray-700 dark:text-gray-200">
+                                                {{ $staffName }}
                                             </p>
                                         @endif
 

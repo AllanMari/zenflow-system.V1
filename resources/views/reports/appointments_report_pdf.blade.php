@@ -376,17 +376,13 @@
                             $appointment->client_name
                             ?? 'Walk-in';
 
-                        $staffName =
-                            $appointment->staff->full_name
-                            ?? $appointment->staff->name
-                            ?? 'Unassigned';
-
-                        $assistingStaff = $appointment->assignedStaff
-                            ? $appointment->assignedStaff->where('pivot.role', 'assisting')->map(fn($s) => $s->full_name ?? $s->name)->filter()->implode(', ')
-                            : '';
-
-                        if ($assistingStaff !== '') {
-                            $staffName .= ' (Assisting: ' . $assistingStaff . ')';
+                        if ($appointment->assignedStaff && $appointment->assignedStaff->count() > 1) {
+                            $staffName = $appointment->assignedStaff->map(fn($s) => $s->full_name ?? $s->name)->filter()->implode(', ');
+                        } else {
+                            $staffName =
+                                $appointment->staff->full_name
+                                ?? $appointment->staff->name
+                                ?? 'Unassigned';
                         }
 
                         $roomName =

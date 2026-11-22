@@ -140,7 +140,6 @@ class CustomerManagementTest extends TestCase
             'last_name' => 'Santos-Cruz',
             'nickname' => 'Mavi',
             'phone_number' => '09189998888',
-            'email' => 'mavi@example.com',
             'customer_type' => 'vip',
             'medical_notes' => 'Pregnancy trimester 2; avoid deep pressure',
         ]);
