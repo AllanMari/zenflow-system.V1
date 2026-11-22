@@ -2087,7 +2087,13 @@
 
         }
 
-
+        function askMariQuick(questionText) {
+            const input = document.getElementById('aiQuestionInput');
+            if (input && !aiIsTyping) {
+                input.value = questionText;
+                sendAiQuestion(new Event('submit'));
+            }
+        }
 
         function sendAiQuestion(event) {
 
@@ -2272,7 +2278,7 @@
 
                     'ai',
 
-                    'Oops! Lost connection to Ollama. 🔌',
+                    'Oops! Lost connection to AI assistant. 🔌',
 
                     'low'
 

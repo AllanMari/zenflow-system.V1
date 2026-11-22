@@ -2,10 +2,10 @@
 
 return [
 
-    'ollama' => [
-        'endpoint' => env('OLLAMA_ENDPOINT', 'http://127.0.0.1:11434'),
-        'model' => env('OLLAMA_MODEL', 'qwen2.5:7b'),
-        'cache_minutes' => (int) env('OLLAMA_CACHE_MINUTES', 30),
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.1-flash-lite'),
+        'cache_minutes' => (int) env('GEMINI_CACHE_MINUTES', 30),
     ],
 
     /*

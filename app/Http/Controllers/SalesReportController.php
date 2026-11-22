@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Services\SalesAnalyticsService;
-use App\Services\OllamaInsightService;
+use App\Services\GeminiInsightService;
 use App\Services\ReportPdfService;
 use App\Services\CsvExportService;
 
@@ -56,7 +56,7 @@ class SalesReportController extends Controller
         ]);
     }
 
-    public function aiChat(Request $request, OllamaInsightService $ollama)
+    public function aiChat(Request $request, GeminiInsightService $gemini)
     {
         $request->validate([
             'question' => 'required|string|max:200',
@@ -67,7 +67,7 @@ class SalesReportController extends Controller
 
         $data = $this->analyticsService->getDashboardData($request);
 
-        return response()->json($ollama->chat(
+        return response()->json($gemini->chat(
             $request->input('question'), 
             $data['insightPayload'], 
             $request->input('history', [])

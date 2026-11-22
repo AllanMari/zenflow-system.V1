@@ -7,17 +7,17 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class OllamaInsightService
+class GeminiInsightService
 {
-    private string $endpoint;
+    private string $apiKey;
     private string $model;
     private int $cacheMinutes;
 
     public function __construct()
     {
-        $this->endpoint = rtrim(config('services.ollama.endpoint', 'http://127.0.0.1:11434'), '/');
-        $this->model = config('services.ollama.model', 'qwen2.5:7b');
-        $this->cacheMinutes = config('services.ollama.cache_minutes', 30);
+        $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY', ''));
+        $this->model = config('services.gemini.model', env('GEMINI_MODEL', 'gemini-3.1-flash-lite'));
+        $this->cacheMinutes = (int) config('services.gemini.cache_minutes', env('GEMINI_CACHE_MINUTES', 30));
     }
 
     /**
@@ -25,26 +25,26 @@ class OllamaInsightService
      */
     public function getInsights(array $metrics, array $history = []): array
     {
-        if (empty($this->endpoint)) {
-            Log::warning('Ollama endpoint not configured.');
+        if (empty($this->apiKey)) {
+            Log::warning('Gemini API key not configured.');
             return [];
         }
 
-        $cacheKey = 'ollama_insights_' . md5(serialize($metrics) . serialize($history));
+        $cacheKey = 'gemini_insights_' . md5(serialize($metrics) . serialize($history));
 
         return Cache::remember($cacheKey, now()->addMinutes($this->cacheMinutes), function () use ($metrics, $history) {
-            return $this->fetchFromOllama($metrics, $history);
+            return $this->fetchFromGemini($metrics, $history);
         });
     }
 
     /**
      * Chat-based decision support with current metrics context.
-     * Now supports conversation history for natural back-and-forth.
+     * Supports conversation history for natural back-and-forth.
      */
     public function chat(string $question, array $currentMetrics, array $history = []): array
     {
-        if (empty($this->endpoint)) {
-            return ['type' => 'error', 'text' => 'AI assistant is offline. Check Ollama connection.'];
+        if (empty($this->apiKey)) {
+            return ['type' => 'error', 'text' => 'AI assistant is offline. Check Gemini API key.'];
         }
 
         // SECURITY: Narrowed to only exact system-override attempts
@@ -57,30 +57,37 @@ class OllamaInsightService
             }
         }
 
-        // No heavy caching for chat — we want real conversation
-        return $this->fetchChatFromOllama($question, $currentMetrics, $history);
+        return $this->fetchChatFromGemini($question, $currentMetrics, $history);
     }
 
-    private function fetchFromOllama(array $metrics, array $history): array
+    private function fetchFromGemini(array $metrics, array $history): array
     {
         $prompt = $this->buildPrompt($metrics, $history);
         $startTime = microtime(true);
 
         try {
-            $response = Http::timeout(120)
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}";
+
+            $response = Http::timeout(60)
                 ->withHeaders(['Content-Type' => 'application/json'])
-                ->post("{$this->endpoint}/api/generate", [
-                    'model' => $this->model,
-                    'prompt' => $prompt,
-                    'stream' => false,
-                    'format' => 'json',
-                    'options' => ['temperature' => 0.3],
+                ->post($url, [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                ['text' => $prompt]
+                            ]
+                        ]
+                    ],
+                    'generationConfig' => [
+                        'responseMimeType' => 'application/json',
+                        'temperature' => 0.3,
+                    ],
                 ]);
 
             $elapsedMs = round((microtime(true) - $startTime) * 1000);
 
             if (!$response->successful()) {
-                Log::error('Ollama API error', [
+                Log::error('Gemini API error', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                 ]);
@@ -88,10 +95,10 @@ class OllamaInsightService
             }
 
             $json = $response->json();
-            $text = $json['response'] ?? null;
+            $text = $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
             if (!$text) {
-                Log::error('Ollama response missing text');
+                Log::error('Gemini response missing text');
                 return [];
             }
 
@@ -105,7 +112,7 @@ class OllamaInsightService
             }
 
             if (!is_array($insights)) {
-                Log::error('Ollama response not valid JSON', ['raw' => $text]);
+                Log::error('Gemini response not valid JSON', ['raw' => $text]);
                 return [];
             }
 
@@ -124,14 +131,79 @@ class OllamaInsightService
             return $normalized;
 
         } catch (\Exception $e) {
-            Log::error('Ollama request failed: ' . $e->getMessage());
+            Log::error('Gemini request failed: ' . $e->getMessage());
             return [];
         }
     }
 
-    private function fetchChatFromOllama(string $question, array $m, array $history): array
+    private function fetchChatFromGemini(string $question, array $m, array $history): array
+    {
+        $prompt = $this->buildChatPrompt($question, $m, $history);
+
+        try {
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}";
+
+            $response = Http::timeout(45)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post($url, [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                ['text' => $prompt]
+                            ]
+                        ]
+                    ],
+                    'generationConfig' => [
+                        'responseMimeType' => 'application/json',
+                        'temperature' => 0.7,
+                    ],
+                ]);
+
+            if (!$response->successful()) {
+                Log::error('Gemini chat API error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                return ['type' => 'error', 'text' => 'AI service temporarily unavailable.'];
+            }
+
+            $json = $response->json();
+            $text = $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
+
+            if (!$text) {
+                return ['type' => 'error', 'text' => 'No response from AI.'];
+            }
+
+            $text = preg_replace('/^```json\s*/i', '', $text);
+            $text = preg_replace('/\s*```\s*$/i', '', $text);
+
+            $result = json_decode(trim($text), true);
+
+            if (!is_array($result) || !isset($result['response'])) {
+                return ['type' => 'error', 'text' => 'AI returned invalid format.'];
+            }
+
+            return [
+                'type' => 'success',
+                'answer' => $result['response'],
+                'confidence' => $result['confidence'] ?? 'medium',
+                'action' => $result['action'] ?? 'Review your metrics dashboard',
+                'mood' => $result['mood'] ?? 'neutral',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Gemini chat failed: ' . $e->getMessage());
+            return ['type' => 'error', 'text' => 'Connection error to AI service.'];
+        }
+    }
+
+    private function buildChatPrompt(string $question, array $m, array $history): string
     {
         $currency = '₱';
+        $repeatRate = $m['repeatCustomerRate'] ?? 'N/A';
+        $noShowLoss = $m['revenueLostToNoShows'] ?? '0.00';
+        $cancelLoss = $m['revenueLostToCancels'] ?? '0.00';
+        $peakHour = $m['peakHour'] ?? 'N/A';
 
         $safeQuestion = str_replace(['"', "'", '\\'], '', $question);
         if (strlen($safeQuestion) > 200) {
@@ -157,7 +229,7 @@ class OllamaInsightService
             ->unique()
             ->implode(', ');
 
-        $prompt = <<<PROMPT
+        return <<<PROMPT
 You are "Mari" — the friendly, supportive AI assistant for Spa Alexandria. You work at the front desk in spirit: you know the business inside and out, but you're also a warm person who likes to chat with the team. You talk like a real coworker, not a robot.
 
 CURRENT BUSINESS STATUS ({$m['label']} — {$m['startDate']} to {$m['endDate']}):
@@ -165,6 +237,8 @@ CURRENT BUSINESS STATUS ({$m['label']} — {$m['startDate']} to {$m['endDate']})
 - Avg Ticket: {$currency}{$m['avgSale']} | Unique Customers: {$m['uniqueCustomers']}
 - Completion: {$m['completionRate']}% | No-Show: {$m['noShowRate']}% | Cancel: {$m['cancellationRate']}%
 - Revenue Change: {$m['revenueChange']}% | Deposit Conversion: {$m['conversionRate']}%
+- Repeat Clients: {$repeatRate} | Peak Hours: {$peakHour}
+- Revenue Lost to No-Shows: {$currency}{$noShowLoss} | Lost to Cancellations: {$currency}{$cancelLoss}
 - Top Service: {$m['topService']} | Top Staff: {$m['topStaff']}
 
 PREVIOUS AI ANALYSES: {$previousInsights}
@@ -175,11 +249,17 @@ OWNER: {$safeQuestion}
 HOW TO RESPOND:
 1. Be warm, casual, and human. If they ask "how are you," actually answer like a person would — then ask how THEIR day is going. Don't force sales talk where it doesn't belong.
 2. If the question is about business, sales, staff, appointments, pricing, or spa operations — THAT'S your moment to shine. Use the numbers above naturally and give specific, actionable advice.
-3. If they vent about a bad day, be empathetic. If they celebrate a win, be excited with them.
-4. Only bring up metrics when it genuinely helps answer their question. Don't dump data just because you have it.
-5. If the conversation drifts to something totally unrelated (weather, food, random trivia), chat about it briefly, then gently offer: "By the way, if you want to look at today's numbers, I'm here for that too!"
-6. Keep responses to 2-3 short paragraphs. Be conversational. Use emojis naturally, not excessively.
-7. Return ONLY a JSON object with this exact structure:
+3. REALISTIC CAPABILITIES & HONEST LIMITATIONS:
+   - You are strictly an AI business and sales data advisor powered by database metrics. You do NOT have a web browser, hands, code execution permissions, or automated testing tools.
+   - You CANNOT browse websites, visit URLs, click buttons, test booking widgets, verify live checkout screens, or process payments.
+   - If the user asks you to test, browse, click, or verify live web functionality, BE COMPLETELY HONEST AND DIRECT: Say immediately and plainly that you cannot do that because you do not have web browsing or automated testing capabilities. NEVER say "I'm on it", "I'm heading over to the site", or "Let me run a test for you".
+   - You CAN, however, report what the database metrics show (for example, whether any bookings or payments have been recorded today) and recommend how the owner can manually verify the feature in their own browser.
+   - Always deliver your full answer immediately in this response without promising follow-up actions.
+4. If they vent about a bad day, be empathetic. If they celebrate a win, be excited with them.
+5. Only bring up metrics when it genuinely helps answer their question. Don't dump data just because you have it.
+6. If the conversation drifts to something totally unrelated (weather, food, random trivia), chat about it briefly, then gently offer: "By the way, if you want to look at today's numbers, I'm here for that too!"
+7. Keep responses to 2-3 short paragraphs. Be conversational. Use emojis naturally, not excessively.
+8. Return ONLY a JSON object with this exact structure:
 {
   "response": "Your friendly conversational answer here",
   "confidence": "high|medium|low",
@@ -187,55 +267,15 @@ HOW TO RESPOND:
   "mood": "encouraging|concerned|celebratory|neutral|playful"
 }
 PROMPT;
-
-        try {
-            $response = Http::timeout(60)
-                ->withHeaders(['Content-Type' => 'application/json'])
-                ->post("{$this->endpoint}/api/generate", [
-                    'model' => $this->model,
-                    'prompt' => $prompt,
-                    'stream' => false,
-                    'format' => 'json',
-                    'options' => ['temperature' => 0.7], // Higher temp = more personality
-                ]);
-
-            if (!$response->successful()) {
-                return ['type' => 'error', 'text' => 'AI service temporarily unavailable.'];
-            }
-
-            $json = $response->json();
-            $text = $json['response'] ?? null;
-
-            if (!$text) {
-                return ['type' => 'error', 'text' => 'No response from AI.'];
-            }
-
-            $text = preg_replace('/^```json\s*/i', '', $text);
-            $text = preg_replace('/\s*```\s*$/i', '', $text);
-
-            $result = json_decode(trim($text), true);
-
-            if (!is_array($result) || !isset($result['response'])) {
-                return ['type' => 'error', 'text' => 'AI returned invalid format.'];
-            }
-
-            return [
-                'type' => 'success',
-                'answer' => $result['response'],
-                'confidence' => $result['confidence'] ?? 'medium',
-                'action' => $result['action'] ?? 'Review your metrics dashboard',
-                'mood' => $result['mood'] ?? 'neutral',
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Ollama chat failed: ' . $e->getMessage());
-            return ['type' => 'error', 'text' => 'Connection error. Is Ollama running?'];
-        }
     }
 
     private function buildPrompt(array $m, array $history): string
     {
         $currency = '₱';
+        $repeatRate = $m['repeatCustomerRate'] ?? 'N/A';
+        $noShowLoss = $m['revenueLostToNoShows'] ?? '0.00';
+        $cancelLoss = $m['revenueLostToCancels'] ?? '0.00';
+        $peakHour = $m['peakHour'] ?? 'N/A';
 
         $historyText = '';
         if (!empty($history)) {
@@ -280,8 +320,12 @@ CURRENT METRICS:
 - Conversion Rate: {$m['conversionRate']}%
 - Deposits Held: {$currency}{$m['deposits']}
 - Revenue per Completed Appointment: {$currency}{$m['revPerComp']}
+- Repeat Client Rate: {$repeatRate}
+- Revenue Lost to No-Shows: {$currency}{$noShowLoss}
+- Revenue Lost to Cancellations: {$currency}{$cancelLoss}
 - Top Service: {$m['topService']}
 - Top Staff: {$m['topStaff']}
+- Peak Hours: {$peakHour}
 {$historyText}{$memoryText}
 
 RULES:
@@ -345,7 +389,6 @@ PROMPT;
             ];
         }
 
-        // FIX: Proper priority sorting (was returning 0 for many pairs, causing random order)
         $priority = ['danger' => 0, 'warning' => 1, 'success' => 2, 'info' => 3];
         usort($normalized, fn ($a, $b) => $priority[$a['type']] <=> $priority[$b['type']]);
 
@@ -354,24 +397,18 @@ PROMPT;
 
     public function healthCheck(): bool
     {
-        try {
-            $isLocal = str_contains($this->endpoint, '127.0.0.1') || str_contains($this->endpoint, 'localhost');
-            $timeout = $isLocal ? 3 : 8;
-
-            $request = Http::timeout($timeout);
-
-            if (!$isLocal) {
-                $request->withHeaders([
-                    'ngrok-skip-browser-warning' => 'true'
-                ]);
-            }
-
-            $response = $request->get("{$this->endpoint}/api/tags");
-
-            return $response->successful() && str_contains($response->body(), $this->model);
-        } catch (\Exception $e) {
-            Log::info('Ollama connection check failed: ' . $e->getMessage());
+        if (empty($this->apiKey)) {
             return false;
         }
+
+        return Cache::remember('gemini_health_check', now()->addMinutes(5), function () {
+            try {
+                $response = Http::timeout(5)->get("https://generativelanguage.googleapis.com/v1beta/models/{$this->model}?key={$this->apiKey}");
+                return $response->successful();
+            } catch (\Exception $e) {
+                Log::info('Gemini connection check failed: ' . $e->getMessage());
+                return false;
+            }
+        });
     }
 }

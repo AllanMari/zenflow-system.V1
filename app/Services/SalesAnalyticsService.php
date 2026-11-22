@@ -7,7 +7,7 @@ use App\Models\Payment;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use App\Services\OllamaInsightService;
+use App\Services\GeminiInsightService;
 use App\Models\Attendance;
 use App\Models\WorkSchedule;
 use App\Models\ScheduleException;
@@ -421,32 +421,35 @@ class SalesAnalyticsService
         | AI insights
         |--------------------------------------------------------------------------
         */
-        $ollama = new OllamaInsightService();
+        $gemini = new GeminiInsightService();
 
-        $aiOnline = $ollama->healthCheck();
+        $aiOnline = $gemini->healthCheck();
 
         $insightPayload = [
-            'period'           => $period,
-            'label'            => $label,
-            'startDate'        => $startDate->format('M d, Y'),
-            'endDate'          => $endDate->format('M d, Y'),
-            'totalRevenue'     => number_format($totalRevenue, 2),
-            'totalCount'       => $totalCount,
-            'avgSale'          => number_format($avgSale, 2),
-            'uniqueCustomers'  => $uniqueCustomers,
-            'completionRate'   => $completionRate,
-            'noShowRate'       => $noShowRate,
-            'cancellationRate' => $cancellationRate,
-            'revenueChange'    => $revenueChange,
-            'conversionRate'   => $conversionRate,
-            'deposits'         => number_format($deposits, 2),
-            'revPerComp'       => number_format($revPerCompletedAppt, 2),
-            'topService'       => array_key_first($topServices) ?: 'None',
-            'topStaff'         => array_key_first($topStaff) ?: 'None',
-            'peakHour'         => $peakBusinessHours['peakLabel'] ?? 'N/A',
+            'period'               => $period,
+            'label'                => $label,
+            'startDate'            => $startDate->format('M d, Y'),
+            'endDate'              => $endDate->format('M d, Y'),
+            'totalRevenue'         => number_format($totalRevenue, 2),
+            'totalCount'           => $totalCount,
+            'avgSale'              => number_format($avgSale, 2),
+            'uniqueCustomers'      => $uniqueCustomers,
+            'completionRate'       => $completionRate,
+            'noShowRate'           => $noShowRate,
+            'cancellationRate'     => $cancellationRate,
+            'revenueChange'        => $revenueChange,
+            'conversionRate'       => $conversionRate,
+            'deposits'             => number_format($deposits, 2),
+            'revPerComp'           => number_format($revPerCompletedAppt, 2),
+            'topService'           => array_key_first($topServices) ?: 'None',
+            'topStaff'             => array_key_first($topStaff) ?: 'None',
+            'peakHour'             => $peakBusinessHours['peakLabel'] ?? 'N/A',
+            'repeatCustomerRate'   => ($customerRetention['repeatRate'] ?? 0) . '%',
+            'revenueLostToNoShows' => number_format($revenueLoss['noShowLoss'] ?? 0, 2),
+            'revenueLostToCancels' => number_format($revenueLoss['cancelledLoss'] ?? 0, 2),
         ];
 
-        $aiInsights = $ollama->getInsights(
+        $aiInsights = $gemini->getInsights(
             $insightPayload,
             $history
         );
