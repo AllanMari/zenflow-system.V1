@@ -92,9 +92,9 @@
     </div>
 
     {{-- ═══════════════════════════════════════════════════════════
-         2. FOUR USEFUL OPERATIONAL KPI TILES
+         2. FIVE USEFUL OPERATIONAL KPI TILES
     ════════════════════════════════════════════════════════════════ --}}
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
 
         {{-- KPI 1: Today's Assigned Bookings --}}
         <a href="{{ route('staff.appointments', ['date' => now('Asia/Manila')->toDateString()]) }}"
@@ -170,6 +170,24 @@
                 <p class="text-2xl font-bold text-gray-900 dark:text-white tabular-nums tracking-tight">{{ $weeklyCompleted }}</p>
                 <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">Weekly Completed</p>
                 <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-snug">Monday to Sunday total</p>
+            </div>
+        </a>
+
+        {{-- KPI 5: My Commission (Current Month) --}}
+        <a href="{{ route('staff.commissions', ['range' => 'this_month']) }}"
+           class="group bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/50 rounded-2xl p-4 shadow-sm hover:border-amber-300 dark:hover:border-amber-700/60 transition-all hover:shadow-md flex flex-col justify-between col-span-2 sm:col-span-1">
+            <div class="flex items-start justify-between">
+                <div class="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform">
+                    <i data-lucide="wallet" class="w-4 h-4"></i>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                    30% Share
+                </span>
+            </div>
+            <div class="mt-3">
+                <p class="text-2xl font-bold text-gray-900 dark:text-white tabular-nums tracking-tight">₱{{ number_format($monthCommission ?? 0, 2) }}</p>
+                <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Month's Commission</p>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-snug">Today: ₱{{ number_format($todayCommission ?? 0, 2) }}</p>
             </div>
         </a>
 

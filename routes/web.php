@@ -66,6 +66,8 @@ Route::middleware(['auth', 'role:staff'])->prefix('staff')->name('staff.')->grou
     Route::post('/appointments/{appointment}/treatment-notes', [StaffController::class, 'updateTreatmentNotes'])->name('appointments.treatment-notes.update');
     Route::get('/schedule', [StaffController::class, 'mySchedule'])->name('schedule');
     Route::post('/schedule/update', [StaffController::class, 'updateMySchedule'])->name('schedule.update');
+    Route::get('/commissions', [StaffController::class, 'myCommissions'])->name('commissions');
+    Route::get('/commissions/export-csv', [StaffController::class, 'exportCommissionCsv'])->name('commissions.csv');
 });
 
 // ==================== RECEPTIONIST ====================

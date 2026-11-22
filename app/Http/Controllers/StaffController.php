@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\ScheduleException;
 use App\Models\ShiftTemplate;
 use App\Models\WorkSchedule;
+use App\Services\CsvExportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -118,6 +119,32 @@ class StaffController extends Controller
             ->whereDate('date', $today)
             ->first();
 
+        // 7. Commission metrics for authenticated therapist (Current Month & Today)
+        $monthStart = $today->copy()->startOfMonth();
+        $monthEnd = $today->copy()->endOfMonth();
+        $monthAppointments = Appointment::with(['services', 'assignedStaff', 'staff', 'payments'])
+            ->forStaff($userId)
+            ->where('status', 'completed')
+            ->whereDate('appointment_date', '>=', $monthStart->toDateString())
+            ->whereDate('appointment_date', '<=', $monthEnd->toDateString())
+            ->get();
+
+        $monthCommissionCents = 0;
+        $todayCommissionCents = 0;
+        $todayDateStr = $today->toDateString();
+
+        foreach ($monthAppointments as $appt) {
+            $row = $this->calculateTherapistCommissionRow($appt, $userId);
+            if ($row) {
+                $monthCommissionCents += $row['my_commission_cents'];
+                if ($row['raw_date'] === $todayDateStr) {
+                    $todayCommissionCents += $row['my_commission_cents'];
+                }
+            }
+        }
+        $monthCommission = $monthCommissionCents / 100;
+        $todayCommission = $todayCommissionCents / 100;
+
         return view('staff-dashboard', compact(
             'myToday',
             'myUpcoming',
@@ -129,7 +156,9 @@ class StaffController extends Controller
             'weekEnd',
             'nextSession',
             'shiftInfo',
-            'todayAttendance'
+            'todayAttendance',
+            'monthCommission',
+            'todayCommission'
         ));
     }
 
@@ -563,5 +592,297 @@ class StaffController extends Controller
         }
 
         return back()->with('success', 'Treatment notes updated successfully.');
+    }
+
+    /**
+     * Display therapist commissions with date range, daily/monthly/yearly presets,
+     * and equal multi-therapist 30% pool splitting. Strictly isolated to Auth::id().
+     */
+    public function myCommissions(Request $request)
+    {
+        $userId = Auth::id();
+        $dateFilter = $this->resolveCommissionDateFilter($request);
+        $startDate = $dateFilter['startDate'];
+        $endDate = $dateFilter['endDate'];
+        $rangePreset = $dateFilter['rangePreset'];
+
+        $appointments = Appointment::with([
+            'customer',
+            'services',
+            'room',
+            'assignedStaff',
+            'staff',
+            'payments',
+            'packageSelections',
+        ])
+            ->forStaff($userId)
+            ->where('status', 'completed')
+            ->whereDate('appointment_date', '>=', $startDate->toDateString())
+            ->whereDate('appointment_date', '<=', $endDate->toDateString())
+            ->orderBy('appointment_date', 'desc')
+            ->orderBy('start_time', 'desc')
+            ->get();
+
+        $rows = [];
+        $totalCommissionCents = 0;
+        $totalNetCents = 0;
+        $soloCount = 0;
+        $multiCount = 0;
+
+        foreach ($appointments as $appt) {
+            $row = $this->calculateTherapistCommissionRow($appt, $userId);
+            if ($row) {
+                $rows[] = $row;
+                $totalCommissionCents += $row['my_commission_cents'];
+                $totalNetCents += $row['net_cents'];
+                if ($row['therapists_count'] > 1) {
+                    $multiCount++;
+                } else {
+                    $soloCount++;
+                }
+            }
+        }
+
+        $summary = [
+            'total_commission' => $totalCommissionCents / 100,
+            'total_net' => $totalNetCents / 100,
+            'completed_count' => count($rows),
+            'solo_count' => $soloCount,
+            'multi_count' => $multiCount,
+            'avg_commission' => count($rows) > 0 ? round(($totalCommissionCents / 100) / count($rows), 2) : 0,
+        ];
+
+        $perPage = 15;
+        $currentPage = (int) $request->input('page', 1);
+        $pagedRows = new \Illuminate\Pagination\LengthAwarePaginator(
+            array_slice($rows, ($currentPage - 1) * $perPage, $perPage),
+            count($rows),
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return view('staff.commissions', [
+            'rows' => $pagedRows,
+            'allRows' => $rows,
+            'summary' => $summary,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'rangePreset' => $rangePreset,
+            'dateFrom' => $startDate->toDateString(),
+            'dateTo' => $endDate->toDateString(),
+        ]);
+    }
+
+    /**
+     * Export staff's own commission statement to a clean CSV spreadsheet.
+     */
+    public function exportCommissionCsv(Request $request, CsvExportService $csvService)
+    {
+        $user = Auth::user();
+        $dateFilter = $this->resolveCommissionDateFilter($request);
+        $startDate = $dateFilter['startDate'];
+        $endDate = $dateFilter['endDate'];
+
+        $appointments = Appointment::with([
+            'customer',
+            'services',
+            'room',
+            'assignedStaff',
+            'staff',
+            'payments',
+            'packageSelections',
+        ])
+            ->forStaff($user->id)
+            ->where('status', 'completed')
+            ->whereDate('appointment_date', '>=', $startDate->toDateString())
+            ->whereDate('appointment_date', '<=', $endDate->toDateString())
+            ->orderBy('appointment_date', 'desc')
+            ->orderBy('start_time', 'desc')
+            ->get();
+
+        $rows = [];
+        $totalCommission = 0;
+        $totalNet = 0;
+
+        foreach ($appointments as $appt) {
+            $row = $this->calculateTherapistCommissionRow($appt, $user->id);
+            if ($row) {
+                $totalCommission += $row['my_commission'];
+                $totalNet += $row['net_amount'];
+
+                $rows[] = [
+                    '#' . ($row['ref'] ?? $appt->id),
+                    $row['date'],
+                    $row['time'],
+                    $row['service_name'],
+                    $row['client_name'],
+                    $row['room_name'],
+                    $row['assignment_type'],
+                    number_format($row['net_amount'], 2, '.', ''),
+                    number_format($row['total_pool_commission'], 2, '.', ''),
+                    $row['share_percent'] . '%',
+                    number_format($row['my_commission'], 2, '.', ''),
+                ];
+            }
+        }
+
+        $meta = [
+            ['ZENFLOW SPA', 'THERAPIST COMMISSION STATEMENT'],
+            ['STAFF MEMBER', $user->full_name ?? $user->name],
+            ['PERIOD', $startDate->format('M j, Y') . ' — ' . $endDate->format('M j, Y')],
+            ['TOTAL SESSIONS', count($rows)],
+            ['TOTAL NET REVENUE', 'PHP ' . number_format($totalNet, 2)],
+            ['TOTAL COMMISSION (30% SHARE)', 'PHP ' . number_format($totalCommission, 2)],
+            ['GENERATED AT', now('Asia/Manila')->format('F j, Y g:i A')],
+        ];
+
+        $headers = [
+            'Reference #',
+            'Date',
+            'Time',
+            'Service / Package',
+            'Client',
+            'Room',
+            'Team / Assignment',
+            'Net Amount (PHP)',
+            'Total 30% Pool (PHP)',
+            'Your Share %',
+            'Your Commission (PHP)',
+        ];
+
+        $filename = 'commissions-' . strtolower(preg_replace('/[^a-zA-Z0-9_-]/', '', $user->username ?: 'staff')) . '-' . now()->format('Ymd') . '.csv';
+
+        return $csvService->stream($filename, $headers, $rows, $meta);
+    }
+
+    /**
+     * Resolve date boundaries based on Flatpickr date_from/date_to or quick preset.
+     */
+    private function resolveCommissionDateFilter(Request $request): array
+    {
+        $today = Carbon::today('Asia/Manila');
+        $rangePreset = $request->input('range', 'this_month');
+
+        if ($request->filled('date_from') && $request->filled('date_to')) {
+            try {
+                $start = Carbon::parse($request->input('date_from'), 'Asia/Manila')->startOfDay();
+                $end = Carbon::parse($request->input('date_to'), 'Asia/Manila')->endOfDay();
+                if ($start->lte($end)) {
+                    return [
+                        'startDate' => $start,
+                        'endDate' => $end,
+                        'rangePreset' => 'custom',
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // fallback to preset
+            }
+        }
+
+        return match ($rangePreset) {
+            'today', 'daily' => [
+                'startDate' => $today->copy()->startOfDay(),
+                'endDate' => $today->copy()->endOfDay(),
+                'rangePreset' => 'today',
+            ],
+            'this_week', 'weekly' => [
+                'startDate' => $today->copy()->startOfWeek(),
+                'endDate' => $today->copy()->endOfWeek(),
+                'rangePreset' => 'this_week',
+            ],
+            'this_year', 'yearly' => [
+                'startDate' => $today->copy()->startOfYear(),
+                'endDate' => $today->copy()->endOfYear(),
+                'rangePreset' => 'this_year',
+            ],
+            default => [ // this_month (Default)
+                'startDate' => $today->copy()->startOfMonth(),
+                'endDate' => $today->copy()->endOfMonth(),
+                'rangePreset' => 'this_month',
+            ],
+        };
+    }
+
+    /**
+     * Compute single commission record for a completed appointment and therapist.
+     */
+    private function calculateTherapistCommissionRow(Appointment $appt, int $userId): ?array
+    {
+        // 1. Gather therapists assigned to this session
+        $therapists = collect();
+        if ($appt->relationLoaded('assignedStaff') && $appt->assignedStaff->isNotEmpty()) {
+            $therapists = $appt->assignedStaff;
+        } elseif ($appt->staff) {
+            $therapists = collect([$appt->staff]);
+        }
+        if ($appt->staff && !$therapists->contains('id', $appt->staff->id)) {
+            $therapists = collect([$appt->staff])->merge($therapists);
+        }
+
+        if ($therapists->isEmpty() || !$therapists->contains('id', $userId)) {
+            return null;
+        }
+
+        $count = $therapists->count();
+
+        // 2. Resolve net amount collected
+        $collectedPayments = (float) $appt->payments
+            ->whereIn('type', ['deposit', 'full', 'completion', 'additional'])
+            ->where('amount', '>', 0)
+            ->sum('amount');
+
+        $net = $collectedPayments > 0 ? $collectedPayments : (float) ($appt->total_price ?? 0);
+        $netCents = (int) round($net * 100);
+
+        // 3. 30% Total Commission Pool calculation
+        $totalComCents = (int) round($net * 0.30 * 100);
+        $baseComCents = intdiv($totalComCents, $count);
+        $remComCents = $totalComCents % $count;
+
+        // Sort by ID for deterministic allocation of odd penny
+        $sortedTherapists = $therapists->sortBy('id')->values();
+        $myIndex = $sortedTherapists->search(fn ($t) => $t->id == $userId);
+        if ($myIndex === false) {
+            return null;
+        }
+
+        $myCommissionCents = $baseComCents + ($myIndex < $remComCents ? 1 : 0);
+        $myCommission = $myCommissionCents / 100;
+        $totalPoolCommission = $totalComCents / 100;
+
+        // 4. Formatted teammates string
+        $otherTherapists = $therapists->reject(fn ($t) => $t->id == $userId);
+        $assignmentType = $count === 1
+            ? 'Solo'
+            : 'Shared (' . $count . ' therapists)';
+
+        $otherNames = $otherTherapists->map(fn ($t) => $t->full_name ?? trim($t->first_name . ' ' . $t->last_name))->filter()->implode(', ');
+        $teamDescription = $count === 1
+            ? 'Solo Session'
+            : 'Shared with ' . ($otherNames ?: 'Colleague');
+
+        // Services string
+        $serviceName = $appt->services->pluck('name')->implode(', ') ?: 'Spa Session';
+
+        return [
+            'id' => $appt->id,
+            'ref' => $appt->reference_number ?? $appt->id,
+            'date' => $appt->appointment_date ? Carbon::parse($appt->appointment_date)->format('M j, Y') : 'N/A',
+            'raw_date' => $appt->appointment_date ? Carbon::parse($appt->appointment_date)->toDateString() : '',
+            'time' => $appt->start_time ? Carbon::parse($appt->start_time)->format('g:i A') : 'N/A',
+            'service_name' => $serviceName,
+            'client_name' => $appt->client_name ?: 'Walk-in Guest',
+            'room_name' => $appt->room->name ?? 'Unassigned',
+            'therapists_count' => $count,
+            'assignment_type' => $assignmentType,
+            'team_description' => $teamDescription,
+            'net_cents' => $netCents,
+            'net_amount' => $net,
+            'total_pool_commission' => $totalPoolCommission,
+            'share_percent' => round(100 / $count, 1),
+            'my_commission_cents' => $myCommissionCents,
+            'my_commission' => $myCommission,
+        ];
     }
 }

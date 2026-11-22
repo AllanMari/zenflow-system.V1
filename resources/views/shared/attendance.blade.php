@@ -757,7 +757,7 @@
                 x-transition:leave-start="opacity-100 translate-y-0 scale-100"
                 x-transition:leave-end="opacity-0 translate-y-2 scale-[.98]"
                 @click.outside="reportOpen = false"
-                class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+                class="flex max-h-[90vh] w-full max-w-xl sm:max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
             >
 
                 {{-- Modal Header --}}
@@ -1019,72 +1019,70 @@
                 {{-- Modal Footer --}}
                 <div class="border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/40">
 
-                    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
 
                         <button
                             type="button"
                             @click="reportOpen = false"
-                            class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700"
+                            class="inline-flex w-full sm:w-auto items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700"
                         >
                             Cancel
                         </button>
 
+                        <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
 
-                        {{-- Preview --}}
-                        <button
-                            type="button"
-                            @click="generateReport('stream')"
-                            class="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-600 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500 dark:bg-slate-900 dark:text-brand-300 dark:hover:bg-brand-900/20"
-                        >
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                      d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/>
-                                <circle cx="12" cy="12" r="2.5"/>
-                            </svg>
+                            {{-- Preview --}}
+                            <button
+                                type="button"
+                                @click="generateReport('stream')"
+                                class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-brand-600 bg-white px-3.5 py-2.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500 dark:bg-slate-900 dark:text-brand-300 dark:hover:bg-brand-900/20"
+                            >
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                          d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/>
+                                    <circle cx="12" cy="12" r="2.5"/>
+                                </svg>
+                                <span>Preview PDF</span>
+                            </button>
 
-                            Preview PDF
-                        </button>
+                            {{-- Download --}}
+                            <button
+                                type="button"
+                                @click="generateReport('download')"
+                                class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-600 shadow-sm"
+                            >
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                          d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"/>
+                                </svg>
+                                <span>Download PDF</span>
+                            </button>
 
+                            {{-- Export XLSX --}}
+                            <button
+                                type="button"
+                                @click="exportXlsx()"
+                                class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 shadow-sm"
+                            >
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                                </svg>
+                                <span>Export Excel</span>
+                            </button>
 
-                        {{-- Download --}}
-                        <button
-                            type="button"
-                            @click="generateReport('download')"
-                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-600"
-                        >
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                      d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"/>
-                            </svg>
+                            {{-- Export CSV --}}
+                            <button
+                                type="button"
+                                @click="exportCsv()"
+                                class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 shadow-sm"
+                            >
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                                </svg>
+                                <span>Export CSV</span>
+                            </button>
 
-                            Download PDF
-                        </button>
-
-                        {{-- Export XLSX --}}
-                        <button
-                            type="button"
-                            @click="exportXlsx()"
-                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 shadow-sm"
-                        >
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
-                            </svg>
-
-                            Export Excel (.xlsx)
-                        </button>
-
-                        {{-- Export CSV --}}
-                        <button
-                            type="button"
-                            @click="exportCsv()"
-                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 shadow-sm"
-                        >
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
-                            </svg>
-
-                            Export CSV
-                        </button>
+                        </div>
 
                     </div>
 
