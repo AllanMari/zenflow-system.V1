@@ -38,6 +38,15 @@ $navItems = [
     ['r'=>'receptionist.quick-book','l'=>'Quick Book','p'=>'receptionist.quick-book','i'=>'M12 4.5v15m7.5-7.5h-15'],
 ];
 
+if (auth()->user()->can_manage_schedules ?? false) {
+    $navItems[] = [
+        'r' => 'receptionist.shift-templates.index',
+        'l' => 'Shift Templates',
+        'p' => 'receptionist.shift-templates.*',
+        'i' => 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z',
+    ];
+}
+
 if(auth()->user()->can_edit_landing ?? false) {
     $navItems[] = ['r'=>'admin.landing.editor','l'=>'Landing Page','p'=>'admin.landing.*','i'=>'M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25'];
 }

@@ -363,9 +363,13 @@ class BookingController extends Controller
                         'price',
                         'discount_price',
                         'duration_minutes',
+                        'is_package',
                         'requires_room',
-                        'room_category_id'
-                    ),
+                        'room_category_id',
+                        'therapists_required',
+                        'participants_required'
+                    )
+                    ->with(['choiceGroups.options.service']),
             ])
             ->get();
 

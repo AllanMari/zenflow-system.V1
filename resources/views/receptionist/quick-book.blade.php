@@ -542,6 +542,43 @@
 
                                                         </div>
 
+                                                    {{-- Package Choice Options (When Selected) --}}
+                                                    <template x-if="service.is_package && service.choice_groups && service.choice_groups.length > 0 && isSelected(service.id)">
+                                                        <div class="mt-3.5 space-y-3 rounded-xl border border-purple-200 bg-purple-50/50 p-3 dark:border-purple-900/50 dark:bg-purple-950/20" @click.stop>
+                                                            <template x-for="group in service.choice_groups" :key="group.id">
+                                                                <div class="space-y-1.5">
+                                                                    <div class="flex items-center justify-between">
+                                                                        <span class="text-xs font-bold text-purple-900 dark:text-purple-300" x-text="group.label"></span>
+                                                                        <span x-show="group.is_required" class="text-[10px] font-semibold text-rose-500 uppercase tracking-wider">Required</span>
+                                                                    </div>
+                                                                    <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                                                        <template x-for="opt in group.options" :key="opt.id">
+                                                                            <label
+                                                                                class="flex cursor-pointer items-center justify-between rounded-lg border p-2 text-xs transition-all"
+                                                                                :class="packageChoices[group.id] === opt.id || packageChoices[group.id] === opt.service_id
+                                                                                    ? 'border-purple-600 bg-white font-semibold text-purple-900 shadow-xs dark:border-purple-500 dark:bg-purple-900/40 dark:text-purple-100'
+                                                                                    : 'border-purple-200/60 bg-white/70 text-slate-700 hover:border-purple-300 hover:bg-white dark:border-purple-900/40 dark:bg-slate-900/60 dark:text-slate-300'"
+                                                                                @click.stop="selectChoiceOption(group.id, opt.id)"
+                                                                            >
+                                                                                <div class="flex items-center gap-2 min-w-0">
+                                                                                    <input
+                                                                                        type="radio"
+                                                                                        :name="'pkg_choice_' + service.id + '_' + group.id"
+                                                                                        :value="opt.id"
+                                                                                        :checked="packageChoices[group.id] === opt.id || packageChoices[group.id] === opt.service_id"
+                                                                                        class="h-3.5 w-3.5 text-purple-600 focus:ring-purple-500"
+                                                                                        @click.stop="selectChoiceOption(group.id, opt.id)"
+                                                                                    >
+                                                                                    <span class="truncate" x-text="opt.service ? opt.service.name : 'Option'"></span>
+                                                                                </div>
+                                                                            </label>
+                                                                        </template>
+                                                                    </div>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+
                                                     </div>
 
                                                 </div>
@@ -781,7 +818,7 @@
                         >
 
                             <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Staff
+                                <span x-text="therapistsRequired > 1 ? 'Primary Staff / Therapist' : 'Staff / Therapist'"></span>
                             </label>
 
                             <select
@@ -797,6 +834,28 @@
                                     </option>
                                 @endforeach
                             </select>
+
+                            {{-- Assisting Staff Selection (Required when service needs 2 therapists) --}}
+                            <div x-show="therapistsRequired > 1" class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="block text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                        Assisting Therapist
+                                    </label>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">2 Therapists Required</span>
+                                </div>
+
+                                <select
+                                    x-model="selectedAssistingStaff"
+                                    class="w-full rounded-xl border border-indigo-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-indigo-700 dark:bg-gray-800 dark:text-white"
+                                >
+                                    <option value="">Select assisting staff</option>
+                                    @foreach($staff as $member)
+                                        <option value="{{ $member->id }}" x-show="String({{ $member->id }}) !== String(selectedStaff)">
+                                            {{ $member->full_name ?? trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? '')) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
 
                         </div>
 
@@ -1549,6 +1608,33 @@
 
             selectedStaff: '',
             selectedStaffName: '',
+            selectedAssistingStaff: '',
+            packageChoices: {},
+
+            selectChoiceOption(groupId, optionId) {
+                this.packageChoices = {
+                    ...this.packageChoices,
+                    [groupId]: optionId
+                };
+            },
+
+            arePackageChoicesValid() {
+                for (const service of this.selectedServiceObjects) {
+                    if (service.is_package && Array.isArray(service.choice_groups)) {
+                        for (const group of service.choice_groups) {
+                            if (group.is_required && !this.packageChoices[group.id]) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                return true;
+            },
+
+            get therapistsRequired() {
+                if (!this.selectedServiceObjects.length) return 1;
+                return Math.max(1, ...this.selectedServiceObjects.map(s => Number(s.therapists_required) || 1));
+            },
 
             selectedSlot: null,
 
@@ -1647,11 +1733,15 @@
             },
 
             get canSubmit() {
+                const packageValid = this.arePackageChoicesValid();
+                const assistingValid = this.therapistsRequired <= 1 || !!this.selectedAssistingStaff;
                 return !!(
                     this.customer.name &&
                     this.customer.phone &&
                     this.selectedServices.length > 0 &&
+                    packageValid &&
                     this.selectedStaff &&
+                    assistingValid &&
                     this.selectedSlot &&
                     (!this.requiresRoom || this.selectedRoom) &&
                     Number(this.payment.amount) >= 0
@@ -2241,6 +2331,10 @@
                         medical_notes: this.customer.medical_notes,
 
                         staff_id: this.selectedStaff,
+
+                        assisting_staff_ids: this.selectedAssistingStaff ? [Number(this.selectedAssistingStaff)] : [],
+
+                        package_choices: this.packageChoices || {},
 
                         room_id: this.selectedRoom || null,
 

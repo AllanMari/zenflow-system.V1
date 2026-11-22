@@ -418,7 +418,9 @@
             'extendedProps' => [
                 'appointmentId' => $appointment->id,
                 'customer' => $customerName,
-                'staff' => $appointment->staff?->full_name ?? 'Unassigned',
+                'staff' => ($appointment->assignedStaff && $appointment->assignedStaff->isNotEmpty())
+                    ? $appointment->assignedStaff->map(fn($st) => $st->full_name . ($st->pivot->role === 'assisting' ? ' (Assisting)' : ''))->join(', ')
+                    : ($appointment->staff?->full_name ?? 'Unassigned'),
                 'room' => $appointment->room?->name ?? 'No room',
             ],
         ];
@@ -923,29 +925,86 @@
             <form :action="reassignUrl" method="POST" @submit.prevent="if(!submitting){ submitting=true; $el.submit(); }">
                 @csrf
 
+                {{-- Hidden input for primary therapist if using multi-therapist grid --}}
+                <template x-if="reassignReqCount > 1">
+                    <div>
+                        <input type="hidden" name="staff_id" :value="reassignSelected[0] || ''">
+                        <template x-for="aId in reassignSelected.slice(1)" :key="aId">
+                            <input type="hidden" name="assisting_staff_ids[]" :value="aId">
+                        </template>
+                    </div>
+                </template>
+
                 <div class="p-5">
 
-                    <label class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        Staff
-                    </label>
+                    {{-- Multi-Therapist Selection Grid (Responsive) --}}
+                    <div x-show="reassignReqCount > 1" class="space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                Assigned Therapists
+                            </span>
+                            <span
+                                class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                                :class="reassignSelected.length === reassignReqCount
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800'"
+                            >
+                                <span class="w-1.5 h-1.5 rounded-full" :class="reassignSelected.length === reassignReqCount ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'"></span>
+                                <span x-text="reassignSelected.length + ' of ' + reassignReqCount + ' Selected'"></span>
+                            </span>
+                        </div>
 
-                    <select
-                        name="staff_id"
-                        x-model="reassignStaffId"
-                        required
-                        class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                    >
-                        <option value="">Select staff</option>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                            1st is <strong>Primary</strong>; 2nd is <strong>Assisting</strong>. Click to assign.
+                        </p>
 
-                        @foreach($allStaff as $staff)
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                            @foreach($allStaff as $staff)
+                                <button
+                                    type="button"
+                                    @click="toggleReassignTherapist({{ $staff->id }})"
+                                    class="flex items-center justify-between p-2.5 rounded-xl border text-left transition text-xs font-medium cursor-pointer"
+                                    :class="reassignSelected.includes({{ $staff->id }})
+                                        ? 'border-teal-500 bg-teal-50/70 text-teal-900 dark:border-teal-500/70 dark:bg-teal-900/30 dark:text-teal-200 shadow-sm'
+                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300'"
+                                >
+                                    <div class="min-w-0 pr-2">
+                                        <div class="font-bold truncate text-slate-900 dark:text-white">{{ $staff->full_name }}</div>
+                                        <div class="text-[10px] text-slate-400 truncate">{{ '@' . $staff->username }}</div>
+                                    </div>
+                                    <template x-if="reassignSelected.indexOf({{ $staff->id }}) === 0">
+                                        <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold bg-teal-600 text-white shadow-xs">Primary</span>
+                                    </template>
+                                    <template x-if="reassignSelected.indexOf({{ $staff->id }}) > 0">
+                                        <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white shadow-xs">Assisting</span>
+                                    </template>
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
 
-                            <option value="{{ $staff->id }}">
-                                {{ $staff->full_name }}
-                            </option>
+                    {{-- Single-Therapist Selection (Fallback for 1-therapist services) --}}
+                    <div x-show="reassignReqCount <= 1">
+                        <label class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            Staff
+                        </label>
 
-                        @endforeach
+                        <select
+                            name="staff_id"
+                            x-model="reassignStaffId"
+                            :required="reassignReqCount <= 1"
+                            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                            <option value="">Select staff</option>
 
-                    </select>
+                            @foreach($allStaff as $staff)
+                                <option value="{{ $staff->id }}">
+                                    {{ $staff->full_name }}
+                                </option>
+                            @endforeach
+
+                        </select>
+                    </div>
 
                     <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
                         Staff availability will be validated when submitted.
@@ -965,7 +1024,7 @@
 
                     <button
                         type="submit"
-                        :disabled="submitting"
+                        :disabled="submitting || (reassignReqCount > 1 && reassignSelected.length < reassignReqCount) || (reassignReqCount <= 1 && !reassignStaffId)"
                         class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <span x-show="!submitting">Reassign Staff</span>
@@ -973,6 +1032,84 @@
                     </button>
 
                 </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    {{-- Treatment Notes Modal --}}
+    <div
+        x-show="modal === 'treatmentNotes'"
+        x-cloak
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+        @keydown.escape.window="closeModal()"
+    >
+        <div class="absolute inset-0 modal-backdrop" @click="closeModal()"></div>
+
+        <div class="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                <div class="flex items-center gap-2.5">
+                    <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
+                        <i data-lucide="file-text" class="h-4 w-4"></i>
+                    </span>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white">
+                            Session Treatment Notes
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400" x-text="treatmentNotesClientName ? 'Client: ' + treatmentNotesClientName : 'Session Notes'"></p>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    @click="closeModal()"
+                    class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                    <i data-lucide="x" class="h-5 w-5"></i>
+                </button>
+            </div>
+
+            <form :action="treatmentNotesUrl" method="POST" @submit.prevent="if(!submitting){ submitting=true; $el.submit(); }">
+                @csrf
+                <div class="p-5 space-y-3">
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Treatment & Clinical Observations
+                    </label>
+                    <textarea
+                        name="treatment_notes"
+                        x-model="treatmentNotesContent"
+                        rows="5"
+                        maxlength="2000"
+                        placeholder="e.g. Focus on lower back and neck. Client requested medium-firm pressure. Avoided peppermint oil due to sensitive skin."
+                        class="w-full rounded-xl border border-slate-300 bg-white p-3.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-500"
+                    ></textarea>
+                    <div class="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                        <span>Visible to therapists & receptionist on active sessions</span>
+                        <span x-text="(treatmentNotesContent ? treatmentNotesContent.length : 0) + ' / 2000'"></span>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3.5 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                    <button
+                        type="button"
+                        @click="closeModal()"
+                        class="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        :disabled="submitting"
+                        class="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-teal-700 disabled:opacity-50 transition"
+                    >
+                        <i data-lucide="check" class="h-3.5 w-3.5"></i>
+                        <span x-show="!submitting">Save Treatment Notes</span>
+                        <span x-show="submitting">Saving...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
             </form>
 
@@ -1316,6 +1453,26 @@
             balance: 0,
 
             reassignStaffId: '',
+            reassignReqCount: 1,
+            reassignSelected: [],
+            treatmentNotesApptId: null,
+            treatmentNotesContent: '',
+            treatmentNotesUrl: '',
+            treatmentNotesClientName: '',
+            toggleReassignTherapist(id) {
+                id = Number(id);
+                const idx = this.reassignSelected.indexOf(id);
+                if (idx !== -1) {
+                    this.reassignSelected.splice(idx, 1);
+                } else {
+                    if (this.reassignSelected.length < this.reassignReqCount) {
+                        this.reassignSelected.push(id);
+                    } else if (this.reassignReqCount === 1) {
+                        this.reassignSelected = [id];
+                    }
+                }
+                this.reassignStaffId = this.reassignSelected[0] ? String(this.reassignSelected[0]) : '';
+            },
 
             rescheduleDate: '',
             rescheduleTime: '',
@@ -1587,10 +1744,33 @@
                 this.refreshIcons();
             },
 
-            openReassign(id, staffId, url) {
+            openReassign(id, staffId, url, reqCount = 1, assistingIds = []) {
                 this.reassignUrl = url;
                 this.reassignStaffId = staffId ? String(staffId) : '';
+                this.reassignReqCount = Number(reqCount) || 1;
+                this.reassignSelected = [];
+                if (staffId) {
+                    this.reassignSelected.push(Number(staffId));
+                }
+                if (Array.isArray(assistingIds)) {
+                    assistingIds.forEach(aId => {
+                        const num = Number(aId);
+                        if (num && !this.reassignSelected.includes(num)) {
+                            this.reassignSelected.push(num);
+                        }
+                    });
+                }
                 this.modal = 'reassign';
+
+                this.refreshIcons();
+            },
+
+            openTreatmentNotes(id, notes, url, clientName) {
+                this.treatmentNotesApptId = id;
+                this.treatmentNotesContent = notes || '';
+                this.treatmentNotesUrl = url;
+                this.treatmentNotesClientName = clientName || 'Client';
+                this.modal = 'treatmentNotes';
 
                 this.refreshIcons();
             },

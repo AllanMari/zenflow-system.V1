@@ -9,6 +9,10 @@
     $isPastUnresolved = isset($isPastUnresolved) ? $isPastUnresolved : false;
     $isToday = !$isPastUnresolved && $appointment->appointment_date->isToday();
     $services = $appointment->services;
+    $therapistsReq = (int) ($appointment->therapists_required ?? 1);
+    $primaryStaff = $appointment->primary_staff ?? $appointment->staff;
+    $assistingStaff = $appointment->assisting_staff ?? collect();
+    $hasMultipleTherapists = $therapistsReq > 1 || $assistingStaff->isNotEmpty();
 @endphp
 
 <article
@@ -116,12 +120,63 @@
             </div>
             <div class="space-y-2">
                 <div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                        Staff
-                    </p>
-                    <p class="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
-                        {{ $appointment->staff?->full_name ?? 'Unassigned' }}
-                    </p>
+                    <div class="flex items-center justify-between gap-1">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            {{ $hasMultipleTherapists ? 'Therapists' : 'Staff' }}
+                        </p>
+                        @if($therapistsReq > 1)
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-800">
+                                {{ $therapistsReq }} Required
+                            </span>
+                        @endif
+                    </div>
+
+                    @if($hasMultipleTherapists)
+                        <div class="mt-1.5 space-y-1.5">
+                            {{-- Primary Therapist --}}
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-xs font-semibold text-slate-800 dark:text-slate-200" title="{{ $primaryStaff?->full_name ?? 'Unassigned' }}">
+                                        {{ $primaryStaff?->full_name ?? 'Unassigned' }}
+                                    </p>
+                                </div>
+                                <span class="inline-flex shrink-0 items-center rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700 border border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800">
+                                    Primary
+                                </span>
+                            </div>
+
+                            {{-- Assisting Therapist(s) --}}
+                            @if($assistingStaff->isNotEmpty())
+                                @foreach($assistingStaff as $asst)
+                                    <div class="flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5 dark:border-slate-800">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="truncate text-xs font-semibold text-slate-800 dark:text-slate-200" title="{{ $asst->full_name }}">
+                                                {{ $asst->full_name }}
+                                            </p>
+                                        </div>
+                                        <span class="inline-flex shrink-0 items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800">
+                                            Assisting
+                                        </span>
+                                    </div>
+                                @endforeach
+                            @elseif($therapistsReq > 1)
+                                <div class="flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5 dark:border-slate-800">
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate text-xs italic text-amber-600 dark:text-amber-400">
+                                            Assisting therapist pending
+                                        </p>
+                                    </div>
+                                    <span class="inline-flex shrink-0 items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+                                        Needed
+                                    </span>
+                                </div>
+                            @endif
+                        </div>
+                    @else
+                        <p class="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                            {{ $appointment->staff?->full_name ?? 'Unassigned' }}
+                        </p>
+                    @endif
                 </div>
                 <div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
                     <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -186,12 +241,27 @@
             @click="openReassign(
                 {{ $appointment->id }},
                 @js($appointment->staff?->id),
-                @js(route('receptionist.reassign', $appointment->id))
+                @js(route('receptionist.reassign', $appointment->id)),
+                {{ $therapistsReq }},
+                @js($assistingStaff->pluck('id')->values()->toArray())
             )"
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
         >
             <i data-lucide="user-round-cog" class="h-3.5 w-3.5"></i>
             Reassign
+        </button>
+        <button
+            type="button"
+            @click="openTreatmentNotes(
+                {{ $appointment->id }},
+                @js($appointment->treatment_notes ?? ''),
+                @js(route('receptionist.update-treatment-notes', $appointment->id)),
+                @js($customerName)
+            )"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+            <i data-lucide="file-text" class="h-3.5 w-3.5 text-teal-600 dark:text-teal-400"></i>
+            Notes
         </button>
         <button
             type="button"

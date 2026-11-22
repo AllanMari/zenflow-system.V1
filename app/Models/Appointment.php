@@ -224,6 +224,22 @@ class Appointment extends Model
         return false;
     }
 
+    public function getPrimaryStaffAttribute()
+    {
+        if ($this->relationLoaded('assignedStaff') && $this->assignedStaff) {
+            return $this->assignedStaff->firstWhere('pivot.role', 'primary') ?? $this->staff;
+        }
+        return $this->primaryTherapist->first() ?? $this->staff;
+    }
+
+    public function getAssistingStaffAttribute()
+    {
+        if ($this->relationLoaded('assignedStaff') && $this->assignedStaff) {
+            return $this->assignedStaff->where('pivot.role', 'assisting')->values();
+        }
+        return $this->assistingTherapists;
+    }
+
     /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Accessors Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
     public function getTotalPaidAttribute()

@@ -599,6 +599,7 @@ public function active()
         'services',
         'payments',
         'staff',
+        'assignedStaff',
         'room',
         'packageSelections',
     ])
@@ -613,6 +614,7 @@ public function active()
         'services',
         'payments',
         'staff',
+        'assignedStaff',
         'room',
         'packageSelections',
     ])

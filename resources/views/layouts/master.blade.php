@@ -236,19 +236,21 @@
 <!-- Desktop Sidebar -->
 <aside id="desktopSidebar" class="hidden md:flex fixed left-0 top-0 h-full w-[260px] bg-white dark:bg-[#0f172a] flex-col border-r border-gray-200/80 dark:border-gray-800/60 z-40 shadow-[4px_0_24px_rgba(0,0,0,0.04)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.3)] transition-colors duration-300">
     <div class="h-[72px] flex items-center gap-3 px-5 shrink-0 border-b border-gray-100 dark:border-gray-800/60">
-        @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
-            <div class="w-11 h-11 rounded-xl bg-white border border-gray-200/80 dark:border-gray-700/60 p-1 flex items-center justify-center shadow-sm shrink-0">
-                <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="w-9 h-9 object-contain">
+        <a href="{{ url('/') }}" class="flex items-center gap-3 min-w-0 group focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-xl" title="Return to Spa Alexandria Landing Page">
+            @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
+                <div class="w-11 h-11 rounded-xl bg-white border border-gray-200/80 dark:border-gray-700/60 p-1 flex items-center justify-center shadow-sm shrink-0 group-hover:border-brand-500 transition-colors">
+                    <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="w-9 h-9 object-contain group-hover:scale-105 transition-transform">
+                </div>
+            @else
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20 shrink-0 group-hover:brightness-110 transition">
+                    @yield('logo-icon')
+                </div>
+            @endif
+            <div class="brand-text">
+                <p class="font-bold text-[15px] text-gray-800 dark:text-white tracking-tight leading-tight group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Spa Alexandria</p>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 font-medium tracking-wide uppercase">{{ $roleLabel ?? 'Panel' }}</p>
             </div>
-        @else
-            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20 shrink-0">
-                @yield('logo-icon')
-            </div>
-        @endif
-        <div class="brand-text">
-            <p class="font-bold text-[15px] text-gray-800 dark:text-white tracking-tight leading-tight">Spa Alexandria</p>
-            <p class="text-[11px] text-gray-400 dark:text-gray-500 font-medium tracking-wide uppercase">{{ $roleLabel ?? 'Panel' }}</p>
-        </div>
+        </a>
         <button onclick="toggleSidebar()" class="ml-auto p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition shrink-0 group" title="Collapse">
             <svg id="collapseIcon" class="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
         </button>
@@ -276,21 +278,21 @@
     <div id="msBackdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity opacity-0" onclick="closeMobileSidebar()"></div>
     <div id="msPanel" class="absolute left-0 top-0 bottom-0 w-[280px] bg-white dark:bg-[#0f172a] flex flex-col shadow-2xl transform -translate-x-full transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]">
         <div class="h-[72px] flex items-center justify-between px-5 shrink-0 border-b border-gray-100 dark:border-gray-800/60">
-            <div class="flex items-center gap-3">
+            <a href="{{ url('/') }}" class="flex items-center gap-3 min-w-0 group" title="Return to Spa Alexandria Landing Page">
                 @if(file_exists(public_path('uploads/branding/spa-alexandria-logo.png')))
-                    <div class="w-11 h-11 rounded-xl bg-white border border-gray-200/80 dark:border-gray-700/60 p-1 flex items-center justify-center shadow-sm shrink-0">
+                    <div class="w-11 h-11 rounded-xl bg-white border border-gray-200/80 dark:border-gray-700/60 p-1 flex items-center justify-center shadow-sm shrink-0 group-hover:border-brand-500 transition-colors">
                         <img src="{{ asset('uploads/branding/spa-alexandria-logo.png') }}" alt="Spa Alexandria" class="w-9 h-9 object-contain">
                     </div>
                 @else
-                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20 shrink-0">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20 shrink-0 group-hover:brightness-110 transition">
                         @yield('logo-icon')
                     </div>
                 @endif
                 <div>
-                    <p class="font-bold text-[15px] text-gray-800 dark:text-white tracking-tight">Spa Alexandria</p>
+                    <p class="font-bold text-[15px] text-gray-800 dark:text-white tracking-tight leading-tight group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Spa Alexandria</p>
                     <p class="text-[11px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">{{ $roleLabel ?? 'Panel' }}</p>
                 </div>
-            </div>
+            </a>
             <button onclick="closeMobileSidebar()" class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition">
                 <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>

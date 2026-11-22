@@ -62,6 +62,7 @@ Route::middleware(['auth', 'role:staff'])->prefix('staff')->name('staff.')->grou
     Route::get('/dashboard', [StaffController::class, 'index'])->name('dashboard');
     Route::get('/appointments', [StaffController::class, 'myAppointments'])->name('appointments');
     Route::get('/appointments/{appointment}/treatment-notes', [StaffController::class, 'getTreatmentNotes'])->name('appointments.treatment-notes');
+    Route::post('/appointments/{appointment}/treatment-notes', [StaffController::class, 'updateTreatmentNotes'])->name('appointments.treatment-notes.update');
     Route::get('/schedule', [StaffController::class, 'mySchedule'])->name('schedule');
     Route::post('/schedule/update', [StaffController::class, 'updateMySchedule'])->name('schedule.update');
 });

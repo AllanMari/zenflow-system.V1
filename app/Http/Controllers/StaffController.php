@@ -533,4 +533,35 @@ class StaffController extends Controller
             'treatment_notes' => $appointment->treatment_notes,
         ]);
     }
+
+    /**
+     * Update treatment notes for an assigned appointment.
+     * Authorized only for the primary therapist or assisting therapists.
+     */
+    public function updateTreatmentNotes(Request $request, Appointment $appointment)
+    {
+        $user = Auth::user();
+
+        if (!$appointment->canViewTreatmentNotes($user)) {
+            abort(403, 'Unauthorized access to treatment notes.');
+        }
+
+        $request->validate([
+            'treatment_notes' => 'nullable|string|max:2000',
+        ]);
+
+        $appointment->update([
+            'treatment_notes' => $request->treatment_notes ?: null,
+        ]);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Treatment notes updated successfully.',
+                'treatment_notes' => $appointment->treatment_notes,
+            ]);
+        }
+
+        return back()->with('success', 'Treatment notes updated successfully.');
+    }
 }
