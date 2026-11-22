@@ -18,10 +18,38 @@ class SalesReportController extends Controller
         $this->analyticsService = $analyticsService;
     }
 
+    private function authorizeSalesReport(): void
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            abort(401);
+        }
+
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        if ($user->hasRole('receptionist') && $user->can_view_sales_report) {
+            return;
+        }
+
+        abort(403, 'Unauthorized. Access to Sales Reports must be granted by an administrator.');
+    }
+
     public function index(Request $request)
     {
+        $this->authorizeSalesReport();
+
         $data = $this->analyticsService->getDashboardData($request);
         $data['routeName'] = Auth::user()->isAdmin() ? 'admin.sales' : 'receptionist.sales';
+        $data['receptionists'] = Auth::user()->isAdmin()
+            ? \App\Models\User::whereHas('roles', fn($q) => $q->where('name', 'receptionist'))
+                ->where('is_active', true)
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+                ->get()
+            : collect();
 
         $data['reportTitle'] = match ($data['period']) {
             'daily'   => 'SUMMARY OF DAILY SALES REPORT',
@@ -46,6 +74,8 @@ class SalesReportController extends Controller
 
     public function transactionLogFragment(Request $request)
     {
+        $this->authorizeSalesReport();
+
         $data = $this->analyticsService->getDashboardData($request);
 
         return view('shared._transaction_log_table', [
@@ -58,6 +88,8 @@ class SalesReportController extends Controller
 
     public function aiChat(Request $request, GeminiInsightService $gemini)
     {
+        $this->authorizeSalesReport();
+
         $request->validate([
             'question' => 'required|string|max:200',
             'history'  => 'nullable|array',
@@ -76,6 +108,8 @@ class SalesReportController extends Controller
 
 public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
     {
+        $this->authorizeSalesReport();
+
         $data = $this->analyticsService->getDashboardData($request);
         $period = $data['period'];
 
@@ -123,6 +157,8 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
 
     public function businessReportPdf(Request $request, ReportPdfService $pdfService)
     {
+        $this->authorizeSalesReport();
+
         $data = $this->analyticsService->getDashboardData($request);
         $filename = 'business-report.pdf';
 
@@ -162,6 +198,8 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
 
     public function dailyReportCsv(Request $request, CsvExportService $csvService)
     {
+        $this->authorizeSalesReport();
+
         $data = $this->analyticsService->getDashboardData($request);
         $period = $data['period'];
 
@@ -255,6 +293,8 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
 
     public function businessReportCsv(Request $request, CsvExportService $csvService)
     {
+        $this->authorizeSalesReport();
+
         $data = $this->analyticsService->getDashboardData($request);
         $referenceNumber = 'BUS-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
 

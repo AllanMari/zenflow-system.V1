@@ -10,9 +10,13 @@
     $isToday = !$isPastUnresolved && $appointment->appointment_date->isToday();
     $services = $appointment->services;
     $therapistsReq = (int) ($appointment->therapists_required ?? 1);
-    $primaryStaff = $appointment->primary_staff ?? $appointment->staff;
-    $assistingStaff = $appointment->assisting_staff ?? collect();
-    $hasMultipleTherapists = $therapistsReq > 1 || $assistingStaff->isNotEmpty();
+    $allAssignedStaff = ($appointment->relationLoaded('assignedStaff') && $appointment->assignedStaff && $appointment->assignedStaff->isNotEmpty())
+        ? $appointment->assignedStaff
+        : ($appointment->staff ? collect([$appointment->staff]) : collect());
+    $assistingStaff = ($appointment->relationLoaded('assignedStaff') && $appointment->assignedStaff)
+        ? $appointment->assignedStaff->where('pivot.role', 'assisting')->values()
+        : collect();
+    $hasMultipleTherapists = $therapistsReq > 1 || $allAssignedStaff->count() > 1;
 @endphp
 
 <article
@@ -133,37 +137,32 @@
 
                     @if($hasMultipleTherapists)
                         <div class="mt-1.5 space-y-1.5">
-                            {{-- Primary Therapist --}}
-                            <div class="flex items-center justify-between gap-2">
-                                <div class="min-w-0 flex-1">
-                                    <p class="truncate text-xs font-semibold text-slate-800 dark:text-slate-200" title="{{ $primaryStaff?->full_name ?? 'Unassigned' }}">
-                                        {{ $primaryStaff?->full_name ?? 'Unassigned' }}
-                                    </p>
-                                </div>
-                                <span class="inline-flex shrink-0 items-center rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700 border border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800">
-                                    Primary
-                                </span>
-                            </div>
-
-                            {{-- Assisting Therapist(s) --}}
-                            @if($assistingStaff->isNotEmpty())
-                                @foreach($assistingStaff as $asst)
-                                    <div class="flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5 dark:border-slate-800">
-                                        <div class="min-w-0 flex-1">
-                                            <p class="truncate text-xs font-semibold text-slate-800 dark:text-slate-200" title="{{ $asst->full_name }}">
-                                                {{ $asst->full_name }}
-                                            </p>
+                            @forelse($allAssignedStaff as $index => $therapist)
+                                <div class="flex items-center justify-between gap-2 {{ $loop->first ? '' : 'border-t border-slate-100 pt-1.5 dark:border-slate-800' }}">
+                                    <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                                        <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-100/70 text-[10px] font-bold text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
+                                            {{ $index + 1 }}
                                         </div>
-                                        <span class="inline-flex shrink-0 items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800">
-                                            Assisting
-                                        </span>
+                                        <p class="truncate text-xs font-semibold text-slate-800 dark:text-slate-200" title="{{ $therapist->full_name }}">
+                                            {{ $therapist->full_name }}
+                                        </p>
                                     </div>
-                                @endforeach
-                            @elseif($therapistsReq > 1)
+                                    <span class="inline-flex shrink-0 items-center rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700 border border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800">
+                                        Therapist
+                                    </span>
+                                </div>
+                            @empty
+                                <p class="text-xs italic text-slate-400">Unassigned</p>
+                            @endforelse
+
+                            @if($allAssignedStaff->count() < $therapistsReq)
                                 <div class="flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5 dark:border-slate-800">
-                                    <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                                        <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
+                                            {{ $allAssignedStaff->count() + 1 }}
+                                        </div>
                                         <p class="truncate text-xs italic text-amber-600 dark:text-amber-400">
-                                            Assisting therapist pending
+                                            Second therapist pending
                                         </p>
                                     </div>
                                     <span class="inline-flex shrink-0 items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">

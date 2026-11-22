@@ -38,6 +38,7 @@ class AppointmentInvoiceController extends Controller
                 ->with([
                     'customer',
                     'staff',
+                    'assignedStaff',
                     'room',
                 ])
                 ->latest('appointment_date')
@@ -131,6 +132,7 @@ class AppointmentInvoiceController extends Controller
         return $appointment->load([
             'customer',
             'staff',
+            'assignedStaff',
             'room',
             'services',
             'payments',
@@ -197,12 +199,22 @@ class AppointmentInvoiceController extends Controller
             ->unique()
             ->values();
 
+        $assignedStaffList = ($appointment->relationLoaded('assignedStaff') && $appointment->assignedStaff && $appointment->assignedStaff->isNotEmpty())
+            ? $appointment->assignedStaff
+            : ($appointment->staff ? collect([$appointment->staff]) : collect());
+
+        $staffNames = $assignedStaffList->isNotEmpty()
+            ? $assignedStaffList->pluck('full_name')->join(', ')
+            : ($appointment->staff?->full_name ?? 'Unassigned');
+
         return [
             'appointment' => $appointment,
             'customer' => $appointment->customer,
             'clientName' => $appointment->client_name ?: 'Walk-in Customer',
             'clientPhone' => $appointment->client_phone,
             'staff' => $appointment->staff,
+            'assignedStaff' => $assignedStaffList,
+            'staffNames' => $staffNames,
             'room' => $appointment->room,
             'services' => $appointment->services,
 

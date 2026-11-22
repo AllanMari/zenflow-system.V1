@@ -2169,4 +2169,28 @@ public function appointmentReportCsv(
             $user->first_name . ' ' . $user->last_name . ' ' . $status . '.'
         );
     }
+
+    public function toggleSalesReportPermission(User $user)
+    {
+        if (!auth()->user()->roles->contains('name', 'admin')) {
+            abort(403, 'Admin only');
+        }
+
+        if (!$user->roles()->where('name', 'receptionist')->exists()) {
+            return back()->with('error', 'User is not a receptionist.');
+        }
+
+        $user->update([
+            'can_view_sales_report' => !$user->can_view_sales_report,
+        ]);
+
+        $status = $user->can_view_sales_report
+            ? 'can now access Sales Reports'
+            : 'can no longer access Sales Reports';
+
+        return back()->with(
+            'success',
+            $user->first_name . ' ' . $user->last_name . ' ' . $status . '.'
+        );
+    }
 }

@@ -419,7 +419,7 @@
                 'appointmentId' => $appointment->id,
                 'customer' => $customerName,
                 'staff' => ($appointment->assignedStaff && $appointment->assignedStaff->isNotEmpty())
-                    ? $appointment->assignedStaff->map(fn($st) => $st->full_name . ($st->pivot->role === 'assisting' ? ' (Assisting)' : ''))->join(', ')
+                    ? $appointment->assignedStaff->pluck('full_name')->join(', ')
                     : ($appointment->staff?->full_name ?? 'Unassigned'),
                 'room' => $appointment->room?->name ?? 'No room',
             ],
@@ -972,11 +972,10 @@
                                         <div class="font-bold truncate text-slate-900 dark:text-white">{{ $staff->full_name }}</div>
                                         <div class="text-[10px] text-slate-400 truncate">{{ '@' . $staff->username }}</div>
                                     </div>
-                                    <template x-if="reassignSelected.indexOf({{ $staff->id }}) === 0">
-                                        <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold bg-teal-600 text-white shadow-xs">Primary</span>
-                                    </template>
-                                    <template x-if="reassignSelected.indexOf({{ $staff->id }}) > 0">
-                                        <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white shadow-xs">Assisting</span>
+                                    <template x-if="reassignSelected.includes({{ $staff->id }})">
+                                        <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold bg-teal-600 text-white shadow-xs">
+                                            <span x-text="'Therapist ' + (reassignSelected.indexOf({{ $staff->id }}) + 1)"></span>
+                                        </span>
                                     </template>
                                 </button>
                             @endforeach

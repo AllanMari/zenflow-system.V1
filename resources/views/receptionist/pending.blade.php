@@ -981,13 +981,8 @@ function syncStaffSelectionUI(appointmentId, requiredCount) {
         if (badge) {
             badge.classList.remove('hidden');
             if (requiredCount > 1) {
-                if (idx === 0) {
-                    badge.textContent = 'Primary';
-                    badge.className = 'absolute -top-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-teal-600 text-white shadow-xs';
-                } else {
-                    badge.textContent = 'Assisting';
-                    badge.className = 'absolute -top-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-purple-600 text-white shadow-xs';
-                }
+                badge.textContent = `Therapist ${idx + 1}`;
+                badge.className = 'absolute -top-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-teal-600 text-white shadow-xs';
             } else {
                 badge.textContent = 'Selected';
                 badge.className = 'absolute -top-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-teal-600 text-white shadow-xs';

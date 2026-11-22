@@ -350,17 +350,13 @@
                                         $invoiceAppointment->client_phone
                                         ?? ($listCustomer?->phone_number ?? '—');
 
-                                    $listStaffName =
-                                        $invoiceAppointment->staff
-                                            ? trim(
-                                                ($invoiceAppointment->staff->first_name ?? '') .
-                                                ' ' .
-                                                ($invoiceAppointment->staff->last_name ?? '')
-                                            )
-                                            : '—';
+                                    $listAssignedStaff = ($invoiceAppointment->relationLoaded('assignedStaff') && $invoiceAppointment->assignedStaff && $invoiceAppointment->assignedStaff->isNotEmpty())
+                                        ? $invoiceAppointment->assignedStaff
+                                        : ($invoiceAppointment->staff ? collect([$invoiceAppointment->staff]) : collect());
 
-                                    $listStaffName =
-                                        $listStaffName ?: '—';
+                                    $listStaffName = $listAssignedStaff->isNotEmpty()
+                                        ? $listAssignedStaff->pluck('full_name')->join(', ')
+                                        : ($invoiceAppointment->staff?->full_name ?: '—');
 
                                     $listReferenceNumber =
                                         '#SPA-' . $invoiceAppointment->id;
@@ -996,7 +992,7 @@
                         class="grid
                                grid-cols-1
                                sm:grid-cols-2
-                               lg:grid-cols-4
+                               lg:grid-cols-3
                                border
                                border-gray-200
                                dark:border-gray-700
@@ -1070,6 +1066,7 @@
                             class="p-4
                                    border-b
                                    sm:border-r
+                                   lg:border-r-0
                                    border-gray-200
                                    dark:border-gray-700"
                         >
@@ -1100,6 +1097,8 @@
                         <div
                             class="p-4
                                    border-b
+                                   sm:border-b-0
+                                   sm:border-r
                                    border-gray-200
                                    dark:border-gray-700"
                         >
@@ -1122,6 +1121,70 @@
                                        dark:text-white"
                             >
                                 {{ $startTime }} – {{ $endTime }}
+                            </p>
+
+                        </div>
+
+
+                        <div
+                            class="p-4
+                                   border-b
+                                   sm:border-b-0
+                                   lg:border-r
+                                   border-gray-200
+                                   dark:border-gray-700"
+                        >
+
+                            <p
+                                class="text-[10px]
+                                       font-bold
+                                       uppercase
+                                       tracking-wider
+                                       text-gray-400"
+                            >
+                                Assigned {{ (!empty($assignedStaff) && $assignedStaff->count() > 1) ? 'Therapists' : 'Staff' }}
+                            </p>
+
+                            <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                @if(!empty($assignedStaff) && $assignedStaff->isNotEmpty())
+                                    @foreach($assignedStaff as $st)
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+                                            {{ $st->full_name }}
+                                        </span>
+                                    @endforeach
+                                @else
+                                    <p class="text-sm font-bold text-gray-900 dark:text-white">
+                                        {{ $staff?->full_name ?? '—' }}
+                                    </p>
+                                @endif
+                            </div>
+
+                        </div>
+
+
+                        <div
+                            class="p-4"
+                        >
+
+                            <p
+                                class="text-[10px]
+                                       font-bold
+                                       uppercase
+                                       tracking-wider
+                                       text-gray-400"
+                            >
+                                Assigned Room
+                            </p>
+
+                            <p
+                                class="mt-1.5
+                                       text-sm
+                                       font-bold
+                                       text-gray-900
+                                       dark:text-white"
+                            >
+                                {{ $room?->name ?? 'No room assigned' }}
                             </p>
 
                         </div>

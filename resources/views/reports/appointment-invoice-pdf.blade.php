@@ -408,6 +408,13 @@
             )
             ->implode(', ');
 
+    $staffDisplay = !empty($staffNames)
+        ? $staffNames
+        : ((!empty($assignedStaff) && $assignedStaff->isNotEmpty())
+            ? $assignedStaff->pluck('full_name')->join(', ')
+            : ($staff?->full_name ?? ($appointment->staff?->full_name ?? '—')));
+
+    $roomDisplay = $room?->name ?? ($appointment->room?->name ?? '—');
 @endphp
 
 
@@ -487,6 +494,36 @@
 
                     <div class="field-value">
                         {{ $startTime }} – {{ $endTime }}
+                    </div>
+
+                </td>
+
+            </tr>
+
+
+            <tr>
+
+                <td>
+
+                    <div class="field-label">
+                        Assigned {{ (!empty($assignedStaff) && $assignedStaff->count() > 1) ? 'Therapists' : 'Staff' }}
+                    </div>
+
+                    <div class="field-value">
+                        {{ $staffDisplay }}
+                    </div>
+
+                </td>
+
+
+                <td>
+
+                    <div class="field-label">
+                        Room
+                    </div>
+
+                    <div class="field-value">
+                        {{ $roomDisplay }}
                     </div>
 
                 </td>

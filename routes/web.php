@@ -224,6 +224,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
         '/receptionists/{user}/toggle-business-hours',
         [AdminController::class, 'toggleBusinessHoursPermission']
     )->name('admin.receptionist.toggle-business-hours');
+    // Sales Report permission
+    Route::put(
+        '/receptionists/{user}/toggle-sales-report',
+        [AdminController::class, 'toggleSalesReportPermission']
+    )->name('admin.receptionist.toggle-sales-report');
     // Sales
     Route::get('/sales', [SalesReportController::class, 'index'])->name('admin.sales');
     Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('admin.sales.tx-log');

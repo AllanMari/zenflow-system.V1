@@ -818,7 +818,7 @@
                         >
 
                             <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                <span x-text="therapistsRequired > 1 ? 'Primary Staff / Therapist' : 'Staff / Therapist'"></span>
+                                <span x-text="therapistsRequired > 1 ? 'First Therapist' : 'Staff / Therapist'"></span>
                             </label>
 
                             <select
@@ -826,7 +826,7 @@
                                 @change="loadGaps()"
                                 class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                             >
-                                <option value="">Select staff</option>
+                                <option value="">Select therapist</option>
 
                                 @foreach($staff as $member)
                                     <option value="{{ $member->id }}">
@@ -835,20 +835,20 @@
                                 @endforeach
                             </select>
 
-                            {{-- Assisting Staff Selection (Required when service needs 2 therapists) --}}
+                            {{-- Second Therapist Selection (Required when service needs 2 therapists) --}}
                             <div x-show="therapistsRequired > 1" class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
                                 <div class="flex items-center justify-between mb-2">
-                                    <label class="block text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                                        Assisting Therapist
+                                    <label class="block text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">
+                                        Second Therapist
                                     </label>
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">2 Therapists Required</span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 border border-teal-200 dark:border-teal-800">2 Therapists Required</span>
                                 </div>
 
                                 <select
                                     x-model="selectedAssistingStaff"
-                                    class="w-full rounded-xl border border-indigo-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-indigo-700 dark:bg-gray-800 dark:text-white"
+                                    class="w-full rounded-xl border border-teal-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                                 >
-                                    <option value="">Select assisting staff</option>
+                                    <option value="">Select second therapist</option>
                                     @foreach($staff as $member)
                                         <option value="{{ $member->id }}" x-show="String({{ $member->id }}) !== String(selectedStaff)">
                                             {{ $member->full_name ?? trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? '')) }}
