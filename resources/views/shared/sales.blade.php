@@ -712,14 +712,14 @@
                             </div>
                         </div>
 
-                        <form method="POST" action="{{ route('admin.receptionist.toggle-sales-report', $recep) }}">
+                        <form method="POST" action="{{ Route::has('admin.receptionist.toggle-sales-report') ? route('admin.receptionist.toggle-sales-report', $recep) : url('/admin/receptionists/' . $recep->id . '/toggle-sales-report') }}">
                             @csrf
                             @method('PUT')
                             <button
                                 type="submit"
-                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs {{ $recep->can_view_sales_report ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 dark:bg-slate-800 dark:text-gray-400 dark:border-slate-700' }}"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs {{ ($recep->can_view_sales_report ?? false) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 dark:bg-slate-800 dark:text-gray-400 dark:border-slate-700' }}"
                             >
-                                @if($recep->can_view_sales_report)
+                                @if($recep->can_view_sales_report ?? false)
                                     <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4.5 12.75l6 6 9-13.5"/></svg>
                                     Access Granted
                                 @else

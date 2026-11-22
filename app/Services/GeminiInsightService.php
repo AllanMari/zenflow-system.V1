@@ -30,11 +30,16 @@ class GeminiInsightService
             return [];
         }
 
-        $cacheKey = 'gemini_insights_' . md5(serialize($metrics) . serialize($history));
+        try {
+            $cacheKey = 'gemini_insights_' . md5(serialize($metrics) . serialize($history));
 
-        return Cache::remember($cacheKey, now()->addMinutes($this->cacheMinutes), function () use ($metrics, $history) {
-            return $this->fetchFromGemini($metrics, $history);
-        });
+            return Cache::remember($cacheKey, now()->addMinutes($this->cacheMinutes), function () use ($metrics, $history) {
+                return $this->fetchFromGemini($metrics, $history);
+            });
+        } catch (\Throwable $e) {
+            Log::warning('Gemini getInsights failed gracefully: ' . $e->getMessage());
+            return [];
+        }
     }
 
     /**
@@ -68,7 +73,8 @@ class GeminiInsightService
         try {
             $url = "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}";
 
-            $response = Http::timeout(60)
+            // Hostinger/Shared hosting safety: 5 second timeout to prevent Gateway 500/504
+            $response = Http::timeout(5)
                 ->withHeaders(['Content-Type' => 'application/json'])
                 ->post($url, [
                     'contents' => [
@@ -118,19 +124,26 @@ class GeminiInsightService
 
             $normalized = $this->normalizeInsights($insights);
 
-            AiInsight::create([
-                'period_type' => $metrics['period'] ?? 'custom',
-                'period_start' => $metrics['startDate'] ?? now(),
-                'period_end' => $metrics['endDate'] ?? now(),
-                'metrics_input' => array_merge($metrics, ['history_sent' => count($history)]),
-                'insights_output' => $normalized,
-                'model_used' => $this->model,
-                'response_time_ms' => $elapsedMs,
-            ]);
+            try {
+                $startDate = !empty($metrics['startDate']) ? \Carbon\Carbon::parse($metrics['startDate'])->toDateString() : now()->toDateString();
+                $endDate   = !empty($metrics['endDate']) ? \Carbon\Carbon::parse($metrics['endDate'])->toDateString() : now()->toDateString();
+
+                AiInsight::create([
+                    'period_type' => $metrics['period'] ?? 'custom',
+                    'period_start' => $startDate,
+                    'period_end' => $endDate,
+                    'metrics_input' => array_merge($metrics, ['history_sent' => count($history)]),
+                    'insights_output' => $normalized,
+                    'model_used' => $this->model,
+                    'response_time_ms' => $elapsedMs,
+                ]);
+            } catch (\Throwable $persistErr) {
+                Log::warning('Gemini insight persistence skipped: ' . $persistErr->getMessage());
+            }
 
             return $normalized;
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Gemini request failed: ' . $e->getMessage());
             return [];
         }
@@ -403,9 +416,9 @@ PROMPT;
 
         return Cache::remember('gemini_health_check', now()->addMinutes(5), function () {
             try {
-                $response = Http::timeout(5)->get("https://generativelanguage.googleapis.com/v1beta/models/{$this->model}?key={$this->apiKey}");
+                $response = Http::timeout(3)->get("https://generativelanguage.googleapis.com/v1beta/models/{$this->model}?key={$this->apiKey}");
                 return $response->successful();
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 Log::info('Gemini connection check failed: ' . $e->getMessage());
                 return false;
             }
