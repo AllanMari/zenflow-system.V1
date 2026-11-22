@@ -15,6 +15,7 @@ use App\Http\Controllers\ServicePopularityController;
 use App\Http\Controllers\BusinessScheduleController;
 use App\Http\Controllers\AppointmentInvoiceController;
 use App\Http\Controllers\DataImportController;
+use App\Http\Controllers\CustomerManagementController;
 
 
 // ==================== PUBLIC ROUTES (NO LOGIN REQUIRED) ====================
@@ -131,6 +132,11 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
         '/appointments/{appointment}/invoice/download',
         [AppointmentInvoiceController::class, 'download']
     )->name('receptionist.invoice.download');
+
+    // Customer Management
+    Route::get('/customers', [CustomerManagementController::class, 'index'])->name('receptionist.customers.index');
+    Route::get('/customers/{customer}', [CustomerManagementController::class, 'show'])->name('receptionist.customers.show');
+    Route::put('/customers/{customer}', [CustomerManagementController::class, 'update'])->name('receptionist.customers.update');
 });
 
 // â”€â”€â”€ Receptionist Schedule Edit Routes (requires can_manage_schedules) â”€â”€â”€
@@ -228,6 +234,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
     // Appointments
     Route::get('/appointments', [AdminController::class, 'appointments'])->name('admin.appointments');
+
+    // Customer Management
+    Route::get('/customers', [CustomerManagementController::class, 'index'])->name('admin.customers.index');
+    Route::get('/customers/{customer}', [CustomerManagementController::class, 'show'])->name('admin.customers.show');
+    Route::put('/customers/{customer}', [CustomerManagementController::class, 'update'])->name('admin.customers.update');
 
     Route::get(
         '/appointments/report-pdf',

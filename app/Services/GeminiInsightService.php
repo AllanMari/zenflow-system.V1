@@ -414,9 +414,9 @@ PROMPT;
             return false;
         }
 
-        return Cache::remember('gemini_health_check', now()->addMinutes(5), function () {
+        return Cache::remember('gemini_health_check', now()->addMinute(), function () {
             try {
-                $response = Http::timeout(3)->get("https://generativelanguage.googleapis.com/v1beta/models/{$this->model}?key={$this->apiKey}");
+                $response = Http::timeout(6)->get("https://generativelanguage.googleapis.com/v1beta/models/{$this->model}?key={$this->apiKey}");
                 return $response->successful();
             } catch (\Throwable $e) {
                 Log::info('Gemini connection check failed: ' . $e->getMessage());
