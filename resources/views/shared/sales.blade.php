@@ -1,4 +1,4 @@
-@extends(auth()->user()->isAdmin() ? 'layouts.admin' : 'layouts.receptionist')
+@extends('layouts.admin')
 
 @section('title', 'Sales Report')
 
@@ -181,7 +181,6 @@
         activeTab: 'overview',
         salesReportModalOpen: false,
         businessReportModalOpen: false,
-        receptionistAccessModalOpen: false,
         salesCheckedBy: '',
         businessCheckedBy: '',
         generateSalesReport(action) {
@@ -442,20 +441,6 @@
             {{-- RIGHT: REPORT BUTTONS --}}
             <div class="flex flex-wrap items-center gap-2">
 
-                @if(auth()->user()->isAdmin())
-                    {{-- AUTHORIZE ACCESS BUTTON (ADMIN ONLY) --}}
-                    <button
-                        type="button"
-                        @click="receptionistAccessModalOpen = true"
-                        class="h-10 px-3.5 inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50/80 text-sm font-bold text-teal-700 shadow-sm hover:bg-teal-100 dark:border-teal-800/60 dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-900/50 transition"
-                    >
-                        <svg class="w-4 h-4 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-                        </svg>
-                        Authorize Access
-                    </button>
-                @endif
-
                 {{-- SALES REPORT BUTTON --}}
                 <button
                     type="button"
@@ -657,97 +642,6 @@
             </div>
         </div>
     </div>
-
-    @if(auth()->user()->isAdmin())
-    {{-- =========================================================
-         RECEPTIONIST SALES REPORT ACCESS MODAL (ADMIN ONLY)
-    ========================================================== --}}
-    <div
-        x-show="receptionistAccessModalOpen"
-        x-cloak
-        x-transition.opacity
-        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-sm"
-        @keydown.escape.window="receptionistAccessModalOpen = false"
-    >
-        <div
-            x-show="receptionistAccessModalOpen"
-            x-transition:enter="ease-out duration-200"
-            x-transition:enter-start="opacity-0 translate-y-2 scale-[.98]"
-            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-            x-transition:leave="ease-in duration-150"
-            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-            x-transition:leave-end="opacity-0 translate-y-2 scale-[.98]"
-            @click.outside="receptionistAccessModalOpen = false"
-            class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900 dark:border dark:border-slate-800"
-        >
-            <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-slate-800">
-                <div class="flex items-center gap-2">
-                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-                        </svg>
-                    </span>
-                    <div>
-                        <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Authorize Receptionist Access</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Control which frontdesk receptionists can view Sales Reports.</p>
-                    </div>
-                </div>
-                <button type="button" @click="receptionistAccessModalOpen = false" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800 dark:hover:text-gray-200">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-
-            <div class="flex-1 overflow-y-auto p-5 space-y-3">
-                @forelse($receptionists ?? [] as $recep)
-                    <div class="flex items-center justify-between p-3.5 rounded-xl border border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/40">
-                        <div class="flex items-center gap-3">
-                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-100/70 text-xs font-bold text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
-                                {{ strtoupper(substr($recep->first_name ?? $recep->username, 0, 1)) }}
-                            </div>
-                            <div>
-                                <p class="text-sm font-bold text-gray-900 dark:text-white leading-tight">
-                                    {{ $recep->full_name ?? ($recep->first_name . ' ' . $recep->last_name) }}
-                                </p>
-                                <p class="text-xs text-gray-400 dark:text-gray-500">{{ '@' . $recep->username }}</p>
-                            </div>
-                        </div>
-
-                        <form method="POST" action="{{ Route::has('admin.receptionist.toggle-sales-report') ? route('admin.receptionist.toggle-sales-report', $recep) : url('/admin/receptionists/' . $recep->id . '/toggle-sales-report') }}">
-                            @csrf
-                            @method('PUT')
-                            <button
-                                type="submit"
-                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs {{ ($recep->can_view_sales_report ?? false) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 dark:bg-slate-800 dark:text-gray-400 dark:border-slate-700' }}"
-                            >
-                                @if($recep->can_view_sales_report ?? false)
-                                    <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                    Access Granted
-                                @else
-                                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
-                                    No Access
-                                @endif
-                            </button>
-                        </form>
-                    </div>
-                @empty
-                    <div class="text-center py-6 text-gray-400 text-xs">
-                        No active receptionist accounts found.
-                    </div>
-                @endforelse
-            </div>
-
-            <div class="border-t border-gray-100 bg-gray-50 px-5 py-3 dark:border-slate-800 dark:bg-slate-950/40 flex justify-end">
-                <button
-                    type="button"
-                    @click="receptionistAccessModalOpen = false"
-                    class="rounded-lg bg-gray-200 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-300 dark:bg-slate-800 dark:text-gray-300 dark:hover:bg-slate-700 transition"
-                >
-                    Close
-                </button>
-            </div>
-        </div>
-    </div>
-    @endif
 
     {{-- =========================================================
          PERIOD SUMMARY
@@ -1800,14 +1694,7 @@
             );
 
 
-            const isAdmin =
-                window.location.pathname.includes('/admin/');
-
-
-            const endpoint =
-                isAdmin
-                    ? '{{ route("admin.sales.tx-log") }}'
-                    : '{{ route("receptionist.sales.tx-log") }}';
+            const endpoint = '{{ route("admin.sales.tx-log") }}';
 
 
             const container =
@@ -1913,14 +1800,7 @@
                 );
 
 
-            const isAdmin =
-                window.location.pathname.includes('/admin/');
-
-
-            const endpoint =
-                isAdmin
-                    ? '{{ route("admin.sales.tx-log") }}'
-                    : '{{ route("receptionist.sales.tx-log") }}';
+            const endpoint = '{{ route("admin.sales.tx-log") }}';
 
 
             fetch(
@@ -2258,10 +2138,7 @@
                 );
 
 
-            const endpoint =
-                window.location.pathname.includes('/admin/')
-                    ? '{{ route("admin.sales.ai-chat") }}'
-                    : '{{ route("receptionist.sales.ai-chat") }}';
+            const endpoint = '{{ route("admin.sales.ai-chat") }}';
 
 
             fetch(

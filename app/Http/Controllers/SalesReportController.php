@@ -18,37 +18,8 @@ class SalesReportController extends Controller
         $this->analyticsService = $analyticsService;
     }
 
-    private function authorizeSalesReport(): ?\Illuminate\Http\RedirectResponse
-    {
-        $user = Auth::user();
-
-        if (!$user) {
-            return redirect()->route('login');
-        }
-
-        if ($user->isAdmin()) {
-            return null;
-        }
-
-        if ($user->hasRole('receptionist')) {
-            if ($user->can_view_sales_report ?? false) {
-                return null;
-            }
-
-            return redirect()->route('receptionist.dashboard')
-                ->with('error', 'Unauthorized. Access to Sales Reports must be granted by an administrator.');
-        }
-
-        return redirect()->route('login')
-            ->with('error', 'Unauthorized. Access restricted.');
-    }
-
     public function index(Request $request)
     {
-        if ($redirect = $this->authorizeSalesReport()) {
-            return $redirect;
-        }
-
         try {
             $data = $this->analyticsService->getDashboardData($request);
         } catch (\Throwable $e) {
@@ -59,14 +30,7 @@ class SalesReportController extends Controller
             return back()->with('error', 'Unable to load Sales Report: ' . $e->getMessage());
         }
 
-        $data['routeName'] = Auth::user()->isAdmin() ? 'admin.sales' : 'receptionist.sales';
-        $data['receptionists'] = Auth::user()->isAdmin()
-            ? \App\Models\User::whereHas('roles', fn($q) => $q->where('name', 'receptionist'))
-                ->where('is_active', true)
-                ->orderBy('first_name')
-                ->orderBy('last_name')
-                ->get()
-            : collect();
+        $data['routeName'] = 'admin.sales';
 
         $data['reportTitle'] = match ($data['period']) {
             'daily'   => 'SUMMARY OF DAILY SALES REPORT',
@@ -91,10 +55,6 @@ class SalesReportController extends Controller
 
     public function transactionLogFragment(Request $request)
     {
-        if ($redirect = $this->authorizeSalesReport()) {
-            return response('<div class="p-6 text-center text-red-500">Unauthorized</div>', 403);
-        }
-
         $data = $this->analyticsService->getDashboardData($request);
 
         return view('shared._transaction_log_table', [
@@ -107,10 +67,6 @@ class SalesReportController extends Controller
 
     public function aiChat(Request $request, GeminiInsightService $gemini)
     {
-        if ($redirect = $this->authorizeSalesReport()) {
-            return response()->json(['type' => 'error', 'text' => 'Unauthorized access.'], 403);
-        }
-
         $request->validate([
             'question' => 'required|string|max:200',
             'history'  => 'nullable|array',
@@ -129,10 +85,6 @@ class SalesReportController extends Controller
 
     public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
     {
-        if ($redirect = $this->authorizeSalesReport()) {
-            return $redirect;
-        }
-
         $data = $this->analyticsService->getDashboardData($request);
         $period = $data['period'];
 
@@ -180,10 +132,6 @@ class SalesReportController extends Controller
 
     public function businessReportPdf(Request $request, ReportPdfService $pdfService)
     {
-        if ($redirect = $this->authorizeSalesReport()) {
-            return $redirect;
-        }
-
         $data = $this->analyticsService->getDashboardData($request);
         $filename = 'business-report.pdf';
 
@@ -223,10 +171,6 @@ class SalesReportController extends Controller
 
     public function dailyReportCsv(Request $request, CsvExportService $csvService)
     {
-        if ($redirect = $this->authorizeSalesReport()) {
-            return $redirect;
-        }
-
         $data = $this->analyticsService->getDashboardData($request);
         $period = $data['period'];
 
@@ -320,10 +264,6 @@ class SalesReportController extends Controller
 
     public function businessReportCsv(Request $request, CsvExportService $csvService)
     {
-        if ($redirect = $this->authorizeSalesReport()) {
-            return $redirect;
-        }
-
         $data = $this->analyticsService->getDashboardData($request);
         $referenceNumber = 'BUS-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
 

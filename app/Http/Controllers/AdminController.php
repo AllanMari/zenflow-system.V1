@@ -2169,33 +2169,4 @@ public function appointmentReportCsv(
             $user->first_name . ' ' . $user->last_name . ' ' . $status . '.'
         );
     }
-
-    public function toggleSalesReportPermission(User $user)
-    {
-        if (!auth()->user()->roles->contains('name', 'admin')) {
-            abort(403, 'Admin only');
-        }
-
-        if (!$user->roles()->where('name', 'receptionist')->exists()) {
-            return back()->with('error', 'User is not a receptionist.');
-        }
-
-        try {
-            $user->update([
-                'can_view_sales_report' => !($user->can_view_sales_report ?? false),
-            ]);
-
-            $status = $user->can_view_sales_report
-                ? 'can now access Sales Reports'
-                : 'can no longer access Sales Reports';
-
-            return back()->with(
-                'success',
-                $user->first_name . ' ' . $user->last_name . ' ' . $status . '.'
-            );
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Error updating receptionist sales report permission: ' . $e->getMessage());
-            return back()->with('error', 'Could not update permission. Please run database migrations on server: ' . $e->getMessage());
-        }
-    }
 }

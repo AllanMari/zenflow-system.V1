@@ -26,7 +26,6 @@ class User extends Authenticatable
         'email_verified_at',
         'can_view_room_tracking',
         'can_manage_business_hours',
-        'can_view_sales_report',
     ];
 
     protected $hidden = [
@@ -42,7 +41,6 @@ class User extends Authenticatable
         'can_mark_attendance' => 'boolean',
         'can_view_room_tracking' => 'boolean',
         'can_manage_business_hours' => 'boolean',
-        'can_view_sales_report' => 'boolean',
     ];
 
     // ========== EXISTING ==========

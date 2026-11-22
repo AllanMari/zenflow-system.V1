@@ -82,18 +82,9 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     Route::post('/appointments/{appointment}/complete', [ReceptionistController::class, 'complete'])->name('receptionist.complete');
     Route::get('/pending', [ReceptionistController::class, 'pending'])->name('receptionist.pending');
     Route::get('/active', [ReceptionistController::class, 'active'])->name('receptionist.active');
-    Route::get('/sales', [SalesReportController::class, 'index'])->name('receptionist.sales');
-    Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('receptionist.sales.tx-log');
-    Route::get('/sales/daily-report-pdf', [SalesReportController::class, 'dailyReportPdf'])->name('receptionist.sales.daily-report-pdf');
-    Route::get('/sales/daily-report-csv', [SalesReportController::class, 'dailyReportCsv'])->name('receptionist.sales.daily-report-csv');
-    Route::get('/sales/daily-report-xlsx', [SalesReportController::class, 'dailyReportXlsx'])->name('receptionist.sales.daily-report-xlsx');
-    Route::get('/sales/business-report-pdf', [SalesReportController::class, 'businessReportPdf'])->name('receptionist.sales.business-report-pdf');
-    Route::get('/sales/business-report-csv', [SalesReportController::class, 'businessReportCsv'])->name('receptionist.sales.business-report-csv');
-    Route::get('/sales/business-report-xlsx', [SalesReportController::class, 'businessReportXlsx'])->name('receptionist.sales.business-report-xlsx');
     Route::get('/booking/{appointment}/rooms', [ReceptionistController::class, 'availableRooms'])->name('receptionist.rooms.available');
     Route::get('/quick-book', [BookingController::class, 'quickBook'])->name('receptionist.quick-book');
     Route::get('/api/booking/next-slots', [BookingController::class, 'nextSlots'])->name('api.next-slots');
-    Route::post('/sales/ai-chat', [SalesReportController::class, 'aiChat'])->name('receptionist.sales.ai-chat');
     Route::post('/appointments/{appointmentId}/reassign', [ReceptionistController::class, 'reassignStaff'])->name('receptionist.reassign')->whereNumber('appointmentId');
     Route::post('/appointments/{appointmentId}/reschedule', [ReceptionistController::class, 'reschedule'])->name('receptionist.reschedule')->whereNumber('appointmentId');
     Route::get('/api/customers/lookup', [BookingController::class, 'customerLookup'])->name('api.customers.lookup');
@@ -224,11 +215,6 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
         '/receptionists/{user}/toggle-business-hours',
         [AdminController::class, 'toggleBusinessHoursPermission']
     )->name('admin.receptionist.toggle-business-hours');
-    // Sales Report permission
-    Route::put(
-        '/receptionists/{user}/toggle-sales-report',
-        [AdminController::class, 'toggleSalesReportPermission']
-    )->name('admin.receptionist.toggle-sales-report');
     // Sales
     Route::get('/sales', [SalesReportController::class, 'index'])->name('admin.sales');
     Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('admin.sales.tx-log');
