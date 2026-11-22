@@ -1159,7 +1159,7 @@
                                                 'category' => $s->category?->name ?? 'Spa Service',
                                             ];
                                         });
-                                        $customerName = $appt->customer ? $appt->customer->full_name : ($appt->guest_first_name . ' ' . $appt->guest_last_name);
+                                        $customerName = $appt->client_name;
                                         $payload = [
                                             'ref' => '#' . ($appt->reference_number ?? $appt->id),
                                             'customer' => $customerName,

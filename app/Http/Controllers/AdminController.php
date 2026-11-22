@@ -2001,9 +2001,7 @@ public function appointmentReportCsv(
 
     $rows = [];
     foreach ($appointments as $apt) {
-        $customerName = $apt->customer
-            ? $apt->customer->full_name
-            : ($apt->guest_first_name . ' ' . $apt->guest_last_name);
+        $customerName = $apt->client_name;
 
         $customerPhone = $apt->customer
             ? $apt->customer->phone_number

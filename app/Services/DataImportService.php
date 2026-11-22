@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\Attendance;
 use App\Models\Customer;
 use App\Models\Payment;
+use App\Models\Room;
 use App\Models\Service;
 use App\Models\User;
 use Carbon\Carbon;
@@ -31,12 +32,18 @@ class DataImportService
     protected ?array $staffCache = null;
 
     /**
+     * In-memory cache for treatment rooms to enable case-insensitive & space-normalized lookups.
+     */
+    protected ?array $roomsCache = null;
+
+    /**
      * Reset in-memory caches (useful in tests).
      */
     public function resetCaches(): void
     {
         $this->servicesCache = null;
         $this->staffCache = null;
+        $this->roomsCache = null;
     }
 
     /**
@@ -202,6 +209,12 @@ class DataImportService
                         'hint' => 'Therapist username or full name. Supports multiple therapists separated by commas (e.g. Ana Reyes, Maria Santos). Equal commission split.',
                     ],
                     [
+                        'key' => 'room_name',
+                        'label' => 'Room',
+                        'required' => false,
+                        'hint' => 'Optional assigned room name or number (e.g. Room 1, Couple Suite). Leave blank if unassigned.',
+                    ],
+                    [
                         'key' => 'treatment_notes',
                         'label' => 'Treatment Notes',
                         'required' => false,
@@ -224,6 +237,7 @@ class DataImportService
                     'Customer Name',
                     'Customer Phone',
                     'Staff / Therapist',
+                    'Room',
                     'Treatment Notes',
                     'Notes',
                 ],
@@ -237,6 +251,7 @@ class DataImportService
                     'customer_name',
                     'customer_phone',
                     'staff_username',
+                    'room_name',
                     'treatment_notes',
                     'notes',
                 ],
@@ -249,7 +264,7 @@ class DataImportService
                 ],
                 'samples' => [
                     [
-                        'OFF-20261119-001',
+                        'SAMPLE-OFF-001',
                         '2026-11-19',
                         '10:30 AM',
                         'Classic Swedish Massage',
@@ -258,11 +273,12 @@ class DataImportService
                         'Maria Santos',
                         '09171234567',
                         'therapist_ana',
+                        'Room 1',
                         'Target upper back tension, medium pressure.',
                         'Offline receipt during power interruption.',
                     ],
                     [
-                        'OFF-20261119-002',
+                        'SAMPLE-OFF-002',
                         '2026-11-19',
                         '02:00 PM',
                         'Body Scrub',
@@ -271,17 +287,19 @@ class DataImportService
                         'Juan dela Cruz',
                         '09189876543',
                         'Ana Reyes',
+                        'Room 2',
                         'Client sensitive to hot towels.',
                         'Paid via front desk QR.',
                     ],
                     [
-                        'OFF-20261119-003',
+                        'SAMPLE-OFF-003',
                         '2026-11-19',
                         '04:45 PM',
                         'Alexandria Signature Massage',
                         '1200.00',
                         'card',
                         'Walk-in Guest',
+                        '',
                         '',
                         '',
                         'Aromatherapy lavender oil selected.',
@@ -294,7 +312,7 @@ class DataImportService
                     'Columns marked "Required" must not be left empty: Offline Reference, Transaction Date, Service or Package Name, Amount Paid, and Payment Method.',
                     'Enter Transaction Time in 12-hour format with AM/PM (e.g. 02:30 PM). Standard 24-hour time (e.g. 14:30) is also accepted.',
                     'Amount Paid is required. Record the actual amount collected; catalog price is not automatically substituted.',
-                    'Customer Name, Customer Phone, and Staff / Therapist are optional for anonymous walk-ins or older receipts without therapist attribution.',
+                    'Customer Name, Customer Phone, Staff / Therapist, and Room are optional for anonymous walk-ins or unassigned sessions.',
                     'Treatment Notes are saved specifically to the appointment session and kept separate from general payment remarks.',
                     'ZenFlow will show you a complete preview and check for errors or duplicates before anything is saved.',
                 ],
@@ -331,6 +349,7 @@ class DataImportService
                 $metadata[] = ['PAYMENT METHODS', 'cash, card, gcash, paymaya, bank_transfer'];
                 $metadata[] = ['AMOUNT NOTE', 'Amount Paid is required. Record the actual collected amount; catalog price is not substituted.'];
                 $metadata[] = ['TIME FORMAT', 'Enter time in 12-hour AM/PM format (e.g. 02:30 PM). 24-hour time is also supported.'];
+                $metadata[] = ['ROOM ASSIGNMENT', 'Optional. Enter an active room name or number (e.g. Room 1). Leave blank for unassigned.'];
                 $metadata[] = ['TREATMENT NOTES', 'Treatment Notes are saved to the appointment session and kept separate from general transaction notes.'];
                 $metadata[] = ['DUPLICATE SAFEGUARD', 'Offline reference codes are case-insensitive (e.g. OFF-001 vs off-001) to prevent double imports.'];
             }
@@ -434,6 +453,11 @@ class DataImportService
                     'staff therapist', 'staff / therapist', 'staff username', 'staff name', 'therapist',
                     'staff', 'employee', 'therapist name', 'staff_username', 'staff_name', 'assigned staff',
                 ],
+                'room_name' => [
+                    'room', 'room name', 'room_name', 'assigned room', 'assigned_room',
+                    'room number', 'room_number', 'room no', 'room_no', 'room bed', 'room/bed',
+                    'treatment room', 'treatment_room', 'spa room', 'spa_room',
+                ],
                 'treatment_notes' => [
                     'treatment notes', 'treatment note', 'treatment_notes', 'treatment_note', 'session notes',
                     'session note', 'service notes', 'service note', 'treatment remarks', 'session remarks',
@@ -462,6 +486,8 @@ class DataImportService
      */
     public function parseAndValidate(string $type, UploadedFile $file): array
     {
+        $this->resetCaches();
+
         $def = $this->getTemplateDefinition($type);
         $requiredHeaders = $def['required'];
 
@@ -535,6 +561,7 @@ class DataImportService
             'GUIDANCE',
             'ALLOWED STATUSES',
             'DATE & TIME FORMAT',
+            'TIME FORMAT',
             'STAFF MATCHING',
             'SERVICE MATCHING',
             'SERVICE OR PACKAGE',
@@ -542,6 +569,7 @@ class DataImportService
             'AMOUNT NOTE',
             'TREATMENT NOTES',
             'DUPLICATE SAFEGUARD',
+            'ROOM ASSIGNMENT',
             'COLUMN NAME',
         ];
 
@@ -599,6 +627,7 @@ class DataImportService
         // Maps for in-batch duplicate detection (case-insensitive)
         $batchAttendanceKeys = [];
         $batchOfflineRefs = [];
+        $batchRoomSlots = [];
 
         foreach ($rowsMatrix as $rowNumber => $rawRow) {
             if ($rowNumber <= $headerRowNumber) {
@@ -614,6 +643,11 @@ class DataImportService
             foreach ($columnMap as $index => $canonicalKey) {
                 $val = isset($rawRow[$index]) ? trim((string) $rawRow[$index]) : '';
                 $rowData[$canonicalKey] = $val;
+            }
+
+            // Skip rows where ALL mapped canonical values are empty (e.g. blank separator rows)
+            if (collect($rowData)->every(fn ($v) => $v === '')) {
+                continue;
             }
 
             // Safely skip any repeated header rows, section titles, or empty rows
@@ -638,7 +672,8 @@ class DataImportService
                 'offline_sales' => $this->validateOfflineSaleRow(
                     $rowData,
                     $rowNumber,
-                    $batchOfflineRefs
+                    $batchOfflineRefs,
+                    $batchRoomSlots
                 ),
             };
 
@@ -886,7 +921,12 @@ class DataImportService
         ];
     }
 
-    protected function validateOfflineSaleRow(array $row, int $rowNum, array &$batchRefs): array
+    protected function validateOfflineSaleRow(
+        array $row,
+        int $rowNum,
+        array &$batchRefs,
+        array &$batchRoomSlots = []
+    ): array
     {
         $ref = self::normalizeString($row['offline_reference'] ?? '');
         $date = self::normalizeString($row['transaction_date'] ?? '');
@@ -898,6 +938,7 @@ class DataImportService
         $rawPhone = $row['customer_phone'] ?? '';
         $customerPhone = self::normalizePhoneNumber($rawPhone);
         $staffInput = self::normalizeString($row['staff_username'] ?? '');
+        $roomInput = self::normalizeString($row['room_name'] ?? '');
 
         $errors = [];
 
@@ -1079,6 +1120,72 @@ class DataImportService
             );
         }
 
+        // 9. Optional Room validation and scheduling conflict prevention
+        $resolvedRoom = null;
+        if (!empty($roomInput)) {
+            $resolvedRoom = $this->resolveRoom($roomInput);
+            if (!$resolvedRoom) {
+                $this->addValidationError(
+                    $errors,
+                    'Room',
+                    'room_name',
+                    $roomInput,
+                    "Room '{$roomInput}' was not found in active spa rooms.",
+                    'Check room name spelling. Must match an active treatment room (e.g. Room 1, Couple Suite) or leave blank if unassigned.'
+                );
+            } else {
+                // If room found, and valid date & service:
+                if ($parsedDate !== null && $service !== null) {
+                    $startTime = $formattedTime;
+                    $duration = $service->duration_minutes ?: ($service->is_package ? 90 : 60);
+                    $endTime = Carbon::parse($startTime)->addMinutes($duration)->format('H:i:s');
+
+                    // Check database room conflict (exclusive boundaries: start < otherEnd && end > otherStart)
+                    $dbConflict = Appointment::where('room_id', $resolvedRoom->id)
+                        ->where(function ($q) use ($parsedDate) {
+                            $q->whereDate('appointment_date', $parsedDate)
+                              ->orWhere('appointment_date', 'like', $parsedDate . '%');
+                        })
+                        ->whereNotIn('status', ['cancelled', 'no_show'])
+                        ->where(function ($q) use ($startTime, $endTime) {
+                            $q->where('start_time', '<', $endTime)
+                              ->where('end_time', '>', $startTime);
+                        })
+                        ->first();
+
+                    if ($dbConflict) {
+                        $conflictRef = '#' . ($dbConflict->reference_number ?? $dbConflict->id);
+                        $conflictTimeStr = Carbon::parse($dbConflict->start_time)->format('g:i A') . ' - ' . Carbon::parse($dbConflict->end_time)->format('g:i A');
+                        $this->addValidationError(
+                            $errors,
+                            'Room',
+                            'room_name',
+                            $roomInput,
+                            "Room '{$resolvedRoom->name}' has a scheduling conflict with existing appointment {$conflictRef} on {$parsedDate} ({$conflictTimeStr}).",
+                            'Assign a different room or adjust transaction time to prevent double-booking.'
+                        );
+                    }
+
+                    // Check in-batch room conflict (concurrent rows in same file)
+                    foreach ($batchRoomSlots as $slot) {
+                        if ($slot['room_id'] === $resolvedRoom->id && $slot['date'] === $parsedDate) {
+                            if ($startTime < $slot['end'] && $endTime > $slot['start']) {
+                                $this->addValidationError(
+                                    $errors,
+                                    'Room',
+                                    'room_name',
+                                    $roomInput,
+                                    "Room '{$resolvedRoom->name}' conflicts with row {$slot['row']} (Ref: {$slot['ref']}) in this upload.",
+                                    'Ensure the same room is not assigned to multiple overlapping sessions.'
+                                );
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if (!empty($errors)) {
             $reasons = array_map(function ($e) {
                 $valDisplay = $e['value'] !== '' ? " ('{$e['value']}')" : '';
@@ -1121,6 +1228,20 @@ class DataImportService
 
         $batchRefs[] = $refLower;
 
+        if ($resolvedRoom !== null && $parsedDate !== null && empty($errors)) {
+            $startTime = $formattedTime;
+            $duration = $service->duration_minutes ?: ($service->is_package ? 90 : 60);
+            $endTime = Carbon::parse($startTime)->addMinutes($duration)->format('H:i:s');
+            $batchRoomSlots[] = [
+                'room_id' => $resolvedRoom->id,
+                'date' => $parsedDate,
+                'start' => $startTime,
+                'end' => $endTime,
+                'row' => $rowNum,
+                'ref' => $ref,
+            ];
+        }
+
         $isPackage = (bool) ($service?->is_package ?? false);
         $itemType = $isPackage ? 'Package' : 'Service';
 
@@ -1145,6 +1266,8 @@ class DataImportService
                 'item_type' => $itemType,
                 'amount' => $finalAmount,
                 'payment_method' => $methodInput,
+                'room_id' => $resolvedRoom?->id,
+                'room_name' => $resolvedRoom?->name,
                 'customer_name' => $customerName ?: 'Walk-in',
                 'customer_phone' => $customerPhone ?: null,
                 'staff_id' => $primaryStaff?->id,
@@ -1189,6 +1312,7 @@ class DataImportService
         }
 
         $staff = !empty($row['staff_id']) ? User::find($row['staff_id']) : null;
+        $room = !empty($row['room_id']) ? Room::find($row['room_id']) : null;
         $customerName = trim($row['customer_name'] ?? '');
         $customerPhone = !empty($row['customer_phone']) ? trim($row['customer_phone']) : null;
 
@@ -1197,26 +1321,50 @@ class DataImportService
         if (!empty($customerPhone)) {
             $customer = Customer::where('phone_number', $customerPhone)->first();
             if (!$customer) {
-                $nameParts = explode(' ', $customerName, 2);
+                $nameParts = preg_split('/\s+/', trim($customerName), 2);
                 $customer = Customer::create([
                     'first_name' => !empty($nameParts[0]) ? $nameParts[0] : 'Walk-in',
-                    'last_name' => $nameParts[1] ?? 'Customer',
+                    'last_name' => !empty($nameParts[1]) ? $nameParts[1] : 'Customer',
                     'phone_number' => $customerPhone,
                     'customer_type' => 'regular',
                 ]);
             }
         }
 
+        if (!$customer && !empty($customerName) && strtolower($customerName) !== 'walk-in') {
+            $nameParts = preg_split('/\s+/', trim($customerName), 2);
+            $firstName = !empty($nameParts[0]) ? $nameParts[0] : '';
+            $lastName = !empty($nameParts[1]) ? $nameParts[1] : '';
+            if ($firstName !== '') {
+                $customer = Customer::where('first_name', $firstName)
+                    ->when($lastName !== '', fn($q) => $q->where('last_name', $lastName))
+                    ->first();
+            }
+        }
+
         if (!$customer) {
             // Find or initialize standard Walk-in guest customer record
+            $nameParts = preg_split('/\s+/', trim($customerName), 2);
+            $firstName = !empty($nameParts[0]) && strtolower($nameParts[0]) !== 'walk-in' ? $nameParts[0] : 'Walk-in';
+            $lastName = !empty($nameParts[1]) ? $nameParts[1] : 'Guest';
+
             $customer = Customer::firstOrCreate(
                 ['phone_number' => '09000000000'],
                 [
-                    'first_name' => !empty($customerName) && strtolower($customerName) !== 'walk-in' ? $customerName : 'Walk-in',
-                    'last_name' => 'Guest',
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
                     'customer_type' => 'regular',
                 ]
             );
+        }
+
+        // Determine full customer / guest display name (ensures "Joshua Garcia" is never truncated)
+        $fullCustomerName = !empty($customerName) && strtolower($customerName) !== 'walk-in'
+            ? trim($customerName)
+            : trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? ''));
+
+        if ($fullCustomerName === '' || strtolower($fullCustomerName) === 'walk-in') {
+            $fullCustomerName = 'Walk-in Guest';
         }
 
         // 2. Resolve timestamps
@@ -1230,6 +1378,8 @@ class DataImportService
         $appointment = Appointment::create([
             'customer_id' => $customer->id,
             'user_id' => $staff?->id,
+            'room_id' => $room?->id,
+            'requested_room_id' => $room?->id,
             'appointment_date' => $transactionDate,
             'start_time' => $startTime,
             'end_time' => $endTime,
@@ -1237,8 +1387,8 @@ class DataImportService
             'total_price' => $amount,
             'notes' => trim($auditNotes),
             'treatment_notes' => !empty($row['treatment_notes']) ? trim($row['treatment_notes']) : null,
-            'guest_first_name' => $customer->first_name,
-            'guest_phone' => $customer->phone_number,
+            'guest_first_name' => $fullCustomerName,
+            'guest_phone' => !empty($customerPhone) ? $customerPhone : ($customer->phone_number ?? null),
             'created_by' => auth()->id(),
             'confirmed_at' => $paidAt,
         ]);
@@ -1353,6 +1503,53 @@ class DataImportService
         }
         if (is_numeric($needle) && isset($this->staffCache['id_' . (int) $needle])) {
             return $this->staffCache['id_' . (int) $needle];
+        }
+
+        return null;
+    }
+
+    public function resolveRoom(string $input): ?Room
+    {
+        $input = self::normalizeString($input);
+        if ($input === '') {
+            return null;
+        }
+
+        if ($this->roomsCache === null) {
+            $this->roomsCache = [];
+            $rooms = Room::where('is_active', true)->get();
+
+            foreach ($rooms as $r) {
+                // By ID
+                $this->roomsCache['id_' . $r->id] = $r;
+
+                // By exact name (case-insensitive & whitespace-normalized)
+                $nameNorm = strtolower(self::normalizeString($r->name));
+                if ($nameNorm !== '') {
+                    $this->roomsCache['name_' . $nameNorm] = $r;
+                }
+
+                // By clean alphanumeric (e.g. "room 1" vs "room1" vs "Room 1")
+                $cleanAlphaNum = preg_replace('/[^a-z0-9]/', '', $nameNorm);
+                if ($cleanAlphaNum !== '') {
+                    $this->roomsCache['clean_' . $cleanAlphaNum] = $r;
+                }
+            }
+        }
+
+        $needle = strtolower($input);
+
+        if (isset($this->roomsCache['name_' . $needle])) {
+            return $this->roomsCache['name_' . $needle];
+        }
+
+        $needleClean = preg_replace('/[^a-z0-9]/', '', $needle);
+        if (isset($this->roomsCache['clean_' . $needleClean])) {
+            return $this->roomsCache['clean_' . $needleClean];
+        }
+
+        if (is_numeric($needle) && isset($this->roomsCache['id_' . (int) $needle])) {
+            return $this->roomsCache['id_' . (int) $needle];
         }
 
         return null;
@@ -1514,12 +1711,26 @@ class DataImportService
 
     /**
      * Determine if a row is an example row from the downloadable template.
+     *
+     * Checks reference codes, service names, and notes fields against known
+     * template sample data to prevent built-in examples from being imported.
      */
     protected function isTemplateSampleRow(array $rowData, string $type): bool
     {
         if ($type === 'offline_sales') {
             $ref = strtoupper(trim((string) ($rowData['offline_reference'] ?? '')));
+            // Explicit SAMPLE / EXAMPLE markers in reference
             if ($ref !== '' && (str_contains($ref, 'SAMPLE') || str_contains($ref, 'EXAMPLE'))) {
+                return true;
+            }
+            // Check for unchanged template sample notes
+            $notes = strtolower(trim((string) ($rowData['notes'] ?? '')));
+            $knownSampleNotes = [
+                'offline receipt during power interruption.',
+                'paid via front desk qr.',
+                'terminal transaction #4412.',
+            ];
+            if (in_array($notes, $knownSampleNotes, true)) {
                 return true;
             }
         } elseif ($type === 'attendance') {

@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Role;
+use App\Models\Room;
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\User;
@@ -1124,5 +1125,129 @@ class DataImportAndCsvExportTest extends TestCase
         $previewResponse->assertSee($ref);
         // Should show unassigned in preview (no invalid error since staff is optional)
         $previewResponse->assertSee('Ready to Commit');
+    }
+
+    /* ─── 13. CUSTOMER FULL NAME PRESERVATION (JOSHUA GARCIA) ─── */
+
+    public function test_customer_full_name_joshua_garcia_is_preserved_in_full(): void
+    {
+        $ref = 'OFF-JOSHUA-' . uniqid();
+        $csvContent = "offline_reference,transaction_date,service_name,amount,payment_method,customer_name\n" .
+                      "\"{$ref}\",\"2026-11-19\",\"Classic Swedish Massage\",530.00,cash,\"Joshua Garcia\"\n";
+
+        $file = UploadedFile::fake()->createWithContent('joshua_garcia.csv', $csvContent);
+
+        $previewResponse = $this->actingAs($this->admin)->post(route('admin.data-import.preview'), [
+            'import_type' => 'offline_sales',
+            'csv_file' => $file,
+        ]);
+        $previewResponse->assertStatus(200);
+        $previewResponse->assertSee('Joshua Garcia');
+
+        $tokenKeys = array_filter(array_keys(session()->all()), fn($k) => str_starts_with($k, 'import_payload_'));
+        $previewToken = str_replace('import_payload_', '', reset($tokenKeys));
+
+        $this->actingAs($this->admin)->post(route('admin.data-import.confirm'), [
+            'preview_token' => $previewToken,
+            'import_type' => 'offline_sales',
+        ]);
+
+        $appt = Appointment::where('notes', 'like', "%[Offline Ref: {$ref}]%")->first();
+        $this->assertNotNull($appt);
+        $this->assertEquals('Joshua Garcia', $appt->guest_first_name);
+        $this->assertEquals('Joshua Garcia', $appt->client_name);
+    }
+
+    /* ─── 14. ROOM ASSIGNMENT AND CONFLICT PREVENTION ─── */
+
+    public function test_offline_sale_with_room_assigns_room_correctly(): void
+    {
+        $room = Room::create(['name' => 'Room 1', 'status' => 'available', 'is_active' => true]);
+        $ref = 'OFF-ROOM-' . uniqid();
+        $csvContent = "offline_reference,transaction_date,service_name,amount,payment_method,room_name\n" .
+                      "\"{$ref}\",\"2026-11-19\",\"Classic Swedish Massage\",530.00,cash,\"Room 1\"\n";
+
+        $file = UploadedFile::fake()->createWithContent('room_sale.csv', $csvContent);
+
+        $previewResponse = $this->actingAs($this->admin)->post(route('admin.data-import.preview'), [
+            'import_type' => 'offline_sales',
+            'csv_file' => $file,
+        ]);
+        $previewResponse->assertStatus(200);
+        $previewResponse->assertSee('Room 1');
+
+        $tokenKeys = array_filter(array_keys(session()->all()), fn($k) => str_starts_with($k, 'import_payload_'));
+        $previewToken = str_replace('import_payload_', '', reset($tokenKeys));
+
+        $this->actingAs($this->admin)->post(route('admin.data-import.confirm'), [
+            'preview_token' => $previewToken,
+            'import_type' => 'offline_sales',
+        ]);
+
+        $appt = Appointment::where('notes', 'like', "%[Offline Ref: {$ref}]%")->first();
+        $this->assertNotNull($appt);
+        $this->assertEquals($room->id, $appt->room_id);
+        $this->assertEquals('Room 1', $appt->room->name);
+    }
+
+    public function test_offline_sale_room_conflict_with_existing_appointment_is_rejected(): void
+    {
+        $room = Room::create(['name' => 'Couple Suite', 'status' => 'available', 'is_active' => true]);
+
+        // Existing appointment in Couple Suite from 14:00 to 15:30 on 2026-11-19
+        $customer = Customer::create([
+            'first_name' => 'Existing',
+            'last_name' => 'Guest',
+            'phone_number' => '09123456780',
+        ]);
+        Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $room->id,
+            'appointment_date' => '2026-11-19',
+            'start_time' => '14:00:00',
+            'end_time' => '15:30:00',
+            'status' => 'completed',
+            'total_price' => 1200.00,
+            'guest_first_name' => 'Existing Guest',
+        ]);
+
+        // Attempt to import an offline sale in the same room overlapping at 02:30 PM (14:30)
+        $ref = 'OFF-CONFLICT-' . uniqid();
+        $csvContent = "offline_reference,transaction_date,transaction_time,service_name,amount,payment_method,room_name\n" .
+                      "\"{$ref}\",\"2026-11-19\",\"02:30 PM\",\"Classic Swedish Massage\",530.00,cash,\"Couple Suite\"\n";
+
+        $file = UploadedFile::fake()->createWithContent('room_conflict.csv', $csvContent);
+
+        $previewResponse = $this->actingAs($this->admin)->post(route('admin.data-import.preview'), [
+            'import_type' => 'offline_sales',
+            'csv_file' => $file,
+        ]);
+
+        $previewResponse->assertStatus(200);
+        $previewResponse->assertSee('scheduling conflict with existing appointment');
+        $previewResponse->assertSee('Couple Suite');
+    }
+
+    public function test_offline_sale_in_batch_room_conflict_is_rejected(): void
+    {
+        Room::create(['name' => 'Room A', 'status' => 'available', 'is_active' => true]);
+
+        // Both rows book Room A on 2026-11-19 with overlapping times (10:00 AM - 11:00 AM and 10:30 AM - 11:30 AM)
+        $ref1 = 'OFF-BATCH-1-' . uniqid();
+        $ref2 = 'OFF-BATCH-2-' . uniqid();
+        $csvContent = "offline_reference,transaction_date,transaction_time,service_name,amount,payment_method,room_name\n" .
+                      "\"{$ref1}\",\"2026-11-19\",\"10:00 AM\",\"Classic Swedish Massage\",530.00,cash,\"Room A\"\n" .
+                      "\"{$ref2}\",\"2026-11-19\",\"10:30 AM\",\"Classic Swedish Massage\",530.00,cash,\"Room A\"\n";
+
+        $file = UploadedFile::fake()->createWithContent('batch_room_conflict.csv', $csvContent);
+
+        $previewResponse = $this->actingAs($this->admin)->post(route('admin.data-import.preview'), [
+            'import_type' => 'offline_sales',
+            'csv_file' => $file,
+        ]);
+
+        $previewResponse->assertStatus(200);
+        $previewResponse->assertSee('conflicts with row');
+        $previewResponse->assertSee('Room A');
     }
 }

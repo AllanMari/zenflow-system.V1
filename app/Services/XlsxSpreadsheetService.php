@@ -84,6 +84,7 @@ class XlsxSpreadsheetService
                 'customer_name' => 22,
                 'customer_phone', 'phone' => 18,
                 'staff_username', 'employee' => 20,
+                'room_name', 'room' => 18,
                 'treatment_notes' => 36,
                 'notes' => 34,
                 'status' => 14,

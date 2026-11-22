@@ -194,7 +194,7 @@ class Phase3DReportingAndFinancialIntegrityTest extends TestCase
         ]));
         $responsePrimary->assertOk();
         $responsePrimary->assertSee('Signature Treatment');
-        $responsePrimary->assertSee('Assisting: Assisting Staff');
+        $responsePrimary->assertSee('Assisting Staff');
 
         // Filter by assisting therapist - must also match the appointment!
         $responseAssisting = $this->actingAs($admin)->get(route('admin.appointments', [

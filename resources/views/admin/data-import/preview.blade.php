@@ -234,6 +234,7 @@
                                 <th class="px-6 py-3 text-left font-bold text-gray-500 uppercase tracking-wider">Method</th>
                                 <th class="px-6 py-3 text-left font-bold text-gray-500 uppercase tracking-wider">Customer</th>
                                 <th class="px-6 py-3 text-left font-bold text-gray-500 uppercase tracking-wider">Assigned Staff</th>
+                                <th class="px-6 py-3 text-left font-bold text-gray-500 uppercase tracking-wider">Room</th>
                                 <th class="px-6 py-3 text-left font-bold text-gray-500 uppercase tracking-wider">Treatment Notes</th>
                                 <th class="px-6 py-3 text-left font-bold text-gray-500 uppercase tracking-wider">Notes</th>
                             @endif
@@ -296,6 +297,16 @@
                                             @if(!empty($rec['assisting_staff_ids']))
                                                 <span class="block text-[10px] text-teal-600 dark:text-teal-400 font-medium">Equal commission split ({{ count($rec['assisting_staff_ids']) + 1 }} therapists)</span>
                                             @endif
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-3 text-gray-600 dark:text-gray-400">
+                                        @if(!empty($rec['room_name']))
+                                            <span class="inline-flex items-center gap-1 font-medium text-slate-800 dark:text-slate-200">
+                                                <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                                                {{ $rec['room_name'] }}
+                                            </span>
+                                        @else
+                                            <span class="text-gray-400 italic">Unassigned</span>
                                         @endif
                                     </td>
                                     <td class="px-6 py-3 text-xs">
