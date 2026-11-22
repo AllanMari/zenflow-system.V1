@@ -84,22 +84,94 @@
                 <input type="hidden" name="import_type" value="{{ $currentType }}">
 
                 {{-- Drag and drop file picker --}}
-                <div>
+                <div x-data="{
+                    isDragging: false,
+                    fileName: '',
+                    fileSize: '',
+                    handleFileSelect(event) {
+                        const file = event.target.files[0];
+                        if (file) {
+                            this.fileName = file.name;
+                            this.fileSize = (file.size / 1024).toFixed(1) + ' KB';
+                        }
+                    },
+                    handleDrop(event) {
+                        this.isDragging = false;
+                        if (event.dataTransfer && event.dataTransfer.files.length > 0) {
+                            const file = event.dataTransfer.files[0];
+                            const input = document.getElementById('csv_file');
+                            input.files = event.dataTransfer.files;
+                            this.fileName = file.name;
+                            this.fileSize = (file.size / 1024).toFixed(1) + ' KB';
+                        }
+                    },
+                    clearFile() {
+                        const input = document.getElementById('csv_file');
+                        if (input) input.value = '';
+                        this.fileName = '';
+                        this.fileSize = '';
+                    }
+                }">
                     <label class="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-2">
                         Select Spreadsheet File (.xlsx or .csv) <span class="text-red-500">*</span>
                     </label>
 
-                    <div class="relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/20 px-6 py-8 text-center hover:border-brand-500 transition">
-                        <svg class="mx-auto h-12 w-12 text-teal-600 dark:text-teal-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                        </svg>
+                    {{-- Drop Zone --}}
+                    <div
+                        @dragover.prevent="isDragging = true"
+                        @dragleave.prevent="isDragging = false"
+                        @drop.prevent="handleDrop($event)"
+                        :class="{ 'border-teal-500 bg-teal-50/70 dark:bg-teal-950/40 ring-4 ring-teal-500/20 scale-[1.005]': isDragging, 'border-gray-300 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/20 hover:border-teal-400 dark:hover:border-teal-600': !isDragging }"
+                        class="relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-8 text-center transition-all duration-200 cursor-pointer select-none"
+                        @click="$refs.fileInput.click()"
+                    >
+                        {{-- Real hidden file input --}}
+                        <input
+                            id="csv_file"
+                            name="csv_file"
+                            x-ref="fileInput"
+                            type="file"
+                            accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
+                            required
+                            @change="handleFileSelect($event)"
+                            class="hidden"
+                        >
 
-                        <div class="flex text-sm text-gray-600 dark:text-gray-400">
-                            <input id="csv_file" name="csv_file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain" required class="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 dark:file:bg-brand-950/60 dark:file:text-brand-300">
+                        <div x-show="!fileName" class="space-y-3 pointer-events-none">
+                            <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">
+                                <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold text-gray-800 dark:text-gray-200">
+                                    <span class="text-teal-600 dark:text-teal-400 underline decoration-teal-400/50 underline-offset-2">Click to browse</span> or drag and drop file here
+                                </p>
+                                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
+                                    Supports Microsoft Excel <strong>.xlsx</strong> and standard <strong>.csv</strong> files (max 10MB).
+                                </p>
+                            </div>
                         </div>
-                        <p class="text-[11px] text-gray-400 mt-2">
-                            Supports Microsoft Excel <strong>.xlsx</strong> (recommended) and standard <strong>.csv</strong> files (max 10MB).
-                        </p>
+
+                        <div x-show="fileName" x-cloak class="flex items-center gap-3 p-3.5 rounded-xl bg-white dark:bg-slate-800 border border-teal-300 dark:border-teal-700 shadow-md max-w-md w-full" @click.stop>
+                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div class="flex-1 text-left min-w-0">
+                                <p class="text-xs font-bold text-gray-900 dark:text-white truncate" x-text="fileName"></p>
+                                <p class="text-[11px] text-teal-600 dark:text-teal-400 font-medium" x-text="fileSize + ' • Ready to preview & validate'"></p>
+                            </div>
+                            <button
+                                type="button"
+                                @click="clearFile()"
+                                class="p-1.5 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+                                title="Remove and choose another file"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
                     </div>
 
                     @error('csv_file')
@@ -144,13 +216,24 @@
                         Specifications and guidelines for formatting your spreadsheet records.
                     </p>
                 </div>
-                <a href="{{ route('admin.data-import.template', ['type' => $currentType, 'format' => 'xlsx']) }}"
-                   class="inline-flex items-center gap-1.5 text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 hover:bg-teal-100 transition">
-                    <svg class="w-4 h-4 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                    </svg>
-                    Download .XLSX
-                </a>
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('admin.data-import.template', ['type' => $currentType, 'format' => 'csv']) }}"
+                       class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                       title="Download clean plain CSV template">
+                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        </svg>
+                        Download .CSV
+                    </a>
+                    <a href="{{ route('admin.data-import.template', ['type' => $currentType, 'format' => 'xlsx']) }}"
+                       class="inline-flex items-center gap-1.5 text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 hover:bg-teal-100 transition"
+                       title="Download styled Excel template">
+                        <svg class="w-4 h-4 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Download .XLSX
+                    </a>
+                </div>
             </div>
 
             {{-- Easy Guide / Simplified instructions for non-native English speakers --}}

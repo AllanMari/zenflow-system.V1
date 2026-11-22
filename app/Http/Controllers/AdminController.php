@@ -2010,17 +2010,15 @@ public function appointmentReportCsv(
             : ($apt->guest_phone ?? 'N/A');
 
         $customerType = $apt->customer
-            ? ucfirst((string) ($apt->customer->customer_type ?? 'regular'))
+            ? 'Client'
             : 'Guest';
 
         $servicesList = $apt->services->pluck('name')->implode('; ');
 
-        $staffName = $apt->staff ? ($apt->staff->full_name ?? $apt->staff->name) : 'Unassigned';
         if ($apt->assignedStaff && $apt->assignedStaff->isNotEmpty()) {
-            $assisting = $apt->assignedStaff->where('pivot.role', 'assisting')->map(fn($s) => $s->full_name ?? $s->name)->filter()->implode(', ');
-            if ($assisting !== '') {
-                $staffName .= ' (Assisting: ' . $assisting . ')';
-            }
+            $staffName = $apt->assignedStaff->map(fn($s) => $s->full_name ?? $s->name)->filter()->implode(', ');
+        } else {
+            $staffName = $apt->staff ? ($apt->staff->full_name ?? $apt->staff->name) : 'Unassigned';
         }
 
         $roomName = $apt->room ? $apt->room->name : 'N/A';
