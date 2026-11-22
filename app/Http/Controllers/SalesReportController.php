@@ -30,7 +30,7 @@ class SalesReportController extends Controller
             return back()->with('error', 'Unable to load Sales Report: ' . $e->getMessage());
         }
 
-        $data['routeName'] = 'admin.sales';
+        $data['routeName'] = (Auth::check() && Auth::user()->isReceptionist()) ? 'receptionist.sales' : 'admin.sales';
 
         $data['reportTitle'] = match ($data['period']) {
             'daily'   => 'SUMMARY OF DAILY SALES REPORT',

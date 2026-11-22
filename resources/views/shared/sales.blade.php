@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+@extends(auth()->check() && auth()->user()->isReceptionist() ? 'layouts.receptionist' : 'layouts.admin')
 
 @section('title', 'Sales Report')
 
@@ -1694,7 +1694,7 @@
             );
 
 
-            const endpoint = '{{ route("admin.sales.tx-log") }}';
+            const endpoint = '{{ route($routeName . ".tx-log") }}';
 
 
             const container =
@@ -1800,7 +1800,7 @@
                 );
 
 
-            const endpoint = '{{ route("admin.sales.tx-log") }}';
+            const endpoint = '{{ route($routeName . ".tx-log") }}';
 
 
             fetch(
@@ -2138,7 +2138,7 @@
                 );
 
 
-            const endpoint = '{{ route("admin.sales.ai-chat") }}';
+            const endpoint = '{{ route($routeName . ".ai-chat") }}';
 
 
             fetch(

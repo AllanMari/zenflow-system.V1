@@ -137,6 +137,17 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     Route::get('/customers', [CustomerManagementController::class, 'index'])->name('receptionist.customers.index');
     Route::get('/customers/{customer}', [CustomerManagementController::class, 'show'])->name('receptionist.customers.show');
     Route::put('/customers/{customer}', [CustomerManagementController::class, 'update'])->name('receptionist.customers.update');
+
+    // Sales Report
+    Route::get('/sales', [SalesReportController::class, 'index'])->name('receptionist.sales');
+    Route::get('/sales/tx-log', [SalesReportController::class, 'transactionLogFragment'])->name('receptionist.sales.tx-log');
+    Route::get('/sales/daily-report-pdf', [SalesReportController::class, 'dailyReportPdf'])->name('receptionist.sales.daily-report-pdf');
+    Route::get('/sales/daily-report-csv', [SalesReportController::class, 'dailyReportCsv'])->name('receptionist.sales.daily-report-csv');
+    Route::get('/sales/daily-report-xlsx', [SalesReportController::class, 'dailyReportXlsx'])->name('receptionist.sales.daily-report-xlsx');
+    Route::get('/sales/business-report-pdf', [SalesReportController::class, 'businessReportPdf'])->name('receptionist.sales.business-report-pdf');
+    Route::get('/sales/business-report-csv', [SalesReportController::class, 'businessReportCsv'])->name('receptionist.sales.business-report-csv');
+    Route::get('/sales/business-report-xlsx', [SalesReportController::class, 'businessReportXlsx'])->name('receptionist.sales.business-report-xlsx');
+    Route::post('/sales/ai-chat', [SalesReportController::class, 'aiChat'])->name('receptionist.sales.ai-chat');
 });
 
 // â”€â”€â”€ Receptionist Schedule Edit Routes (requires can_manage_schedules) â”€â”€â”€

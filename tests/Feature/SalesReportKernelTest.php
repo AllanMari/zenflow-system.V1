@@ -47,6 +47,25 @@ class SalesReportKernelTest extends TestCase
         $response->assertStatus(403);
     }
 
+    public function test_receptionist_can_access_receptionist_sales_report()
+    {
+        $recRole = Role::firstOrCreate(['name' => 'receptionist'], ['label' => 'Receptionist']);
+        $rec = User::firstOrCreate(
+            ['username' => 'test_rec_sales_access'],
+            [
+                'first_name' => 'Rec',
+                'last_name' => 'Test',
+                'password' => bcrypt('password'),
+                'is_active' => true,
+            ]
+        );
+        $rec->roles()->syncWithoutDetaching([$recRole->id]);
+
+        $response = $this->actingAs($rec)->get(route('receptionist.sales'));
+        $response->assertStatus(200);
+        $response->assertSee('Sales Report');
+    }
+
     public function test_admin_sales_report_page_loads_when_gemini_api_key_is_null()
     {
         config(['services.gemini.api_key' => null]);
