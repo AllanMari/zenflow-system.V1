@@ -368,9 +368,19 @@
             @if ($topServices->isNotEmpty())
 
                 @php
-                    $topService = $topServices->first();
-                    $topServiceName = $topService['name'] ?? 'Unknown Service';
-                    $topServiceRevenue = (float) ($topService['revenue'] ?? 0);
+                    $firstKey = $topServices->keys()->first();
+                    $firstVal = $topServices->first();
+
+                    if (is_array($firstVal) && isset($firstVal['name'])) {
+                        $topServiceName = $firstVal['name'];
+                        $topServiceRevenue = (float) ($firstVal['revenue'] ?? 0);
+                    } elseif (is_numeric($firstVal)) {
+                        $topServiceName = (string) $firstKey;
+                        $topServiceRevenue = (float) $firstVal;
+                    } else {
+                        $topServiceName = (string) ($firstKey ?: 'Unknown Service');
+                        $topServiceRevenue = 0.0;
+                    }
                 @endphp
 
                 <div class="mt-4 rounded-xl bg-gray-50 p-3 dark:bg-neutral-700/50">

@@ -2010,6 +2010,10 @@ class BookingController extends Controller
                         $appointment->id,
                     'service_id' =>
                         $service->id,
+                    'service_name' =>
+                        $service->name,
+                    'service_duration' =>
+                        $service->duration_minutes,
                     'price_at_booking' =>
                         $service->discount_price
                         ?? $service->price,

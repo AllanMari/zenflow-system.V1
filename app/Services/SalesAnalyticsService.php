@@ -59,6 +59,9 @@ class SalesAnalyticsService
         'Couple 1'                  => 'C1',
         'Couple 2'                  => 'C2',
         'Couple 3'                  => 'C3',
+        'Couple Spa'                => 'CS',
+        'Couples Spa'               => 'CS',
+        'Couple'                    => 'CP',
         'VIP Suite Package'         => 'VIP',
         'Royal Vip Package'         => 'RVP',
         'Royal VIP Package'         => 'RVP',
@@ -945,9 +948,10 @@ class SalesAnalyticsService
                     $payment->amount / $svcCount;
 
                 foreach ($appt->services as $svc) {
-                    $name =
-                        $svc->pivot->service_name
-                        ?? $svc->name;
+                    $name = trim((string) ($svc->pivot->service_name ?? $svc->name ?? ''));
+                    if ($name === '') {
+                        $name = $svc->category?->name ?: ('Service #' . $svc->id);
+                    }
 
                     $serviceRevenue[$name] =
                         ($serviceRevenue[$name] ?? 0)
@@ -980,9 +984,10 @@ class SalesAnalyticsService
                         $deposit / $svcCount;
 
                     foreach ($appt->services as $svc) {
-                        $name =
-                            $svc->pivot->service_name
-                            ?? $svc->name;
+                        $name = trim((string) ($svc->pivot->service_name ?? $svc->name ?? ''));
+                        if ($name === '') {
+                            $name = $svc->category?->name ?: ('Service #' . $svc->id);
+                        }
 
                         $serviceRevenue[$name] =
                             ($serviceRevenue[$name] ?? 0)
@@ -2998,9 +3003,10 @@ private function getNoShowData(
                 $perServiceGross - $discount;
 
             foreach ($appt->services as $svc) {
-                $name =
-                    $svc->pivot->service_name
-                    ?? $svc->name;
+                $name = trim((string) ($svc->pivot->service_name ?? $svc->name ?? ''));
+                if ($name === '') {
+                    $name = $svc->category?->name ?: ('Service #' . $svc->id);
+                }
 
                 $code =
                     $this->resolveServiceCode(
