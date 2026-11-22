@@ -703,10 +703,18 @@ class BookingController extends Controller
             }
         );
 
+        $diagnostics = \App\Services\BookingDiagnosticService::diagnose(
+            $services,
+            $specificDate,
+            $duration,
+            $slots
+        );
+
         return response()->json([
             'slots' => $slots,
             'requires_room' => $requiresRoom,
             'room_count' => $rooms->count(),
+            'diagnostics' => $diagnostics,
         ]);
     }
 

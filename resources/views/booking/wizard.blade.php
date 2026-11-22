@@ -934,21 +934,58 @@
                                 </template>
 
 
-                                <!-- No slots -->
+                                <!-- Contextual No Slots Diagnostic Card -->
 
                                 <template x-if="!loadingSlots && appointmentDate && availableSlots.length === 0">
-                                    <div class="rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 p-5 text-center">
-                                        <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-                                            <i data-lucide="calendar-x-2" class="h-5 w-5"></i>
+                                    <div class="rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-gradient-to-br from-amber-50/90 to-orange-50/40 dark:from-amber-950/20 dark:to-neutral-900 p-5 sm:p-6 text-left shadow-sm transition-all">
+                                        <div class="flex items-start gap-4">
+                                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 shadow-xs">
+                                                <i data-lucide="calendar-x-2" class="h-5 w-5"></i>
+                                            </div>
+
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                                                          x-text="diagnostics?.badge || 'Booking Notice'">
+                                                    </span>
+                                                </div>
+
+                                                <h4 class="mt-2 text-base font-bold text-gray-900 dark:text-white"
+                                                    x-text="diagnostics?.title || 'No available times for this date'">
+                                                </h4>
+
+                                                <p class="mt-1.5 text-xs leading-relaxed text-gray-600 dark:text-neutral-300"
+                                                   x-text="diagnostics?.message || 'Every appointment slot for this date is currently occupied or unavailable.'">
+                                                </p>
+
+                                                <template x-if="diagnostics?.tip">
+                                                    <div class="mt-3.5 flex items-start gap-2 rounded-xl bg-white/80 dark:bg-neutral-800/80 border border-amber-200/60 dark:border-amber-800/40 p-3">
+                                                        <i data-lucide="lightbulb" class="h-4 w-4 shrink-0 text-amber-500 mt-0.5"></i>
+                                                        <p class="text-xs text-amber-900 dark:text-amber-200 font-medium leading-relaxed"
+                                                           x-text="diagnostics.tip">
+                                                        </p>
+                                                    </div>
+                                                </template>
+
+                                                <div class="mt-4 flex flex-wrap items-center gap-2.5">
+                                                    <template x-if="diagnostics?.action_step === 1">
+                                                        <button type="button"
+                                                                @click="goToStep(1)"
+                                                                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition shadow-xs">
+                                                            <i data-lucide="arrow-left" class="h-3.5 w-3.5"></i>
+                                                            <span x-text="diagnostics.action_label || 'Modify Services'"></span>
+                                                        </button>
+                                                    </template>
+
+                                                    <button type="button"
+                                                            @click="nextDay()"
+                                                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-gray-700 dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700 transition shadow-xs">
+                                                        <i data-lucide="calendar" class="h-3.5 w-3.5 text-amber-500"></i>
+                                                        <span>Check Next Day</span>
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
-
-                                        <p class="mt-3 text-sm font-bold text-amber-900">
-                                            No available times
-                                        </p>
-
-                                        <p class="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-400">
-                                            Please choose another date.
-                                        </p>
                                     </div>
                                 </template>
 
@@ -2375,6 +2412,8 @@
 
                 slots: [],
 
+                diagnostics: null,
+
                 loadingSlots: false,
 
                 submitting: false,
@@ -2829,6 +2868,22 @@
                 },
 
 
+                nextDay() {
+                    if (!this.appointmentDate) return;
+                    const parts = this.appointmentDate.split('-');
+                    const current = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                    current.setDate(current.getDate() + 1);
+                    const y = current.getFullYear();
+                    const m = String(current.getMonth() + 1).padStart(2, '0');
+                    const d = String(current.getDate()).padStart(2, '0');
+                    const nextDateStr = `${y}-${m}-${d}`;
+                    this.selectDate(nextDateStr);
+                    if (this.calendar) {
+                        this.calendar.gotoDate(nextDateStr);
+                    }
+                },
+
+
                 refreshCalendarSelection() {
 
                     const calendarEl = document.getElementById(
@@ -2938,10 +2993,13 @@
 
                         if (Array.isArray(data)) {
                             this.slots = data;
+                            this.diagnostics = null;
                         } else if (Array.isArray(data.slots)) {
                             this.slots = data.slots;
+                            this.diagnostics = data.diagnostics || null;
                         } else {
                             this.slots = [];
+                            this.diagnostics = data?.diagnostics || null;
                         }
 
                         /*

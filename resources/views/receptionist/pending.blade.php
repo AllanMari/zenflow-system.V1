@@ -248,6 +248,8 @@
                         class="p-5 space-y-6"
                     >
                         @csrf
+                        <input type="hidden" name="staff_id" id="hidden_staff_id_{{ $appointment->id }}" value="">
+                        <div id="hidden_assisting_container_{{ $appointment->id }}"></div>
 
                         {{-- Services --}}
                         <div>
@@ -400,78 +402,81 @@
 
                         @endif
 
+                        @php
+                            $requiredStaffCount = max(1, (int) $appointment->services->max('therapists_required'));
+                        @endphp
+
                         {{-- Staff Grid --}}
                         <div>
-
                             <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <h4 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                                        Assign Staff <span class="text-red-500">*</span>
+                                    </h4>
+                                    @if($requiredStaffCount > 1)
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                            Requires {{ $requiredStaffCount }} Therapists
+                                        </span>
+                                    @endif
+                                </div>
 
-                                <h4 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                                    Assign Staff <span class="text-red-500">*</span>
-                                </h4>
-
-                                @if(!$hasAvailableStaff)
-                                    <span class="text-xs font-bold text-red-600 flex items-center gap-1">
-                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                        </svg>
-                                        No availability
+                                <div class="flex items-center gap-2">
+                                    <span id="staff-counter-{{ $appointment->id }}"
+                                          class="text-xs font-bold px-2.5 py-0.5 rounded-full transition-all {{ $requiredStaffCount > 1 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'hidden' }}">
+                                        0 of {{ $requiredStaffCount }} selected
                                     </span>
-                                @endif
 
+                                    @if(!$hasAvailableStaff)
+                                        <span class="text-xs font-bold text-red-600 flex items-center gap-1">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                            </svg>
+                                            No availability
+                                        </span>
+                                    @endif
+                                </div>
                             </div>
 
                             @if($hasAvailableStaff)
-
-                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-
+                                <div id="staff-grid-{{ $appointment->id }}" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                                     @foreach($allStaff as $staff)
-
                                         @php
                                             $staffInfo = $apptStaffMap->get($staff->id);
                                             $isAvailable = $staffInfo && $staffInfo['available'];
                                             $statusLabel = $staffInfo ? $staffInfo['status_label'] : 'Not Scheduled';
                                             $hours = $staffInfo ? ($staffInfo['hours'] ?? '') : '';
-                                            $isOnlyAvailable = $isAvailable && $apptStaffMap->where('available', true)->count() === 1;
                                         @endphp
 
-                                        <label class="relative {{ $isAvailable ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed' }}">
+                                        <div
+                                            id="staff_card_{{ $appointment->id }}_{{ $staff->id }}"
+                                            onclick="handleStaffSelection({{ $appointment->id }}, {{ $staff->id }}, {{ $requiredStaffCount }}, {{ $isAvailable ? 'true' : 'false' }})"
+                                            class="staff-card-{{ $appointment->id }} relative p-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 transition-all text-center h-full flex flex-col items-center justify-center select-none {{ $isAvailable ? 'cursor-pointer hover:border-teal-400' : 'opacity-50 cursor-not-allowed' }}"
+                                            data-staff-id="{{ $staff->id }}"
+                                        >
+                                            <span id="staff_role_badge_{{ $appointment->id }}_{{ $staff->id }}"
+                                                  class="hidden absolute -top-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider shadow-xs">
+                                            </span>
 
-                                            <input
-                                                type="radio"
-                                                name="staff_id"
-                                                value="{{ $staff->id }}"
-                                                {{ $isAvailable ? '' : 'disabled' }}
-                                                class="peer sr-only"
-                                                onchange="updateStaffSelection(this, {{ $appointment->id }})"
-                                                {{ $isOnlyAvailable ? 'checked' : '' }}
-                                            >
-
-                                            <div class="p-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 peer-checked:border-teal-500 peer-checked:bg-teal-50 dark:peer-checked:bg-teal-900/20 hover:border-gray-300 dark:hover:border-gray-500 transition-all text-center h-full flex flex-col items-center justify-center {{ $isOnlyAvailable ? 'ring-2 ring-teal-500 ring-offset-2 dark:ring-offset-gray-800' : '' }}">
-
-                                                <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 font-bold text-sm mb-2">
-                                                    {{ collect(explode(' ', $staff->full_name))->map(fn($n) => substr($n, 0, 1))->take(2)->join('') }}
-                                                </div>
-
-                                                <p class="text-xs font-bold text-gray-900 dark:text-white break-words w-full">
-                                                    {{ $staff->full_name }}
-                                                </p>
-
-                                                <p class="text-[10px] font-medium mt-1 {{ $isAvailable ? 'text-teal-600 dark:text-teal-400' : 'text-red-500' }}">
-                                                    {{ $isAvailable ? 'Available' : $statusLabel }}
-                                                </p>
-
-                                                @if($hours)
-                                                    <p class="text-[10px] text-gray-400 mt-0.5">
-                                                        {{ $hours }}
-                                                    </p>
-                                                @endif
-
+                                            <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 font-bold text-sm mb-2">
+                                                {{ collect(explode(' ', $staff->full_name))->map(fn($n) => substr($n, 0, 1))->take(2)->join('') }}
                                             </div>
 
-                                        </label>
+                                            <p class="text-xs font-bold text-gray-900 dark:text-white break-words w-full">
+                                                {{ $staff->full_name }}
+                                            </p>
 
+                                            <p class="text-[10px] font-medium mt-1 {{ $isAvailable ? 'text-teal-600 dark:text-teal-400' : 'text-red-500' }}">
+                                                {{ $isAvailable ? 'Available' : $statusLabel }}
+                                            </p>
+
+                                            @if($hours)
+                                                <p class="text-[10px] text-gray-400 mt-0.5">
+                                                    {{ $hours }}
+                                                </p>
+                                            @endif
+                                        </div>
                                     @endforeach
-
                                 </div>
 
                             @else
@@ -708,9 +713,10 @@
                     <button
                         type="submit"
                         form="confirm-form-{{ $appointment->id }}"
+                        id="confirm-btn-{{ $appointment->id }}"
                         onclick="if(this.disabled) return false; this.disabled=true; this.textContent='Confirming...'; this.form.submit();"
                         class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
-                        {{ $hasAvailableStaff ? '' : 'disabled' }}
+                        disabled
                     >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
@@ -916,36 +922,112 @@ function toggleDetails(id) {
     }
 }
 
-function updateStaffSelection(radio) {
+window.pendingStaffSelections = window.pendingStaffSelections || {};
 
-    const container = radio.closest('.grid');
+function handleStaffSelection(appointmentId, staffId, requiredCount, isAvailable) {
+    if (!isAvailable) return;
 
+    let selected = window.pendingStaffSelections[appointmentId] || [];
+
+    const index = selected.indexOf(staffId);
+    if (index > -1) {
+        selected.splice(index, 1);
+    } else {
+        if (requiredCount === 1) {
+            selected = [staffId];
+        } else {
+            if (selected.length < requiredCount) {
+                selected.push(staffId);
+            } else {
+                selected.shift();
+                selected.push(staffId);
+            }
+        }
+    }
+
+    window.pendingStaffSelections[appointmentId] = selected;
+    syncStaffSelectionUI(appointmentId, requiredCount);
+}
+
+function syncStaffSelectionUI(appointmentId, requiredCount) {
+    const selected = window.pendingStaffSelections[appointmentId] || [];
+    const container = document.getElementById('staff-grid-' + appointmentId);
     if (!container) return;
 
-    container.querySelectorAll('input[name="staff_id"]').forEach(input => {
-
-        const card = input.closest('label')?.querySelector('[class*="p-3"]');
-
-        if (!card) return;
-
+    container.querySelectorAll('.staff-card-' + appointmentId).forEach(card => {
         card.classList.remove(
-            'ring-2',
-            'ring-teal-500',
-            'ring-offset-2',
-            'dark:ring-offset-gray-800'
+            'border-teal-500', 'bg-teal-50', 'dark:bg-teal-900/20',
+            'ring-2', 'ring-teal-500', 'ring-offset-2', 'dark:ring-offset-gray-800'
         );
+        card.classList.add('border-gray-200', 'dark:border-gray-600');
+        const badge = card.querySelector('[id^="staff_role_badge_"]');
+        if (badge) {
+            badge.classList.add('hidden');
+            badge.textContent = '';
+        }
     });
 
-    const selectedCard = radio.closest('label')?.querySelector('[class*="p-3"]');
+    selected.forEach((staffId, idx) => {
+        const card = document.getElementById(`staff_card_${appointmentId}_${staffId}`);
+        if (!card) return;
 
-    if (selectedCard) {
-
-        selectedCard.classList.add(
-            'ring-2',
-            'ring-teal-500',
-            'ring-offset-2',
-            'dark:ring-offset-gray-800'
+        card.classList.remove('border-gray-200', 'dark:border-gray-600');
+        card.classList.add(
+            'border-teal-500', 'bg-teal-50', 'dark:bg-teal-900/20',
+            'ring-2', 'ring-teal-500', 'ring-offset-2', 'dark:ring-offset-gray-800'
         );
+
+        const badge = document.getElementById(`staff_role_badge_${appointmentId}_${staffId}`);
+        if (badge) {
+            badge.classList.remove('hidden');
+            if (requiredCount > 1) {
+                if (idx === 0) {
+                    badge.textContent = 'Primary';
+                    badge.className = 'absolute -top-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-teal-600 text-white shadow-xs';
+                } else {
+                    badge.textContent = 'Assisting';
+                    badge.className = 'absolute -top-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-purple-600 text-white shadow-xs';
+                }
+            } else {
+                badge.textContent = 'Selected';
+                badge.className = 'absolute -top-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-teal-600 text-white shadow-xs';
+            }
+        }
+    });
+
+    const primaryInput = document.getElementById('hidden_staff_id_' + appointmentId);
+    const assistingContainer = document.getElementById('hidden_assisting_container_' + appointmentId);
+
+    if (primaryInput) {
+        primaryInput.value = selected[0] || '';
+    }
+
+    if (assistingContainer) {
+        assistingContainer.innerHTML = '';
+        for (let i = 1; i < selected.length; i++) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'assisting_staff_ids[]';
+            input.value = selected[i];
+            assistingContainer.appendChild(input);
+        }
+    }
+
+    const counterBadge = document.getElementById('staff-counter-' + appointmentId);
+    if (counterBadge) {
+        const count = selected.length;
+        if (count === requiredCount) {
+            counterBadge.textContent = `${count} of ${requiredCount} selected (Ready)`;
+            counterBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
+        } else {
+            counterBadge.textContent = `${count} of ${requiredCount} selected`;
+            counterBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300';
+        }
+    }
+
+    const confirmBtn = document.getElementById('confirm-btn-' + appointmentId);
+    if (confirmBtn) {
+        confirmBtn.disabled = selected.length !== requiredCount;
     }
 }
 

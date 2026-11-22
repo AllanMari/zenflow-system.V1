@@ -217,7 +217,7 @@ public function dailyReportPdf(Request $request, ReportPdfService $pdfService)
 
             $rows[] = [
                 $item['category_name'] ?? 'General',
-                $item['service_name'] ?? 'N/A',
+                $item['service_name'] ?? $item['name'] ?? 'N/A',
                 $item['count'] ?? 0,
                 number_format((float) ($item['gross'] ?? 0), 2, '.', ''),
                 number_format((float) ($item['discount'] ?? 0), 2, '.', ''),

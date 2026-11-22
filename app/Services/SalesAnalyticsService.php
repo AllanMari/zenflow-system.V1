@@ -3016,6 +3016,12 @@ private function getNoShowData(
                         'name' =>
                             $name,
 
+                        'service_name' =>
+                            $name,
+
+                        'category_name' =>
+                            $svc->category->name ?? 'General',
+
                         'count' =>
                             0,
 
