@@ -545,6 +545,7 @@ class DataImportService
             'COLUMN NAME',
         ];
 
+        $matchingHeaderRows = [];
         foreach ($rowsMatrix as $rowNumber => $row) {
             if ($this->isEmptyRow($row)) {
                 continue;
@@ -571,10 +572,15 @@ class DataImportService
 
             $foundRequired = array_intersect($requiredHeaders, array_values($mappedCandidate));
             if (count($foundRequired) === count($requiredHeaders)) {
-                $columnMap = $mappedCandidate;
-                $headerRowNumber = $rowNumber;
-                break;
+                $matchingHeaderRows[$rowNumber] = $mappedCandidate;
             }
+        }
+
+        if (!empty($matchingHeaderRows)) {
+            // When multiple header rows exist (e.g. template containing both Sample Records table and Data Entry table),
+            // the user enters their actual data under the LAST header row (the Data Entry Table header).
+            $headerRowNumber = (int) array_key_last($matchingHeaderRows);
+            $columnMap = $matchingHeaderRows[$headerRowNumber];
         }
 
         if (!$columnMap || $headerRowNumber === null) {
@@ -603,14 +609,24 @@ class DataImportService
                 continue;
             }
 
-            $dataRowCount++;
-
             // Map each column using detected canonical map
             $rowData = [];
             foreach ($columnMap as $index => $canonicalKey) {
                 $val = isset($rawRow[$index]) ? trim((string) $rawRow[$index]) : '';
                 $rowData[$canonicalKey] = $val;
             }
+
+            // Safely skip any repeated header rows, section titles, or empty rows
+            if ($this->isHeaderOrBannerRow($rawRow, $rowData)) {
+                continue;
+            }
+
+            // Safely skip template example / sample rows if present in the data rows
+            if ($this->isTemplateSampleRow($rowData, $type)) {
+                continue;
+            }
+
+            $dataRowCount++;
 
             // Validate and detect duplicates based on dataset type
             $result = match ($type) {
@@ -736,7 +752,7 @@ class DataImportService
             }
         }
 
-        // 2. Date parsing
+        // 2. Date parsing (Flexible formats: YYYY-MM-DD, MM/DD/YYYY, Excel serial numbers, etc.)
         $parsedDate = null;
         if (empty($dateInput)) {
             $this->addValidationError(
@@ -745,19 +761,18 @@ class DataImportService
                 'date',
                 $dateInput,
                 'Attendance date is required.',
-                'Use standard YYYY-MM-DD format (e.g. 2026-11-19).'
+                'Use standard YYYY-MM-DD or MM/DD/YYYY format (e.g. 2026-11-19 or 11/19/2026).'
             );
         } else {
-            try {
-                $parsedDate = Carbon::parse($dateInput)->toDateString();
-            } catch (\Throwable $e) {
+            $parsedDate = self::parseFlexibleDate($dateInput);
+            if ($parsedDate === null) {
                 $this->addValidationError(
                     $errors,
                     'Attendance Date',
                     'date',
                     $dateInput,
                     'Invalid date format.',
-                    'Use standard YYYY-MM-DD format (e.g. 2026-11-19).'
+                    'Use standard YYYY-MM-DD or MM/DD/YYYY format (e.g. 2026-11-19 or 11/19/2026).'
                 );
             }
         }
@@ -898,7 +913,7 @@ class DataImportService
             );
         }
 
-        // 2. Date check
+        // 2. Date check (Flexible formats: YYYY-MM-DD, MM/DD/YYYY, Excel serial numbers, etc.)
         $parsedDate = null;
         if (empty($date)) {
             $this->addValidationError(
@@ -907,19 +922,18 @@ class DataImportService
                 'transaction_date',
                 $date,
                 'Transaction date is required.',
-                'Use standard YYYY-MM-DD format (e.g. 2026-11-19).'
+                'Use standard YYYY-MM-DD or MM/DD/YYYY format (e.g. 2026-11-19 or 11/19/2026).'
             );
         } else {
-            try {
-                $parsedDate = Carbon::parse($date)->toDateString();
-            } catch (\Throwable $e) {
+            $parsedDate = self::parseFlexibleDate($date);
+            if ($parsedDate === null) {
                 $this->addValidationError(
                     $errors,
                     'Transaction Date',
                     'transaction_date',
                     $date,
                     'Invalid transaction date format.',
-                    'Use standard YYYY-MM-DD format (e.g. 2026-11-19).'
+                    'Use standard YYYY-MM-DD or MM/DD/YYYY format (e.g. 2026-11-19 or 11/19/2026).'
                 );
             }
         }
@@ -1396,6 +1410,126 @@ class DataImportService
         }
 
         return $digits;
+    }
+
+    /**
+     * Flexibly parse human or spreadsheet dates (YYYY-MM-DD, MM/DD/YYYY, Excel serial numbers, etc.)
+     */
+    public static function parseFlexibleDate(mixed $input): ?string
+    {
+        if ($input === null) {
+            return null;
+        }
+
+        $trimmed = trim((string) $input);
+        if ($trimmed === '' || $trimmed === '—' || $trimmed === '-') {
+            return null;
+        }
+
+        // 1. Check if it's an Excel numeric serial date (e.g. 45615, 46345)
+        if (is_numeric($trimmed) && (float)$trimmed > 20000 && (float)$trimmed < 80000) {
+            try {
+                $days = (int) floor((float) $trimmed);
+                // Excel 1900 date system epoch adjustment (25569 days between 1900-01-01 and 1970-01-01)
+                $timestamp = ($days - 25569) * 86400;
+                return Carbon::createFromTimestampUTC($timestamp)->toDateString();
+            } catch (\Throwable $e) {}
+        }
+
+        // 2. Check standard YYYY-MM-DD or YYYY/MM/DD
+        if (preg_match('/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/', $trimmed)) {
+            try {
+                return Carbon::parse(str_replace('/', '-', $trimmed))->toDateString();
+            } catch (\Throwable $e) {}
+        }
+
+        // 3. Check MM/DD/YYYY or DD/MM/YYYY with / or -
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/', $trimmed, $m)) {
+            $num1 = (int) $m[1];
+            $num2 = (int) $m[2];
+            $year = (int) $m[3];
+            if ($year < 100) {
+                $year += ($year < 70 ? 2000 : 1900);
+            }
+
+            // If num1 > 12, it is definitely DD/MM/YYYY
+            if ($num1 > 12 && $num2 <= 12) {
+                try {
+                    return Carbon::createFromDate($year, $num2, $num1)->toDateString();
+                } catch (\Throwable $e) {}
+            }
+
+            // Otherwise, default to MM/DD/YYYY (Excel standard default in PH/US locale)
+            if ($num1 <= 12 && $num2 <= 31) {
+                try {
+                    return Carbon::createFromDate($year, $num1, $num2)->toDateString();
+                } catch (\Throwable $e) {}
+            }
+        }
+
+        // 4. General Carbon fallback (handles "Nov 19, 2026", "November 19, 2026", etc.)
+        try {
+            return Carbon::parse($trimmed)->toDateString();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Determine if a row is a section banner or a repeated column header row in the spreadsheet.
+     */
+    protected function isHeaderOrBannerRow(array $rawRow, array $rowData): bool
+    {
+        $firstCell = strtoupper(trim((string) ($rawRow[0] ?? '')));
+        if (preg_match('/^\d+\.\s+/', $firstCell)
+            || str_contains($firstCell, 'DATA ENTRY TABLE')
+            || str_contains($firstCell, 'SAMPLE RECORDS')
+            || str_contains($firstCell, 'FIELD GUIDE')
+            || str_contains($firstCell, 'ZENFLOW')) {
+            return true;
+        }
+
+        $dateVal = strtolower(trim((string) ($rowData['transaction_date'] ?? ($rowData['date'] ?? ''))));
+        if (in_array($dateVal, ['transaction date', 'attendance date', 'date', 'transaction_date'], true)) {
+            return true;
+        }
+
+        $refVal = strtolower(trim((string) ($rowData['offline_reference'] ?? '')));
+        if (in_array($refVal, ['offline reference', 'reference', 'offline_reference'], true)) {
+            return true;
+        }
+
+        $staffVal = strtolower(trim((string) ($rowData['staff_username'] ?? '')));
+        if (in_array($staffVal, ['staff username or full name', 'staff username', 'staff member', 'staff_username'], true)) {
+            return true;
+        }
+
+        $serviceVal = strtolower(trim((string) ($rowData['service_name'] ?? '')));
+        if (in_array($serviceVal, ['service or package name', 'service name', 'service_name'], true)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if a row is an example row from the downloadable template.
+     */
+    protected function isTemplateSampleRow(array $rowData, string $type): bool
+    {
+        if ($type === 'offline_sales') {
+            $ref = strtoupper(trim((string) ($rowData['offline_reference'] ?? '')));
+            if ($ref !== '' && (str_contains($ref, 'SAMPLE') || str_contains($ref, 'EXAMPLE'))) {
+                return true;
+            }
+        } elseif ($type === 'attendance') {
+            $notes = strtolower(trim((string) ($rowData['notes'] ?? '')));
+            if ($notes !== '' && (str_contains($notes, 'sample example') || str_contains($notes, 'template sample'))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /* ─── UTILITIES ─── */
