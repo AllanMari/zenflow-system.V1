@@ -238,6 +238,96 @@
             const url = '{{ route($routeName . '.business-report-csv') }}?' + params.toString();
             window.location.href = url;
             this.businessReportModalOpen = false;
+        },
+        heatmapMode: 'demand',
+        heatmapData: @js($appointmentActivityHeatmap ?? []),
+        get heatmapDays() {
+            return (this.heatmapData && Array.isArray(this.heatmapData.days) && this.heatmapData.days.length === 7)
+                ? this.heatmapData.days
+                : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        },
+        get heatmapHours() {
+            return (this.heatmapData && Array.isArray(this.heatmapData.hours) && this.heatmapData.hours.length === 24)
+                ? this.heatmapData.hours
+                : Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0') + ':00');
+        },
+        get heatmapDataset() {
+            const fallback = {
+                label: 'Appointment Demand',
+                singular: 'appointment',
+                plural: 'appointments',
+                cells: [],
+                total: 0,
+                max: 0,
+            };
+
+            return (this.heatmapData && this.heatmapData[this.heatmapMode])
+                ? this.heatmapData[this.heatmapMode]
+                : fallback;
+        },
+        heatmapCount(dayIndex, hourIndex) {
+            const cells = this.heatmapDataset.cells || [];
+
+            return (cells[dayIndex] && cells[dayIndex][hourIndex])
+                ? Number(cells[dayIndex][hourIndex])
+                : 0;
+        },
+        heatmapMax() {
+            return Math.max(1, Number(this.heatmapDataset.max || 0));
+        },
+        heatmapLevel(dayIndex, hourIndex) {
+            const count = this.heatmapCount(dayIndex, hourIndex);
+
+            if (count <= 0) {
+                return 0;
+            }
+
+            const ratio = count / this.heatmapMax();
+
+            if (ratio <= 0.25) {
+                return 1;
+            }
+
+            if (ratio <= 0.5) {
+                return 2;
+            }
+
+            if (ratio <= 0.75) {
+                return 3;
+            }
+
+            return 4;
+        },
+        heatmapCellClass(dayIndex, hourIndex) {
+            const classes = [
+                'bg-gray-100 dark:bg-neutral-700/60',
+                'bg-teal-100 dark:bg-teal-900/60',
+                'bg-teal-300 dark:bg-teal-700',
+                'bg-teal-500 dark:bg-teal-500',
+                'bg-teal-700 dark:bg-teal-400',
+            ];
+
+            return classes[this.heatmapLevel(dayIndex, hourIndex)];
+        },
+        heatmapTooltip(dayIndex, hourIndex) {
+            const dataset = this.heatmapDataset;
+            const count = this.heatmapCount(dayIndex, hourIndex);
+            const noun = count === 1
+                ? (dataset.singular || 'appointment')
+                : (dataset.plural || 'appointments');
+            const day = this.heatmapDays[dayIndex] || '';
+            const hour = this.heatmapHours[hourIndex] || '';
+
+            return day + ', ' + hour + ' — ' + count + ' ' + noun;
+        },
+        heatmapSummary() {
+            const dataset = this.heatmapDataset;
+            const total = Number(dataset.total || 0);
+            const noun = total === 1
+                ? (dataset.singular || 'appointment')
+                : (dataset.plural || 'appointments');
+
+            return total + ' ' + noun;
         }
     }"
     class="min-w-0"

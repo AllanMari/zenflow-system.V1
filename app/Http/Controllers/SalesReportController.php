@@ -22,6 +22,9 @@ class SalesReportController extends Controller
     {
         try {
             $data = $this->analyticsService->getDashboardData($request);
+
+            $data['appointmentActivityHeatmap'] = $this->analyticsService
+                ->getAppointmentActivityHeatmap($data['startDate'], $data['endDate']);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('Sales Dashboard Data Error: ' . $e->getMessage(), [
                 'file' => $e->getFile(),

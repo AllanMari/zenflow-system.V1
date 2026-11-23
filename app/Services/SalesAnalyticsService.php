@@ -12,10 +12,23 @@ use App\Models\Attendance;
 use App\Models\WorkSchedule;
 use App\Models\ScheduleException;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class SalesAnalyticsService
 {
     private const COMMISSION_RATE = 0.30;
+
+    private const HEATMAP_TIMEZONE = 'Asia/Manila';
+
+    private const HEATMAP_DAYS = [
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
+    ];
 
     /*
     |--------------------------------------------------------------------------
@@ -568,6 +581,272 @@ class SalesAnalyticsService
 
             'insightPayload'         => $insightPayload,
         ], $absenteeismVacancyAnalytics);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Appointment Activity Heatmap
+    |--------------------------------------------------------------------------
+    |
+    | Produces two 7 (Mon-Sun) x 24 (00:00-23:00) matrices:
+    |
+    | demand  - scheduled appointment workload, filtered by appointment_date
+    | booking - booking creation activity, filtered by created_at
+    |
+    | Both matrices are built during the initial page request so the UI toggle
+    | never needs another round trip.
+    |
+    */
+    public function getAppointmentActivityHeatmap(
+        Carbon $startDate,
+        Carbon $endDate
+    ): array {
+        return [
+            'days'     => self::HEATMAP_DAYS,
+            'hours'    => $this->heatmapHourLabels(),
+            'timezone' => self::HEATMAP_TIMEZONE,
+            'demand'   => $this->buildHeatmapDataset(
+                'demand',
+                'Appointment Demand',
+                'appointment',
+                'appointments',
+                $this->buildDemandHeatmapCells($startDate, $endDate)
+            ),
+            'booking'  => $this->buildHeatmapDataset(
+                'booking',
+                'Booking Activity',
+                'booking',
+                'bookings',
+                $this->buildBookingHeatmapCells($startDate, $endDate)
+            ),
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function heatmapHourLabels(): array
+    {
+        return array_map(
+            fn (int $hour) => sprintf('%02d:00', $hour),
+            range(0, 23)
+        );
+    }
+
+    /**
+     * @return array<int, array<int, int>>
+     */
+    private function emptyHeatmapMatrix(): array
+    {
+        $matrix = [];
+
+        for ($day = 0; $day < 7; $day++) {
+            $matrix[$day] = array_fill(0, 24, 0);
+        }
+
+        return $matrix;
+    }
+
+    /**
+     * @param array<int, array<int, int>> $cells
+     */
+    private function buildHeatmapDataset(
+        string $key,
+        string $label,
+        string $singular,
+        string $plural,
+        array $cells
+    ): array {
+        $total = 0;
+        $max = 0;
+
+        foreach ($cells as $row) {
+            foreach ($row as $count) {
+                $total += $count;
+
+                if ($count > $max) {
+                    $max = $count;
+                }
+            }
+        }
+
+        return [
+            'key'      => $key,
+            'label'    => $label,
+            'singular' => $singular,
+            'plural'   => $plural,
+            'cells'    => $cells,
+            'total'    => $total,
+            'max'      => $max,
+        ];
+    }
+
+    /**
+     * Appointment demand: completed, confirmed, and still-valid pending
+     * appointments grouped by scheduled weekday/hour.
+     *
+     * Cancelled, customer no-shows, and expired pending appointments are
+     * excluded. Expiration is delegated to Appointment::pendingValid() so the
+     * model remains the single source of truth.
+     *
+     * @return array<int, array<int, int>>
+     */
+    private function buildDemandHeatmapCells(
+        Carbon $startDate,
+        Carbon $endDate
+    ): array {
+        $cells = $this->emptyHeatmapMatrix();
+
+        $start = $startDate->copy()
+            ->timezone(self::HEATMAP_TIMEZONE)
+            ->startOfDay();
+
+        $end = $endDate->copy()
+            ->timezone(self::HEATMAP_TIMEZONE)
+            ->startOfDay();
+
+        $appointments = Appointment::query()
+            ->whereBetween('appointment_date', [
+                $start->toDateString(),
+                $end->toDateString(),
+            ])
+            ->where(function ($query) {
+                $query->whereIn('status', ['completed', 'confirmed'])
+                    ->orWhere(function ($pending) {
+                        $pending->pendingValid();
+                    });
+            })
+            ->get(['appointment_date', 'start_time']);
+
+        foreach ($appointments as $appointment) {
+            if (!$appointment->appointment_date || !$appointment->start_time) {
+                continue;
+            }
+
+            $date = Carbon::parse($appointment->appointment_date)
+                ->timezone(self::HEATMAP_TIMEZONE);
+
+            $dayIndex = (int) $date->dayOfWeekIso - 1;
+            $hourIndex = (int) Carbon::parse($appointment->start_time)->format('H');
+
+            if ($dayIndex < 0 || $dayIndex > 6 || $hourIndex < 0 || $hourIndex > 23) {
+                continue;
+            }
+
+            $cells[$dayIndex][$hourIndex]++;
+        }
+
+        return $cells;
+    }
+
+    /**
+     * Booking activity: every appointment created within the selected
+     * calendar range, regardless of status, grouped by Manila weekday/hour.
+     *
+     * Selected dates are interpreted in Asia/Manila, converted to the
+     * database's timestamp convention for the inclusive/exclusive boundaries,
+     * then converted back to Asia/Manila before grouping.
+     *
+     * @return array<int, array<int, int>>
+     */
+    private function buildBookingHeatmapCells(
+        Carbon $startDate,
+        Carbon $endDate
+    ): array {
+        $cells = $this->emptyHeatmapMatrix();
+
+        $offset = $this->databaseClockOffsetSeconds();
+
+        // Inclusive start of the first selected day in Manila.
+        $start = $startDate->copy()
+            ->timezone(self::HEATMAP_TIMEZONE)
+            ->startOfDay();
+
+        // Exclusive start of the day after the last selected day in Manila.
+        $endExclusive = $endDate->copy()
+            ->timezone(self::HEATMAP_TIMEZONE)
+            ->startOfDay()
+            ->addDay();
+
+        $dbStart = $this->manilaToDatabaseTimestamp($start, $offset);
+        $dbEnd = $this->manilaToDatabaseTimestamp($endExclusive, $offset);
+
+        $rows = DB::table('appointments')
+            ->where('created_at', '>=', $dbStart)
+            ->where('created_at', '<', $dbEnd)
+            ->get(['created_at']);
+
+        foreach ($rows as $row) {
+            if (!$row->created_at) {
+                continue;
+            }
+
+            $createdAt = $this->databaseTimestampToManila(
+                (string) $row->created_at,
+                $offset
+            );
+
+            $dayIndex = (int) $createdAt->dayOfWeekIso - 1;
+            $hourIndex = (int) $createdAt->format('H');
+
+            if ($dayIndex < 0 || $dayIndex > 6 || $hourIndex < 0 || $hourIndex > 23) {
+                continue;
+            }
+
+            $cells[$dayIndex][$hourIndex]++;
+        }
+
+        return $cells;
+    }
+
+    /**
+     * Offset (in seconds east of UTC) used by timestamps as stored by the
+     * active database connection.
+     *
+     * MySQL/MariaDB: asks the server for its current offset, so behaviour is
+     * correct whether the server stores UTC or local wall-clock values.
+     *
+     * SQLite (used by the test suite): Laravel writes Eloquent timestamps in
+     * the application timezone, so the app offset is the storage convention.
+     */
+    private function databaseClockOffsetSeconds(): int
+    {
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver !== 'sqlite') {
+            try {
+                $row = DB::selectOne(
+                    'SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS offset_seconds'
+                );
+
+                if ($row !== null && $row->offset_seconds !== null) {
+                    return (int) $row->offset_seconds;
+                }
+            } catch (\Throwable $e) {
+                // Fall through to the application offset below.
+            }
+        }
+
+        return Carbon::now(self::HEATMAP_TIMEZONE)->getOffset();
+    }
+
+    private function manilaToDatabaseTimestamp(
+        Carbon $moment,
+        int $databaseOffsetSeconds
+    ): string {
+        return $moment->copy()
+            ->utc()
+            ->addSeconds($databaseOffsetSeconds)
+            ->format('Y-m-d H:i:s');
+    }
+
+    private function databaseTimestampToManila(
+        string $timestamp,
+        int $databaseOffsetSeconds
+    ): Carbon {
+        return Carbon::parse($timestamp, 'UTC')
+            ->subSeconds($databaseOffsetSeconds)
+            ->setTimezone(self::HEATMAP_TIMEZONE);
     }
 
     /*

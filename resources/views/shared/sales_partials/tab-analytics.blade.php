@@ -106,6 +106,18 @@
         </a>
 
         <a
+            href="#activity-heatmap"
+            class="inline-flex shrink-0 items-center gap-x-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-white"
+        >
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M3 9h18"/>
+                <path d="M9 21V9"/>
+            </svg>
+            Heatmap
+        </a>
+
+        <a
             href="#staff-performance"
             class="inline-flex shrink-0 items-center gap-x-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-white"
         >
@@ -418,6 +430,148 @@
             @endif
 
         </section>
+
+    </div>
+
+</section>
+
+
+{{-- =========================================================
+     APPOINTMENT ACTIVITY HEATMAP
+========================================================= --}}
+
+<section id="activity-heatmap" class="mt-8 scroll-mt-24">
+
+    <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+
+        <div class="border-b border-gray-200 px-5 py-5 dark:border-neutral-700">
+
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+
+                <div class="flex items-start gap-3">
+
+                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-600 dark:bg-teal-500/10 dark:text-teal-400">
+
+                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M3 9h18"/>
+                            <path d="M9 21V9"/>
+                        </svg>
+
+                    </div>
+
+                    <div>
+
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+                            Appointment Activity Heatmap
+                        </h2>
+
+                        <p class="mt-1 text-sm text-gray-500 dark:text-neutral-400">
+                            Weekly demand and booking patterns by weekday and hour (Asia/Manila).
+                        </p>
+
+                    </div>
+
+                </div>
+
+                <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+
+                    <div class="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-neutral-700 dark:bg-neutral-900/40" role="group" aria-label="Heatmap mode">
+
+                        <button
+                            type="button"
+                            @click="heatmapMode = 'demand'"
+                            :aria-pressed="heatmapMode === 'demand'"
+                            :class="heatmapMode === 'demand'
+                                ? 'bg-teal-600 text-white shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900 dark:text-neutral-300 dark:hover:text-white'"
+                            class="rounded-lg px-3 py-1.5 text-[11px] font-semibold transition"
+                        >
+                            Appointment Demand
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="heatmapMode = 'booking'"
+                            :aria-pressed="heatmapMode === 'booking'"
+                            :class="heatmapMode === 'booking'
+                                ? 'bg-teal-600 text-white shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900 dark:text-neutral-300 dark:hover:text-white'"
+                            class="rounded-lg px-3 py-1.5 text-[11px] font-semibold transition"
+                        >
+                            Booking Activity
+                        </button>
+
+                    </div>
+
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:bg-neutral-700/60 dark:text-neutral-300">
+                        <span class="size-1.5 rounded-full bg-teal-500"></span>
+                        <span aria-live="polite" x-text="heatmapSummary()"></span>
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="p-5">
+
+            <div class="overflow-x-auto">
+
+                <div class="min-w-[760px]">
+
+                    <div class="grid gap-1" style="grid-template-columns: 4.5rem repeat(24, minmax(1.6rem, 1fr));">
+
+                        <div></div>
+
+                        <template x-for="hour in heatmapHours" :key="'heatmap-hour-' + hour">
+                            <div class="pb-1 text-center text-[10px] font-medium text-gray-400 dark:text-neutral-500" x-text="hour"></div>
+                        </template>
+
+                        <template x-for="(day, dayIndex) in heatmapDays" :key="'heatmap-day-' + day">
+                            <div class="contents">
+
+                                <div class="flex items-center pr-2 text-[11px] font-medium text-gray-500 dark:text-neutral-400" x-text="day"></div>
+
+                                <template x-for="(hour, hourIndex) in heatmapHours" :key="'heatmap-cell-' + dayIndex + '-' + hourIndex">
+                                    <button
+                                        type="button"
+                                        class="h-5 w-full rounded-[3px] border border-transparent transition focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+                                        :class="heatmapCellClass(dayIndex, hourIndex)"
+                                        :title="heatmapTooltip(dayIndex, hourIndex)"
+                                        :aria-label="heatmapTooltip(dayIndex, hourIndex)"
+                                    ></button>
+                                </template>
+
+                            </div>
+                        </template>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-700/60">
+
+                <p class="text-[11px] text-gray-400 dark:text-neutral-500">
+                    Hover or focus a cell to see the weekday, hour, and count.
+                </p>
+
+                <div class="flex items-center gap-1.5 text-[10px] font-medium text-gray-400 dark:text-neutral-500">
+                    <span>Less</span>
+                    <span class="size-3 rounded-[3px] bg-gray-100 dark:bg-neutral-700/60"></span>
+                    <span class="size-3 rounded-[3px] bg-teal-100 dark:bg-teal-900/60"></span>
+                    <span class="size-3 rounded-[3px] bg-teal-300 dark:bg-teal-700"></span>
+                    <span class="size-3 rounded-[3px] bg-teal-500 dark:bg-teal-500"></span>
+                    <span class="size-3 rounded-[3px] bg-teal-700 dark:bg-teal-400"></span>
+                    <span>More</span>
+                </div>
+
+            </div>
+
+        </div>
 
     </div>
 
