@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
+use App\Models\AppointmentPackageSelection;
 use App\Models\Payment;
+use App\Services\TherapistAssignmentService;
 use App\Models\User;
 use App\Models\WorkSchedule;
 use App\Models\ScheduleException;
@@ -88,8 +90,9 @@ class ReceptionistController extends Controller
             ->get();
 
         // 4. Same-day Absent Staff Scheduling Conflicts
+        // Approved leave / holiday are not ordinary absences.
         $absentStaffIds = Attendance::whereDate('date', $today)
-            ->whereIn('status', ['absent', 'on_leave', 'holiday'])
+            ->whereIn('status', ['absent'])
             ->pluck('user_id');
 
         $absentStaffConflicts = collect();
@@ -219,6 +222,9 @@ class ReceptionistController extends Controller
                     'paid_at' => now(),
                 ]);
             }
+
+            // A confirmed appointment changes therapist availability immediately.
+            $this->clearScheduleCache();
 
             $msg = match ($request->payment_type) {
                 'deposit' => 'Booking confirmed! Deposit of ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($request->amount, 2) . ' recorded. Balance due at counter.',
@@ -378,90 +384,237 @@ class ReceptionistController extends Controller
 
     /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ APPOINTMENT ACTIONS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
 
+    /**
+     * Add a service to an existing appointment.
+     *
+     * The catalog service (including package choice groups) is authoritative.
+     * Choice options are recorded as package selections; they are NOT added as
+     * separate appointment services. Existing services, options, therapist
+     * assignments and financial records are preserved.
+     */
     public function addExtraService(Request $request, Appointment $appointment)
     {
-        $request->validate([
+        $validated = $request->validate([
             'service_id' => 'required_without:custom_service_id|exists:services,id',
             'custom_service_id' => 'required_without:service_id|exists:services,id',
+            'package_choices' => 'nullable|array',
+            'therapist_ids' => 'nullable|array',
+            'therapist_ids.*' => 'exists:users,id',
         ]);
 
-        if ($request->filled('service_id')) {
-            $service = $appointment->services()->where('services.id', $request->service_id)->first();
-            if (!$service) return back()->with('error', 'Service not found on this appointment.');
-            $appointment->services()->attach($service->id, [
-                'price_at_booking' => $service->pivot->price_at_booking,
-                'service_name' => $service->name,
-                'service_duration' => $service->duration_minutes,
-                'is_extra' => true,
-            ]);
-            $message = "Added extra {$service->name}";
-        } elseif ($request->filled('custom_service_id')) {
-            $service = \App\Models\Service::findOrFail($request->custom_service_id);
-            $appointment->services()->attach($service->id, [
-                'price_at_booking' => $service->price,
-                'service_name' => $service->name,
-                'service_duration' => $service->duration_minutes,
-                'is_extra' => true,
-            ]);
-            $message = "Added {$service->name} (ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±" . number_format($service->price, 2) . ")";
-        } else {
-            return back()->with('error', 'Please select a service.');
+        $serviceId = (int) ($validated['service_id'] ?? $validated['custom_service_id']);
+
+        try {
+            $result = DB::transaction(function () use ($request, $appointment, $serviceId, $validated) {
+                $appointment = Appointment::lockForUpdate()
+                    ->with(['services', 'assignedStaff', 'room'])
+                    ->findOrFail($appointment->id);
+
+                if (!in_array($appointment->status, ['pending', 'confirmed'], true)) {
+                    return back()->with('error', 'Services cannot be added to an appointment with status: ' . $appointment->status . '.');
+                }
+
+                $service = \App\Models\Service::with('choiceGroups.options.service')->findOrFail($serviceId);
+                if (!$service->is_active) {
+                    return back()->with('error', 'The selected service is not currently available.');
+                }
+                if (!$service->duration_minutes || (int) $service->duration_minutes <= 0) {
+                    return back()->with('error', 'The selected service does not have a valid treatment duration.');
+                }
+
+                $validatedChoices = [];
+                foreach ($service->choiceGroups as $group) {
+                    $selectedId = $request->input("package_choices.{$group->id}");
+                    if ($group->is_required && empty($selectedId)) {
+                        return back()->with('error', "Please select an option for '{$group->label}' in {$service->name}.");
+                    }
+                    if (!empty($selectedId)) {
+                        $option = $group->options->first(function ($opt) use ($selectedId) {
+                            return (int) $opt->service_id === (int) $selectedId
+                                || (int) $opt->id === (int) $selectedId;
+                        });
+                        if (!$option) {
+                            return back()->with('error', "Invalid option selected for '{$group->label}'.");
+                        }
+                        $validatedChoices[] = [
+                            'choice_group_id' => $group->id,
+                            'selected_service_id' => (int) $option->service_id,
+                            'group_label_snapshot' => $group->label,
+                            'selected_service_name_snapshot' => $option->service ? $option->service->name : 'Selected Service',
+                        ];
+                    }
+                }
+
+                // A package already on the appointment may have its saved
+                // alternative changed without attaching a duplicate service.
+                // This only updates existing package selections; duration,
+                // price, therapists and room are untouched.
+                if ($appointment->services->contains('id', $service->id)) {
+                    if ($service->choiceGroups->isEmpty()) {
+                        return back()->with('error', 'That service is already on this appointment.');
+                    }
+
+                    foreach ($validatedChoices as $choice) {
+                        AppointmentPackageSelection::updateOrCreate(
+                            [
+                                'appointment_id' => $appointment->id,
+                                'choice_group_id' => $choice['choice_group_id'],
+                            ],
+                            $choice
+                        );
+                    }
+
+                    $this->clearScheduleCache();
+
+                    return back()->with('success', 'Updated package selection for ' . $service->name . '.');
+                }
+
+                $availability = app(\App\Services\AppointmentAvailabilityService::class);
+                $newServices = $appointment->services->push($service);
+                $requirements = $availability->requirements($newServices);
+                $duration = $requirements['duration'];
+                $requiredCount = $requirements['therapists_required'];
+
+                $start = app(\App\Services\AppointmentOccupancyService::class)->appointmentStart($appointment);
+                $newEnd = $start->copy()->addMinutes($duration);
+
+                $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($start->toDateString());
+                if (!($bizWindow['is_open'] ?? false)) {
+                    return back()->with('error', $bizWindow['reason'] ?: 'The spa is closed on this date.');
+                }
+                if (!empty($bizWindow['end']) && $newEnd->gt(Carbon::parse($start->toDateString() . ' ' . $bizWindow['end']))) {
+                    return back()->with('error', 'Adding this service would extend the appointment past business closing time.');
+                }
+
+                // Existing therapists are never silently removed or replaced.
+                $currentStaffIds = $availability->appointmentStaffIds($appointment);
+                $submittedIds = array_values(array_unique(array_map('intval', $validated['therapist_ids'] ?? [])));
+                if (count($currentStaffIds) < $requiredCount && empty($submittedIds)) {
+                    return back()->with('error', "This service combination requires {$requiredCount} therapist(s). Please select the additional therapist(s).");
+                }
+
+                if (!empty($submittedIds)) {
+                    foreach ($currentStaffIds as $existingId) {
+                        if (!in_array($existingId, $submittedIds, true)) {
+                            return back()->with('error', 'Existing therapists cannot be removed while adding a service. Use Reassign to change the therapist team.');
+                        }
+                    }
+                    if (count($submittedIds) !== $requiredCount) {
+                        return back()->with('error', "Appointment requires exactly {$requiredCount} therapist(s), but " . count($submittedIds) . ' were provided.');
+                    }
+                    $newStaffIds = $submittedIds;
+                } else {
+                    $newStaffIds = $currentStaffIds;
+                    if (count($newStaffIds) !== $requiredCount) {
+                        return back()->with('error', "This appointment needs {$requiredCount} therapist(s) for the updated services. Use Reassign first.");
+                    }
+                }
+
+                $staffCheck = $availability->isWindowAvailable([
+                    'date' => $start->toDateString(),
+                    'services' => $newServices,
+                    'duration' => $duration,
+                    'staff_ids' => $newStaffIds,
+                    'team_size' => $requiredCount,
+                    'room_id' => $appointment->room_id,
+                    'exclude_appointment_id' => $appointment->id,
+                    'start' => $start,
+                    'end' => $newEnd,
+                ]);
+                if (!$staffCheck['available']) {
+                    return back()->with('error', 'Cannot add service: ' . $staffCheck['reason']);
+                }
+
+                if ($requirements['requires_room']) {
+                    if (!$appointment->room_id) {
+                        return back()->with('error', 'This service combination requires a room, but the appointment has no room assigned.');
+                    }
+                    $compatible = \App\Services\RoomCompatibilityService::findCompatibleForServices($newServices);
+                    if (!$compatible->contains('id', (int) $appointment->room_id)) {
+                        return back()->with('error', 'The current room is not compatible with all selected services.');
+                    }
+                }
+
+                // Consistent lock order: appointment, then therapists (ascending), then room.
+                $lockedStaff = User::whereIn('id', $newStaffIds)->orderBy('id')->lockForUpdate()->get();
+                if ($lockedStaff->count() !== count($newStaffIds)) {
+                    return back()->with('error', 'One or more selected therapists could not be found.');
+                }
+                $lockedRoom = $appointment->room_id
+                    ? Room::where('id', $appointment->room_id)->lockForUpdate()->first()
+                    : null;
+                if ($appointment->room_id && !$lockedRoom) {
+                    return back()->with('error', 'The assigned room could not be found.');
+                }
+
+                foreach ($newStaffIds as $staffId) {
+                    $check = TherapistAssignmentService::checkTherapistAvailability(
+                        $lockedStaff->firstWhere('id', $staffId),
+                        $start->toDateString(),
+                        $start->format('H:i:s'),
+                        $newEnd->format('H:i:s'),
+                        $appointment->id,
+                        true // current read after locks
+                    );
+                    if (!$check['available']) {
+                        return back()->with('error', 'Cannot add service: ' . ($check['reason'] ?: 'a therapist is unavailable.'));
+                    }
+                }
+
+                if ($lockedRoom && !$lockedRoom->isAvailableFor(
+                    $start->toDateString(),
+                    $start->format('H:i:s'),
+                    $newEnd->format('H:i:s'),
+                    $appointment->id,
+                    true // current read after locks
+                )) {
+                    return back()->with('error', 'Cannot add service: the assigned room is no longer available for the extended treatment.');
+                }
+
+                // All validations passed — mutate atomically.
+                $appointment->services()->attach($service->id, [
+                    'price_at_booking' => $service->discount_price ?? $service->price,
+                    'service_name' => $service->name,
+                    'service_duration' => (int) $service->duration_minutes,
+                    'is_extra' => true,
+                ]);
+
+                foreach ($validatedChoices as $choice) {
+                    AppointmentPackageSelection::updateOrCreate(
+                        [
+                            'appointment_id' => $appointment->id,
+                            'choice_group_id' => $choice['choice_group_id'],
+                        ],
+                        $choice
+                    );
+                }
+
+                $appointment->load('services');
+                $newTotal = $appointment->services->sum(
+                    fn($s) => $s->pivot->custom_price ?? $s->pivot->price_at_booking
+                );
+                $appointment->update([
+                    'total_price' => $newTotal,
+                    'end_time' => $newEnd->format('H:i:s'),
+                ]);
+
+                if (!empty($submittedIds)) {
+                    $primaryId = in_array((int) $appointment->user_id, $submittedIds, true)
+                        ? (int) $appointment->user_id
+                        : (int) $newStaffIds[0];
+                    $assisting = array_values(array_diff($newStaffIds, [$primaryId]));
+                    $appointment->syncStaff($primaryId, $assisting);
+                }
+
+                $this->clearScheduleCache();
+
+                return back()->with('success', 'Added ' . $service->name . ' (₱' . number_format((float) $service->price, 2) . ').');
+            });
+        } catch (\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
         }
 
-        $appointment->load('services');
-        $newTotal = $appointment->services->sum(fn($s) => $s->pivot->custom_price ?? $s->pivot->price_at_booking);
-        $newService = $appointment->services->last();
-        $extraMinutes = $newService->duration_minutes ?? 0;
-
-        if ($extraMinutes > 0) {
-            $newEndTime = Carbon::parse($appointment->end_time)->addMinutes($extraMinutes);
-
-            if ($appointment->user_id) {
-                $staffConflict = Appointment::where('user_id', $appointment->user_id)
-                    ->where('appointment_date', $appointment->appointment_date)
-                    ->where('status', 'confirmed')
-                    ->where('id', '!=', $appointment->id)
-                    ->where(function ($q) use ($appointment, $newEndTime) {
-                        $q->whereBetween('start_time', [$appointment->start_time, $newEndTime->format('H:i:s')])
-                        ->orWhereBetween('end_time', [$appointment->start_time, $newEndTime->format('H:i:s')])
-                        ->orWhere(function ($sq) use ($appointment, $newEndTime) {
-                            $sq->where('start_time', '<=', $appointment->start_time)
-                                ->where('end_time', '>=', $newEndTime->format('H:i:s'));
-                        });
-                    })->exists();
-
-                if ($staffConflict) {
-                    $appointment->services()->detach($newService->pivot->id);
-                    return back()->with('error', 'Cannot add extra service: new end time (' . $newEndTime->format('g:i A') . ') conflicts with another appointment for this staff.');
-                }
-            }
-
-            if ($appointment->room_id) {
-                $roomConflict = Appointment::where('room_id', $appointment->room_id)
-                    ->where('appointment_date', $appointment->appointment_date)
-                    ->where('status', 'confirmed')
-                    ->where('id', '!=', $appointment->id)
-                    ->where(function ($q) use ($appointment, $newEndTime) {
-                        $q->whereBetween('start_time', [$appointment->start_time, $newEndTime->format('H:i:s')])
-                        ->orWhereBetween('end_time', [$appointment->start_time, $newEndTime->format('H:i:s')])
-                        ->orWhere(function ($sq) use ($appointment, $newEndTime) {
-                            $sq->where('start_time', '<=', $appointment->start_time)
-                                ->where('end_time', '>=', $newEndTime->format('H:i:s'));
-                        });
-                    })->exists();
-
-                if ($roomConflict) {
-                    $appointment->services()->detach($newService->pivot->id);
-                    return back()->with('error', 'Cannot add extra service: new end time (' . $newEndTime->format('g:i A') . ') conflicts with another appointment in this room.');
-                }
-            }
-
-            $appointment->update(['total_price' => $newTotal, 'end_time' => $newEndTime->format('H:i:s')]);
-        } else {
-            $appointment->update(['total_price' => $newTotal]);
-        }
-
-        return back()->with('success', $message);
+        return $result;
     }
 
     public function complete(Request $request, Appointment $appointment)
@@ -638,6 +791,7 @@ public function active()
         ->get();
 
     $catalogServices = \App\Models\Service::where('is_active', true)
+        ->with('choiceGroups.options.service')
         ->orderBy('name')
         ->get();
 
@@ -673,7 +827,23 @@ public function active()
             $primaryId = (int) $request->staff_id;
             $assistingIds = array_map('intval', (array) $request->input('assisting_staff_ids', []));
 
+            if (in_array($primaryId, $assistingIds, true)) {
+                return back()->with('error', 'The same therapist cannot be selected more than once.');
+            }
+            if (count(array_unique(array_merge([$primaryId], $assistingIds))) !== count(array_merge([$primaryId], $assistingIds))) {
+                return back()->with('error', 'The same therapist cannot be selected more than once.');
+            }
+
+            $requiredCount = \App\Services\TherapistAssignmentService::resolveRequiredCount($appointment);
+            if (count(array_merge([$primaryId], $assistingIds)) !== $requiredCount) {
+                return back()->with('error', "This appointment requires exactly {$requiredCount} therapist(s).");
+            }
+
             try {
+                // assignStaff() locks the whole team, revalidates every member
+                // and the room inside the transaction, and excludes this
+                // appointment from its own conflicts. The team is saved only
+                // when all checks pass, so a failure cannot partially update.
                 \App\Services\TherapistAssignmentService::assignStaff(
                     $appointment,
                     $primaryId,
@@ -684,89 +854,214 @@ public function active()
                 return back()->with('error', $e->getMessage());
             }
 
+            $this->clearScheduleCache();
+
             return back()->with('success', 'Staff team successfully reassigned.');
         });
     }
 
+    /**
+     * Bulk availability for the reschedule calendar. One request can return the
+     * availability of a whole month plus the time cards for a selected date.
+     */
+    public function rescheduleAvailability(Request $request, int $appointmentId)
+    {
+        $validated = $request->validate([
+            'month' => 'nullable|date_format:Y-m',
+            'date' => 'nullable|date',
+            'room_id' => 'nullable|exists:rooms,id',
+        ]);
+
+        $appointment = Appointment::with(['services', 'assignedStaff'])->findOrFail($appointmentId);
+        if (!in_array($appointment->status, ['pending', 'confirmed'], true)) {
+            return response()->json([
+                'dates' => [], 'times' => [],
+                'message' => 'This appointment can no longer be rescheduled.',
+            ], 422);
+        }
+
+        $availability = app(\App\Services\AppointmentAvailabilityService::class);
+        $requirements = $availability->requirements($appointment->services, $appointment);
+        $staffIds = $availability->appointmentStaffIds($appointment);
+        $dates = [];
+        $monthReason = null;
+
+        if (!empty($validated['month'])) {
+            $month = $availability->availableDatesForAppointment($appointment, $validated['month']);
+            $dates = $month['dates'];
+            $monthReason = $month['reason'];
+        }
+
+        $times = [];
+        $reason = $monthReason;
+        if (!empty($validated['date'])) {
+            $date = Carbon::parse($validated['date'], 'Asia/Manila')->toDateString();
+            $start = Carbon::parse($date . ' ' . substr((string) $appointment->start_time, 0, 5), 'Asia/Manila');
+
+            $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($date);
+            if (!($bizWindow['is_open'] ?? false)) {
+                $reason = $bizWindow['reason'] ?: 'The spa is closed on this date.';
+            } else {
+                $roomId = !empty($validated['room_id'])
+                    ? (int) $validated['room_id']
+                    : $appointment->room_id;
+
+                $times = $availability->availableTimes([
+                    'date' => $date,
+                    'services' => $requirements['services'],
+                    'duration' => $requirements['duration'],
+                    'staff_ids' => $staffIds,
+                    'team_size' => $requirements['therapists_required'],
+                    'room_id' => $roomId,
+                    'exclude_appointment_id' => $appointment->id,
+                    'min_start' => $date === Carbon::today('Asia/Manila')->toDateString()
+                        ? Carbon::now('Asia/Manila')
+                        : null,
+                ]);
+
+                if (empty($times)) {
+                    $reason = 'The current therapist team and room have no valid time on this date. Reassign the therapists first if a change is needed.';
+                }
+            }
+        }
+
+        return response()->json([
+            'dates' => $dates,
+            'times' => $times,
+            'duration' => $requirements['duration'],
+            'therapists_required' => $requirements['therapists_required'],
+            'room_id' => $appointment->room_id,
+            'current_time' => substr((string) $appointment->start_time, 0, 5),
+            'message' => $reason,
+        ]);
+    }
+
     public function reschedule(Request $request, int $appointmentId)
     {
-        $request->validate([
+        $validated = $request->validate([
             'appointment_date' => 'required|date|after_or_equal:today',
             'start_time' => 'required|date_format:H:i',
             'room_id' => 'nullable|exists:rooms,id',
         ]);
 
-        return DB::transaction(function () use ($request, $appointmentId) {
-            $appointment = Appointment::lockForUpdate()->with(['services', 'customer.user', 'staff'])->findOrFail($appointmentId);
+        return DB::transaction(function () use ($request, $validated, $appointmentId) {
+            $appointment = Appointment::lockForUpdate()
+                ->with(['services', 'assignedStaff', 'customer.user', 'staff'])
+                ->findOrFail($appointmentId);
 
-            if (!in_array($appointment->status, ['pending', 'confirmed'])) {
+            if (!in_array($appointment->status, ['pending', 'confirmed'], true)) {
                 return back()->with('error', 'Cannot reschedule an appointment with status: ' . $appointment->status . '.');
             }
 
-            // Validate against business operating window and holiday closures
-            $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($request->appointment_date);
-            if (!$bizWindow['is_open']) {
+            $availability = app(\App\Services\AppointmentAvailabilityService::class);
+            $occupancy = app(\App\Services\AppointmentOccupancyService::class);
+            $requirements = $availability->requirements($appointment->services, $appointment);
+            $staffIds = $availability->appointmentStaffIds($appointment);
+
+            // The current team is preserved: a missing therapist is never
+            // replaced by another available therapist to make a date work.
+            if (count($staffIds) !== $requirements['therapists_required']) {
+                return back()->with('error', "This appointment requires {$requirements['therapists_required']} therapist(s) for its services. Please reassign staff first.");
+            }
+
+            $date = Carbon::parse($validated['appointment_date'], 'Asia/Manila')->toDateString();
+            $start = Carbon::parse($date . ' ' . $validated['start_time'], 'Asia/Manila');
+            $newEnd = $start->copy()->addMinutes($requirements['duration']);
+
+            if ($date === Carbon::today('Asia/Manila')->toDateString() && $start->lt(Carbon::now('Asia/Manila'))) {
+                return back()->with('error', 'The selected time is in the past.');
+            }
+
+            $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($date);
+            if (!($bizWindow['is_open'] ?? false)) {
                 return back()->with('error', $bizWindow['reason'] ?: 'The spa is closed on this date.');
             }
-            $duration = $appointment->services->sum('duration_minutes');
-            $newEndTime = Carbon::parse($request->start_time)->addMinutes($duration)->format('H:i:s');
-            if (!empty($bizWindow['start']) && !empty($bizWindow['end'])) {
-                $bizOpen = Carbon::parse($request->appointment_date . ' ' . $bizWindow['start']);
-                $bizClose = Carbon::parse($request->appointment_date . ' ' . $bizWindow['end']);
-                $reqStart = Carbon::parse($request->appointment_date . ' ' . $request->start_time);
-                $reqEnd = Carbon::parse($request->appointment_date . ' ' . $newEndTime);
-                if ($reqStart->lt($bizOpen) || $reqEnd->gt($bizClose)) {
-                    return back()->with('error', 'The selected time falls outside business operating hours (' . $bizOpen->format('g:i A') . ' - ' . $bizClose->format('g:i A') . ').');
+            if (!empty($bizWindow['end']) && $newEnd->gt(Carbon::parse($date . ' ' . $bizWindow['end']))) {
+                return back()->with('error', 'The selected time would extend the treatment past business closing time.');
+            }
+
+            // Preserve the existing room unless the receptionist explicitly
+            // selected a different one in the form.
+            $newRoomId = $request->has('room_id')
+                ? ($validated['room_id'] ? (int) $validated['room_id'] : null)
+                : $appointment->room_id;
+
+            if ($requirements['requires_room'] && !$newRoomId) {
+                return back()->with('error', 'The selected services require a room.');
+            }
+            if ($newRoomId && $requirements['requires_room']) {
+                $compatible = \App\Services\RoomCompatibilityService::findCompatibleForServices($requirements['services']);
+                if (!$compatible->contains('id', $newRoomId)) {
+                    return back()->with('error', 'The selected room is not compatible with all services on this appointment.');
                 }
             }
 
-            $assignedStaff = $appointment->assignedStaff;
-            if ($assignedStaff->isEmpty() && $appointment->user_id) {
-                $assignedStaff = User::where('id', $appointment->user_id)->get();
+            $check = $availability->isWindowAvailable([
+                'date' => $date,
+                'services' => $requirements['services'],
+                'duration' => $requirements['duration'],
+                'staff_ids' => $staffIds,
+                'team_size' => $requirements['therapists_required'],
+                'room_id' => $newRoomId,
+                'exclude_appointment_id' => $appointment->id,
+                'start' => $start,
+                'end' => $newEnd,
+            ]);
+            if (!$check['available']) {
+                return back()->with('error', 'Current staff is not available at the new time: ' . $check['reason'] . '. Please reassign staff first.');
             }
 
-            if ($assignedStaff->isNotEmpty()) {
-                $staffIds = $assignedStaff->pluck('id')->sort()->values()->all();
-                $lockedStaff = User::whereIn('id', $staffIds)->orderBy('id', 'asc')->lockForUpdate()->get();
+            // Lock in a consistent order: therapists (ascending), then room.
+            $lockedStaff = User::whereIn('id', $staffIds)->orderBy('id')->lockForUpdate()->get();
+            if ($lockedStaff->count() !== count($staffIds)) {
+                return back()->with('error', 'One or more assigned therapists could not be found.');
+            }
+            $lockedRoom = $newRoomId ? Room::where('id', $newRoomId)->lockForUpdate()->first() : null;
+            if ($newRoomId && !$lockedRoom) {
+                return back()->with('error', 'The selected room could not be found.');
+            }
 
-                foreach ($lockedStaff as $therapist) {
-                    $availCheck = \App\Services\TherapistAssignmentService::checkTherapistAvailability(
-                        $therapist,
-                        $request->appointment_date,
-                        $request->start_time,
-                        $newEndTime,
-                        $appointment->id
-                    );
-
-                    if (!$availCheck['available']) {
-                        return back()->with('error', "Current staff is not available at the new time: Assigned therapist {$therapist->full_name} is not available (" . ($availCheck['reason'] ?? 'unavailable') . '). Please reassign staff first.');
-                    }
+            foreach ($staffIds as $staffId) {
+                $staffCheck = TherapistAssignmentService::checkTherapistAvailability(
+                    $lockedStaff->firstWhere('id', $staffId),
+                    $date,
+                    $start->format('H:i:s'),
+                    $newEnd->format('H:i:s'),
+                    $appointment->id,
+                    true // current read after locks
+                );
+                if (!$staffCheck['available']) {
+                    return back()->with('error', 'Current staff is not available at the new time: ' . ($staffCheck['reason'] ?? 'unavailable') . '. Please reassign staff first.');
                 }
+            }
+
+            if ($lockedRoom && !$lockedRoom->isAvailableFor(
+                $date,
+                $start->format('H:i:s'),
+                $newEnd->format('H:i:s'),
+                $appointment->id,
+                true // current read after locks
+            )) {
+                return back()->with('error', 'The selected room is not available at the new time.');
             }
 
             $oldRoomId = $appointment->room_id;
-            $newRoomId = $request->room_id;
-
-            if ($newRoomId && $newRoomId != $oldRoomId) {
-                $room = Room::lockForUpdate()->find($newRoomId);
-                if (!$room || !$room->isAvailableFor($request->appointment_date, $request->start_time, $newEndTime, $appointment->id)) {
-                    return back()->with('error', 'Selected room is not available at the new time.');
-                }
-            }
-
             $appointment->update([
-                'appointment_date' => $request->appointment_date,
-                'start_time' => $request->start_time,
-                'end_time' => $newEndTime,
+                'appointment_date' => $date,
+                'start_time' => $start->format('H:i:s'),
+                'end_time' => $newEnd->format('H:i:s'),
                 'room_id' => $newRoomId,
+                'rescheduled_at' => now(),
             ]);
 
-            if ($oldRoomId && $oldRoomId != $newRoomId) {
+            if ($oldRoomId && $oldRoomId !== $newRoomId) {
                 Room::where('id', $oldRoomId)->update(['status' => 'available']);
             }
-            if ($newRoomId && $newRoomId != $oldRoomId) {
+            if ($newRoomId && $oldRoomId !== $newRoomId) {
                 Room::where('id', $newRoomId)->update(['status' => 'occupied']);
             }
+
+            $this->clearScheduleCache();
 
             if ($appointment->customer && $appointment->customer->user) {
                 \App\Http\Controllers\NotificationController::sendTo(
@@ -802,11 +1097,14 @@ public function active()
             ]);
         }
 
+        $treatmentEnd = app(\App\Services\AppointmentOccupancyService::class)
+            ->treatmentEnd($appointment);
+
         $eval = \App\Services\RoomCompatibilityService::evaluateSlot(
             $appointment->services,
             $appointment->appointment_date,
             $appointment->start_time,
-            $appointment->end_time,
+            $treatmentEnd->format('H:i:s'),
             $appointment->id
         );
 

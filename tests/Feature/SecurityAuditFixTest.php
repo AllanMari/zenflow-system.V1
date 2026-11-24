@@ -219,12 +219,11 @@ class SecurityAuditFixTest extends TestCase
     {
         $receptionist = $this->makeUserWithRole('receptionist');
 
-        $date = Carbon::now('Asia/Manila')->next(Carbon::FRIDAY)->toDateString();
-        $dow = Carbon::parse($date)->dayOfWeek;
+        foreach (['pending', 'confirmed'] as $idx => $validStatus) {
+            $date = Carbon::now('Asia/Manila')->next(Carbon::FRIDAY)->addDays($idx)->toDateString();
+            $dow = Carbon::parse($date)->dayOfWeek;
+            $targetStaff = $this->makeStaffWithSchedule($dow, '08:00:00', '18:00:00');
 
-        $targetStaff = $this->makeStaffWithSchedule($dow, '08:00:00', '18:00:00');
-
-        foreach (['pending', 'confirmed'] as $validStatus) {
             $appointment = $this->makeAppointment($validStatus, $date);
 
             Cache::flush();
@@ -248,26 +247,26 @@ class SecurityAuditFixTest extends TestCase
         $origDate = Carbon::now('Asia/Manila')->next(Carbon::THURSDAY)->toDateString();
         $origDow = Carbon::parse($origDate)->dayOfWeek;
 
-        $newDate = Carbon::now('Asia/Manila')->next(Carbon::FRIDAY)->toDateString();
-        $newDow = Carbon::parse($newDate)->dayOfWeek;
+        foreach (['pending', 'confirmed'] as $idx => $validStatus) {
+            $newDate = Carbon::now('Asia/Manila')->next(Carbon::FRIDAY)->addDays($idx)->toDateString();
+            $newDow = Carbon::parse($newDate)->dayOfWeek;
 
-        $staff = $this->makeUserWithRole('staff');
-        WorkSchedule::create([
-            'user_id' => $staff->id,
-            'day_of_week' => $origDow,
-            'start_time' => '08:00:00',
-            'end_time' => '18:00:00',
-            'is_day_off' => false,
-        ]);
-        WorkSchedule::create([
-            'user_id' => $staff->id,
-            'day_of_week' => $newDow,
-            'start_time' => '08:00:00',
-            'end_time' => '18:00:00',
-            'is_day_off' => false,
-        ]);
+            $staff = $this->makeUserWithRole('staff');
+            WorkSchedule::create([
+                'user_id' => $staff->id,
+                'day_of_week' => $origDow,
+                'start_time' => '08:00:00',
+                'end_time' => '18:00:00',
+                'is_day_off' => false,
+            ]);
+            WorkSchedule::create([
+                'user_id' => $staff->id,
+                'day_of_week' => $newDow,
+                'start_time' => '08:00:00',
+                'end_time' => '18:00:00',
+                'is_day_off' => false,
+            ]);
 
-        foreach (['pending', 'confirmed'] as $validStatus) {
             $appointment = $this->makeAppointment($validStatus, $origDate, $staff);
 
             Cache::flush();

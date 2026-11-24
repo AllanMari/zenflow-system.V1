@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Appointment;
 use App\Models\Room;
 use App\Models\User;
+use App\Services\AppointmentOccupancyService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -62,7 +63,8 @@ class TherapistAssignmentService
         string $date,
         string $startTime,
         string $endTime,
-        ?int $excludeAppointmentId = null
+        ?int $excludeAppointmentId = null,
+        bool $lockForUpdate = false
     ): array {
         $user = $therapist instanceof User ? $therapist : User::find($therapist);
 
@@ -104,6 +106,13 @@ class TherapistAssignmentService
         $startSeconds = strlen($startTime) === 5 ? $startTime . ':00' : $startTime;
         $endSeconds = strlen($endTime) === 5 ? $endTime . ':00' : $endTime;
 
+        // The therapist stays occupied for the whole preparation interval after
+        // treatment. Shift checks must therefore include that interval; the
+        // stored end time itself is never changed.
+        $resourceEndStr = Carbon::parse($dateStr . ' ' . $endSeconds)
+            ->addMinutes(AppointmentOccupancyService::PREPARATION_MINUTES)
+            ->format('H:i');
+
         // 3. Check individual ScheduleException for this date
         $exception = $user->scheduleExceptions()
             ->whereDate('exception_date', $dateStr)
@@ -137,18 +146,18 @@ class TherapistAssignmentService
             $exStart = substr($exception->start_time, 0, 5);
             $exEnd = substr($exception->end_time, 0, 5);
 
-            if ($startStr < $exStart || $endStr > $exEnd) {
+            if ($startStr < $exStart || $resourceEndStr > $exEnd) {
                 return [
                     'available' => false,
                     'status' => 'outside_hours',
                     'reason' => "Therapist {$user->full_name} has custom hours ({$exStart}-{$exEnd}) on this date.",
                 ];
             }
-        } elseif ($startStr < $schStart || $endStr > $schEnd) {
+        } elseif ($startStr < $schStart || $resourceEndStr > $schEnd) {
             return [
                 'available' => false,
                 'status' => 'outside_hours',
-                'reason' => "Appointment time ({$startStr}-{$endStr}) falls outside {$user->full_name}'s scheduled shift ({$schStart}-{$schEnd}).",
+                'reason' => "Appointment time ({$startStr}-{$resourceEndStr}, including preparation) falls outside {$user->full_name}'s scheduled shift ({$schStart}-{$schEnd}).",
             ];
         }
 
@@ -169,22 +178,16 @@ class TherapistAssignmentService
         }
 
         // 6. Existing appointment conflicts across BOTH appointment_staff pivot AND appointments.user_id
-        // Non-blocking statuses: cancelled, no_show, pending (blocking: confirmed, completed)
-        $conflictExists = Appointment::whereDate('appointment_date', $dateStr)
-            ->whereIn('status', ['confirmed', 'completed'])
-            ->when($excludeAppointmentId, fn($q) => $q->where('id', '!=', $excludeAppointmentId))
-            ->where(function ($q) use ($user) {
-                $q->where('user_id', $user->id)
-                  ->orWhereHas('assignedStaff', function ($sq) use ($user) {
-                      $sq->where('users.id', $user->id);
-                  });
-            })
-            ->where(function ($q) use ($startSeconds, $endSeconds) {
-                // Strict overlap: existing.start < requested.end && existing.end > requested.start
-                $q->where('start_time', '<', $endSeconds)
-                  ->where('end_time', '>', $startSeconds);
-            })
-            ->exists();
+        // Blocking statuses are defined by AppointmentOccupancyService and
+        // include pending reservations; cancelled/no_show are non-blocking.
+        $conflictExists = app(AppointmentOccupancyService::class)->hasStaffConflict(
+            (int) $user->id,
+            $dateStr,
+            $startSeconds,
+            $endSeconds,
+            $excludeAppointmentId,
+            $lockForUpdate
+        );
 
         if ($conflictExists) {
             return [
@@ -249,12 +252,19 @@ class TherapistAssignmentService
         // Concurrency Protocol: sort IDs ascending to guarantee consistent lock acquisition order across all threads
         sort($allTherapistIds, SORT_NUMERIC);
 
+        // Snapshot-based treatment end is authoritative: a legacy stored
+        // end_time may be too short and must not shrink the validation window.
+        $occupancy = app(AppointmentOccupancyService::class);
+        $treatmentEnd = $occupancy->treatmentEnd($appointment);
+        $treatmentEndStr = $treatmentEnd->format('H:i:s');
+
         DB::transaction(function () use (
             $appointment,
             $primaryTherapistId,
             $uniqueAssisting,
             $allTherapistIds,
-            $roomId
+            $roomId,
+            $treatmentEndStr
         ) {
             // 1. Lock all selected therapist records in ascending user ID order
             $lockedTherapists = User::whereIn('id', $allTherapistIds)
@@ -271,12 +281,15 @@ class TherapistAssignmentService
             foreach ($allTherapistIds as $therapistId) {
                 $therapist = $lockedTherapists->get($therapistId);
 
+                // Locked/current read: sees appointments committed while this
+                // transaction waited for the therapist row locks.
                 $check = self::checkTherapistAvailability(
                     $therapist,
                     $appointment->appointment_date,
                     $appointment->start_time,
-                    $appointment->end_time,
-                    $appointment->id
+                    $treatmentEndStr,
+                    $appointment->id,
+                    true
                 );
 
                 if (!$check['available']) {
@@ -295,8 +308,9 @@ class TherapistAssignmentService
                 if (!$lockedRoom->isAvailableFor(
                     $appointment->appointment_date,
                     $appointment->start_time,
-                    $appointment->end_time,
-                    $appointment->id
+                    $treatmentEndStr,
+                    $appointment->id,
+                    true
                 )) {
                     throw new InvalidArgumentException("Room [{$lockedRoom->name}] is not available for this appointment slot.");
                 }

@@ -1179,6 +1179,11 @@
 
                                 $roomIsActive =
                                     (bool) $room->is_active;
+
+                                $isPreparing =
+                                    $isTrackingToday && $roomIsActive
+                                    && $roomStatus !== 'maintenance'
+                                    && $room->isPreparing($nowManila);
                             @endphp
 
 
@@ -1270,6 +1275,11 @@
                                                 "
                                             >
                                                 {{ $room->name }}
+                                                @if($isPreparing)
+                                                    <span class="ml-1 inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                                        Preparing
+                                                    </span>
+                                                @endif
                                             </p>
 
                                             <p

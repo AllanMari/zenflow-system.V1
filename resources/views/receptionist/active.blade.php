@@ -4,6 +4,8 @@
 @section('title', 'Active Sessions')
 
 @push('styles')
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <style>
     [x-cloak] {
         display: none !important;
@@ -723,22 +725,108 @@
 
                         <select
                             name="custom_service_id"
+                            x-model="extraServiceId"
+                            @change="onExtraServiceChange()"
                             required
                             class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         >
                             <option value="">Select a service</option>
 
-                            @foreach($catalogServices as $service)
-
-                                <option value="{{ $service->id }}">
-                                    {{ $service->name }} — ₱{{ number_format((float) $service->price, 2) }}
-                                </option>
-
-                            @endforeach
+                            <template x-for="service in extraServices" :key="service.id">
+                                <option :value="service.id" x-text="service.name + ' — ₱' + Number(service.price).toFixed(2) + ' • ' + (service.duration_minutes || 0) + ' min'"></option>
+                            </template>
 
                         </select>
 
+                        <p
+                            x-show="extraService()"
+                            class="mt-2 text-xs text-slate-500 dark:text-slate-400"
+                        >
+                            <span x-text="extraService() ? extraService().duration_minutes + ' min treatment' : ''"></span>
+                            •
+                            <span x-text="'Requires ' + extraUpdatedReqCount + ' therapist(s)'"></span>
+                            <span x-show="extraService() && extraService().requires_room"> • Room required</span>
+                        </p>
+
                     </div>
+
+                    {{-- Package choice options: choose ONE alternative, never add both. --}}
+                    <template x-if="extraService() && extraService().choice_groups && extraService().choice_groups.length">
+                        <div class="space-y-3 rounded-lg border border-teal-200 bg-teal-50/60 p-3 dark:border-teal-900/50 dark:bg-teal-900/10">
+                            <template x-for="group in extraService().choice_groups" :key="group.id">
+                                <div>
+                                    <p class="mb-1.5 text-xs font-bold text-teal-800 dark:text-teal-300">
+                                        <span x-text="group.label"></span>
+                                        <span x-show="group.is_required" class="text-red-500">*</span>
+                                    </p>
+                                    <p
+                                        x-show="extraChoices[group.id]"
+                                        class="mb-1.5 text-[11px] text-teal-700 dark:text-teal-400"
+                                    >
+                                        Currently selected:
+                                        <span x-text="(group.options.find(o => String(o.service_id) === String(extraChoices[group.id])) || {}).name || extraChoices[group.id]"></span>
+                                    </p>
+                                    <div class="space-y-1">
+                                        <template x-for="option in group.options" :key="option.service_id">
+                                            <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-200">
+                                                <input
+                                                    type="radio"
+                                                    :name="'extra_choice_' + group.id"
+                                                    :value="option.service_id"
+                                                    x-model="extraChoices[group.id]"
+                                                    class="h-3.5 w-3.5 border-slate-300 text-teal-600 focus:ring-teal-500"
+                                                >
+                                                <span x-text="option.name"></span>
+                                            </label>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-for="groupId in Object.keys(extraChoices)" :key="groupId">
+                                <input type="hidden" :name="'package_choices[' + groupId + ']'" :value="extraChoices[groupId]">
+                            </template>
+                        </div>
+                    </template>
+
+                    {{-- Additional therapists (existing assignments are preserved). --}}
+                    <div x-show="extraUpdatedReqCount > extraStaffIds.length" class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                        <div class="mb-2 flex items-center justify-between">
+                            <p class="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                Additional therapists required
+                            </p>
+                            <span class="rounded bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:bg-teal-900/30 dark:text-teal-300"
+                                  x-text="(extraStaffIds.length + extraAdditional.length) + ' of ' + extraUpdatedReqCount + ' selected'"></span>
+                        </div>
+                        <p class="mb-2 text-[11px] text-slate-500 dark:text-slate-400">
+                            Current therapists are kept. Choose the additional therapist(s) for the extended treatment.
+                        </p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <template x-for="member in allStaffList" :key="member.id">
+                                <button
+                                    type="button"
+                                    x-show="!extraStaffIds.includes(Number(member.id))"
+                                    @click="toggleExtraTherapist(member.id)"
+                                    :disabled="(extraTherapistStatus(member.id) && extraTherapistStatus(member.id).status !== 'available')
+                                        || (extraUpdatedReqCount - extraStaffIds.length <= 0)"
+                                    :class="extraAdditional.includes(Number(member.id))
+                                        ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-300'
+                                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300'"
+                                    class="rounded-lg border px-2 py-2 text-left text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <span x-text="member.name"></span>
+                                    <span class="block text-[10px] font-normal text-slate-400" x-text="extraTherapistStatus(member.id) && extraTherapistStatus(member.id).status !== 'available'
+                                        ? extraTherapistStatus(member.id).label
+                                        : 'Available'"></span>
+                                </button>
+                            </template>
+                        </div>
+                        <p x-show="extraLoadingStatuses" class="mt-2 text-[10px] text-slate-400">Checking therapist availability...</p>
+                    </div>
+
+                    <template x-for="id in extraSelectedAll" :key="id">
+                        <input type="hidden" name="therapist_ids[]" :value="id">
+                    </template>
 
                 </div>
 
@@ -754,7 +842,9 @@
 
                     <button
                         type="submit"
-                        :disabled="submitting"
+                        :disabled="submitting || !extraServiceId
+                            || (extraService() && (extraService().choice_groups || []).some(g => g.is_required && !extraChoices[g.id]))
+                            || extraSelectedAll.length < extraUpdatedReqCount"
                         class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <span x-show="!submitting">Add Service</span>
@@ -907,7 +997,7 @@
                     </h3>
 
                     <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        Select another available staff member.
+                        Select the full team required by the services (including the five-minute preparation window).
                     </p>
 
                 </div>
@@ -963,7 +1053,8 @@
                                 <button
                                     type="button"
                                     @click="toggleReassignTherapist({{ $staff->id }})"
-                                    class="flex items-center justify-between p-2.5 rounded-xl border text-left transition text-xs font-medium cursor-pointer"
+                                    :disabled="therapistStatusFor({{ $staff->id }}) && therapistStatusFor({{ $staff->id }}).status !== 'available'"
+                                    class="flex items-center justify-between p-2.5 rounded-xl border text-left transition text-xs font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                     :class="reassignSelected.includes({{ $staff->id }})
                                         ? 'border-teal-500 bg-teal-50/70 text-teal-900 dark:border-teal-500/70 dark:bg-teal-900/30 dark:text-teal-200 shadow-sm'
                                         : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300'"
@@ -971,6 +1062,9 @@
                                     <div class="min-w-0 pr-2">
                                         <div class="font-bold truncate text-slate-900 dark:text-white">{{ $staff->full_name }}</div>
                                         <div class="text-[10px] text-slate-400 truncate">{{ '@' . $staff->username }}</div>
+                                        <template x-if="therapistStatusFor({{ $staff->id }}) && therapistStatusFor({{ $staff->id }}).status !== 'available'">
+                                            <div class="mt-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400" x-text="therapistStatusText({{ $staff->id }})"></div>
+                                        </template>
                                     </div>
                                     <template x-if="reassignSelected.includes({{ $staff->id }})">
                                         <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold bg-teal-600 text-white shadow-xs">
@@ -997,8 +1091,9 @@
                             <option value="">Select staff</option>
 
                             @foreach($allStaff as $staff)
-                                <option value="{{ $staff->id }}">
-                                    {{ $staff->full_name }}
+                                <option value="{{ $staff->id }}"
+                                    :disabled="therapistStatusFor({{ $staff->id }}) && therapistStatusFor({{ $staff->id }}).status !== 'available'"
+                                    x-text="therapistAvailabilityLabel({{ $staff->id }}, @js($staff->full_name))">
                                 </option>
                             @endforeach
 
@@ -1110,11 +1205,6 @@
         </div>
     </div>
 
-            </form>
-
-        </div>
-    </div>
-
     {{-- Reschedule Modal --}}
     <div
         x-show="modal === 'reschedule'"
@@ -1162,10 +1252,12 @@
                         </label>
 
                         <input
-                            type="date"
+                            id="rescheduleDate"
+                            type="text"
                             name="appointment_date"
                             x-model="rescheduleDate"
-                            :min="today"
+                            placeholder="Select date"
+                            autocomplete="off"
                             required
                             class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         >
@@ -1174,17 +1266,56 @@
 
                     <div>
 
-                        <label class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                            Start Time
-                        </label>
+                        <div class="mb-2 flex items-center justify-between">
+                            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                Available times
+                            </label>
+                            <span x-show="rescheduleLoading" class="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                                <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                                </svg>
+                                Checking
+                            </span>
+                        </div>
 
-                        <input
-                            type="time"
-                            name="start_time"
-                            x-model="rescheduleTime"
-                            required
-                            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        <input type="hidden" name="start_time" :value="rescheduleTime" :required="!rescheduleTime ? true : null">
+
+                        <div
+                            x-show="!rescheduleLoading && rescheduleTimes.length > 0"
+                            class="grid grid-cols-2 gap-2 sm:grid-cols-3"
                         >
+                            <template x-for="slot in rescheduleTimes" :key="slot.time">
+                                <button
+                                    type="button"
+                                    @click="rescheduleTime = slot.time; rescheduleError = ''"
+                                    :class="rescheduleTime === slot.time
+                                        ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-300'
+                                        : 'border-slate-200 bg-white text-slate-700 hover:border-teal-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'"
+                                    class="rounded-lg border px-2 py-2 text-center text-xs font-bold transition"
+                                >
+                                    <span x-text="slot.time"></span>
+                                    <span class="mt-0.5 block text-[10px] font-normal text-slate-400" x-text="slot.end_time"></span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <div
+                            x-show="!rescheduleLoading && rescheduleError"
+                            class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300"
+                            x-text="rescheduleError"
+                        ></div>
+
+                        <div
+                            x-show="!rescheduleLoading && !rescheduleError && rescheduleTimes.length === 0"
+                            class="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
+                        >
+                            No valid time with the current therapist team and room on this date.
+                        </div>
+
+                        <p class="mt-2 text-[11px] text-slate-400">
+                            Treatment: <span x-text="rescheduleDuration"></span> min + 5 min preparation. The assigned therapists and room are preserved.
+                        </p>
 
                     </div>
 
@@ -1197,6 +1328,7 @@
                         <select
                             name="room_id"
                             x-model="rescheduleRoom"
+                            @change="rescheduleRoomChanged()"
                             class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         >
                             <option value="">No room</option>
@@ -1212,7 +1344,7 @@
                         </select>
 
                         <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                            Room availability is checked when the appointment is rescheduled.
+                            The current room stays assigned unless a different one is chosen here. Compatibility and availability are rechecked on save.
                         </p>
 
                     </div>
@@ -1231,7 +1363,7 @@
 
                     <button
                         type="submit"
-                        :disabled="submitting"
+                        :disabled="submitting || !rescheduleTime || rescheduleLoading"
                         class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <span x-show="!submitting">Reschedule</span>
@@ -1303,8 +1435,9 @@
 
                                     <input
                                         type="radio"
-                                        name="action"
+                                        name="no_show_action_radio"
                                         value="forfeit"
+                                        x-model="noShowAction"
                                         checked
                                         class="peer sr-only"
                                     >
@@ -1319,8 +1452,9 @@
 
                                     <input
                                         type="radio"
-                                        name="action"
+                                        name="no_show_action_radio"
                                         value="refund"
+                                        x-model="noShowAction"
                                         class="peer sr-only"
                                     >
 
@@ -1336,15 +1470,11 @@
 
                     </template>
 
-                    <template x-if="!noShowHasPayment">
-
-                        <input
-                            type="hidden"
-                            name="action"
-                            value="forfeit"
-                        >
-
-                    </template>
+                    <input
+                        type="hidden"
+                        name="action"
+                        :value="noShowAction"
+                    >
 
                     <div class="mt-4 space-y-3">
                         <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -1419,6 +1549,7 @@
 
 @push('scripts')
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.18/index.global.min.js"></script>
 
 <script src="https://unpkg.com/lucide@latest"></script>
@@ -1445,6 +1576,7 @@
             rescheduleUrl: '',
             noShowUrl: '',
 
+            noShowAction: 'forfeit',
             noShowReason: 'Customer did not arrive',
             noShowCustomText: '',
 
@@ -1454,10 +1586,108 @@
             reassignStaffId: '',
             reassignReqCount: 1,
             reassignSelected: [],
+            reassignAppointmentId: null,
+            reassignStatuses: [],
+            reassignStatusSeq: 0,
+
+            extraAppointmentId: null,
+            extraServiceId: '',
+            extraStaffIds: [],
+            extraReqCount: 1,
+            extraUpdatedReqCount: 1,
+            extraAdditional: [],
+            extraChoices: {},
+            extraSavedChoices: [],
+            extraStatuses: [],
+            extraStatusSeq: 0,
+            extraLoadingStatuses: false,
+            extraDate: '',
+            extraStartTime: '',
+            extraDuration: 0,
+            extraServices: @js($catalogServices->map(fn($s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'price' => (float) $s->price,
+                'duration_minutes' => $s->duration_minutes,
+                'therapists_required' => (int) $s->therapists_required,
+                'requires_room' => (bool) $s->requires_room,
+                'choice_groups' => $s->choiceGroups->map(fn($g) => [
+                    'id' => $g->id,
+                    'label' => $g->label,
+                    'is_required' => (bool) $g->is_required,
+                    'options' => $g->options->map(fn($o) => [
+                        'service_id' => (int) $o->service_id,
+                        'name' => $o->service ? $o->service->name : 'Selected Service',
+                    ])->values(),
+                ])->values(),
+            ])->values()),
+            allStaffList: @js($allStaff->map(fn($s) => [
+                'id' => $s->id,
+                'name' => $s->full_name ?: trim(($s->first_name ?? '') . ' ' . ($s->last_name ?? '')),
+            ])->values()),
+
             treatmentNotesApptId: null,
             treatmentNotesContent: '',
             treatmentNotesUrl: '',
             treatmentNotesClientName: '',
+            async loadReassignStatuses() {
+                if (!this.reassignAppointmentId) {
+                    this.reassignStatuses = [];
+                    return;
+                }
+
+                const seq = ++this.reassignStatusSeq;
+
+                try {
+                    const response = await fetch(
+                        `/receptionist/api/booking/therapist-statuses?appointment_id=${encodeURIComponent(this.reassignAppointmentId)}`,
+                        { headers: { 'Accept': 'application/json' } }
+                    );
+
+                    if (!response.ok) {
+                        if (seq === this.reassignStatusSeq) this.reassignStatuses = [];
+                        return;
+                    }
+
+                    const data = await response.json();
+                    if (seq === this.reassignStatusSeq) {
+                        this.reassignStatuses = data.statuses || [];
+                    }
+                } catch (error) {
+                    if (seq === this.reassignStatusSeq) this.reassignStatuses = [];
+                }
+            },
+
+            therapistStatusFor(id) {
+                return (this.reassignStatuses || []).find(
+                    item => String(item.staff_id) === String(id)
+                ) || null;
+            },
+
+            therapistStatusText(id) {
+                const status = this.therapistStatusFor(id);
+                if (!status || status.status === 'available') {
+                    return '';
+                }
+
+                return status.label + (status.reason ? ' — ' + status.reason : '');
+            },
+
+            therapistAvailabilityLabel(id, name) {
+                const status = this.therapistStatusFor(id);
+
+                if (!status || status.status === 'available') {
+                    return name;
+                }
+
+                let label = name + ' — ' + status.label;
+                if (status.reason) {
+                    label += ' (' + status.reason + ')';
+                }
+
+                return label;
+            },
+
             toggleReassignTherapist(id) {
                 id = Number(id);
                 const idx = this.reassignSelected.indexOf(id);
@@ -1473,9 +1703,195 @@
                 this.reassignStaffId = this.reassignSelected[0] ? String(this.reassignSelected[0]) : '';
             },
 
+            staffName(id) {
+                const found = (this.allStaffList || []).find(s => String(s.id) === String(id));
+                return found ? found.name : ('Therapist ' + id);
+            },
+
+            extraService() {
+                return (this.extraServices || []).find(s => String(s.id) === String(this.extraServiceId)) || null;
+            },
+
+            onExtraServiceChange() {
+                const service = this.extraService();
+                this.extraUpdatedReqCount = Math.max(
+                    Number(this.extraReqCount) || 1,
+                    service ? Number(service.therapists_required || 1) : 1
+                );
+                this.extraDuration = service ? (Number(service.duration_minutes) || 0) : 0;
+
+                // Restore only choices already saved for THIS service's choice
+                // groups. Never auto-select an alternative when none was saved.
+                this.extraChoices = {};
+                if (service) {
+                    (service.choice_groups || []).forEach(group => {
+                        const saved = (this.extraSavedChoices || []).find(
+                            item => String(item.choice_group_id) === String(group.id)
+                        );
+                        if (saved && saved.selected_service_id) {
+                            this.extraChoices[group.id] = saved.selected_service_id;
+                        }
+                    });
+                }
+
+                this.extraAdditional = [];
+                this.extraStatuses = [];
+                this.loadExtraTherapistStatuses();
+            },
+
+            toggleExtraTherapist(id) {
+                id = Number(id);
+                const idx = this.extraAdditional.indexOf(id);
+                if (idx !== -1) {
+                    this.extraAdditional.splice(idx, 1);
+                    return;
+                }
+                const slots = Math.max(0, this.extraUpdatedReqCount - this.extraStaffIds.length);
+                if (slots > 0 && this.extraAdditional.length < slots) {
+                    this.extraAdditional.push(id);
+                }
+            },
+
+            get extraSelectedAll() {
+                return [...this.extraStaffIds.map(Number), ...this.extraAdditional.map(Number)];
+            },
+
+            async loadExtraTherapistStatuses() {
+                const seq = ++this.extraStatusSeq;
+                this.extraLoadingStatuses = true;
+                this.extraStatuses = [];
+
+                const service = this.extraService();
+                if (!service || this.extraUpdatedReqCount <= this.extraStaffIds.length) {
+                    this.extraLoadingStatuses = false;
+                    return;
+                }
+
+                const [h, m] = String(this.extraStartTime || '00:00').split(':').map(Number);
+                const total = (this.extraDuration || 0) + (h * 60) + m;
+                const endTime = String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
+
+                const params = new URLSearchParams({
+                    date: this.extraDate,
+                    start_time: this.extraStartTime,
+                    duration: String(this.extraDuration || 0),
+                    exclude_appointment_id: String(this.extraAppointmentId),
+                });
+                params.append('services[]', String(service.id));
+
+                try {
+                    const response = await fetch(`/receptionist/api/booking/therapist-statuses?${params.toString()}`, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (!response.ok) throw new Error('status request failed');
+                    const data = await response.json();
+                    if (seq === this.extraStatusSeq) {
+                        this.extraStatuses = data.statuses || [];
+                    }
+                } catch (error) {
+                    if (seq === this.extraStatusSeq) this.extraStatuses = [];
+                } finally {
+                    if (seq === this.extraStatusSeq) this.extraLoadingStatuses = false;
+                }
+            },
+
+            extraTherapistStatus(id) {
+                return (this.extraStatuses || []).find(s => String(s.staff_id) === String(id)) || null;
+            },
+
+            rescheduleDateChanged(dateStr) {
+                this.rescheduleDate = dateStr;
+                this.rescheduleTime = '';
+                this.rescheduleError = '';
+                this.loadRescheduleAvailability(false, true);
+            },
+
+            rescheduleRoomChanged() {
+                this.rescheduleTime = '';
+                this.loadRescheduleAvailability(false, true);
+            },
+
+            applyRescheduleDates(dates) {
+                if (!this.rescheduleFlatpickr || !this.rescheduleMonth) return;
+
+                const [year, month] = this.rescheduleMonth.split('-').map(Number);
+                const lastDay = new Date(year, month, 0).getDate();
+                const enabled = new Set(Array.isArray(dates) ? dates : []);
+                const disabled = [];
+                for (let day = 1; day <= lastDay; day++) {
+                    const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    if (!enabled.has(date)) disabled.push(date);
+                }
+                this.rescheduleFlatpickr.set('disable', disabled);
+            },
+
+            async loadRescheduleAvailability(withMonth = false, withTimes = false) {
+                if (!this.rescheduleAppointmentId) return;
+
+                const seq = ++this.rescheduleRequestSeq;
+                this.rescheduleLoading = true;
+                this.rescheduleError = '';
+
+                const params = new URLSearchParams();
+                if (withMonth && this.rescheduleMonth) params.append('month', this.rescheduleMonth);
+                if (withTimes && this.rescheduleDate) {
+                    params.append('date', this.rescheduleDate);
+                    if (this.rescheduleRoom) params.append('room_id', this.rescheduleRoom);
+                }
+                if (!withMonth && !withTimes) return;
+
+                const url = this.rescheduleAvailabilityUrl.replace('__ID__', this.rescheduleAppointmentId);
+
+                try {
+                    const response = await fetch(`${url}?${params.toString()}`, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (!response.ok) throw new Error('availability request failed');
+                    const data = await response.json();
+                    if (seq !== this.rescheduleRequestSeq) return;
+
+                    if (withMonth) {
+                        this.applyRescheduleDates(data.dates || []);
+                    }
+
+                    if (withTimes) {
+                        this.rescheduleTimes = data.times || [];
+                        this.rescheduleDuration = data.duration || this.rescheduleDuration;
+                        const stillValid = this.rescheduleTimes.some(t => t.time === this.rescheduleTime);
+                        if (this.rescheduleTime && !stillValid) {
+                            this.rescheduleTime = '';
+                            this.rescheduleError = data.message
+                                ? data.message
+                                : 'The previously selected time is no longer available. Please choose another time.';
+                        } else if (!this.rescheduleTime && !this.rescheduleTimes.length && data.message) {
+                            this.rescheduleError = data.message;
+                        }
+                    }
+                } catch (error) {
+                    if (seq === this.rescheduleRequestSeq) {
+                        // Leave existing dates/time state untouched on failure:
+                        // a failed request must never enable unavailable dates.
+                        this.rescheduleError = 'Unable to load availability. Please try again.';
+                    }
+                } finally {
+                    if (seq === this.rescheduleRequestSeq) this.rescheduleLoading = false;
+                }
+            },
+
             rescheduleDate: '',
             rescheduleTime: '',
             rescheduleRoom: '',
+            rescheduleFlatpickr: null,
+            rescheduleAppointmentId: null,
+            rescheduleAvailabilityUrl: @js(route('receptionist.reschedule.availability', ['appointmentId' => '__ID__'])),
+            rescheduleMonth: '',
+            rescheduleDuration: 0,
+            rescheduleStaffIds: [],
+            rescheduleReqCount: 1,
+            rescheduleTimes: [],
+            rescheduleLoading: false,
+            rescheduleError: '',
+            rescheduleRequestSeq: 0,
 
             noShowHasPayment: false,
             noShowCustomer: '',
@@ -1724,11 +2140,23 @@
                 });
             },
 
-            openExtra(id) {
+            openExtra(id, staffIds = [], reqCount = 1, date = '', startTime = '', savedChoices = []) {
                 this.extraUrl = @js(
                     route('receptionist.add-extra', ['appointment' => '__ID__'])
                 ).replace('__ID__', id);
 
+                this.extraAppointmentId = id;
+                this.extraStaffIds = (Array.isArray(staffIds) ? staffIds : []).map(Number);
+                this.extraReqCount = Number(reqCount) || 1;
+                this.extraUpdatedReqCount = this.extraReqCount;
+                this.extraServiceId = '';
+                this.extraAdditional = [];
+                this.extraChoices = {};
+                this.extraSavedChoices = Array.isArray(savedChoices) ? savedChoices : [];
+                this.extraStatuses = [];
+                this.extraDate = date;
+                this.extraStartTime = startTime;
+                this.extraDuration = 0;
                 this.modal = 'extra';
 
                 this.refreshIcons();
@@ -1745,6 +2173,8 @@
 
             openReassign(id, staffId, url, reqCount = 1, assistingIds = []) {
                 this.reassignUrl = url;
+                this.reassignAppointmentId = id;
+                this.reassignStatuses = [];
                 this.reassignStaffId = staffId ? String(staffId) : '';
                 this.reassignReqCount = Number(reqCount) || 1;
                 this.reassignSelected = [];
@@ -1761,6 +2191,7 @@
                 }
                 this.modal = 'reassign';
 
+                this.loadReassignStatuses();
                 this.refreshIcons();
             },
 
@@ -1774,18 +2205,60 @@
                 this.refreshIcons();
             },
 
-            openReschedule(id, date, time, roomId, url) {
+            openReschedule(id, date, time, roomId, url, duration = 60, staffIds = [], reqCount = 1) {
                 this.rescheduleUrl = url;
+                this.rescheduleAppointmentId = id;
                 this.rescheduleDate = date;
                 this.rescheduleTime = time;
                 this.rescheduleRoom = roomId ? String(roomId) : '';
+                this.rescheduleMonth = String(date || this.today).slice(0, 7);
+                this.rescheduleDuration = Number(duration) || 60;
+                this.rescheduleStaffIds = (Array.isArray(staffIds) ? staffIds : []).map(Number);
+                this.rescheduleReqCount = Number(reqCount) || 1;
+                this.rescheduleTimes = [];
+                this.rescheduleError = '';
                 this.modal = 'reschedule';
+
+                this.$nextTick(() => {
+                    if (!this.rescheduleFlatpickr && window.flatpickr) {
+                        this.rescheduleFlatpickr = flatpickr('#rescheduleDate', {
+                            dateFormat: 'Y-m-d',
+                            minDate: this.today,
+                            defaultDate: this.rescheduleDate,
+                            disableMobile: true,
+                            onChange: (dates) => {
+                                const selected = dates.length
+                                    ? `${dates[0].getFullYear()}-${String(dates[0].getMonth() + 1).padStart(2, '0')}-${String(dates[0].getDate()).padStart(2, '0')}`
+                                    : '';
+                                this.rescheduleDateChanged(selected);
+                            },
+                            onMonthChange: (dates, monthIndex, instance) => {
+                                // Flatpickr passes the *selected* dates first; the
+                                // second argument is the newly visible month.
+                                const visibleMonth = typeof monthIndex === 'number'
+                                    ? monthIndex
+                                    : instance.currentMonth;
+                                const visibleYear = instance.currentYear;
+                                this.rescheduleMonth =
+                                    `${visibleYear}-${String(visibleMonth + 1).padStart(2, '0')}`;
+                                this.loadRescheduleAvailability(true, false);
+                            }
+                        });
+                    } else if (this.rescheduleFlatpickr) {
+                        this.rescheduleFlatpickr.setDate(this.rescheduleDate, false);
+                        this.rescheduleFlatpickr.jumpToDate(this.rescheduleDate, false);
+                    }
+
+                    // Load the currently visible month and the current date's times.
+                    this.loadRescheduleAvailability(true, true);
+                });
 
                 this.refreshIcons();
             },
 
             openNoShow(id, url, hasPayment, customer) {
                 this.noShowUrl = url;
+                this.noShowAction = 'forfeit';
                 this.noShowHasPayment = Boolean(hasPayment);
                 this.noShowCustomer = customer || 'Customer';
                 this.noShowReason = 'Customer did not arrive';
@@ -1798,6 +2271,12 @@
             closeModal() {
                 this.modal = null;
                 this.submitting = false;
+                // Invalidate in-flight availability lookups so a response from
+                // a closed modal cannot overwrite a newer selection.
+                this.rescheduleRequestSeq++;
+                this.extraStatusSeq++;
+                this.reassignStatusSeq++;
+                this.rescheduleLoading = false;
             }
         };
     }

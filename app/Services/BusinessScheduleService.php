@@ -98,6 +98,81 @@ class BusinessScheduleService
     }
 
     /**
+     * Bulk equivalent of getOperatingWindow() for a date range.
+     *
+     * Used by month availability requests so that navigating a calendar month
+     * costs two queries instead of one query per calendar day. The resolution
+     * rules are identical to getOperatingWindow().
+     *
+     * @return array<string, array{is_open: bool, reason: ?string, start: ?string, end: ?string}>
+     */
+    public static function getOperatingWindowsForRange($startDate, $endDate): array
+    {
+        $start = $startDate instanceof Carbon ? $startDate->copy()->startOfDay() : Carbon::parse($startDate)->startOfDay();
+        $end = $endDate instanceof Carbon ? $endDate->copy()->startOfDay() : Carbon::parse($endDate)->startOfDay();
+
+        $exceptions = BusinessException::whereDate('date', '>=', $start->toDateString())
+            ->whereDate('date', '<=', $end->toDateString())
+            ->get()
+            ->keyBy(fn($e) => Carbon::parse($e->date)->toDateString());
+
+        $hours = BusinessHour::all()->keyBy('day_of_week');
+
+        $windows = [];
+        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+            $dateStr = $date->toDateString();
+            $dayOfWeek = $date->dayOfWeek;
+            $exception = $exceptions->get($dateStr);
+
+            if ($exception) {
+                if ($exception->is_closed) {
+                    $windows[$dateStr] = [
+                        'is_open' => false,
+                        'reason' => $exception->title ?: 'Closed for special event/holiday',
+                        'start' => null,
+                        'end' => null,
+                    ];
+                    continue;
+                }
+
+                $weeklyHour = $hours->get($dayOfWeek);
+                $open = $exception->open_time ? substr($exception->open_time, 0, 5) : null;
+                $close = $exception->close_time ? substr($exception->close_time, 0, 5) : null;
+                $open = $open ?: ($weeklyHour && $weeklyHour->open_time ? substr($weeklyHour->open_time, 0, 5) : '09:00');
+                $close = $close ?: ($weeklyHour && $weeklyHour->close_time ? substr($weeklyHour->close_time, 0, 5) : '20:00');
+
+                $windows[$dateStr] = [
+                    'is_open' => true,
+                    'reason' => $exception->title,
+                    'start' => $open,
+                    'end' => $close,
+                ];
+                continue;
+            }
+
+            $hour = $hours->get($dayOfWeek);
+            if ($hour) {
+                $windows[$dateStr] = [
+                    'is_open' => !$hour->is_closed,
+                    'reason' => $hour->is_closed ? 'Closed on ' . BusinessHour::getDayName($dayOfWeek) . 's' : null,
+                    'start' => $hour->open_time ? substr($hour->open_time, 0, 5) : '09:00',
+                    'end' => $hour->close_time ? substr($hour->close_time, 0, 5) : '20:00',
+                ];
+                continue;
+            }
+
+            $windows[$dateStr] = [
+                'is_open' => true,
+                'reason' => null,
+                'start' => '09:00',
+                'end' => '20:00',
+            ];
+        }
+
+        return $windows;
+    }
+
+    /**
      * Get active notice/away message for a given date (or current date).
      *
      * @param string|Carbon|null $date

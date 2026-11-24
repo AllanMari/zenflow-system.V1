@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use App\Services\AppointmentOccupancyService;
 
 class Room extends Model
 {
@@ -41,6 +42,29 @@ class Room extends Model
         return $this->hasMany(Appointment::class);
     }
 
+    /**
+     * Derived operational state: treatment has ended but the room is still in
+     * its five-minute preparation window. No database column is added.
+     */
+    public function isPreparing(?Carbon $atTime = null): bool
+    {
+        $at = $atTime ? $atTime->copy()->timezone('Asia/Manila') : Carbon::now('Asia/Manila');
+
+        $occupancy = app(AppointmentOccupancyService::class);
+
+        return $this->appointments()
+            ->whereDate('appointment_date', $at->toDateString())
+            ->whereIn('status', ['pending', 'confirmed', 'completed'])
+            ->with('services')
+            ->get()
+            ->contains(function ($appointment) use ($occupancy, $at) {
+                $treatmentEnd = $occupancy->treatmentEnd($appointment);
+                $resourceEnd = $occupancy->resourceEnd($appointment);
+
+                return $treatmentEnd->lessThanOrEqualTo($at) && $resourceEnd->greaterThan($at);
+            });
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
@@ -75,8 +99,13 @@ class Room extends Model
      * @param string|\Carbon\Carbon $startTime
      * @param string|\Carbon\Carbon $endTime
      */
-    public function isAvailableFor($date, $startTime, $endTime, ?int $excludeAppointmentId = null): bool
-    {
+    public function isAvailableFor(
+        $date,
+        $startTime,
+        $endTime,
+        ?int $excludeAppointmentId = null,
+        bool $lockForUpdate = false
+    ): bool {
         if ($this->status === 'maintenance' || !$this->is_active) {
             return false;
         }
@@ -91,21 +120,15 @@ class Room extends Model
             return false;
         }
 
-        $query = $this->appointments()
-            ->whereDate('appointment_date', $dateStr)
-            ->whereIn('status', ['confirmed', 'completed', 'pending'])
-            // ── Correct overlap check (exclusive boundaries) ──
-            // Overlap exists if: existing_start < new_end AND existing_end > new_start
-            ->where(function ($q) use ($startStr, $endStr) {
-                $q->where('start_time', '<', $endStr)
-                  ->where('end_time', '>', $startStr);
-            });
-
-        if ($excludeAppointmentId) {
-            $query->where('id', '!=', $excludeAppointmentId);
-        }
-
-        return !$query->exists();
+        // Resource end includes the post-treatment preparation period for this room.
+        return !app(AppointmentOccupancyService::class)->hasRoomConflict(
+            (int) $this->id,
+            $dateStr,
+            $startStr,
+            $endStr,
+            $excludeAppointmentId,
+            $lockForUpdate
+        );
     }
 
     /**

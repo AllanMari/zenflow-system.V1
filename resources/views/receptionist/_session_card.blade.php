@@ -17,6 +17,15 @@
         ? $appointment->assignedStaff->where('pivot.role', 'assisting')->values()
         : collect();
     $hasMultipleTherapists = $therapistsReq > 1 || $allAssignedStaff->count() > 1;
+    $treatmentDuration = (int) $services->sum(
+        fn($s) => $s->pivot->service_duration ?? $s->duration_minutes ?? 0
+    );
+    $savedPackageChoices = $appointment->packageSelections->map(
+        fn($selection) => [
+            'choice_group_id' => (int) $selection->choice_group_id,
+            'selected_service_id' => (int) $selection->selected_service_id,
+        ]
+    )->values()->all();
 @endphp
 
 <article
@@ -243,7 +252,14 @@
     <div class="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/30">
         <button
             type="button"
-            @click="openExtra({{ $appointment->id }})"
+            @click="openExtra(
+                {{ $appointment->id }},
+                @js($allAssignedStaff->pluck('id')->values()->toArray()),
+                {{ $therapistsReq }},
+                @js($appointment->appointment_date->format('Y-m-d')),
+                @js(\Carbon\Carbon::parse($appointment->start_time)->format('H:i')),
+                @js($savedPackageChoices)
+            )"
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
         >
             <i data-lucide="plus-circle" class="h-3.5 w-3.5"></i>
@@ -283,7 +299,10 @@
                 @js($appointment->appointment_date->format('Y-m-d')),
                 @js(\Carbon\Carbon::parse($appointment->start_time)->format('H:i')),
                 @js($appointment->room_id),
-                @js(route('receptionist.reschedule', $appointment->id))
+                @js(route('receptionist.reschedule', $appointment->id)),
+                {{ $treatmentDuration }},
+                @js($allAssignedStaff->pluck('id')->values()->toArray()),
+                {{ $therapistsReq }}
             )"
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
         >

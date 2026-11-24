@@ -8,6 +8,7 @@ use App\Models\ScheduleException;
 use App\Models\Appointment;
 use App\Models\Attendance;
 use App\Models\ShiftTemplate;
+use App\Services\AppointmentOccupancyService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -487,8 +488,11 @@ trait ScheduleTrait
         $dayOfWeek = $carbonDate->dayOfWeek;
         $isToday = $dateStr === now()->toDateString();
 
+        // A version prefix lets clearScheduleCache() invalidate all cached
+        // availability results without flushing unrelated cache entries.
+        $version = Cache::get('avail:version', 0);
         $cacheKey =
-            'avail:'
+            'avail:v' . $version . ':'
             . md5(
                 "{$dateStr}|{$startTime}|{$endTime}|"
                 . ($excludeAppointmentId ?? '0')
@@ -561,64 +565,15 @@ trait ScheduleTrait
                         ->keyBy('user_id');
                 }
 
-                $conflicts = Appointment::whereIn(
-                        'user_id',
-                        $staffIds
-                    )
-                    ->where(
-                        'appointment_date',
-                        $dateStr
-                    )
-                    ->where(
-                        'status',
-                        'confirmed'
-                    )
-                    ->when(
-                        $excludeAppointmentId,
-                        fn($q) =>
-                            $q->where(
-                                'id',
-                                '!=',
-                                $excludeAppointmentId
-                            )
-                    )
-                    ->where(function ($q) use (
+                $conflicts = $staffIds->filter(
+                    fn ($staffId) => app(AppointmentOccupancyService::class)->hasStaffConflict(
+                        (int) $staffId,
+                        $dateStr,
                         $startTime,
-                        $endTime
-                    ) {
-                        $q->whereBetween(
-                            'start_time',
-                            [
-                                $startTime,
-                                $endTime,
-                            ]
-                        )
-                        ->orWhereBetween(
-                            'end_time',
-                            [
-                                $startTime,
-                                $endTime,
-                            ]
-                        )
-                        ->orWhere(
-                            function ($sq) use (
-                                $startTime,
-                                $endTime
-                            ) {
-                                $sq->where(
-                                    'start_time',
-                                    '<=',
-                                    $startTime
-                                )
-                                ->where(
-                                    'end_time',
-                                    '>=',
-                                    $endTime
-                                );
-                            }
-                        );
-                    })
-                    ->pluck('user_id');
+                        $endTime,
+                        $excludeAppointmentId
+                    )
+                )->values();
 
                 return $allStaff
                     ->map(
@@ -1025,17 +980,13 @@ trait ScheduleTrait
      */
     protected function clearScheduleCache(): void
     {
-        /*
-         * If cache tags are enabled with Redis/Memcached:
-         *
-         * Cache::tags([
-         *     'schedules',
-         *     'availability'
-         * ])->flush();
-         *
-         * The current implementation intentionally does not use
-         * Cache::flush() because that could remove unrelated data.
-         */
+        // Invalidate every cached availability result by rotating the shared
+        // version prefix used in schedGetAvailableStaff()'s cache key.
+        try {
+            Cache::increment('avail:version');
+        } catch (\Throwable $e) {
+            Cache::put('avail:version', 1, now()->addDays(30));
+        }
     }
 
     /**

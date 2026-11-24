@@ -1292,6 +1292,51 @@ public function index(Request $request)
         return redirect()->route('admin.rooms.index')->with('success', 'Room deleted.');
     }
 
+    public function roomReportPdf(
+        Request $request,
+        ReportPdfService $pdfService
+    ) {
+        abort_unless(auth()->user()->isAdmin(), 403);
+
+        $rooms = Room::with(['category', 'roomCategories'])
+            ->orderBy('name')
+            ->get();
+
+        $summary = [
+            'total_rooms' => $rooms->count(),
+            'active_rooms' => $rooms->where('is_active', true)->count(),
+            'available_rooms' => $rooms->where('status', 'available')->count(),
+            'occupied_rooms' => $rooms->where('status', 'occupied')->count(),
+            'maintenance_rooms' => $rooms->where('status', 'maintenance')->count(),
+            'inactive_rooms' => $rooms->where('is_active', false)->count(),
+        ];
+
+        $pdfData = [
+            'reportTitle' => 'ROOM INVENTORY AND STATUS REPORT',
+            'referenceNumber' => 'RM-' . now()->format('YmdHis'),
+            'dateRange' => 'Current Inventory Snapshot',
+            'generatedAt' => now('Asia/Manila')->format('F j, Y g:i A'),
+            'preparedBy' => auth()->user()->full_name ?? auth()->user()->name,
+            'checkedBy' => $request->input('checked_by'),
+            'rooms' => $rooms,
+            'summary' => $summary,
+        ];
+
+        $action = $request->get('action', 'download');
+
+        return $action === 'stream'
+            ? $pdfService->streamPdf(
+                'reports.room_report_pdf',
+                $pdfData,
+                'room-inventory-status-report.pdf'
+            )
+            : $pdfService->generatePdf(
+                'reports.room_report_pdf',
+                $pdfData,
+                'room-inventory-status-report.pdf'
+            );
+    }
+
     /* ─── ROOM CATEGORIES ─── */
 
     public function roomCategoriesIndex()

@@ -12,6 +12,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ServicePopularityController;
+use App\Http\Controllers\StaffUtilizationController;
 use App\Http\Controllers\BusinessScheduleController;
 use App\Http\Controllers\AppointmentInvoiceController;
 use App\Http\Controllers\DataImportController;
@@ -88,8 +89,10 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     Route::get('/booking/{appointment}/rooms', [ReceptionistController::class, 'availableRooms'])->name('receptionist.rooms.available');
     Route::get('/quick-book', [BookingController::class, 'quickBook'])->name('receptionist.quick-book');
     Route::get('/api/booking/next-slots', [BookingController::class, 'nextSlots'])->name('api.next-slots');
+    Route::get('/api/booking/therapist-statuses', [BookingController::class, 'therapistStatuses'])->name('api.therapist-statuses');
     Route::post('/appointments/{appointmentId}/reassign', [ReceptionistController::class, 'reassignStaff'])->name('receptionist.reassign')->whereNumber('appointmentId');
     Route::post('/appointments/{appointmentId}/reschedule', [ReceptionistController::class, 'reschedule'])->name('receptionist.reschedule')->whereNumber('appointmentId');
+    Route::get('/api/appointments/{appointmentId}/reschedule-availability', [ReceptionistController::class, 'rescheduleAvailability'])->name('receptionist.reschedule.availability')->whereNumber('appointmentId');
     Route::get('/api/customers/lookup', [BookingController::class, 'customerLookup'])->name('api.customers.lookup');
 
     // Mid-session extra services
@@ -215,6 +218,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/rooms', [AdminController::class, 'roomsStore'])->name('admin.rooms.store');
     Route::put('/rooms/{room}', [AdminController::class, 'roomsUpdate'])->name('admin.rooms.update');
     Route::delete('/rooms/{room}', [AdminController::class, 'roomsDestroy'])->name('admin.rooms.destroy');
+    Route::get('/rooms/report-pdf', [AdminController::class, 'roomReportPdf'])->name('admin.rooms.report-pdf');
 
     // Room Categories
     Route::get('/room-categories', [AdminController::class, 'roomCategoriesIndex'])->name('admin.room-categories.index');
@@ -378,6 +382,16 @@ Route::middleware(['web', 'auth'])->prefix('api/notifications')->group(function 
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {
+    Route::get('/admin/reports/staff-utilization', [
+        StaffUtilizationController::class,
+        'index'
+    ])->name('admin.staff-utilization');
+
+    Route::get('/admin/reports/staff-utilization/pdf', [
+        StaffUtilizationController::class,
+        'pdf'
+    ])->name('admin.staff-utilization.pdf');
+
     Route::get('/admin/reports/service-popularity', [
         ServicePopularityController::class,
         'index'
@@ -400,6 +414,16 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:receptionist'])->group(function () {
+    Route::get('/receptionist/reports/staff-utilization', [
+        StaffUtilizationController::class,
+        'index'
+    ])->name('receptionist.staff-utilization');
+
+    Route::get('/receptionist/reports/staff-utilization/pdf', [
+        StaffUtilizationController::class,
+        'pdf'
+    ])->name('receptionist.staff-utilization.pdf');
+
     Route::get('/receptionist/reports/service-popularity', [
         ServicePopularityController::class,
         'index'

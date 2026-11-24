@@ -277,12 +277,6 @@ class SalesAnalyticsService
             $periodAppts,
             $allPayments
         );
-        $staffEfficiency = $this->buildStaffEfficiency(
-            $periodAppts,
-            $allPayments,
-            $startDate,
-            $endDate
-        );
         $customerRetention = $this->buildCustomerRetention(
             $periodAppts,
             $startDate
@@ -532,8 +526,6 @@ class SalesAnalyticsService
 
             'staffPerformance'       => $staffPerformance,
 
-            'staffEfficiency' => $staffEfficiency,
-
             'customerRetention' => $customerRetention,
             'therapistRetentionData' => $therapistRetention,
 
@@ -581,6 +573,83 @@ class SalesAnalyticsService
 
             'insightPayload'         => $insightPayload,
         ], $absenteeismVacancyAnalytics);
+    }
+
+    public function getStaffUtilizationReport(Request $request): array
+    {
+        $period = (string) $request->get('period', 'daily');
+        $today = Carbon::today();
+        [$startDate, $endDate, $label] = $this->resolveDateRange($period, $request, $today);
+
+        $payments = (clone $this->buildBaseQuery($startDate, $endDate))
+            ->orderBy('paid_at', 'desc')
+            ->get();
+
+        $appointments = Appointment::with([
+                'payments',
+                'customer',
+                'staff',
+                'assignedStaff',
+                'services',
+                'room',
+            ])
+            ->whereBetween('appointment_date', [$startDate, $endDate])
+            ->get();
+
+        $staff = $this->buildStaffEfficiency($appointments, $payments, $startDate, $endDate);
+
+        $staffIdsWithAttendance = Attendance::query()
+            ->whereBetween('date', [$startDate, $endDate])
+            ->whereIn('status', ['present', 'late'])
+            ->whereNotNull('check_in')
+            ->whereNotNull('check_out')
+            ->pluck('user_id')
+            ->all();
+
+        foreach ($staff as &$staffMember) {
+            $staffMember['has_attendance'] = in_array(
+                (int) $staffMember['id'],
+                array_map('intval', $staffIdsWithAttendance),
+                true
+            );
+        }
+        unset($staffMember);
+
+        $totalServiceMinutes = collect($staff)->sum('service_minutes');
+        $totalClockedMinutes = collect($staff)->sum('clocked_minutes');
+        $totalServiceHours = collect($staff)->sum('service_hours');
+        $totalClockedHours = collect($staff)->sum('clocked_hours');
+        $totalRevenue = collect($staff)->sum('revenue');
+
+        $summary = [
+            'staff_count' => count($staff),
+            'appointments' => collect($staff)->sum('appointments'),
+            'completed' => collect($staff)->sum('completed'),
+            'service_minutes' => $totalServiceMinutes,
+            'clocked_minutes' => $totalClockedMinutes,
+            'service_hours' => $totalServiceHours,
+            'clocked_hours' => $totalClockedHours,
+            'overall_utilization' => $totalClockedMinutes > 0
+                ? round(($totalServiceMinutes / $totalClockedMinutes) * 100, 1)
+                : 0,
+            'revenue' => $totalRevenue,
+            'revenue_per_hour' => $totalClockedHours > 0
+                ? round($totalRevenue / $totalClockedHours, 2)
+                : 0,
+            'staff_without_attendance' => collect($staff)->filter(function (array $staffMember) {
+                return ($staffMember['appointments'] ?? 0) > 0
+                    && empty($staffMember['has_attendance']);
+            })->count(),
+        ];
+
+        return [
+            'staff' => collect($staff),
+            'period' => $period,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'label' => $label,
+            'summary' => $summary,
+        ];
     }
 
     /*
@@ -1616,10 +1685,7 @@ class SalesAnalyticsService
         }
 
         $attendances = Attendance::with('user')
-            ->whereBetween('date', [
-                $startDate->toDateString(),
-                $endDate->toDateString(),
-            ])
+            ->whereBetween('date', [$startDate, $endDate])
             ->whereIn('status', ['present', 'late'])
             ->whereNotNull('check_in')
             ->whereNotNull('check_out')

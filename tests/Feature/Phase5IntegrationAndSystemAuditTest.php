@@ -335,15 +335,25 @@ class Phase5IntegrationAndSystemAuditTest extends TestCase
         $dualRoomAvailable = $this->dualRoom->isAvailableFor($date, '14:30', '15:30');
         $this->assertTrue($dualRoomAvailable);
 
-        // 4. Non-overlapping time (15:00 - 16:00) is available for therapist and room
-        $availabilityAfter = TherapistAssignmentService::checkTherapistAvailability(
+        // 4. Five-minute preparation: 15:00-15:05 is blocked for both resources;
+        //    the same therapist/room become available again at 15:05.
+        $availabilityDuringPrep = TherapistAssignmentService::checkTherapistAvailability(
             $this->staffUser,
             $date,
             '15:00',
             '16:00'
         );
+        $this->assertFalse($availabilityDuringPrep['available']);
+        $this->assertFalse($this->massageOnlyRoom->isAvailableFor($date, '15:00', '16:00'));
+
+        $availabilityAfter = TherapistAssignmentService::checkTherapistAvailability(
+            $this->staffUser,
+            $date,
+            '15:05',
+            '16:05'
+        );
         $this->assertTrue($availabilityAfter['available']);
-        $this->assertTrue($this->massageOnlyRoom->isAvailableFor($date, '15:00', '16:00'));
+        $this->assertTrue($this->massageOnlyRoom->isAvailableFor($date, '15:05', '16:05'));
     }
 
     /**

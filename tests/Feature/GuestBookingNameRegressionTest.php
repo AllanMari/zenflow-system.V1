@@ -138,7 +138,7 @@ class GuestBookingNameRegressionTest extends TestCase
             $response = $this->post(route('booking.store'), [
                 'services' => [$service->id],
                 'appointment_date' => $tomorrow->toDateString(),
-                'start_time' => sprintf('%02d:00', 8 + $idx),
+                'start_time' => sprintf('%02d:00', 8 + $idx * 2),
                 'guest_first_name' => $name,
                 'guest_phone' => $phone,
                 'source' => 'public',

@@ -687,13 +687,10 @@
                             </div>
 
                             <p class="mt-3 text-sm font-bold text-amber-800 dark:text-amber-300">
-                                No staff or room available right now
+                                No available slot right now
                             </p>
 
-                            <p class="mx-auto mt-1 max-w-sm text-xs text-amber-700/80 dark:text-amber-400/80">
-                                All checked-in staff are busy or no room is free at this time.
-                                Please choose a different time slot using the <strong>Future</strong> tab, or wait for a slot to open.
-                            </p>
+                            <p class="mx-auto mt-1 max-w-sm text-xs text-amber-700/80 dark:text-amber-400/80" x-text="nextDiagnosticMessage"></p>
 
                             <div class="mt-4 flex flex-wrap items-center justify-center gap-3">
                                 <button
@@ -829,8 +826,9 @@
                                 <option value="">Select therapist</option>
 
                                 @foreach($staff as $member)
-                                    <option value="{{ $member->id }}">
-                                        {{ $member->full_name ?? trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? '')) }}
+                                    <option value="{{ $member->id }}"
+                                        :disabled="therapistStatus({{ $member->id }}) && therapistStatus({{ $member->id }}).status !== 'available'"
+                                        x-text="therapistOptionLabel({{ $member->id }}, @js($member->full_name ?? trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? ''))))">
                                     </option>
                                 @endforeach
                             </select>
@@ -846,12 +844,14 @@
 
                                 <select
                                     x-model="selectedAssistingStaff"
+                                    @change="loadGaps()"
                                     class="w-full rounded-xl border border-teal-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                                 >
                                     <option value="">Select second therapist</option>
                                     @foreach($staff as $member)
-                                        <option value="{{ $member->id }}" x-show="String({{ $member->id }}) !== String(selectedStaff)">
-                                            {{ $member->full_name ?? trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? '')) }}
+                                        <option value="{{ $member->id }}" x-show="String({{ $member->id }}) !== String(selectedStaff)"
+                                            :disabled="therapistStatus({{ $member->id }}) && therapistStatus({{ $member->id }}).status !== 'available'"
+                                            x-text="therapistOptionLabel({{ $member->id }}, @js($member->full_name ?? trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? ''))))">
                                         </option>
                                     @endforeach
                                 </select>
@@ -916,14 +916,22 @@
 
 
                             <div
-                                x-show="!loadingGaps && selectedStaff && gaps.length === 0"
+                                x-show="!loadingGaps && gapsError"
+                                class="rounded-xl border border-red-200 bg-red-50 px-5 py-6 text-center dark:border-red-900/50 dark:bg-red-900/20"
+                            >
+                                <p class="text-sm font-semibold text-red-700 dark:text-red-300" x-text="gapsError"></p>
+                                <p class="mt-1 text-xs text-red-500 dark:text-red-400">Please try again or choose another date.</p>
+                            </div>
+
+                            <div
+                                x-show="!loadingGaps && !gapsError && selectedStaff && gaps.length === 0"
                                 class="rounded-xl border border-dashed border-gray-300 px-5 py-8 text-center dark:border-gray-700"
                             >
                                 <p class="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                                    No available times for this staff member.
+                                    No available times for the selected therapist team.
                                 </p>
                                 <p class="mt-1 text-xs text-gray-400">
-                                    Try another date or staff member.
+                                    The team, room and five-minute preparation window must all be free. Try another date or therapist.
                                 </p>
                             </div>
 
@@ -1645,10 +1653,15 @@
             nextSlots: [],
             nextDayRaw: '',
             nextDayHint: '',
+            nextDiagnostics: null,
             loadingNext: false,
 
             gaps: [],
             loadingGaps: false,
+            gapsError: '',
+            gapsRequestSeq: 0,
+
+            therapistStatuses: [],
 
             calendar: null,
             calendarReady: false,
@@ -1680,6 +1693,36 @@
                         day: 'numeric',
                         year: 'numeric'
                     });
+            },
+
+            get nextDiagnosticMessage() {
+                const d = this.nextDiagnostics;
+
+                if (!d) {
+                    return 'No slot satisfies the selected services, therapist and room requirements. Please choose a different time.';
+                }
+
+                if (d.no_compatible_rooms) {
+                    return 'No compatible room is configured for the selected services.';
+                }
+
+                if (d.compatible_rooms_busy) {
+                    return 'Compatible rooms exist but are occupied for this time window.';
+                }
+
+                if (d.no_staff_scheduled) {
+                    return 'No therapists are scheduled to work today.';
+                }
+
+                if (d.staff_not_checked_in) {
+                    return 'Therapists scheduled for today but not yet checked in.';
+                }
+
+                if (d.all_staff_busy) {
+                    return 'All scheduled therapists are occupied for the selected time window.';
+                }
+
+                return 'No slot satisfies the selected services, therapist and room requirements.';
             },
 
             get selectedServiceObjects() {
@@ -1748,6 +1791,61 @@
                 );
             },
 
+            async loadTherapistStatuses() {
+
+                if (this.mode !== 'future') {
+                    return;
+                }
+
+                const params = new URLSearchParams({
+                    date: this.selectedDate || this.today,
+                    duration: this.totalDuration || 60
+                });
+
+                (this.selectedServices || []).forEach(id => params.append('services[]', Number(id)));
+
+                if (this.selectedSlot && this.selectedSlot.time) {
+                    params.append('start_time', this.selectedSlot.time);
+                }
+
+                try {
+                    const response = await fetch(
+                        `/receptionist/api/booking/therapist-statuses?${params.toString()}`,
+                        { headers: { 'Accept': 'application/json' } }
+                    );
+
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const data = await response.json();
+                    this.therapistStatuses = data.statuses || [];
+                } catch (error) {
+                    this.therapistStatuses = [];
+                }
+            },
+
+            therapistStatus(id) {
+                return (this.therapistStatuses || []).find(
+                    item => String(item.staff_id) === String(id)
+                ) || null;
+            },
+
+            therapistOptionLabel(id, name) {
+                const status = this.therapistStatus(id);
+
+                if (!status || status.status === 'available') {
+                    return name;
+                }
+
+                let label = name + ' — ' + status.label;
+                if (status.reason) {
+                    label += ' (' + status.reason + ')';
+                }
+
+                return label;
+            },
+
             init() {
 
                 this.categories = Array.isArray(this.categories)
@@ -1772,11 +1870,23 @@
                     this.selectedSlot = null;
                     this.selectedRoom = '';
                     this.freeRooms = [];
+                    this.loadTherapistStatuses();
 
                     if (this.mode === 'now') {
                         this.loadNextSlots();
                     } else if (this.selectedStaff) {
                         this.loadGaps();
+                    }
+                });
+
+                this.$watch('selectedDate', () => {
+                    this.loadTherapistStatuses();
+                    this.loadGaps();
+                });
+
+                this.$watch('selectedSlot', () => {
+                    if (this.mode === 'future') {
+                        this.loadTherapistStatuses();
                     }
                 });
 
@@ -1808,6 +1918,8 @@
                 });
 
                 this.$nextTick(() => {
+
+                    this.loadTherapistStatuses();
 
                     if (this.mode === 'now') {
                         this.loadNextSlots();
@@ -2027,7 +2139,7 @@
                     const params = new URLSearchParams({
                         date: this.today,
                         duration: duration,
-                        buffer_minutes: 5
+                        buffer_minutes: 0
                     });
 
                     serviceIds.forEach(id => {
@@ -2050,21 +2162,14 @@
                     const data = await response.json();
 
                     this.nextSlots = data.slots || [];
+                    this.nextDiagnostics = data.diagnostics || null;
 
-                    this.nextDayRaw = data.next_day_hint || '';
+                    const hint = data.nextDayHint || null;
 
-                    this.nextDayHint = data.next_day_hint
-                        ? new Date(data.next_day_hint + 'T00:00:00')
-                            .toLocaleDateString('en-PH', {
-                                weekday: 'short',
-                                month: 'short',
-                                day: 'numeric'
-                            }) +
-                            (
-                                data.next_open_time
-                                    ? ' at ' + data.next_open_time
-                                    : ''
-                            )
+                    this.nextDayRaw = hint ? hint.date : '';
+
+                    this.nextDayHint = hint
+                        ? hint.display_date + (hint.display_time ? ' at ' + hint.display_time : '')
                         : '';
 
                 } catch (error) {
@@ -2195,6 +2300,9 @@
                 }
 
                 this.loadingGaps = true;
+                this.gapsError = '';
+
+                const requestSeq = ++this.gapsRequestSeq;
 
                 const oldSlot = preserveSelection
                     ? this.selectedSlot
@@ -2207,6 +2315,10 @@
                         staff_id: this.selectedStaff,
                         duration: this.totalDuration || 60
                     });
+
+                    if (this.therapistsRequired > 1 && this.selectedAssistingStaff) {
+                        params.append('assisting_staff_ids[]', this.selectedAssistingStaff);
+                    }
 
                     this.selectedServices.forEach(id => {
                         params.append('services[]', id);
@@ -2226,6 +2338,11 @@
                     }
 
                     const data = await response.json();
+
+                    // Ignore a slower response for an older therapist/date selection.
+                    if (requestSeq !== this.gapsRequestSeq) {
+                        return;
+                    }
 
                     this.gaps = data.gaps || [];
 
@@ -2247,11 +2364,19 @@
 
                 } catch (error) {
 
-                    this.gaps = [];
+                    if (requestSeq === this.gapsRequestSeq) {
+                        this.gaps = [];
+                        this.gapsError = 'Unable to check availability right now.';
+                        this.selectedSlot = null;
+                        this.selectedRoom = '';
+                        this.freeRooms = [];
+                    }
 
                 } finally {
 
-                    this.loadingGaps = false;
+                    if (requestSeq === this.gapsRequestSeq) {
+                        this.loadingGaps = false;
+                    }
 
                 }
             },

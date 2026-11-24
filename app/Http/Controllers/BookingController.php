@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\WorkSchedule;
 use App\Models\ScheduleException;
+use App\Services\AppointmentOccupancyService;
 
 class BookingController extends Controller
 {
@@ -450,42 +451,22 @@ class BookingController extends Controller
             $dateList[] = $d->format('Y-m-d');
         }
 
-        $allStaffAppointments = collect();
-        if (!empty($dateList) && $staffMembers->isNotEmpty()) {
-            $allStaffAppointments = Appointment::whereIn('appointment_date', $dateList)
+        /*
+         * Load appointments ONCE for the whole requested range. Occupancy
+         * intervals are derived in memory by AppointmentOccupancyService.
+         */
+        $rangeAppointments = collect();
+        if (!empty($dateList)) {
+            $rangeAppointments = Appointment::whereDate('appointment_date', '>=', $startDate->toDateString())
+                ->whereDate('appointment_date', '<=', $endDate->toDateString())
                 ->whereIn('status', ['confirmed', 'completed', 'pending'])
-                ->whereIn('user_id', $staffMembers->pluck('id'))
-                ->get(['appointment_date', 'user_id', 'start_time', 'end_time'])
-                ->groupBy('appointment_date')
-                ->map(fn($group) => $group->groupBy('user_id'));
+                ->with(['services', 'assignedStaff'])
+                ->get();
         }
 
-        /*
-         * Room appointments are loaded for the actual dates
-         * being searched. There is intentionally no Sunday
-         * exclusion here.
-         */
-        if ($requiresRoom && $rooms->isNotEmpty() && !empty($dateList)) {
-            $roomAppointments = Appointment::whereIn(
-                'appointment_date',
-                $dateList
-            )
-                ->whereIn(
-                    'status',
-                    ['confirmed', 'completed', 'pending']
-                )
-                ->whereNotNull('room_id')
-                ->get([
-                    'appointment_date',
-                    'room_id',
-                    'start_time',
-                    'end_time',
-                ])
-                ->groupBy('appointment_date')
-                ->map(
-                    fn($group) => $group->groupBy('room_id')
-                );
-        }
+        $appointmentsByDate = $rangeAppointments->groupBy(
+            fn($appointment) => $appointment->appointment_date->toDateString()
+        );
 
         for (
             $date = $startDate->copy();
@@ -502,168 +483,47 @@ class BookingController extends Controller
                 continue;
             }
 
-            /*
-             * Build the operational windows from staff schedules.
-             *
-             * If multiple staff members are scheduled at different
-             * times, their windows are merged so the booking API
-             * exposes the actual available operational periods.
-             */
-            $windows = [];
             $staffWindows = [];
-
             foreach ($staffMembers as $staff) {
-                $window = $this->getStaffWorkWindow(
-                    $staff->id,
-                    $dateStr
-                );
-
-                if (!$window) {
-                    continue;
+                $window = $this->getStaffWorkWindow($staff->id, $dateStr);
+                if ($window) {
+                    $staffWindows[$staff->id] = $window;
                 }
-
-                $staffWindows[$staff->id] = $window;
-                
-                $windows[] = [
-                    'start' => $window['start'],
-                    'end' => $window['end'],
-                ];
             }
 
-            if (empty($windows)) {
+            if (empty($staffWindows)) {
                 continue;
             }
 
-            /*
-             * Merge overlapping/touching staff windows.
-             */
-            usort(
-                $windows,
-                fn($a, $b) => strcmp($a['start'], $b['start'])
-            );
+            // The wizard does not choose therapists: a time is valid when the
+            // required number of staff members (derived from the services) is
+            // simultaneously free, including the preparation window.
+            $minLeadTime = $request->boolean('receptionist') ? 0 : 30;
+            $minStart = $dateStr === $now->format('Y-m-d')
+                ? $now->copy()->addMinutes($minLeadTime)
+                : null;
 
-            $mergedWindows = [];
+            $daySlots = app(\App\Services\AppointmentAvailabilityService::class)->availableTimes([
+                'date' => $dateStr,
+                'services' => $services,
+                'duration' => $duration,
+                'staff_ids' => array_keys($staffWindows),
+                'staff_windows' => $staffWindows,
+                'team_size' => max(1, (int) $services->max('therapists_required')),
+                'any_staff' => true,
+                'appointments' => $appointmentsByDate->get($dateStr, collect()),
+                'biz_window' => $bizWindow,
+                'min_start' => $minStart,
+                'compatible_rooms' => $rooms,
+                // The public wizard still shows times with a clear
+                // "no compatible room" state so diagnostics can explain why.
+                'allow_no_room' => true,
+            ]);
 
-            foreach ($windows as $window) {
-                if (empty($mergedWindows)) {
-                    $mergedWindows[] = $window;
-                    continue;
-                }
-
-                $lastIndex = count($mergedWindows) - 1;
-                $last = $mergedWindows[$lastIndex];
-
-                if ($window['start'] <= $last['end']) {
-                    if ($window['end'] > $last['end']) {
-                        $mergedWindows[$lastIndex]['end'] =
-                            $window['end'];
-                    }
-                } else {
-                    $mergedWindows[] = $window;
-                }
-            }
-
-            $dayAppointments = $roomAppointments[$dateStr] ?? null;
-
-            foreach ($mergedWindows as $window) {
-                $wStart = max($window['start'], $bizWindow['start'] ?? '00:00');
-                $wEnd = min($window['end'], $bizWindow['end'] ?? '23:59');
-
-                if ($wStart >= $wEnd) {
-                    continue;
-                }
-
-                $open = Carbon::parse(
-                    $dateStr . ' ' . $wStart,
-                    $tz
-                );
-
-                $close = Carbon::parse(
-                    $dateStr . ' ' . $wEnd,
-                    $tz
-                );
-
-                while ($open->lte($close)) {
-                    $slotEnd = $open->copy()->addMinutes($duration);
-
-                    $minLeadTime = $request->boolean('receptionist')
-                        ? 0
-                        : 30;
-
-                    $minimumStart = $now
-                        ->copy()
-                        ->addMinutes($minLeadTime);
-
-                    $isDateToday =
-                        $dateStr === $now->format('Y-m-d');
-
-                    $timeIsValid =
-                        !$isDateToday ||
-                        $open->gt($minimumStart);
-
-                    if (
-                        $slotEnd->lte($close) &&
-                        $timeIsValid
-                    ) {
-                        $roomAvailable = true;
-                        $freeRooms = [];
-
-                        $slotStartStr = $open->format('H:i:s');
-                        $slotEndStr = $slotEnd->format('H:i:s');
-
-                        $hasAvailableStaffForSlot = false;
-                        $dailyStaffApts = $allStaffAppointments[$dateStr] ?? collect();
-
-                        foreach ($staffWindows as $staffId => $windowData) {
-                            $startTimeStr = substr($slotStartStr, 0, 5);
-                            $endTimeStr = substr($slotEndStr, 0, 5);
-
-                            if ($startTimeStr < $windowData['start'] || $endTimeStr > $windowData['end']) {
-                                continue;
-                            }
-
-                            $apts = $dailyStaffApts[$staffId] ?? collect();
-                            $isFree = $apts->isEmpty() || !$apts->contains(function ($apt) use ($slotStartStr, $slotEndStr) {
-                                return ($slotStartStr < $apt->end_time) && ($slotEndStr > $apt->start_time);
-                            });
-
-                            if ($isFree) {
-                                $hasAvailableStaffForSlot = true;
-                                break;
-                            }
-                        }
-
-                        if (!$hasAvailableStaffForSlot) {
-                            $roomAvailable = false;
-                        }
-
-                        if ($requiresRoom && $roomAvailable) {
-                            $eval = \App\Services\RoomCompatibilityService::evaluateSlot(
-                                $services,
-                                $dateStr,
-                                $slotStartStr,
-                                $slotEndStr
-                            );
-
-                            $roomAvailable = $eval['room_available'];
-                            $freeRooms = $eval['compatible_rooms']->map(fn($r) => [
-                                'id' => $r->id,
-                                'name' => $r->name,
-                            ])->values()->toArray();
-                        }
-
-                        $slots[] = [
-                            'date' => $dateStr,
-                            'time' => $open->format('H:i'),
-                            'display' => $open->format('g:i A'),
-                            'room_available' => $roomAvailable,
-                            'compatible_rooms' => $freeRooms,
-                            'free_rooms' => $freeRooms,
-                        ];
-                    }
-
-                    $open->addMinutes(30);
-                }
+            foreach ($daySlots as $slot) {
+                $slot['date'] = $dateStr;
+                $slot['compatible_rooms'] = $slot['free_rooms'];
+                $slots[] = $slot;
             }
         }
 
@@ -835,38 +695,12 @@ class BookingController extends Controller
                     return false;
                 }
 
-                $conflict = Appointment::where(
-                    'user_id',
-                    $staff->id
-                )
-                    ->where(
-                        'appointment_date',
-                        $date
-                    )
-                    ->whereIn(
-                        'status',
-                        [
-                            'confirmed',
-                            'pending',
-                            'completed',
-                        ]
-                    )
-                    ->where(function ($q) use (
-                        $time,
-                        $slotEndTime
-                    ) {
-                        $q->where(
-                            'start_time',
-                            '<',
-                            $slotEndTime . ':00'
-                        )
-                            ->where(
-                                'end_time',
-                                '>',
-                                $time . ':00'
-                            );
-                    })
-                    ->exists();
+                $conflict = app(AppointmentOccupancyService::class)->hasStaffConflict(
+                    (int) $staff->id,
+                    $date,
+                    $time,
+                    $slotEndTime
+                );
 
                 return !$conflict;
             })
@@ -1073,9 +907,24 @@ class BookingController extends Controller
                         $reviewRequired = false;
                         $freeRooms = [];
 
-                        if ($requiresRoom) {
-                            $slotStartStr = $open->format('H:i:s');
-                            $slotEndStr = $slotEnd->format('H:i:s');
+                        // A slot is only bookable when at least one therapist is free
+                        // for the whole treatment plus preparation window.
+                        $slotStartStr = $open->format('H:i:s');
+                        $slotEndStr = $slotEnd->format('H:i:s');
+                        $hasFreeStaff = $staffMembers->contains(function ($staff) use ($dateStr, $slotStartStr, $slotEndStr) {
+                            return !app(AppointmentOccupancyService::class)->hasStaffConflict(
+                                (int) $staff->id,
+                                $dateStr,
+                                $slotStartStr,
+                                $slotEndStr
+                            );
+                        });
+
+                        if (!$hasFreeStaff) {
+                            $roomAvailable = false;
+                        }
+
+                        if ($requiresRoom && $hasFreeStaff) {
                             $eval = \App\Services\RoomCompatibilityService::evaluateSlot($services, $dateStr, $slotStartStr, $slotEndStr);
                             
                             $roomAvailable = $eval['room_available'];
@@ -1184,75 +1033,16 @@ class BookingController extends Controller
 
     private function getStaffWorkWindow(
         int $staffId,
-        string $date
+        string $date,
+        bool $allowCheckedInExtension = false
     ): ?array {
-        $dayOfWeek = Carbon::parse($date)->dayOfWeek;
-        $isCurrentlyCheckedIn = $this->isStaffCurrentlyCheckedIn($staffId, $date);
-
-        $exception = ScheduleException::where(
-            'user_id',
-            $staffId
-        )
-            ->whereDate('exception_date', $date)
-            ->first();
-
-        if (
-            $exception &&
-            in_array(
-                $exception->type,
-                [
-                    'day_off',
-                    'holiday',
-                    'sick_leave',
-                    'urgent_leave',
-                ]
-            )
-        ) {
-            if ($isCurrentlyCheckedIn) {
-                return ['start' => '00:00', 'end' => '23:59'];
-            }
-            return null;
-        }
-
-        $schedule = WorkSchedule::where(
-            'user_id',
-            $staffId
-        )
-            ->where('day_of_week', $dayOfWeek)
-            ->where('is_day_off', false)
-            ->first();
-
-        $start = null;
-        $end = null;
-
-        if ($schedule) {
-            $start = $this->extractTime($schedule->start_time);
-            $end = $this->extractTime($schedule->end_time);
-        }
-
-        if (
-            $exception &&
-            $exception->type === 'custom_hours'
-        ) {
-            $start = $this->extractTime($exception->start_time);
-            $end = $this->extractTime($exception->end_time);
-        }
-
-        if (!$start || !$end) {
-            if ($isCurrentlyCheckedIn) {
-                return ['start' => '00:00', 'end' => '23:59'];
-            }
-            return null;
-        }
-
-        if ($isCurrentlyCheckedIn) {
-            $end = '23:59';
-        }
-
-        return [
-            'start' => $start,
-            'end' => $end,
-        ];
+        // Shared with reschedule/reassign/add-service availability. The
+        // post-shift extension is enabled only by Right Now callers.
+        return app(\App\Services\ScheduleWindowService::class)->workWindow(
+            $staffId,
+            $date,
+            $allowCheckedInExtension
+        );
     }
 
     private function isStaffAvailable(
@@ -1280,31 +1070,47 @@ class BookingController extends Controller
             return false;
         }
 
-        return !Appointment::where(
-            'user_id',
-            $staffId
-        )
-            ->where(
-                'appointment_date',
-                $date
-            )
-            ->whereIn(
-                'status',
-                ['confirmed', 'pending', 'completed']
-            )
-            ->where(function ($q) use ($start, $end) {
-                $q->where(
-                    'start_time',
-                    '<',
-                    $end . ':00'
-                )
-                    ->where(
-                        'end_time',
-                        '>',
-                        $start . ':00'
-                    );
-            })
-            ->exists();
+        return !app(AppointmentOccupancyService::class)->hasStaffConflict(
+            $staffId,
+            $date,
+            $start,
+            $end
+        );
+    }
+
+    /**
+     * Authoritative validation of one receptionist-selected therapist.
+     * Called inside the booking transaction after row locks are held; the
+     * conflict check uses a current (locking) read.
+     */
+    private function validateReceptionistTherapist(
+        User $therapist,
+        string $date,
+        string $startTime,
+        string $endTime,
+        bool $walkInNow
+    ): ?string {
+        $check = \App\Services\TherapistAssignmentService::checkTherapistAvailability(
+            $therapist,
+            $date,
+            $startTime,
+            $endTime,
+            null,
+            true
+        );
+
+        if (!$check['available']) {
+            return $check['reason'] ?? 'unavailable';
+        }
+
+        // Right Now keeps its existing check-in requirement.
+        if ($walkInNow
+            && $date === Carbon::today('Asia/Manila')->format('Y-m-d')
+            && !$this->isStaffCurrentlyCheckedIn((int) $therapist->id, $date)) {
+            return 'not currently checked in.';
+        }
+
+        return null;
     }
 
     /**
@@ -1316,25 +1122,7 @@ class BookingController extends Controller
         int $staffId,
         string $date
     ): bool {
-        $today = Carbon::today('Asia/Manila')->format('Y-m-d');
-
-        if ($date !== $today) {
-            return false;
-        }
-
-        /*
-         * Only count attendance records that belong to today in Manila time.
-         * The date column stores the Manila local date (not UTC-shifted),
-         * so we compare directly against today's Manila date.
-         */
-        $attendance = Attendance::where('user_id', $staffId)
-            ->whereNotNull('check_in')
-            ->whereNull('check_out')
-            ->whereDate('date', $today)
-            ->orderBy('id', 'desc')
-            ->first();
-
-        return $attendance !== null;
+        return app(\App\Services\ScheduleWindowService::class)->isCheckedIn($staffId, $date);
     }
 
     /**
@@ -1397,7 +1185,8 @@ class BookingController extends Controller
          */
         $window = $this->getStaffWorkWindow(
             $staffId,
-            $date
+            $date,
+            true // Right Now may continue after shift end while checked in.
         );
 
         if (!$window) {
@@ -1428,31 +1217,12 @@ class BookingController extends Controller
         /*
          * Existing appointment conflicts remain blocking.
          */
-        $hasConflict = Appointment::where(
-            'user_id',
-            $staffId
-        )
-            ->where(
-                'appointment_date',
-                $date
-            )
-            ->whereIn(
-                'status',
-                ['confirmed', 'pending', 'completed']
-            )
-            ->where(function ($q) use ($start, $end) {
-                $q->where(
-                    'start_time',
-                    '<',
-                    $end . ':00'
-                )
-                    ->where(
-                        'end_time',
-                        '>',
-                        $start . ':00'
-                    );
-            })
-            ->exists();
+        $hasConflict = app(AppointmentOccupancyService::class)->hasStaffConflict(
+            $staffId,
+            $date,
+            $start,
+            $end
+        );
 
         return !$hasConflict;
     }
@@ -1478,6 +1248,301 @@ class BookingController extends Controller
                     $endTime
                 )
             );
+    }
+
+    /**
+     * Internal therapist availability statuses for the receptionist dropdowns.
+     * Uses the same schedule, attendance, exception and occupancy rules as the
+     * actual booking validation so the UI can never contradict the backend.
+     */
+    public function therapistStatuses(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => 'nullable|date',
+            'appointment_id' => 'nullable|integer|exists:appointments,id',
+            'duration' => 'nullable|integer|min:1',
+            'start_time' => 'nullable|date_format:H:i',
+            'services' => 'nullable|array',
+            'services.*' => 'integer|exists:services,id',
+            'exclude_appointment_id' => 'nullable|integer',
+        ]);
+
+        $tz = 'Asia/Manila';
+
+        // When an appointment is supplied, derive the requested window from it
+        // and exclude it from its own conflict check. No customer data is returned.
+        $occupancy = app(AppointmentOccupancyService::class);
+        $requiredCount = null;
+
+        if (!empty($validated['appointment_id'])) {
+            $appointment = Appointment::with('services')->findOrFail($validated['appointment_id']);
+            $validated['date'] = $appointment->appointment_date->toDateString();
+            $validated['start_time'] = substr((string) $appointment->start_time, 0, 5);
+            // Snapshot durations (including added services) are authoritative.
+            $duration = $occupancy->treatmentEnd($appointment)
+                ->diffInMinutes($occupancy->appointmentStart($appointment));
+            if ($duration <= 0) {
+                $duration = max(1, Carbon::parse($appointment->end_time)
+                    ->diffInMinutes(Carbon::parse($appointment->start_time)));
+            }
+            $validated['duration'] = $duration;
+            $validated['exclude_appointment_id'] = $appointment->id;
+            $requiredCount = \App\Services\TherapistAssignmentService::resolveRequiredCount($appointment);
+        }
+
+        if (empty($validated['date'])) {
+            return response()->json(['message' => 'A date or appointment is required.'], 422);
+        }
+
+        $date = Carbon::parse($validated['date'], $tz)->format('Y-m-d');
+        $duration = (int) ($validated['duration'] ?? 60);
+        $isToday = $date === Carbon::today($tz)->format('Y-m-d');
+        $excludeId = $validated['exclude_appointment_id'] ?? null;
+
+        $staffMembers = User::whereHas('roles', fn($q) => $q->where('name', 'staff'))
+            ->where('is_active', true)
+            ->get();
+
+        $statuses = $staffMembers->map(function ($staff) use ($date, $duration, $isToday, $excludeId, $occupancy, $validated) {
+            $base = [
+                'staff_id' => (int) $staff->id,
+                'status' => 'available',
+                'label' => 'Available',
+                'reason' => null,
+                'hours' => null,
+                'existing_start' => null,
+                'existing_end' => null,
+            ];
+
+            $exception = ScheduleException::where('user_id', $staff->id)
+                ->whereDate('exception_date', $date)
+                ->first();
+
+            if ($exception && in_array($exception->type, ['sick_leave', 'urgent_leave'], true)) {
+                return array_merge($base, [
+                    'status' => 'on_leave',
+                    'label' => 'On Leave',
+                    'reason' => $exception->reason ?: 'Approved leave',
+                ]);
+            }
+
+            if ($exception && in_array($exception->type, ['day_off', 'holiday'], true)) {
+                return array_merge($base, [
+                    'status' => 'day_off',
+                    'label' => $exception->type === 'holiday' ? 'Holiday' : 'Day Off',
+                    'reason' => $exception->reason,
+                ]);
+            }
+
+            $window = $this->getStaffWorkWindow($staff->id, $date);
+            $hours = $exception && $exception->type === 'custom_hours'
+                ? $this->extractTime($exception->start_time) . '-' . $this->extractTime($exception->end_time)
+                : ($window ? $window['start'] . '-' . $window['end'] : null);
+
+            if (!$window) {
+                return array_merge($base, [
+                    'status' => 'day_off',
+                    'label' => 'Day Off',
+                    'reason' => 'No shift scheduled for this date.',
+                    'hours' => null,
+                ]);
+            }
+
+            if ($isToday && !$this->isStaffCurrentlyCheckedIn($staff->id, $date)) {
+                return array_merge($base, [
+                    'status' => 'not_checked_in',
+                    'label' => 'Not Checked In',
+                    'reason' => 'Scheduled today but not yet checked in.',
+                    'hours' => $hours,
+                ]);
+            }
+
+            if ($isToday) {
+                $attendanceBlocker = Attendance::where('user_id', $staff->id)
+                    ->whereDate('date', $date)
+                    ->whereIn('status', ['absent', 'on_leave', 'holiday'])
+                    ->first();
+                if ($attendanceBlocker) {
+                    return array_merge($base, [
+                        'status' => 'on_leave',
+                        'label' => $attendanceBlocker->status === 'absent' ? 'Absent' : 'On Leave',
+                        'reason' => 'Attendance: ' . $attendanceBlocker->status,
+                        'hours' => $hours,
+                    ]);
+                }
+            }
+
+            $requestedStart = $validated['start_time'] ?? $window['start'];
+            $treatmentEnd = Carbon::parse($date . ' ' . $requestedStart)->addMinutes($duration);
+            $requestedEnd = $treatmentEnd->format('H:i');
+            $resourceEnd = $treatmentEnd
+                ->addMinutes(AppointmentOccupancyService::PREPARATION_MINUTES)
+                ->format('H:i');
+
+            // The therapist is occupied during preparation as well.
+            if ($requestedStart < $window['start'] || $resourceEnd > $window['end']) {
+                return array_merge($base, [
+                    'status' => 'outside_shift',
+                    'label' => 'Outside Shift',
+                    'reason' => 'Scheduled hours: ' . $hours,
+                    'hours' => $hours,
+                ]);
+            }
+
+            $conflicts = $occupancy->staffConflicts(
+                (int) $staff->id,
+                $date,
+                $requestedStart,
+                $requestedEnd,
+                $excludeId ? (int) $excludeId : null
+            );
+
+            if ($conflicts->isNotEmpty()) {
+                $existing = $conflicts->first();
+
+                return array_merge($base, [
+                    'status' => 'busy',
+                    'label' => 'Busy',
+                    'reason' => 'Existing appointment: ' . Carbon::parse($existing->start_time)->format('g:i A')
+                        . '–' . Carbon::parse($existing->end_time)->format('g:i A'),
+                    'hours' => $hours,
+                    'existing_start' => $existing->start_time,
+                    'existing_end' => $existing->end_time,
+                ]);
+            }
+
+            return array_merge($base, ['hours' => $hours]);
+        })->values();
+
+        return response()->json([
+            'statuses' => $statuses,
+            'required_count' => $requiredCount,
+        ]);
+    }
+
+    /**
+     * Final, lock-protected resource validation. Called INSIDE the booking
+     * transaction so two simultaneous bookings cannot reserve the same
+     * therapist or room. Locks are always acquired in the same order:
+     * therapists (ascending id), then room.
+     */
+    private function lockAndValidateResources(
+        Request $request,
+        $services,
+        Carbon $startTime,
+        Carbon $endTime,
+        $assignedStaffId,
+        array $assistingStaffIds,
+        $roomId,
+        callable $fail
+    ) {
+        $tz = 'Asia/Manila';
+        $date = $startTime->format('Y-m-d');
+        $startStr = $startTime->format('H:i:s');
+        $endStr = $endTime->format('H:i:s');
+
+        $bizError = $this->validateBusinessHours($date, $startTime, $endTime);
+        if ($bizError) {
+            throw new \RuntimeException($bizError);
+        }
+
+        $therapistIds = array_values(array_unique(array_filter(
+            array_merge([(int) $assignedStaffId], array_map('intval', $assistingStaffIds))
+        )));
+
+        $requiredCount = app(\App\Services\AppointmentAvailabilityService::class)
+            ->requirements($services)['therapists_required'];
+
+        if ($assignedStaffId && count($therapistIds) !== $requiredCount) {
+            throw new \RuntimeException("This appointment requires exactly {$requiredCount} therapist(s).");
+        }
+
+        // Lock in deterministic order to avoid deadlocks: therapists (ascending id), then room.
+        sort($therapistIds, SORT_NUMERIC);
+        $lockedUsers = collect();
+        if (!empty($therapistIds)) {
+            $lockedUsers = User::whereIn('id', $therapistIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+        }
+        if ($assignedStaffId && $lockedUsers->count() !== count($therapistIds)) {
+            throw new \RuntimeException('One or more selected therapists could not be found.');
+        }
+
+        $requiresRoom = $services->contains(fn($service) => (bool) $service->requires_room);
+        $lockedRoom = null;
+        $compatibleRoomIds = collect();
+
+        if ($requiresRoom) {
+            $eval = \App\Services\RoomCompatibilityService::evaluateSlot(
+                $services,
+                $date,
+                $startStr,
+                $endStr
+            );
+
+            if (!$eval['room_available'] || $eval['compatible_rooms']->isEmpty()) {
+                throw new \RuntimeException('No compatible rooms available for this time. Please choose a different time.');
+            }
+
+            $compatibleRoomIds = $eval['compatible_rooms']->pluck('id');
+            $targetRoomId = $roomId ? (int) $roomId : (int) $compatibleRoomIds->first();
+
+            $lockedRoom = Room::where('id', $targetRoomId)->lockForUpdate()->first();
+            if (!$lockedRoom || !$lockedRoom->is_active || $lockedRoom->status === 'maintenance'
+                || !$compatibleRoomIds->contains($targetRoomId)) {
+                throw new \RuntimeException('The selected room is not compatible with all selected services or is no longer available. Please pick another slot.');
+            }
+        }
+
+        // Revalidate after ALL resource locks are held. These are current
+        // (locking) reads, so appointments committed while we waited are seen
+        // even under MySQL REPEATABLE READ.
+        $occupancy = app(AppointmentOccupancyService::class);
+        if ($assignedStaffId) {
+            $walkInNow = $request->boolean('walk_in_now');
+            foreach ($therapistIds as $therapistId) {
+                $therapist = $lockedUsers->get($therapistId);
+                if (!$therapist) {
+                    throw new \RuntimeException('One or more selected therapists could not be found.');
+                }
+
+                // Validate the COMPLETE team, not only the primary therapist:
+                // role, active status, leave, shift, conflicts and the buffer.
+                $reason = $this->validateReceptionistTherapist(
+                    $therapist,
+                    $date,
+                    $startStr,
+                    $endStr,
+                    $walkInNow
+                );
+                if ($reason) {
+                    throw new \RuntimeException('Selected therapist ' . $therapist->full_name . ' is not available: ' . $reason);
+                }
+            }
+        } else {
+            $hasAvailableStaff = User::whereHas('roles', fn($q) => $q->where('name', 'staff'))
+                ->where('is_active', true)
+                ->get()
+                ->contains(fn($staff) => !$occupancy->hasStaffConflict((int) $staff->id, $date, $startStr, $endStr));
+
+            if (!$hasAvailableStaff) {
+                throw new \RuntimeException('Sorry — no available staff at this hour (all staff are occupied or off-shift). Please choose a different time slot.');
+            }
+        }
+
+        if ($lockedRoom) {
+            // Physical availability must be rechecked while the room lock is held.
+            if (!$lockedRoom->isAvailableFor($date, $startStr, $endStr, null, true)) {
+                throw new \RuntimeException('The selected room is no longer available for this time. Please pick another slot.');
+            }
+
+            $request->merge(['room_id' => (int) $lockedRoom->id]);
+        }
+
+        return null;
     }
 
     // ==================== STORE ====================
@@ -1555,18 +1620,13 @@ class BookingController extends Controller
         );
 
         $totalDuration =
-            $services->sum('duration_minutes');
+            (int) $services->sum('duration_minutes');
 
-        $endTime = $request->end_time
-            ? Carbon::parse(
-                $request->appointment_date
-                    . ' '
-                    . $request->end_time,
-                'Asia/Manila'
-            )
-            : $startTime
-                ->copy()
-                ->addMinutes($totalDuration);
+        // The server is authoritative for treatment duration. A client-supplied
+        // end_time must never be able to shrink or extend the conflict window.
+        $endTime = $startTime
+            ->copy()
+            ->addMinutes($totalDuration);
 
         // If the parsed end time is earlier than the start time, 
         // it means the appointment crossed midnight into the next day.
@@ -1612,6 +1672,10 @@ class BookingController extends Controller
             if (!$svc->is_active || ($svc->duration_minutes === null && !$svc->is_package)) {
                 return $fail('The service "' . $svc->name . '" is not currently available for booking.');
             }
+        }
+
+        if ($totalDuration <= 0) {
+            return $fail('The selected services do not have a valid treatment duration.');
         }
 
         // Validate package choice groups: exactly one option must be selected for each required group
@@ -1939,8 +2003,9 @@ class BookingController extends Controller
         $appointment = null;
         $isDuplicateSubmission = false;
 
-        DB::transaction(function () use (
-            $customer,
+        try {
+            $transactionResult = DB::transaction(function () use (
+                $customer,
             $request,
             $services,
             $startTime,
@@ -1954,9 +2019,26 @@ class BookingController extends Controller
             $assignedStaffId,
             $assistingStaffIds,
             $validatedPackageChoices,
+            $fail,
             &$appointment,
             &$isDuplicateSubmission
         ) {
+            // Re-lock and revalidate every resource before creating anything.
+            $failure = $this->lockAndValidateResources(
+                $request,
+                $services,
+                $startTime,
+                $endTime,
+                $assignedStaffId,
+                $assistingStaffIds,
+                $request->room_id,
+                $fail
+            );
+
+            if ($failure) {
+                return $failure;
+            }
+
             // Duplicate-submission idempotency protection:
             // If the exact same customer submitted an identical appointment within the last 10 seconds,
             // reuse the existing appointment instead of creating duplicate records.
@@ -2059,6 +2141,14 @@ class BookingController extends Controller
                 ]);
             }
         });
+        } catch (\RuntimeException $e) {
+            return $fail($e->getMessage());
+        }
+
+        if ($transactionResult instanceof \Illuminate\Http\JsonResponse
+            || $transactionResult instanceof \Illuminate\Http\RedirectResponse) {
+            return $transactionResult;
+        }
 
         if (!$isReceptionist && !$isDuplicateSubmission) {
             if ($customer && $customer->user) {
@@ -2245,169 +2335,59 @@ class BookingController extends Controller
 
     public function staffGaps(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'date' => 'required|date',
             'duration' => 'required|integer|min:15',
             'staff_id' => 'required|exists:users,id',
+            'assisting_staff_ids' => 'nullable|array',
+            'assisting_staff_ids.*' => 'exists:users,id',
             'services' => 'nullable|array',
             'services.*' => 'exists:services,id',
-            'buffer_minutes' =>
-                'nullable|integer|min:0|max:60',
+            'buffer_minutes' => 'nullable|integer|min:0|max:60',
         ]);
 
-        $date = $request->date;
-        $duration = (int) $request->duration;
-        $staffId = $request->staff_id;
-        $serviceIds = $request->get('services', []);
-        $dayOfWeek = Carbon::parse($date)->dayOfWeek;
         $tz = 'Asia/Manila';
+        $date = Carbon::parse($validated['date'], $tz)->format('Y-m-d');
+        $duration = (int) $validated['duration'];
+        $serviceIds = $validated['services'] ?? [];
 
         $services = empty($serviceIds)
             ? collect()
-            : Service::whereIn(
-                'id',
-                $serviceIds
-            )->get();
+            : Service::whereIn('id', $serviceIds)->get();
 
-        $requiresRoom = $services->contains(
-            fn($s) => $s->requires_room
-        );
+        // Both the primary and the assisting therapist must be free for the
+        // complete treatment plus the preparation buffer.
+        $staffIds = array_values(array_unique(array_merge(
+            [(int) $validated['staff_id']],
+            array_map('intval', $validated['assisting_staff_ids'] ?? [])
+        )));
 
-        $window = $this->getStaffWorkWindow($staffId, $date);
+        $availabilityService = app(\App\Services\AppointmentAvailabilityService::class);
+        $requiredCount = $availabilityService->requirements($services)['therapists_required'];
 
-        if (!$window) {
+        // The selected team must match the appointment's actual requirement.
+        // A smaller team must never receive slots that the backend later rejects.
+        if (count($staffIds) !== $requiredCount) {
             return response()->json([
                 'gaps' => [],
+                'message' => "This service combination requires exactly {$requiredCount} therapist(s).",
             ]);
         }
 
-        $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($date);
-        
-        if (!$bizWindow['is_open']) {
-            return response()->json([
-                'gaps' => [],
-            ]);
-        }
+        $minStart = $date === Carbon::today($tz)->format('Y-m-d')
+            ? Carbon::now($tz)->addMinutes((int) ($validated['buffer_minutes'] ?? 0))
+            : null;
 
-        $workStart = max($window['start'], $bizWindow['start'] ?? '00:00');
-        $workEnd = min($window['end'], $bizWindow['end'] ?? '23:59');
-
-        if ($workStart >= $workEnd) {
-            return response()->json([
-                'gaps' => [],
-            ]);
-        }
-
-        $appointments = Appointment::where(
-            'user_id',
-            $staffId
-        )
-            ->where(
-                'appointment_date',
-                $date
-            )
-            ->whereIn(
-                'status',
-                ['confirmed', 'completed', 'pending']
-            )
-            ->orderBy('start_time')
-            ->get([
-                'start_time',
-                'end_time',
-            ]);
-
-        $busy = [];
-
-        foreach ($appointments as $apt) {
-            $busy[] = [
-                'start' => $this->extractTime(
-                    $apt->start_time
-                ),
-                'end' => $this->extractTime(
-                    $apt->end_time
-                ),
-            ];
-        }
-
-        $gaps = [];
-
-        if (empty($busy)) {
-            $this->addGaps(
-                $gaps,
-                $workStart,
-                $workEnd,
-                $date,
-                $duration,
-                $requiresRoom,
-                $services
-            );
-        } else {
-            $current = $workStart;
-
-            foreach ($busy as $interval) {
-                if ($current < $interval['start']) {
-                    $this->addGaps(
-                        $gaps,
-                        $current,
-                        $interval['start'],
-                        $date,
-                        $duration,
-                        $requiresRoom,
-                        $services
-                    );
-                }
-
-                $current = max(
-                    $current,
-                    $interval['end']
-                );
-            }
-
-            if ($current < $workEnd) {
-                $this->addGaps(
-                    $gaps,
-                    $current,
-                    $workEnd,
-                    $date,
-                    $duration,
-                    $requiresRoom,
-                    $services
-                );
-            }
-        }
-
-        $isToday =
-            $date ===
-            Carbon::today($tz)->format('Y-m-d');
-
-        if ($isToday) {
-            $bufferMinutes = (int) $request->get(
-                'buffer_minutes',
-                0
-            );
-
-            $minCarbon = Carbon::now($tz)->addMinutes($bufferMinutes);
-
-            $gaps = array_values(
-                array_filter(
-                    $gaps,
-                    function($g) use ($minCarbon, $date, $tz) {
-                        $timeStr = $g['time'];
-                        $slotCarbon = Carbon::parse($date . ' ' . $timeStr, $tz);
-                        
-                        if ($timeStr < '05:00') {
-                            $slotCarbon->addDay();
-                        }
-                        
-                        return $slotCarbon->gte($minCarbon);
-                    }
-                )
-            );
-        }
-
-        return response()->json([
-            'gaps' => $gaps,
+        $gaps = $availabilityService->availableTimes([
+            'date' => $date,
+            'services' => $services,
+            'duration' => $duration,
+            'staff_ids' => $staffIds,
+            'team_size' => $requiredCount,
+            'min_start' => $minStart,
         ]);
+
+        return response()->json(['gaps' => $gaps]);
     }
 
     private function extractTime(
@@ -2446,74 +2426,6 @@ class BookingController extends Controller
         }
 
         return null;
-    }
-
-    private function addGaps(
-        array &$gaps,
-        string $start,
-        string $end,
-        string $date,
-        int $duration,
-        bool $requiresRoom,
-        $services
-    ): void {
-        $slotStart = Carbon::parse(
-            $date . ' ' . $start
-        );
-
-        $windowEnd = Carbon::parse(
-            $date . ' ' . $end
-        );
-
-        if ($end === '23:59') {
-            $isReceptionist = auth()->user() && auth()->user()->roles()->where('name', 'receptionist')->exists();
-            if ($isReceptionist) {
-                $windowEnd->addHours(3);
-            }
-        }
-
-        $requiredEnd = $slotStart
-            ->copy()
-            ->addMinutes($duration);
-
-        while ($requiredEnd->lte($windowEnd)) {
-            $timeStr =
-                $slotStart->format('H:i');
-
-            $endStr =
-                $requiredEnd->format('H:i');
-
-            $gap = [
-                'time' => $timeStr,
-                'end_time' => $endStr,
-                'display' =>
-                    $slotStart->format('g:i A')
-                    . ' – '
-                    . $requiredEnd->format('g:i A'),
-                'free_rooms' => [],
-            ];
-
-            if ($requiresRoom) {
-                $availableRooms = \App\Services\RoomCompatibilityService::findPhysicallyFreeForServices(
-                    $services,
-                    $date,
-                    $timeStr . ':00',
-                    $endStr . ':00'
-                );
-
-                foreach ($availableRooms as $room) {
-                    $gap['free_rooms'][] = [
-                        'id' => $room->id,
-                        'name' => $room->name,
-                    ];
-                }
-            }
-
-            $gaps[] = $gap;
-
-            $slotStart->addMinutes(30);
-            $requiredEnd->addMinutes(30);
-        }
     }
 
     // ==================== QUICK BOOK: NEXT RIGHT-NOW SLOTS ====================
@@ -2620,7 +2532,8 @@ class BookingController extends Controller
             $workWindow =
                 $this->getStaffWorkWindow(
                     $staff->id,
-                    $date
+                    $date,
+                    $isToday // Right Now only: extend past shift while checked in.
                 );
 
             if (!$workWindow) {
@@ -2721,26 +2634,13 @@ class BookingController extends Controller
             }
 
             /*
-             * Existing appointments for this staff member.
+             * Existing appointments for this staff member, including the
+             * post-treatment preparation period for each resource.
              */
-            $appointments = Appointment::where(
-                'user_id',
-                $staff->id
-            )
-                ->whereDate(
-                    'appointment_date',
-                    $date
-                )
-                ->whereIn(
-                    'status',
-                    [
-                        'confirmed',
-                        'pending',
-                        'completed',
-                    ]
-                )
-                ->orderBy('start_time')
-                ->get();
+            $intervals = app(AppointmentOccupancyService::class)->staffIntervals(
+                (int) $staff->id,
+                $date
+            );
 
             $currentStart =
                 $searchStartCarbon->copy();
@@ -2748,24 +2648,15 @@ class BookingController extends Controller
             /*
              * Find gaps before appointments.
              */
-            foreach ($appointments as $appointment) {
+            foreach ($intervals as $interval) {
                 $appointmentStart =
-                    Carbon::parse(
-                        $date . ' ' .
-                        $this->extractTime(
-                            $appointment->start_time
-                        ),
-                        $tz
-                    );
+                    Carbon::parse($date . ' ' . $interval['start'], $tz);
 
                 $appointmentEnd =
-                    Carbon::parse(
-                        $date . ' ' .
-                        $this->extractTime(
-                            $appointment->end_time
-                        ),
-                        $tz
-                    );
+                    Carbon::parse($date . ' ' . $interval['end'], $tz)
+                        ->greaterThan(Carbon::parse($date . ' 23:59', $tz))
+                        ? Carbon::parse($date . ' 23:59', $tz)
+                        : Carbon::parse($date . ' ' . $interval['end'], $tz);
 
                 if (
                     $appointmentEnd
@@ -2785,14 +2676,14 @@ class BookingController extends Controller
                         $currentStart
                             ->copy()
                             ->addMinutes(
-                                $duration
+                                $duration + AppointmentOccupancyService::PREPARATION_MINUTES
                             )
                             ->lte($gapEnd)
                         &&
                         $currentStart
                             ->copy()
                             ->addMinutes(
-                                $duration
+                                $duration + AppointmentOccupancyService::PREPARATION_MINUTES
                             )
                             ->lte(
                                 $availabilityEndCarbon
@@ -2862,7 +2753,7 @@ class BookingController extends Controller
             while (
                 $currentStart
                     ->copy()
-                    ->addMinutes($duration)
+                    ->addMinutes($duration + AppointmentOccupancyService::PREPARATION_MINUTES)
                     ->lte(
                         $availabilityEndCarbon
                     )
@@ -3011,9 +2902,58 @@ class BookingController extends Controller
             }
         }
 
+        /*
+         * Condition-specific diagnostics for an empty result, so the
+         * receptionist is never told "no staff" when the real cause is room
+         * configuration or occupied rooms.
+         */
+        $diagnostics = null;
+
+        if (empty($slots)) {
+            $compatibleRooms = $requiresRoom
+                ? \App\Services\RoomCompatibilityService::findCompatibleForServices($services)
+                : collect();
+
+            $scheduledCount = $staffMembers->filter(
+                fn($staff) => $this->getStaffWorkWindow($staff->id, $date) !== null
+            )->count();
+
+            $checkedInCount = (!$isToday)
+                ? $scheduledCount
+                : $staffMembers->filter(
+                    fn($staff) => $this->getStaffWorkWindow($staff->id, $date) !== null
+                        && $this->isStaffCurrentlyCheckedIn($staff->id, $date)
+                )->count();
+
+            $earliestStart = $isToday
+                ? $now->copy()->addMinutes($bufferMinutes)
+                : Carbon::parse($date . ' ' . ($workStart ?? '09:00'), $tz);
+            $candidateEnd = $earliestStart->copy()->addMinutes($duration);
+
+            $roomsBusy = $requiresRoom
+                && $compatibleRooms->isNotEmpty()
+                && $compatibleRooms->every(
+                    fn($room) => !$room->isAvailableFor(
+                        $date,
+                        $earliestStart->format('H:i:s'),
+                        $candidateEnd->format('H:i:s')
+                    )
+                );
+
+            $diagnostics = [
+                'no_staff_scheduled' => $scheduledCount === 0,
+                'staff_not_checked_in' => $isToday && $scheduledCount > 0 && $checkedInCount === 0,
+                'no_compatible_rooms' => $requiresRoom && $compatibleRooms->isEmpty(),
+                'compatible_rooms_busy' => $roomsBusy,
+                'all_staff_busy' => !$isToday && $scheduledCount > 0,
+            ];
+        }
+
         return response()->json([
             'slots' => $slots,
             'nextDayHint' => $nextDayHint,
+            'next_day_hint' => $nextDayHint,
+            'diagnostics' => $diagnostics,
         ]);
     }
 }

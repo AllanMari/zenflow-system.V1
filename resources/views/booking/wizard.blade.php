@@ -1001,6 +1001,14 @@
                                 </template>
 
 
+                                <!-- Subtle stale availability notice -->
+                                <template x-if="availabilityStale && availableSlots.length > 0">
+                                    <div class="mb-3 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/20 dark:text-amber-300">
+                                        <span>Availability may be out of date. Please refresh before continuing.</span>
+                                        <button type="button" @click="loadTimeSlots({ silent: true }); noteBookingInteraction();" class="font-bold underline">Refresh times</button>
+                                    </div>
+                                </template>
+
                                 <!-- Slots -->
 
                                 <template x-if="!loadingSlots && availableSlots.length > 0">
@@ -2467,6 +2475,14 @@
 
                 loadingSlots: false,
 
+                availabilityTimer: null,
+                availabilitySeq: 0,
+                availabilityAbort: null,
+                lastAvailabilitySuccess: 0,
+                availabilityStale: false,
+                availabilityFailures: 0,
+                lastInteractionAt: Date.now(),
+
                 submitting: false,
 
                 guestName: window.bookingDefaults?.name || '',
@@ -2515,6 +2531,18 @@
                     });
 
                     this.initialized = true;
+
+                    if (typeof document !== 'undefined') {
+                        document.addEventListener('visibilitychange', () => {
+                            if (document.hidden) {
+                                this.stopAvailabilityPolling();
+                            } else {
+                                this.noteBookingInteraction();
+                                this.loadTimeSlots({ silent: true });
+                            }
+                        });
+                        window.addEventListener('beforeunload', () => this.stopAvailabilityPolling());
+                    }
                 },
 
 
@@ -2654,6 +2682,7 @@
                     if (this.appointmentDate) {
                         this.loadTimeSlots();
                     }
+                    this.noteBookingInteraction();
 
                     this.$nextTick(() => this.refreshIcons());
                 },
@@ -2920,6 +2949,7 @@
                     this.selectedTime = '';
 
                     this.loadTimeSlots();
+                    this.noteBookingInteraction();
 
                     this.$nextTick(() => {
                         this.refreshCalendarSelection();
@@ -2979,15 +3009,27 @@
                    Slots
                 ------------------------------------------------- */
 
-                async loadTimeSlots() {
+                async loadTimeSlots(opts = {}) {
+
+                    const silent = opts.silent === true;
 
                     if (
                         !this.appointmentDate ||
                         this.selectedServices.length === 0
                     ) {
                         this.slots = [];
+                        this.stopAvailabilityPolling();
                         return;
                     }
+
+                    const requestedDate = this.appointmentDate;
+                    const requestedServices = [...this.selectedServices].sort();
+                    const seq = ++this.availabilitySeq;
+
+                    if (this.availabilityAbort) {
+                        this.availabilityAbort.abort();
+                    }
+                    this.availabilityAbort = new AbortController();
 
                     this.loadingSlots = true;
 
@@ -3016,7 +3058,8 @@
                                 headers: {
                                     'Accept': 'application/json',
                                     'X-Requested-With': 'XMLHttpRequest'
-                                }
+                                },
+                                signal: this.availabilityAbort.signal
                             }
                         );
 
@@ -3043,6 +3086,19 @@
                         }
 
                         const data = await response.json();
+
+                        // Ignore responses that no longer match the current selection.
+                        if (
+                            seq !== this.availabilitySeq ||
+                            requestedDate !== this.appointmentDate ||
+                            JSON.stringify(requestedServices) !== JSON.stringify([...this.selectedServices].sort())
+                        ) {
+                            return;
+                        }
+
+                        this.lastAvailabilitySuccess = Date.now();
+                        this.availabilityFailures = 0;
+                        this.availabilityStale = false;
 
                         /*
                          * Controller currently returns either:
@@ -3092,23 +3148,40 @@
 
                     } catch (error) {
 
+                        if (error && error.name === 'AbortError') {
+                            return;
+                        }
+
                         console.error(
                             'Booking slot error:',
                             error
                         );
 
-                        this.slots = [];
-                        this.selectedTime = '';
+                        // Preserve the last successful availability display.
+                        this.availabilityFailures += 1;
 
-                        this.showMessage(
-                            'Unable to load times',
-                            error.message || 'We could not load the available appointment times. Please try again.',
-                            'error'
-                        );
+                        if (
+                            !this.lastAvailabilitySuccess ||
+                            Date.now() - this.lastAvailabilitySuccess >= 45000
+                        ) {
+                            this.availabilityStale = true;
+                        }
+
+                        if (!silent && this.slots.length === 0) {
+                            this.showMessage(
+                                'Unable to load times',
+                                error.message || 'We could not load the available appointment times. Please try again.',
+                                'error'
+                            );
+                        }
 
                     } finally {
 
                         this.loadingSlots = false;
+
+                        if (seq === this.availabilitySeq) {
+                            this.scheduleAvailabilityPoll();
+                        }
 
                         this.$nextTick(() => {
                             this.refreshIcons();
@@ -3117,6 +3190,61 @@
                     }
                 },
 
+
+                get canPollAvailability() {
+                    return !!this.appointmentDate
+                        && this.selectedServices.length > 0
+                        && typeof document !== 'undefined'
+                        && !document.hidden;
+                },
+
+                startAvailabilityPolling() {
+                    if (!this.canPollAvailability) {
+                        return;
+                    }
+
+                    this.scheduleAvailabilityPoll(15000);
+                },
+
+                scheduleAvailabilityPoll(delayMs = null) {
+                    if (this.availabilityTimer) {
+                        clearTimeout(this.availabilityTimer);
+                        this.availabilityTimer = null;
+                    }
+
+                    if (!this.canPollAvailability) {
+                        return;
+                    }
+
+                    // Idle visitors stop polling after four minutes.
+                    if (Date.now() - this.lastInteractionAt > 240000) {
+                        return;
+                    }
+
+                    const base = delayMs ?? 15000;
+                    const jitter = Math.floor(Math.random() * 3000) - 1500;
+                    const backoff = Math.min(this.availabilityFailures * 3000, 15000);
+
+                    this.availabilityTimer = setTimeout(() => {
+                        this.loadTimeSlots({ silent: true });
+                    }, Math.max(5000, base + jitter + backoff));
+                },
+
+                stopAvailabilityPolling() {
+                    if (this.availabilityTimer) {
+                        clearTimeout(this.availabilityTimer);
+                        this.availabilityTimer = null;
+                    }
+                    if (this.availabilityAbort) {
+                        this.availabilityAbort.abort();
+                        this.availabilityAbort = null;
+                    }
+                },
+
+                noteBookingInteraction() {
+                    this.lastInteractionAt = Date.now();
+                    this.startAvailabilityPolling();
+                },
 
                 get availableSlots() {
 

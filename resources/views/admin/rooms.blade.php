@@ -10,11 +10,21 @@
             <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Rooms</h1>
             <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">Manage treatment rooms and categories</p>
         </div>
-        <button onclick="openRoomModal()" 
-                class="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm shadow-lg shadow-teal-200 dark:shadow-none transition flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            Add Room
-        </button>
+        <div class="flex flex-wrap items-center gap-2">
+            <button onclick="openRoomModal()" 
+                    class="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm shadow-lg shadow-teal-200 dark:shadow-none transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Add Room
+            </button>
+
+            <a href="{{ route('admin.rooms.report-pdf', ['action' => 'stream']) }}"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="bg-white text-teal-600 hover:bg-teal-50 dark:bg-gray-800 dark:text-teal-300 px-5 py-2.5 rounded-lg font-semibold text-sm shadow-sm transition flex items-center gap-2 border border-teal-200 dark:border-neutral-700">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Generate Report
+            </a>
+        </div>
     </div>
 
     <!-- Rooms Grid -->
