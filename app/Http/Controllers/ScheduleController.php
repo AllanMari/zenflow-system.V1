@@ -32,11 +32,16 @@ class ScheduleController extends Controller
 
         $view = $request->get('view', 'week');
 
+        $todayManila = now('Asia/Manila');
+
         if ($request->has('week_start')) {
-            $weekStart = Carbon::parse($request->get('week_start'));
-            $date = $weekStart->copy();
+            $weekStart = Carbon::parse($request->get('week_start'), 'Asia/Manila')->startOfWeek(Carbon::SUNDAY);
+            $todayWeekStart = $todayManila->copy()->startOfWeek(Carbon::SUNDAY)->toDateString();
+            $date = $request->filled('date')
+                ? Carbon::parse($request->get('date'), 'Asia/Manila')
+                : ($weekStart->toDateString() === $todayWeekStart ? $todayManila->copy() : $weekStart->copy());
         } else {
-            $date = $request->get('date') ? Carbon::parse($request->get('date')) : now();
+            $date = $request->filled('date') ? Carbon::parse($request->get('date'), 'Asia/Manila') : $todayManila->copy();
             // FIX: Use startOfWeek(Carbon::SUNDAY) to align with 0-6 day_of_week indexing
             $weekStart = $date->copy()->startOfWeek(Carbon::SUNDAY);
         }
@@ -81,7 +86,7 @@ class ScheduleController extends Controller
             'days' => $days,
             'timeline' => $timeline,
             'staffStats' => $staffStats,
-            'weekLabel' => $weekStart->format('M j') . ' – ' . $weekStart->copy()->endOfWeek()->format('M j, Y'),
+            'weekLabel' => $weekStart->format('M j') . ' – ' . $weekStart->copy()->endOfWeek(Carbon::SATURDAY)->format('M j, Y'),
             'prevWeek' => $weekStart->copy()->subWeek()->toDateString(),
             'nextWeek' => $weekStart->copy()->addWeek()->toDateString(),
         ]));
@@ -652,17 +657,52 @@ class ScheduleController extends Controller
 
         $request->validate($this->exceptionRules());
 
-        $count = $this->persistException(
-            $request->only([
-                'user_id',
-                'exception_type',
-                'date',
-                'end_date',
-                'start_time',
-                'end_time',
-                'reason'
-            ])
-        );
+        $userId = (int) $request->input('user_id');
+        $start = Carbon::parse($request->input('date'));
+        $end = $request->filled('end_date') ? Carbon::parse($request->input('end_date')) : $start->copy();
+        $itemsToCheck = [];
+        for ($cursor = $start->copy(); $cursor->lte($end); $cursor->addDay()) {
+            $itemsToCheck[] = [
+                'user_id' => $userId,
+                'date' => $cursor->toDateString(),
+                'exception_type' => $request->input('exception_type'),
+                'start_time' => $request->input('start_time'),
+                'end_time' => $request->input('end_time'),
+            ];
+        }
+
+        $result = DB::transaction(function () use ($request, $userId, $itemsToCheck) {
+            if (!$this->lockEligibleTherapists([$userId])) {
+                return ['error' => 'The selected user must be an eligible therapist.'];
+            }
+
+            if ($conflict = $this->validateExceptionAppointmentConflict($itemsToCheck)) {
+                return ['error' => $conflict];
+            }
+
+            $count = $this->persistException(
+                $request->only([
+                    'user_id',
+                    'exception_type',
+                    'date',
+                    'end_date',
+                    'start_time',
+                    'end_time',
+                    'reason'
+                ])
+            );
+
+            return ['count' => $count];
+        });
+
+        if (isset($result['error'])) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['error'],
+            ], 422);
+        }
+
+        $count = $result['count'];
 
         return response()->json([
             'success' => true,
@@ -672,41 +712,220 @@ class ScheduleController extends Controller
         ]);
     }
 
+    /**
+     * Lock affected therapist user rows in ascending ID order (matching
+     * TherapistAssignmentService::assignStaff()) and verify all remain
+     * eligible staff accounts.
+     */
+    private function lockEligibleTherapists(array $therapistIds): bool
+    {
+        $ids = array_values(array_unique(array_map('intval', $therapistIds)));
+        if (empty($ids)) {
+            return false;
+        }
+
+        sort($ids, SORT_NUMERIC);
+
+        $lockedUsers = User::whereIn('id', $ids)
+            ->orderBy('id', 'asc')
+            ->lockForUpdate()
+            ->get();
+
+        if ($lockedUsers->count() !== count($ids)) {
+            return false;
+        }
+
+        $eligibleCount = User::whereIn('id', $ids)
+            ->whereHas('roles', fn ($q) => $q->where('name', 'staff'))
+            ->count();
+
+        return $eligibleCount === count($ids);
+    }
+
     public function storeExceptionBulk(Request $request)
     {
         $this->authorizeScheduleEdit();
 
-        $request->validate([
-            'exceptions' => 'required|array',
-            'exceptions.*.user_id' =>
-                'required|exists:users,id',
-            'exceptions.*.date' => 'required|date',
-            'exceptions.*.exception_type' =>
-                'required|in:day_off,holiday,custom_hours',
-            'exceptions.*.start_time' =>
-                'nullable|required_if:exceptions.*.exception_type,custom_hours|date_format:H:i',
-            'exceptions.*.end_time' =>
-                'nullable|required_if:exceptions.*.exception_type,custom_hours|after:exceptions.*.start_time',
-            'exceptions.*.reason' =>
-                'nullable|string|max:255',
-        ]);
+        $timeIntervalRule = function ($attribute, $value, $fail) {
+            if ($value && !in_array((int) substr($value, -2), [0, 30], true)) {
+                $fail('Time must use the established 30-minute interval.');
+            }
+        };
 
-        DB::transaction(function () use ($request) {
-            foreach ($request->exceptions as $item) {
+        $staffUserRule = function ($attribute, $value, $fail) {
+            if (!$value) {
+                return;
+            }
+            $isStaff = User::where('id', $value)
+                ->whereHas('roles', fn ($q) => $q->where('name', 'staff'))
+                ->exists();
+            if (!$isStaff) {
+                $fail('The selected user must be an eligible therapist.');
+            }
+        };
+
+        $isWholeTherapist = $request->has('whole_therapist_ids') || $request->has('date_range');
+
+        if ($isWholeTherapist) {
+            $request->validate([
+                'whole_therapist_ids' => 'required|array|min:1',
+                'whole_therapist_ids.*' => ['required', 'integer', 'exists:users,id', $staffUserRule],
+                'date_range' => 'required|array',
+                'date_range.start_date' => 'required|date',
+                'date_range.end_date' => 'required|date|after_or_equal:date_range.start_date',
+                'exception_type' => 'required|in:day_off,holiday,custom_hours',
+                'start_time' => [
+                    'nullable',
+                    'required_if:exception_type,custom_hours',
+                    'date_format:H:i',
+                    $timeIntervalRule,
+                ],
+                'end_time' => [
+                    'nullable',
+                    'required_if:exception_type,custom_hours',
+                    'date_format:H:i',
+                    'after:start_time',
+                    $timeIntervalRule,
+                ],
+                'reason' => 'nullable|string|max:255',
+            ]);
+
+            $therapistIds = array_values(array_unique(array_map('intval', $request->input('whole_therapist_ids'))));
+        } else {
+            $request->validate([
+                'exceptions' => 'required|array|min:1',
+                'exceptions.*.user_id' => ['required', 'exists:users,id', $staffUserRule],
+                'exceptions.*.date' => 'required|date',
+                'exceptions.*.exception_type' => 'required|in:day_off,holiday,custom_hours',
+                'exceptions.*.start_time' => [
+                    'nullable',
+                    'required_if:exceptions.*.exception_type,custom_hours',
+                    'date_format:H:i',
+                    $timeIntervalRule,
+                ],
+                'exceptions.*.end_time' => [
+                    'nullable',
+                    'required_if:exceptions.*.exception_type,custom_hours',
+                    'date_format:H:i',
+                    'after:exceptions.*.start_time',
+                    $timeIntervalRule,
+                ],
+                'exceptions.*.reason' => 'nullable|string|max:255',
+            ]);
+
+            $therapistIds = array_values(array_unique(array_map(
+                fn ($item) => (int) $item['user_id'],
+                $request->exceptions
+            )));
+        }
+
+        $result = DB::transaction(function () use ($request, $isWholeTherapist, $therapistIds) {
+            if (!$this->lockEligibleTherapists($therapistIds)) {
+                return ['error' => 'One or more selected users are not eligible therapists.'];
+            }
+
+            $items = [];
+
+            if ($isWholeTherapist) {
+                $today = Carbon::today('Asia/Manila');
+                $rangeStart = Carbon::parse($request->input('date_range.start_date'), 'Asia/Manila')->startOfDay();
+                $rangeEnd = Carbon::parse($request->input('date_range.end_date'), 'Asia/Manila')->startOfDay();
+                $effectiveStart = $rangeStart->lt($today) ? $today->copy() : $rangeStart;
+
+                $allSchedulesByUser = WorkSchedule::whereIn('user_id', $therapistIds)
+                    ->get()
+                    ->groupBy('user_id');
+
+                $isCustomHours = $request->input('exception_type') === 'custom_hours';
+                $therapistRules = [];
+                foreach ($therapistIds as $uid) {
+                    $userSchedules = $allSchedulesByUser->get($uid);
+                    $hasRecurringRows = $userSchedules && $userSchedules->isNotEmpty();
+                    $therapistRules[$uid] = [
+                        'fallback_all_dates' => !$hasRecurringRows && $isCustomHours,
+                        'working_dows' => $hasRecurringRows
+                            ? $userSchedules->where('is_day_off', false)->pluck('day_of_week')->map(fn ($d) => (int) $d)->all()
+                            : [],
+                    ];
+                }
+
+                $hasFallbackTherapist = collect($therapistRules)->contains(fn ($r) => $r['fallback_all_dates']);
+                $operatingWindows = ($hasFallbackTherapist && $effectiveStart->lte($rangeEnd))
+                    ? \App\Services\BusinessScheduleService::getOperatingWindowsForRange($effectiveStart, $rangeEnd)
+                    : [];
+
+                if ($effectiveStart->lte($rangeEnd)) {
+                    for ($cursor = $effectiveStart->copy(); $cursor->lte($rangeEnd); $cursor->addDay()) {
+                        $dow = $cursor->dayOfWeek;
+                        $dateStr = $cursor->toDateString();
+                        $isBusinessOpen = (bool) ($operatingWindows[$dateStr]['is_open'] ?? true);
+
+                        foreach ($therapistIds as $uid) {
+                            $rule = $therapistRules[$uid];
+                            $matchesFallback = $rule['fallback_all_dates'] && $isBusinessOpen;
+                            $matchesRecurring = in_array($dow, $rule['working_dows'], true);
+
+                            if ($matchesFallback || $matchesRecurring) {
+                                $items[] = [
+                                    'user_id' => $uid,
+                                    'date' => $dateStr,
+                                    'exception_type' => $request->input('exception_type'),
+                                    'start_time' => $request->input('start_time'),
+                                    'end_time' => $request->input('end_time'),
+                                    'reason' => $request->input('reason'),
+                                ];
+                            }
+                        }
+                    }
+                }
+
+                if (empty($items)) {
+                    return ['error' => 'No applicable future schedule dates found in the selected date range.'];
+                }
+            } else {
+                $items = $request->exceptions;
+            }
+
+            // Never overwrite protected exceptions (leave/day-off/holiday) when a
+            // multi-cell edit is saved. Single-cell editing behaviour is unchanged.
+            foreach ($items as $item) {
+                $protected = ScheduleException::where('user_id', $item['user_id'])
+                    ->whereDate('exception_date', $item['date'])
+                    ->whereIn('type', ['day_off', 'holiday', 'sick_leave', 'urgent_leave'])
+                    ->first();
+
+                if ($protected && $protected->type !== $item['exception_type']) {
+                    return [
+                        'error' => 'A protected exception exists for therapist ' . $item['user_id']
+                            . ' on ' . $item['date'] . ' and was not changed.',
+                    ];
+                }
+            }
+
+            if ($conflict = $this->validateExceptionAppointmentConflict($items)) {
+                return ['error' => $conflict];
+            }
+
+            foreach ($items as $item) {
                 $this->persistException([
                     'user_id' => $item['user_id'],
                     'date' => $item['date'],
-                    'exception_type' =>
-                        $item['exception_type'],
-                    'start_time' =>
-                        $item['start_time'] ?? null,
-                    'end_time' =>
-                        $item['end_time'] ?? null,
-                    'reason' =>
-                        $item['reason'] ?? null,
+                    'exception_type' => $item['exception_type'],
+                    'start_time' => $item['start_time'] ?? null,
+                    'end_time' => $item['end_time'] ?? null,
+                    'reason' => $item['reason'] ?? null,
                 ]);
             }
+
+            return ['success' => true];
         });
+
+        if (isset($result['error'])) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['error'],
+            ], 422);
+        }
 
         return response()->json([
             'success' => true,

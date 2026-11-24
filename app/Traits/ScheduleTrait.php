@@ -136,9 +136,14 @@ trait ScheduleTrait
                 'is_today' => $weekStart
                     ->copy()
                     ->addDays($i)
-                    ->isToday(),
+                    ->toDateString() === now('Asia/Manila')->toDateString(),
             ])
             ->all();
+
+        $operatingWindows = \App\Services\BusinessScheduleService::getOperatingWindowsForRange(
+            $weekStart,
+            $weekEnd
+        );
 
         $allSchedules = WorkSchedule::whereIn(
                 'user_id',
@@ -209,6 +214,8 @@ trait ScheduleTrait
                 $dow = $day['dow'];
                 $dateStr = $day['date'];
                 $key = $staff->id . '|' . $dateStr;
+                $bizWindow = $operatingWindows[$dateStr] ?? ['is_open' => true, 'reason' => null];
+                $isBusinessOpen = (bool) ($bizWindow['is_open'] ?? true);
 
                 $sch = $schedules->get($dow);
                 $ex = $exceptions->get($key)?->first();
@@ -218,6 +225,8 @@ trait ScheduleTrait
                     'date' => $dateStr,
                     'dow' => $dow,
                     'type' => 'off',
+                    'business_closed' => !$isBusinessOpen,
+                    'business_reason' => !$isBusinessOpen ? ($bizWindow['reason'] ?? 'Spa Closed') : null,
                     'start_time' => null,
                     'end_time' => null,
 
@@ -289,6 +298,10 @@ trait ScheduleTrait
                     }
                 }
 
+                if (!$isBusinessOpen) {
+                    $cell['type'] = 'business_closed';
+                }
+
                 $row['days'][] = $cell;
             }
 
@@ -347,13 +360,37 @@ trait ScheduleTrait
             ->get()
             ->keyBy('user_id');
 
+        $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($dateStr);
+        $isBusinessOpen = (bool) ($bizWindow['is_open'] ?? true);
+        $bizReason = $bizWindow['reason'] ?? 'Spa Closed';
+
         return $staff->map(
             function ($user) use (
                 $dow,
                 $dateStr,
                 $exceptions,
-                $attendances
+                $attendances,
+                $isBusinessOpen,
+                $bizReason
             ) {
+                if (!$isBusinessOpen) {
+                    $block = [
+                        'type' => 'business_closed',
+                        'start_time' => null,
+                        'end_time' => null,
+                        'label' => 'Spa Closed',
+                        'reason' => $bizReason,
+                        'exception_id' => null,
+                    ];
+
+                    return [
+                        'user' => $user,
+                        'block' => $block,
+                        'status' => 'business_closed',
+                        'statusLabel' => 'Spa Closed',
+                        'attendance' => $attendances->get($user->id),
+                    ];
+                }
                 $exception = $exceptions->get($user->id);
                 $attendance = $attendances->get($user->id);
 
@@ -815,11 +852,28 @@ trait ScheduleTrait
             'end_date' =>
                 'nullable|date|after_or_equal:date',
 
-            'start_time' =>
-                'nullable|required_if:exception_type,custom_hours|date_format:H:i',
+            'start_time' => [
+                'nullable',
+                'required_if:exception_type,custom_hours',
+                'date_format:H:i',
+                function ($attribute, $value, $fail) {
+                    if ($value && !in_array((int) substr($value, -2), [0, 30], true)) {
+                        $fail('Time must use the established 30-minute interval.');
+                    }
+                },
+            ],
 
-            'end_time' =>
-                'nullable|required_if:exception_type,custom_hours|after:start_time',
+            'end_time' => [
+                'nullable',
+                'required_if:exception_type,custom_hours',
+                'date_format:H:i',
+                'after:start_time',
+                function ($attribute, $value, $fail) {
+                    if ($value && !in_array((int) substr($value, -2), [0, 30], true)) {
+                        $fail('Time must use the established 30-minute interval.');
+                    }
+                },
+            ],
 
             'reason' =>
                 'nullable|string|max:255',
@@ -843,6 +897,90 @@ trait ScheduleTrait
      * No ScheduleException is stored.
      * The normal WorkSchedule is displayed.
      */
+    /**
+     * Validate that proposed schedule exceptions do not invalidate existing
+     * blocking appointments (including all assigned therapists and the
+     * 5-minute post-treatment preparation buffer). Returns an error message
+     * for the first conflict found, or null if all targets are safe.
+     */
+    protected function validateExceptionAppointmentConflict(array $items): ?string
+    {
+        if (empty($items)) {
+            return null;
+        }
+
+        $occupancy = app(AppointmentOccupancyService::class);
+        $userIds = array_values(array_unique(array_map(fn ($i) => (int) $i['user_id'], $items)));
+        $dates = array_values(array_unique(array_map(fn ($i) => Carbon::parse($i['date'])->toDateString(), $items)));
+
+        $appointments = Appointment::query()
+            ->whereIn('status', AppointmentOccupancyService::BLOCKING_STATUSES)
+            ->whereIn(DB::raw('DATE(appointment_date)'), $dates)
+            ->where(function ($q) use ($userIds) {
+                $q->whereIn('user_id', $userIds)
+                    ->orWhereHas('assignedStaff', function ($sub) use ($userIds) {
+                        $sub->whereIn('users.id', $userIds);
+                    });
+            })
+            ->with(['services', 'assignedStaff:id'])
+            ->get();
+
+        if ($appointments->isEmpty()) {
+            return null;
+        }
+
+        foreach ($items as $item) {
+            $uid = (int) $item['user_id'];
+            $dateStr = Carbon::parse($item['date'])->toDateString();
+            $isCustom = ($item['exception_type'] ?? '') === 'custom_hours';
+
+            $matching = $appointments->filter(function (Appointment $appt) use ($uid, $dateStr) {
+                $apptDate = $appt->appointment_date instanceof Carbon
+                    ? $appt->appointment_date->toDateString()
+                    : substr((string) $appt->appointment_date, 0, 10);
+
+                if ($apptDate !== $dateStr) {
+                    return false;
+                }
+
+                if ((int) $appt->user_id === $uid) {
+                    return true;
+                }
+
+                return $appt->assignedStaff->contains('id', $uid);
+            });
+
+            if ($matching->isEmpty()) {
+                continue;
+            }
+
+            if (!$isCustom) {
+                return "Cannot mark therapist {$uid} as off/holiday on {$dateStr}: an existing appointment is scheduled.";
+            }
+
+            $shiftStartStr = $this->extractTime($item['start_time'] ?? null);
+            $shiftEndStr = $this->extractTime($item['end_time'] ?? null);
+            if (!$shiftStartStr || !$shiftEndStr) {
+                return "Cannot update therapist {$uid} on {$dateStr}: invalid custom hours for existing appointment.";
+            }
+
+            $shiftStart = Carbon::parse("{$dateStr} {$shiftStartStr}");
+            $shiftEnd = Carbon::parse("{$dateStr} {$shiftEndStr}");
+            if ($shiftEnd->lessThanOrEqualTo($shiftStart)) {
+                $shiftEnd->addDay();
+            }
+
+            foreach ($matching as $appt) {
+                [$apptStart, $apptResourceEnd] = $occupancy->appointmentWindow($appt);
+                if ($apptStart->lt($shiftStart) || $apptResourceEnd->gt($shiftEnd)) {
+                    return "Cannot update therapist {$uid} on {$dateStr}: conflicts with an existing appointment (including 5-minute preparation buffer).";
+                }
+            }
+        }
+
+        return null;
+    }
+
     protected function persistException(array $data): int
     {
         $start = Carbon::parse($data['date']);
@@ -946,7 +1084,7 @@ trait ScheduleTrait
                         $data['user_id'],
 
                     'exception_date' =>
-                        $date->toDateString(),
+                        $date->toDateString() . ' 00:00:00',
                 ],
                 [
                     'type' =>

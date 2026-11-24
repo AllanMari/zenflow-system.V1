@@ -168,6 +168,8 @@ Route::middleware(['auth', 'role:receptionist', 'can_manage_schedules'])->prefix
     Route::post('/schedule-template/update', [ScheduleController::class, 'updateTemplate'])->name('receptionist.schedule-template.update');
     Route::post('/schedule-exception/store', [ScheduleController::class, 'storeException'])->name('receptionist.schedule-exception.store');
 
+    // âð€âð€âð€ BULK SCHEDULING ROUTES ðð€âð€âð€
+
     // Reusable ShiftTemplate CRUD
     Route::post('/shift-templates', [ScheduleController::class, 'storeShiftTemplate'])->name('receptionist.shift-templates.store');
     Route::put('/shift-templates/{template}', [ScheduleController::class, 'updateShiftTemplate'])->name('receptionist.shift-templates.update');
@@ -326,7 +328,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
 
 
-// â”€â”€â”€ Admin Schedule Edit Routes â”€â”€â”€
+// âð€âð€âð€ Admin Schedule Edit Routes ðð€âð€âð€
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/schedules/bulk-update', [ScheduleController::class, 'bulkUpdate'])->name('admin.schedules.bulk-update');
     // FIX: Route order matters! Bulk route must come BEFORE the parameterized route
@@ -339,6 +341,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::put('/receptionists/{user}/toggle-permission', [ScheduleController::class, 'toggleReceptionistPermission'])->name('admin.receptionist.toggle');
     Route::post('/schedule-template/update', [ScheduleController::class, 'updateTemplate'])->name('admin.schedule-template.update');
     Route::post('/schedule-exception/store', [ScheduleController::class, 'storeException'])->name('admin.schedule-exception.store');
+
+    // âð€âð€âð€ BULK SCHEDULING ROUTES ðð€âð€âð€
 
     // Reusable ShiftTemplate CRUD
     Route::post('/shift-templates', [ScheduleController::class, 'storeShiftTemplate'])->name('admin.shift-templates.store');

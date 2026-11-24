@@ -10,6 +10,22 @@ $exceptionBulkRoute = $isAdmin ? route('admin.schedule-exception.bulk-store') : 
 $fmt = fn($t) => $t ? \Carbon\Carbon::createFromFormat('H:i', substr($t, 0, 5))->format('g:i A') : '—';
 
 $todayStr = now()->toDateString();
+
+$cellRegistry = $timeline->mapWithKeys(function ($row) use ($view, $date) {
+  $userId = $row['user']->id;
+  $cells = $view === 'week'
+    ? collect($row['days'])->map(fn($c) => [
+        'key' => $userId . '|' . $c['date'],
+        'date' => $c['date'],
+        'dow' => $c['dow'],
+      ])
+    : collect([[
+        'key' => $userId . '|' . $date,
+        'date' => $date,
+        'dow' => \Carbon\Carbon::parse($date)->dayOfWeek,
+      ]]);
+  return [$userId => $cells->values()];
+});
 @endphp
 
 {{-- FIX: Use $isAdmin variable instead of undefined auth method --}}
@@ -20,6 +36,21 @@ $todayStr = now()->toDateString();
 @push('styles')
 <style>
 [x-cloak] { display: none !important; }
+
+/* Keep enabled next/prev-month dates clearly selectable across month boundaries */
+.flatpickr-day.nextMonthDay:not(.flatpickr-disabled),
+.flatpickr-day.prevMonthDay:not(.flatpickr-disabled) {
+    color: #374151;
+}
+.dark .flatpickr-day.nextMonthDay:not(.flatpickr-disabled),
+.dark .flatpickr-day.prevMonthDay:not(.flatpickr-disabled) {
+    color: #cbd5e1;
+}
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.flatpickr-disabled:hover {
+    color: rgba(156, 163, 175, 0.45) !important;
+    cursor: not-allowed;
+}
 
 @keyframes selectPulse {
     0% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4); }
@@ -161,14 +192,14 @@ $todayStr = now()->toDateString();
   class="flex flex-col h-[calc(100dvh-72px-2rem)] md:h-[calc(100dvh-72px-4rem)] overflow-hidden"
 >
   {{-- TOOLBAR --}}
-  <header class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shrink-0 z-30">
+  <header class="relative flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shrink-0 z-30">
     <div class="flex items-center gap-2">
       <div class="inline-flex items-center bg-gray-100 dark:bg-slate-700 rounded-lg p-1 border border-gray-200 dark:border-slate-600">
         @if($view === 'week')
           <a href="?week_start={{ $prevWeek }}&view=week" class="p-1.5 rounded-md text-gray-500 hover:bg-white dark:hover:bg-slate-600 hover:text-gray-800 dark:hover:text-white transition-colors" title="Previous week">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
           </a>
-          <a href="?week_start={{ now()->startOfWeek()->toDateString() }}&view=week" class="px-3 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors">Today</a>
+          <a href="?week_start={{ now('Asia/Manila')->startOfWeek(\Carbon\Carbon::SUNDAY)->toDateString() }}&view=week" class="px-3 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors">Today</a>
           <span class="px-3 text-sm font-bold text-gray-800 dark:text-white min-w-[140px] text-center">{{ $weekLabel }}</span>
           <a href="?week_start={{ $nextWeek }}&view=week" class="p-1.5 rounded-md text-gray-500 hover:bg-white dark:hover:bg-slate-600 hover:text-gray-800 dark:hover:text-white transition-colors" title="Next week">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
@@ -177,7 +208,7 @@ $todayStr = now()->toDateString();
           <a href="?date={{ $prevDate }}&view=day" class="p-1.5 rounded-md text-gray-500 hover:bg-white dark:hover:bg-slate-600 hover:text-gray-800 dark:hover:text-white transition-colors" title="Previous day">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
           </a>
-          <a href="?date={{ now()->toDateString() }}&view=day" class="px-3 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors">Today</a>
+          <a href="?date={{ now('Asia/Manila')->toDateString() }}&view=day" class="px-3 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors">Today</a>
           <span class="px-3 text-sm font-bold text-gray-800 dark:text-white min-w-[180px] text-center">{{ $dateLabel }}</span>
           <a href="?date={{ $nextDate }}&view=day" class="p-1.5 rounded-md text-gray-500 hover:bg-white dark:hover:bg-slate-600 hover:text-gray-800 dark:hover:text-white transition-colors" title="Next day">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
@@ -185,23 +216,32 @@ $todayStr = now()->toDateString();
         @endif
 
         <div class="flex items-center gap-1 pl-2 ml-2 border-l border-gray-300 dark:border-slate-500">
-          <a href="?week_start={{ $view === 'week' ? $weekStart : \Carbon\Carbon::parse($date)->startOfWeek()->toDateString() }}&view=week" class="px-3 py-1 text-xs font-semibold rounded-md {{ $view === 'week' ? 'bg-white dark:bg-slate-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200' }}">Week</a>
-          <a href="?date={{ $view === 'week' ? $weekStart : $date }}&view=day" class="px-3 py-1 text-xs font-semibold rounded-md {{ $view === 'day' ? 'bg-white dark:bg-slate-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200' }}">Day</a>
+          <a href="?week_start={{ $view === 'week' ? $weekStart : \Carbon\Carbon::parse($date)->startOfWeek(\Carbon\Carbon::SUNDAY)->toDateString() }}&date={{ $date }}&view=week" class="px-3 py-1 text-xs font-semibold rounded-md {{ $view === 'week' ? 'bg-white dark:bg-slate-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200' }}">Week</a>
+          <a href="?date={{ $date }}&view=day" class="px-3 py-1 text-xs font-semibold rounded-md {{ $view === 'day' ? 'bg-white dark:bg-slate-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200' }}">Day</a>
         </div>
       </div>
     </div>
 
     <div class="flex items-center gap-3">
       @if($canEdit)
-      <div class="flex items-center gap-2">
-        <select x-model="activeTemplate" class="py-1.5 px-3 text-xs font-medium bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
-          <option value="">Select template…</option>
-          @foreach($templates as $t)
-            <option value="{{ $t->id }}">{{ $t->name }}</option>
-          @endforeach
-        </select>
-        <button type="button" @click="applyTemplateToAll()" :disabled="!activeTemplate" class="px-3 py-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm shadow-brand-500/20">Apply to All</button>
-        <button type="button" @click="applyTemplateToSelected()" :disabled="!activeTemplate || selectedStaffIds.length === 0" class="px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Apply to Selected</button>
+      <div class="relative flex items-center gap-2">
+        <div class="flex items-center gap-2" :class="selectionMode ? 'invisible pointer-events-none' : ''">
+          <button type="button" @click="enterSelectionMode()" class="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors shadow-sm">Select</button>
+          <select x-model="activeTemplate" class="py-1.5 px-3 text-xs font-medium bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
+            <option value="">Select template…</option>
+            @foreach($templates as $t)
+              <option value="{{ $t->id }}">{{ $t->name }}</option>
+            @endforeach
+          </select>
+          <button type="button" @click="applyTemplateToAll()" :disabled="!activeTemplate" class="px-3 py-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm shadow-brand-500/20">Apply to All</button>
+          <button type="button" @click="applyTemplateToSelected()" :disabled="!activeTemplate || selectedStaffIds.length === 0" class="px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Apply to Selected</button>
+        </div>
+
+        <div class="absolute inset-y-0 right-0 flex items-center gap-2 whitespace-nowrap" x-show="selectionMode" x-cloak>
+          <span class="text-xs font-bold text-teal-700 dark:text-teal-300" x-text="Object.keys(selectedCells).length + ' selected'"></span>
+          <button type="button" @click="cancelSelection()" class="px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 rounded-lg transition-colors">Cancel</button>
+          <button type="button" @click="doneSelecting()" class="px-3 py-1.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors">Done</button>
+        </div>
       </div>
       @endif
 
@@ -245,11 +285,23 @@ $todayStr = now()->toDateString();
           @endphp
           <button
             type="button"
-            @click="toggleStaffSelection({{ $s->id }})"
+            @click="selectionMode ? toggleTherapistCells({{ $s->id }}) : toggleStaffSelection({{ $s->id }})"
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200"
-            :class="selectedStaffIds.includes({{ $s->id }}) ? 'bg-brand-50 dark:bg-brand-900/20 ring-1 ring-brand-200 dark:ring-brand-800' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'"
+            :class="(selectionMode ? therapistSelectionState({{ $s->id }}) !== 'none' : selectedStaffIds.includes({{ $s->id }}))
+              ? 'bg-brand-50 dark:bg-brand-900/20 ring-1 ring-brand-200 dark:ring-brand-800'
+              : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'"
             x-show="staffMatchesFilter({{ $staffNameJson }})"
           >
+            <input
+              type="checkbox"
+              x-show="selectionMode"
+              x-cloak
+              :checked="therapistSelectionState({{ $s->id }}) === 'all'"
+              @click.stop="toggleTherapistCells({{ $s->id }})"
+              class="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 shrink-0"
+              aria-label="Select all {{ $s->first_name }} {{ $s->last_name }} cells"
+            >
+            <span x-show="selectionMode && therapistSelectionState({{ $s->id }}) === 'partial'" class="text-[11px] font-bold text-amber-600" x-cloak>–</span>
             <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm" style="background: {{ $colors[$si % 8] }};">{{ $initials }}</div>
             <div class="min-w-0 flex-1">
               <div class="text-sm font-semibold text-gray-800 dark:text-gray-100 break-words">{{ $s->first_name }} {{ $s->last_name }}</div>
@@ -263,7 +315,7 @@ $todayStr = now()->toDateString();
                 @endif
               </div>
             </div>
-            <div x-show="selectedStaffIds.includes({{ $s->id }})" class="w-4 h-4 rounded-full bg-brand-500 flex items-center justify-center" x-cloak>
+            <div x-show="!selectionMode && selectedStaffIds.includes({{ $s->id }})" class="w-4 h-4 rounded-full bg-brand-500 flex items-center justify-center" x-cloak>
               <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
             </div>
           </button>
@@ -298,7 +350,8 @@ $todayStr = now()->toDateString();
                   @endphp
                   <tr
                     class="border-b border-gray-100 dark:border-slate-700 last:border-b-0"
-                    x-show="staffMatchesFilter({{ $staffNameJson }}) && (selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))"
+                    :class="selectionMode && therapistSelectionState({{ $s->id }}) !== 'none' ? 'bg-teal-50/40 dark:bg-teal-900/5' : ''"
+                    x-show="staffMatchesFilter({{ $staffNameJson }}) && (selectionMode || selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))"
                   >
                     <td class="w-14 p-2 border-r border-gray-200 dark:border-slate-700 sticky left-0 bg-white dark:bg-slate-800 z-10 text-center align-middle">
                       <div class="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold text-white mx-auto shadow-sm" style="background: {{ $colors[$si % 8] }};" title="{{ $s->first_name }} {{ $s->last_name }}">{{ $initials }}</div>
@@ -307,19 +360,29 @@ $todayStr = now()->toDateString();
                       @php
                         $isWork = $cell['type'] === 'work';
                         $isExc  = $cell['type'] === 'exception';
+                        $isBizClosed = $cell['type'] === 'business_closed';
                         $isCustom = ($cell['exception_type'] ?? '') === 'custom' || ($cell['exception_type'] ?? '') === 'custom_hours';
                         $exId = $cell['exception']['id'] ?? null;
                         $cellKey = $s->id . '|' . $cell['date'];
                         $isPast = $cell['date'] < $todayStr;
                       @endphp
                       <td
-                        class="schedule-cell w-[140px] p-2 border-r border-gray-100 dark:border-slate-700 last:border-r-0 align-middle transition-all {{ $isPast ? 'cell-past' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/30' }}"
+                        class="schedule-cell relative w-[140px] p-2 border-r border-gray-100 dark:border-slate-700 last:border-r-0 align-middle transition-all {{ $isPast ? 'cell-past' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/30' }}"
                         :class="selectedCells['{{ $cellKey }}'] ? 'ring-2 ring-inset ring-brand-500 bg-brand-50/50 dark:bg-brand-900/10 cell-selected' : ''"
                         @if($canEdit && !$isPast)
                           @click="handleCellClick($event, {{ $s->id }}, '{{ $cell['date'] }}', {{ $cell['dow'] }}, '{{ $cell['start_time'] }}', '{{ $cell['end_time'] }}', '{{ $cell['type'] }}', '{{ $cell['exception_type'] ?? '' }}', {{ $exId ?? 'null' }} )"
                         @endif
                         data-key="{{ $cellKey }}"
                       >
+                        <input
+                          type="checkbox"
+                          x-show="selectionMode && !@js($isPast)"
+                          x-cloak
+                          :checked="!!selectedCells['{{ $cellKey }}']"
+                          @click.stop="toggleCellSelection('{{ $cellKey }}')"
+                          class="absolute top-1 right-1 z-20 h-4 w-4 rounded border-slate-300 bg-white/90 text-teal-600 shadow-sm focus:ring-teal-500"
+                          aria-label="Select {{ $s->first_name }} {{ $s->last_name }} {{ $cell['label'] ?? $cell['date'] }}"
+                        >
                         <div class="schedule-content min-h-[64px] flex flex-col items-center justify-center gap-1">
                           @if($isWork)
                             <div class="text-center">
@@ -357,6 +420,13 @@ $todayStr = now()->toDateString();
                                 {{ $cell['attendance'] === 'absent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : '' }}
                               ">{{ ucfirst($cell['attendance']) }}</span>
                             @endif
+                          @elseif($isBizClosed)
+                            <div class="text-center w-full px-1.5 py-1.5 rounded-md border bg-slate-100 dark:bg-slate-700/60 border-slate-200 dark:border-slate-600">
+                              <div class="text-[11px] font-bold text-slate-600 dark:text-slate-300">Spa Closed</div>
+                              @if(!empty($cell['business_reason']))
+                                <div class="text-[9px] text-slate-500 dark:text-slate-400 truncate max-w-full mt-0.5" title="{{ $cell['business_reason'] }}">{{ $cell['business_reason'] }}</div>
+                              @endif
+                            </div>
                           @else
                             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-300 dark:text-gray-600">Off</span>
                             @if(!empty($cell['attendance']))
@@ -380,6 +450,7 @@ $todayStr = now()->toDateString();
         {{-- Legend --}}
         <div class="flex flex-wrap items-center justify-center gap-6 mt-4">
           <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span> Working</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> Spa Closed</span>
           <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span> Blocked / Day Off</span>
           <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Custom Hours</span>
           <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600"></span> Unscheduled</span>
@@ -399,9 +470,21 @@ $todayStr = now()->toDateString();
                 $initials = substr($s->first_name,0,1).substr($s->last_name,0,1);
                 $isPast = $date < $todayStr;
                 $attendanceStatus = $row['attendance']?->status ?? null;
+                $staffNameJson = json_encode($s->first_name.' '.$s->last_name, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT);
               @endphp
-              <div class="flex items-stretch border-b border-gray-100 dark:border-slate-700 last:border-b-0 {{ $isPast ? 'cell-past' : ($canEdit ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/30' : '') }}" x-show="staffMatchesFilter(@json($s->first_name.' '.$s->last_name)) && (selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))"
+              <div class="relative flex items-stretch border-b border-gray-100 dark:border-slate-700 last:border-b-0 {{ $isPast ? 'cell-past' : ($canEdit ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/30' : '') }}"
+                :class="selectionMode && selectedCells['{{ $s->id }}|{{ $date }}'] ? 'ring-2 ring-inset ring-teal-500 bg-teal-50/50 dark:bg-teal-900/10' : ''"
+                x-show="staffMatchesFilter({{ $staffNameJson }}) && (selectionMode || selectedStaffIds.length === 0 || selectedStaffIds.includes({{ $s->id }}))"
                 @if($canEdit && !$isPast) @click="handleCellClick($event, {{ $s->id }}, '{{ $date }}', {{ \Carbon\Carbon::parse($date)->dayOfWeek }}, '{{ $block['start_time'] ?? '' }}', '{{ $block['end_time'] ?? '' }}', '{{ $block['type'] ?? 'off' }}', '{{ $block['exception_type'] ?? '' }}', {{ $block['exception_id'] ?? 'null' }})" @endif>
+                <input
+                  type="checkbox"
+                  x-show="selectionMode && !@js($isPast)"
+                  x-cloak
+                  :checked="!!selectedCells['{{ $s->id }}|{{ $date }}']"
+                  @click.stop="toggleCellSelection('{{ $s->id }}|{{ $date }}')"
+                  class="absolute top-2 right-2 z-20 h-4 w-4 rounded border-slate-300 bg-white/90 text-teal-600 shadow-sm focus:ring-teal-500"
+                  aria-label="Select {{ $s->first_name }} {{ $s->last_name }} {{ $date }}"
+                >
                 <div class="w-52 shrink-0 flex items-center gap-3 px-4 py-4 bg-gray-50 dark:bg-slate-800/50 border-r border-gray-200 dark:border-slate-700">
                   <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm" style="background: {{ $colors[$loop->index % 8] }};">{{ $initials }}</div>
                   <div class="min-w-0">
@@ -410,7 +493,14 @@ $todayStr = now()->toDateString();
                   </div>
                 </div>
                 <div class="flex-1 p-4 flex items-center">
-                  @if($block && $block['type'] !== 'off')
+                  @if($block && $block['type'] === 'business_closed')
+                    <div class="px-4 py-2.5 rounded-lg border text-sm bg-slate-100 dark:bg-slate-700/60 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300">
+                      <div class="font-bold">{{ $block['label'] }}</div>
+                      @if(!empty($block['reason']))
+                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ $block['reason'] }}</div>
+                      @endif
+                    </div>
+                  @elseif($block && $block['type'] !== 'off')
                     <div class="px-4 py-2.5 rounded-lg border text-sm
                       {{ ($block['type'] === 'custom' || $block['type'] === 'custom_hours') ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300' : 'bg-brand-50 dark:bg-brand-900/10 border-brand-200 dark:border-brand-800 text-brand-800 dark:text-brand-300' }}">
                       <div class="font-bold">{{ $block['label'] }}</div>
@@ -458,12 +548,16 @@ $todayStr = now()->toDateString();
       <div x-show="popover.mode === 'edit'" x-cloak class="flex flex-col h-full">
         {{-- Header --}}
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700 shrink-0">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3" x-show="!popover.isBulk">
             <div class="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white shrink-0" :style="'background: ' + staffColor(popover.data.userId)" x-text="staffInitials(popover.data.userId)"></div>
             <div>
               <h3 class="text-sm font-bold text-gray-900 dark:text-white" x-text="staffNameById(popover.data.userId)"></h3>
               <p class="text-xs text-gray-400 dark:text-gray-500" x-text="popover.data.date ? new Date(popover.data.date + 'T00:00:00').toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'}) : ''"></p>
             </div>
+          </div>
+          <div x-show="popover.isBulk" x-cloak>
+            <h3 class="text-sm font-bold text-gray-900 dark:text-white">Edit Selected Schedules</h3>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5"><span x-text="Object.keys(selectedCells).length"></span> cells selected</p>
           </div>
           <button @click="closePopover()" class="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 6L6 18M6 6l12 12"/></svg>
@@ -492,6 +586,16 @@ $todayStr = now()->toDateString();
             </div>
           </div>
 
+          {{-- Optional Date Range (pure whole-therapist selection only) --}}
+          <div x-show="popover.isBulk && isPureWholeTherapistSelection" x-cloak>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Date range <span class="font-normal text-gray-300">(optional)</span></label>
+              <button type="button" x-show="popover.data.rangeStart || popover.data.rangeIncomplete" @click="clearBulkDateRange()" class="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline">Clear</button>
+            </div>
+            <input type="text" id="bulkDateRange" readonly placeholder="Apply to selected dates only…" class="w-full px-3 py-2 text-xs bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 cursor-pointer">
+            <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-1" x-text="popover.data.rangeStart && popover.data.rangeEnd ? 'Applies to selected therapists’ scheduled weekdays within this range.' : (popover.data.rangeIncomplete ? 'Select an end date to complete the range, or clear it.' : 'Leave blank to update only the exact selected cells.')"></p>
+          </div>
+
           {{-- Working Hours --}}
           <div x-show="popover.data.status === 'work'" x-transition class="grid grid-cols-2 gap-3">
             <div>
@@ -669,233 +773,21 @@ $todayStr = now()->toDateString();
 
         {{-- Footer --}}
         <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-slate-700 shrink-0 bg-gray-50/50 dark:bg-slate-800/50">
-          <button x-show="popover.data.exceptionId" @click="removeException(popover.data.exceptionId)" class="px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-1.5">
+          <button x-show="!popover.isBulk && popover.data.exceptionId" @click="removeException(popover.data.exceptionId)" class="px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
             Remove
           </button>
           <div class="flex items-center gap-2 ml-auto">
             <button @click="closePopover()" class="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancel</button>
-            <button @click="saveCell()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20 flex items-center gap-1.5">
+            <button @click="popover.isBulk ? saveBulk() : saveCell()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20 flex items-center gap-1.5">
               <span x-show="!saving">Save</span>
               <span x-show="saving">Saving…</span>
             </button>
           </div>
         </div>
       </div>
-
-      {{-- Bulk Edit --}}
-      <div x-show="popover.mode === 'bulk'" x-cloak class="flex flex-col h-full">
-        {{-- Header --}}
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700 shrink-0">
-          <div>
-            <h3 class="text-sm font-bold text-gray-900 dark:text-white"><span x-text="Object.keys(selectedCells).length"></span> schedules selected</h3>
-            <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Apply changes to all selected cells</p>
-          </div>
-          <button @click="closePopover()" class="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 6L6 18M6 6l12 12"/></svg>
-          </button>
-        </div>
-
-        {{-- Body --}}
-        <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-
-          {{-- Status --}}
-          <div>
-            <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Apply to selected</label>
-            <div class="grid grid-cols-3 gap-2 p-1 bg-gray-100 dark:bg-slate-700 rounded-xl">
-              <button @click="popover.data.status = 'work'" :class="popover.data.status === 'work' ? 'bg-white dark:bg-slate-600 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'" class="py-2.5 text-xs font-semibold rounded-lg transition-all">Set working</button>
-              <button @click="popover.data.status = 'off'" :class="popover.data.status === 'off' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'" class="py-2.5 text-xs font-semibold rounded-lg transition-all">Set day off</button>
-              <button @click="popover.data.status = 'exception'" :class="popover.data.status === 'exception' ? 'bg-white dark:bg-slate-600 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'" class="py-2.5 text-xs font-semibold rounded-lg transition-all">Add exception</button>
-            </div>
-          </div>
-
-          {{-- Working Hours --}}
-          <div x-show="popover.data.status === 'work'" x-transition class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Start time</label>
-              <div x-data="timePicker(popover.data, 'start')" class="time-picker-wrapper" @click.away="open = false">
-                <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
-                  <span x-text="formatTime(model.start, '9:00 AM')"></span>
-                  <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-                <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
-                  <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
-                  <div class="time-picker-scroll">
-                    <template x-if="groupedOptions.am.length">
-                      <div>
-                        <div class="time-picker-group-label">Morning</div>
-                        <template x-for="opt in groupedOptions.am" :key="opt.value">
-                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
-                            <span x-text="opt.label"></span>
-                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                          </div>
-                        </template>
-                      </div>
-                    </template>
-                    <template x-if="groupedOptions.pm.length">
-                      <div>
-                        <div class="time-picker-group-label">Afternoon / Evening</div>
-                        <template x-for="opt in groupedOptions.pm" :key="opt.value">
-                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
-                            <span x-text="opt.label"></span>
-                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                          </div>
-                        </template>
-                      </div>
-                    </template>
-                    <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">End time</label>
-              <div x-data="timePicker(popover.data, 'end')" class="time-picker-wrapper" @click.away="open = false">
-                <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
-                  <span x-text="formatTime(model.end, '6:00 PM')"></span>
-                  <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-                <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
-                  <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
-                  <div class="time-picker-scroll">
-                    <template x-if="groupedOptions.am.length">
-                      <div>
-                        <div class="time-picker-group-label">Morning</div>
-                        <template x-for="opt in groupedOptions.am" :key="opt.value">
-                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
-                            <span x-text="opt.label"></span>
-                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                          </div>
-                        </template>
-                      </div>
-                    </template>
-                    <template x-if="groupedOptions.pm.length">
-                      <div>
-                        <div class="time-picker-group-label">Afternoon / Evening</div>
-                        <template x-for="opt in groupedOptions.pm" :key="opt.value">
-                          <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
-                            <span x-text="opt.label"></span>
-                            <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                          </div>
-                        </template>
-                      </div>
-                    </template>
-                    <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {{-- Exception Fields --}}
-          <div x-show="popover.data.status === 'exception'" x-transition class="space-y-3">
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Exception type</label>
-              <select x-model="popover.data.exceptionType" class="w-full px-3 py-2.5 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
-                <option value="day_off">Day off</option>
-                <option value="holiday">Holiday</option>
-
-
-                <option value="custom_hours">Custom hours</option>
-              </select>
-            </div>
-
-            <div x-show="popover.data.exceptionType === 'custom_hours'" class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Start time</label>
-                <div x-data="timePicker(popover.data, 'start')" class="time-picker-wrapper" @click.away="open = false">
-                  <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
-                    <span x-text="formatTime(model.start, '9:00 AM')"></span>
-                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                  </button>
-                  <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
-                    <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
-                    <div class="time-picker-scroll">
-                      <template x-if="groupedOptions.am.length">
-                        <div>
-                          <div class="time-picker-group-label">Morning</div>
-                          <template x-for="opt in groupedOptions.am" :key="opt.value">
-                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
-                              <span x-text="opt.label"></span>
-                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                            </div>
-                          </template>
-                        </div>
-                      </template>
-                      <template x-if="groupedOptions.pm.length">
-                        <div>
-                          <div class="time-picker-group-label">Afternoon / Evening</div>
-                          <template x-for="opt in groupedOptions.pm" :key="opt.value">
-                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.start ? 'selected' : ''">
-                              <span x-text="opt.label"></span>
-                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                            </div>
-                          </template>
-                        </div>
-                      </template>
-                      <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">End time</label>
-                <div x-data="timePicker(popover.data, 'end')" class="time-picker-wrapper" @click.away="open = false">
-                  <button type="button" @click="toggle($el)" :class="open ? 'open' : ''" class="time-picker-trigger">
-                    <span x-text="formatTime(model.end, '6:00 PM')"></span>
-                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                  </button>
-                  <div x-show="open" x-cloak class="time-picker-dropdown" :style="`top:${dropdownTop}px;left:${dropdownLeft}px;width:${dropdownWidth}px`" @click.stop>
-                    <div class="time-picker-search"><input type="text" x-model="search" placeholder="Find time…" @keydown.stop></div>
-                    <div class="time-picker-scroll">
-                      <template x-if="groupedOptions.am.length">
-                        <div>
-                          <div class="time-picker-group-label">Morning</div>
-                          <template x-for="opt in groupedOptions.am" :key="opt.value">
-                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
-                              <span x-text="opt.label"></span>
-                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                            </div>
-                          </template>
-                        </div>
-                      </template>
-                      <template x-if="groupedOptions.pm.length">
-                        <div>
-                          <div class="time-picker-group-label">Afternoon / Evening</div>
-                          <template x-for="opt in groupedOptions.pm" :key="opt.value">
-                            <div @click="select(opt.value)" class="time-picker-option" :class="opt.value === model.end ? 'selected' : ''">
-                              <span x-text="opt.label"></span>
-                              <svg class="check" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                            </div>
-                          </template>
-                        </div>
-                      </template>
-                      <div x-show="!filteredOptions.length" class="px-3 py-4 text-xs text-gray-400 text-center">No times found</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Note <span class="font-normal text-gray-300">(optional)</span></label>
-              <input type="text" x-model="popover.data.reason" placeholder="Add a reason or note…" class="w-full px-3 py-2.5 text-sm bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:outline-none focus:border-brand-500 transition-shadow">
-            </div>
-          </div>
-        </div>
-
-        {{-- Footer --}}
-        <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-slate-700 shrink-0 bg-gray-50/50 dark:bg-slate-800/50">
-          <button @click="selectedCells = {}; closePopover();" class="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Clear selection</button>
-          <button @click="saveBulk()" :disabled="saving" class="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm shadow-brand-500/20 flex items-center gap-1.5">
-            <span x-show="!saving">Apply to <span x-text="Object.keys(selectedCells).length"></span></span>
-            <span x-show="saving">Applying…</span>
-          </button>
-        </div>
-      </div>
     </div>
   </div>
-
   {{-- BULK ACTION BAR --}}
   <div
     class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-lg px-5 py-3 flex items-center gap-4 z-40 transition-all duration-250"
@@ -904,7 +796,7 @@ $todayStr = now()->toDateString();
   >
     <span class="text-sm font-bold text-gray-800 dark:text-white"><span x-text="Object.keys(selectedCells).length"></span> selected</span>
     <button @click="openBulkEdit()" class="px-3 py-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm shadow-brand-500/20">Edit Selected</button>
-    <button @click="selectedCells = {}" class="px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Clear</button>
+    <button @click="clearSelection()" class="px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Clear</button>
   </div>
 
   {{-- =========================================================
@@ -1043,6 +935,8 @@ $todayStr = now()->toDateString();
 @endsection
 
 @push('scripts')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════
    SHARED HELPERS — Extract these to a global app.js in production
@@ -1151,13 +1045,25 @@ function schedApp() {
     selectedStaffIds: [],
     activeTemplate: '',
     selectedCells: {},
+    wholeTherapistIds: {},
+    hasManualCellSelection: false,
+    selectionMode: false,
+    cellRegistry: @json($cellRegistry),
     lastSelected: null,
     saving: false,
     todayStr: '{{ $todayStr }}', 
+    bulkFlatpickr: null,
     popover: {
       open: false,
       mode: 'edit',
-      data: { userId: '', date: '', dow: '', start: '09:00', end: '18:00', status: 'work', exceptionType: 'day_off', reason: '', exceptionId: null }
+      isBulk: false,
+      data: { userId: '', date: '', dow: '', start: '09:00', end: '18:00', status: 'work', exceptionType: 'day_off', reason: '', exceptionId: null, rangeStart: '', rangeEnd: '', rangeIncomplete: false }
+    },
+
+    get isPureWholeTherapistSelection() {
+      return !this.hasManualCellSelection
+        && Object.keys(this.wholeTherapistIds).length > 0
+        && Object.keys(this.selectedCells).length > 0;
     },
 
     reportOpen: false,
@@ -1251,6 +1157,9 @@ function schedApp() {
           if (this.popover.open) {
             this.closePopover();
             e.preventDefault();
+          } else if (this.selectionMode) {
+            this.cancelSelection();
+            e.preventDefault();
           }
           return;
         }
@@ -1271,12 +1180,96 @@ function schedApp() {
       }
     },
 
+    enterSelectionMode() {
+      this.selectionMode = true;
+      this.lastSelected = null;
+      if (this.popover.open) this.closePopover();
+    },
+
+    clearSelection() {
+      this.selectedCells = {};
+      this.wholeTherapistIds = {};
+      this.hasManualCellSelection = false;
+      this.lastSelected = null;
+      this.clearBulkDateRange();
+    },
+
+    cancelSelection() {
+      this.selectionMode = false;
+      this.clearSelection();
+    },
+
+    doneSelecting() {
+      this.selectionMode = false;
+      this.lastSelected = null;
+    },
+
+    cellKeysForTherapist(userId) {
+      return (this.cellRegistry[userId] || []).map(cell => cell.key);
+    },
+
+    toggleCellSelection(key) {
+      const next = { ...this.selectedCells };
+      if (next[key]) delete next[key];
+      else next[key] = true;
+      this.selectedCells = next;
+
+      if (Object.keys(next).length === 0) {
+        this.wholeTherapistIds = {};
+        this.hasManualCellSelection = false;
+      } else {
+        this.hasManualCellSelection = true;
+        const [uid] = key.split('|');
+        if (this.wholeTherapistIds[uid]) {
+          const nextWhole = { ...this.wholeTherapistIds };
+          delete nextWhole[uid];
+          this.wholeTherapistIds = nextWhole;
+        }
+      }
+    },
+
+    therapistSelectionState(userId) {
+      const keys = this.cellKeysForTherapist(userId);
+      if (!keys.length) return 'none';
+      const selected = keys.filter(key => this.selectedCells[key]).length;
+      if (selected === 0) return 'none';
+      return selected === keys.length ? 'all' : 'partial';
+    },
+
+    toggleTherapistCells(userId) {
+      const keys = this.cellKeysForTherapist(userId);
+      if (!keys.length) return;
+      const next = { ...this.selectedCells };
+      const nextWhole = { ...this.wholeTherapistIds };
+      const allSelected = keys.every(key => next[key]);
+      keys.forEach(key => {
+        if (allSelected) delete next[key];
+        else next[key] = true;
+      });
+      if (allSelected) {
+        delete nextWhole[userId];
+      } else {
+        nextWhole[userId] = true;
+      }
+      this.selectedCells = next;
+      this.wholeTherapistIds = nextWhole;
+      if (Object.keys(next).length === 0) {
+        this.hasManualCellSelection = false;
+      }
+    },
+
     handleCellClick(e, userId, date, dow, start, end, type, exType, exId) {
       if (date < this.todayStr) {
         return;
       }
 
       const key = `${userId}|${date}`;
+
+      if (this.selectionMode) {
+        this.toggleCellSelection(key);
+        this.lastSelected = key;
+        return;
+      }
 
       if (e.shiftKey && this.lastSelected && this.lastSelected !== key) {
         const lastParts = this.lastSelected.split('|');
@@ -1299,22 +1292,22 @@ function schedApp() {
         this.toggleSelection(key);
       } else {
         this.selectedCells = { [key]: true };
+        this.wholeTherapistIds = {};
+        this.hasManualCellSelection = true;
         this.openEdit(userId, date, dow, start, end, type, exType, exId);
       }
       this.lastSelected = key;
     },
 
     toggleSelection(key) {
-      const next = { ...this.selectedCells };
-      if (next[key]) delete next[key];
-      else next[key] = true;
-      this.selectedCells = next;
+      this.toggleCellSelection(key);
     },
 
     openEdit(userId, date, dow, start, end, type, exType, exId) {
       this.popover.open = false;
       setTimeout(() => {
         this.popover.mode = 'edit';
+        this.popover.isBulk = false;
         this.popover.data.userId = userId;
         this.popover.data.date = date;
         this.popover.data.dow = dow;
@@ -1324,13 +1317,15 @@ function schedApp() {
         this.popover.data.exceptionType = (exType === 'custom' || exType === 'custom_hours') ? 'custom_hours' : (exType || 'day_off');
         this.popover.data.reason = '';
         this.popover.data.exceptionId = exId;
+        this.clearBulkDateRange();
         this.popover.open = true;
       }, 50);
     },
 
     openBulkEdit() {
       if (Object.keys(this.selectedCells).length === 0) return;
-      this.popover.mode = 'bulk';
+      this.popover.mode = 'edit';
+      this.popover.isBulk = true;
       this.popover.data.status = 'work';
       this.popover.data.start = '09:00';
       this.popover.data.end = '18:00';
@@ -1340,7 +1335,58 @@ function schedApp() {
       this.popover.data.date = '';
       this.popover.data.dow = '';
       this.popover.data.exceptionId = null;
+      this.clearBulkDateRange();
       this.popover.open = true;
+      this.$nextTick(() => {
+        if (this.isPureWholeTherapistSelection) {
+          this.initBulkFlatpickr();
+        }
+      });
+    },
+
+    initBulkFlatpickr() {
+      const el = document.getElementById('bulkDateRange');
+      if (!el || typeof window.flatpickr === 'undefined') return;
+      if (this.bulkFlatpickr) {
+        this.bulkFlatpickr.destroy();
+        this.bulkFlatpickr = null;
+      }
+      const self = this;
+      this.bulkFlatpickr = window.flatpickr(el, {
+        mode: 'range',
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: 'F j, Y',
+        allowInput: false,
+        conjunction: ' to ',
+        minDate: this.todayStr,
+        maxDate: null,
+        onChange(selectedDates) {
+          if (selectedDates.length === 2) {
+            const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            self.popover.data.rangeStart = fmt(selectedDates[0]);
+            self.popover.data.rangeEnd = fmt(selectedDates[1]);
+            self.popover.data.rangeIncomplete = false;
+          } else if (selectedDates.length === 1) {
+            self.popover.data.rangeStart = '';
+            self.popover.data.rangeEnd = '';
+            self.popover.data.rangeIncomplete = true;
+          } else {
+            self.popover.data.rangeStart = '';
+            self.popover.data.rangeEnd = '';
+            self.popover.data.rangeIncomplete = false;
+          }
+        }
+      });
+    },
+
+    clearBulkDateRange() {
+      this.popover.data.rangeStart = '';
+      this.popover.data.rangeEnd = '';
+      this.popover.data.rangeIncomplete = false;
+      if (this.bulkFlatpickr) {
+        this.bulkFlatpickr.clear();
+      }
     },
 
     closePopover() { 
@@ -1396,12 +1442,46 @@ function schedApp() {
     saveBulk() {
       this.saving = true;
       const d = this.popover.data;
-      const exceptions = [];
 
-      Object.keys(this.selectedCells).forEach(key => {
-        const [userId, date] = key.split('|');
-        exceptions.push(this.buildPayload(d, parseInt(userId), date));
-      });
+      if (this.isPureWholeTherapistSelection && d.rangeIncomplete) {
+        this.saving = false;
+        toast('Please select both start and end dates, or clear the date range.', 'error');
+        return;
+      }
+
+      let requestPayload;
+
+      if (this.isPureWholeTherapistSelection && d.rangeStart && d.rangeEnd) {
+        const base = this.buildPayload(d, 0, d.rangeStart);
+        requestPayload = {
+          whole_therapist_ids: Object.keys(this.wholeTherapistIds).map(id => parseInt(id)),
+          date_range: {
+            start_date: d.rangeStart,
+            end_date: d.rangeEnd
+          },
+          exception_type: base.exception_type,
+          start_time: base.start_time,
+          end_time: base.end_time,
+          reason: base.reason
+        };
+      } else {
+        const exceptions = [];
+        const seen = new Set();
+        Object.keys(this.selectedCells).forEach(key => {
+          const [userId, date] = key.split('|');
+          if (!seen.has(key)) {
+            seen.add(key);
+            exceptions.push(this.buildPayload(d, parseInt(userId), date));
+          }
+        });
+
+        if (exceptions.length === 0) {
+          this.saving = false;
+          toast('No cells selected', 'error');
+          return;
+        }
+        requestPayload = { exceptions };
+      }
 
       fetch('{{ $exceptionBulkRoute }}', {
         method: 'POST',
@@ -1410,7 +1490,7 @@ function schedApp() {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ exceptions })
+        body: JSON.stringify(requestPayload)
       })
       .then(async r => {
         const data = await r.json();
@@ -1420,8 +1500,7 @@ function schedApp() {
       .then(d => {
         if (d.success) {
           toast(d.message || 'Schedules updated');
-          this.selectedCells = {};
-          this.lastSelected = null;
+          this.clearSelection();
           this.closePopover();
           setTimeout(() => location.reload(), 300);
         } else {

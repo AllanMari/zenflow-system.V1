@@ -11,6 +11,15 @@ use Illuminate\Support\Facades\DB;
 
 class BusinessScheduleController extends Controller
 {
+    private function clearAvailabilityCache(): void
+    {
+        try {
+            \Illuminate\Support\Facades\Cache::increment('avail:version');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Cache::put('avail:version', 1, now()->addDays(30));
+        }
+    }
+
     private function authorizeManager(): void
     {
         $user = auth()->user();
@@ -177,6 +186,8 @@ class BusinessScheduleController extends Controller
             );
         }
 
+        $this->clearAvailabilityCache();
+
         return back()->with('success', 'Weekly business hours updated successfully.');
     }
 
@@ -321,6 +332,8 @@ class BusinessScheduleController extends Controller
             ? "for range {$startStr} to {$endStr} (" . count($affectedDates) . " days)"
             : "for {$startStr}";
 
+        $this->clearAvailabilityCache();
+
         if ($conflictingAppointments->isNotEmpty()) {
             $count = $conflictingAppointments->count();
             $warningMsg = "Holiday/Special Event date exception saved successfully {$dateSummary}. Warning: {$count} existing appointment(s) fall within this period and conflict with the new operating hours/closure. They were NOT automatically cancelled or rescheduled and require staff review.";
@@ -411,6 +424,8 @@ class BusinessScheduleController extends Controller
                 return false;
             });
 
+        $this->clearAvailabilityCache();
+
         if ($conflictingAppointments->isNotEmpty()) {
             $count = $conflictingAppointments->count();
             $warningMsg = "Holiday/Special Event date exception updated successfully. Warning: {$count} existing appointment(s) fall on this date and conflict with the new operating hours/closure. They were NOT automatically cancelled or rescheduled and require staff review.";
@@ -425,6 +440,7 @@ class BusinessScheduleController extends Controller
         $this->authorizeManager();
 
         $exception->delete();
+        $this->clearAvailabilityCache();
 
         return back()->with('success', 'Business exception removed successfully.');
     }
