@@ -19,6 +19,12 @@ class Appointment extends Model
         'end_time',
         'status',
         'total_price',
+        'discount_type',
+        'discount_percent',
+        'discount_amount',
+        'original_total_price',
+        'discount_applied_by',
+        'discount_applied_at',
         'deposit_required',
         'notes',
         'treatment_notes',
@@ -51,6 +57,11 @@ class Appointment extends Model
         'appointment_date' => 'date',
         'status' => 'string',
         'total_price' => 'decimal:2',
+        'discount_percent' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
+        'original_total_price' => 'decimal:2',
+        'discount_applied_by' => 'integer',
+        'discount_applied_at' => 'datetime',
         'deposit_required' => 'decimal:2',
         'confirmed_at' => 'datetime',
         'confirmed_by' => 'integer',
@@ -75,6 +86,40 @@ class Appointment extends Model
     public function staff()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function discountAppliedBy()
+    {
+        return $this->belongsTo(User::class, 'discount_applied_by');
+    }
+
+    public function hasDiscount(): bool
+    {
+        return in_array($this->discount_type, ['senior_citizen', 'pwd'], true)
+            && (float) $this->discount_amount > 0;
+    }
+
+    public function getDiscountLabelAttribute(): ?string
+    {
+        return match ($this->discount_type) {
+            'senior_citizen' => 'Senior Citizen Discount — 20%',
+            'pwd' => 'PWD Discount — 20%',
+            default => null,
+        };
+    }
+
+    public function getShortDiscountBadgeAttribute(): ?string
+    {
+        return match ($this->discount_type) {
+            'senior_citizen' => 'Senior 20%',
+            'pwd' => 'PWD 20%',
+            default => null,
+        };
+    }
+
+    public function getOriginalAmountAttribute(): float
+    {
+        return (float) ($this->original_total_price ?? $this->total_price ?? 0);
     }
 
     /**

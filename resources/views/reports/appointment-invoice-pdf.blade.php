@@ -667,6 +667,25 @@
 
             <table class="total-table">
 
+                @if(!empty($hasDiscount))
+                    <tr>
+                        <td class="total-label" style="font-weight:normal; font-size:11px; color:#475569;">
+                            Original Amount
+                        </td>
+                        <td class="total-value" style="font-weight:600; font-size:11px; color:#475569;">
+                            ₱{{ number_format($originalTotal, 2) }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="total-label" style="font-weight:normal; font-size:11px; color:#b45309;">
+                            {{ $discountLabel }}
+                        </td>
+                        <td class="total-value" style="font-weight:600; font-size:11px; color:#b45309;">
+                            -₱{{ number_format($discountAmount, 2) }}
+                        </td>
+                    </tr>
+                @endif
+
                 <tr>
 
                     <td class="total-label">

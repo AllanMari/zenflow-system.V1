@@ -86,7 +86,18 @@
 
                         <div class="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4 flex flex-col justify-between">
                             <div class="space-y-1 text-sm">
-                                <p class="text-xs font-semibold text-gray-400 uppercase mb-2">Payment</p>
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-xs font-semibold text-gray-400 uppercase">Payment</p>
+                                    @if($booking->hasDiscount())
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300">
+                                            {{ $booking->short_discount_badge }}
+                                        </span>
+                                    @endif
+                                </div>
+                                @if($booking->hasDiscount())
+                                    <div class="flex justify-between text-xs text-gray-500"><span>Original</span><span>₱{{ number_format($booking->original_amount, 0) }}</span></div>
+                                    <div class="flex justify-between text-xs text-amber-700 dark:text-amber-300"><span>{{ $booking->discount_label }}</span><span>-₱{{ number_format($booking->discount_amount, 0) }}</span></div>
+                                @endif
                                 <div class="flex justify-between"><span class="text-gray-600">Total</span><span class="font-bold">₱{{ number_format($booking->total_price, 0) }}</span></div>
                                 <div class="flex justify-between"><span class="text-gray-600">Paid</span><span class="font-bold text-teal-600">₱{{ number_format($booking->total_paid, 0) }}</span></div>
                                 <div class="flex justify-between border-t pt-2"><span class="text-gray-600">Balance</span><span class="font-bold text-orange-600">₱{{ number_format($booking->active_outstanding_balance, 0) }}</span></div>

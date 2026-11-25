@@ -629,6 +629,11 @@ class ReceptionistController extends Controller
         $request->validate([
             'payment_method' => 'required|in:cash,card,gcash,paymaya,bank_transfer',
             'payment_type' => 'required|in:full,completion',
+            'discount_type' => 'nullable|in:senior_citizen,pwd',
+            'discount_verified' => $request->filled('discount_type') ? 'required|accepted' : 'nullable',
+        ], [
+            'discount_verified.required' => 'Please confirm customer eligibility before applying the discount.',
+            'discount_verified.accepted' => 'Please confirm customer eligibility before applying the discount.',
         ]);
 
         if ($appointment->status === 'completed') {
@@ -636,40 +641,77 @@ class ReceptionistController extends Controller
         }
 
         return DB::transaction(function () use ($request, $appointment) {
-            $lockedAppt = Appointment::lockForUpdate()->find($appointment->id);
+            $lockedAppt = Appointment::lockForUpdate()->with('services')->findOrFail($appointment->id);
 
             if ($lockedAppt->status === 'completed') {
                 return redirect()->route('receptionist.active')->with('info', 'This appointment has already been completed.');
             }
 
-            $totalPaid = $lockedAppt->payments()->sum('amount');
-            $balanceDue = $lockedAppt->total_price - $totalPaid;
-
-            if ($balanceDue <= 0) {
-                if ($lockedAppt->room_id) {
-                    Room::where('id', $lockedAppt->room_id)->update(['status' => 'available']);
-                }
-                $lockedAppt->update(['status' => 'completed']);
-                $this->notifyCustomerCompletion($lockedAppt);
-                return redirect()->route('receptionist.active')->with('success', 'Appointment completed!');
+            if ($lockedAppt->status !== 'confirmed') {
+                return back()->with('error', 'Only confirmed appointments can be completed.');
             }
 
-            Payment::create([
-                'appointment_id' => $lockedAppt->id,
-                'payment_method' => $request->payment_method,
-                'amount' => $balanceDue,
-                'type' => $request->payment_type,
-                'paid_at' => now(),
-            ]);
+            $serviceTotal = (float) $lockedAppt->services->sum(
+                fn($s) => (float) ($s->pivot->custom_price ?? $s->pivot->price_at_booking ?? 0)
+            );
+            $originalTotal = $serviceTotal > 0
+                ? round($serviceTotal, 2)
+                : round((float) ($lockedAppt->original_total_price ?? $lockedAppt->total_price ?? 0), 2);
+
+            $discountType = $request->input('discount_type') ?: null;
+            $discountPercent = null;
+            $discountAmount = 0.00;
+            $finalTotal = $originalTotal;
+
+            if ($discountType) {
+                $discountPercent = 20.00;
+                $discountAmount = round($originalTotal * 0.20, 2);
+                $finalTotal = max(0, round($originalTotal - $discountAmount, 2));
+            }
+
+            $totalPaid = (float) $lockedAppt->payments()->sum('amount');
+            $balanceDue = round($finalTotal - $totalPaid, 2);
+
+            if ($balanceDue < -0.009) {
+                $excess = abs($balanceDue);
+                return back()
+                    ->withInput()
+                    ->with('error', 'Cannot complete appointment: collected payments (₱' . number_format($totalPaid, 2) . ') exceed the final discounted amount (₱' . number_format($finalTotal, 2) . ') by ₱' . number_format($excess, 2) . '. Please reconcile the excess deposit before completing.');
+            }
+
+            if ($balanceDue > 0.009) {
+                Payment::create([
+                    'appointment_id' => $lockedAppt->id,
+                    'payment_method' => $request->payment_method,
+                    'amount' => $balanceDue,
+                    'type' => $request->payment_type,
+                    'paid_at' => now(),
+                ]);
+            }
 
             if ($lockedAppt->room_id) {
                 Room::where('id', $lockedAppt->room_id)->update(['status' => 'available']);
             }
-            $lockedAppt->update(['status' => 'completed']);
+
+            $lockedAppt->update([
+                'status' => 'completed',
+                'original_total_price' => $originalTotal,
+                'total_price' => $finalTotal,
+                'discount_type' => $discountType,
+                'discount_percent' => $discountPercent,
+                'discount_amount' => $discountAmount,
+                'discount_applied_by' => $discountType ? auth()->id() : null,
+                'discount_applied_at' => $discountType ? now() : null,
+            ]);
+
+            $this->clearScheduleCache();
             $this->notifyCustomerCompletion($lockedAppt);
 
-            return redirect()->route('receptionist.active')
-                ->with('success', 'Appointment completed! Payment recorded: ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($balanceDue, 2));
+            $msg = $balanceDue > 0.009
+                ? 'Appointment completed! Payment recorded: ₱' . number_format($balanceDue, 2)
+                : 'Appointment completed!';
+
+            return redirect()->route('receptionist.active')->with('success', $msg);
         });
     }
 

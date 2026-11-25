@@ -1470,35 +1470,12 @@ class SalesAnalyticsService
         }
 
         /*
-        | Add actual collected service revenue and commission.
-        | Revenue and commission are split equally among all assigned therapists,
-        | with any indivisible remainder cents allocated deterministically to the primary therapist.
+        | Add completed-appointment service revenue & commission from the shared
+        | TherapistCommissionService (discounted appointment total * 30%, split equally).
+        | Payment rows are NOT used to accumulate or double-count commissions.
         */
-        foreach ($payments as $payment) {
-            if (
-                !in_array(
-                    $payment->type,
-                    self::REVENUE_PAYMENT_TYPES,
-                    true
-                )
-            ) {
-                continue;
-            }
-
-            if ((float) $payment->amount <= 0) {
-                continue;
-            }
-
-            $appt = $payment->appointment;
-
-            if (!$appt) {
-                continue;
-            }
-
-            /*
-            | Only completed appointments contribute to
-            | staff service revenue and commission.
-            */
+        $commissionService = app(TherapistCommissionService::class);
+        foreach ($appointments as $appt) {
             if ($appt->status !== 'completed') {
                 continue;
             }
@@ -1509,16 +1486,10 @@ class SalesAnalyticsService
             }
 
             $count = $therapists->count();
-            $paymentAmount = (float) $payment->amount;
-
-            // Integer cent arithmetic for exact penny reconciliation
-            $totalRevCents = (int) round($paymentAmount * 100);
+            $calc = $commissionService->calculateForAppointment($appt, $therapists);
+            $totalRevCents = $calc['commissionable_cents'];
             $baseRevCents = intdiv($totalRevCents, $count);
             $remRevCents = $totalRevCents % $count;
-
-            $totalComCents = (int) round($paymentAmount * self::COMMISSION_RATE * 100);
-            $baseComCents = intdiv($totalComCents, $count);
-            $remComCents = $totalComCents % $count;
 
             foreach ($therapists as $idx => $therapist) {
                 $staffId = $therapist->id;
@@ -1527,7 +1498,7 @@ class SalesAnalyticsService
                 }
 
                 $revShareCents = $baseRevCents + ($idx < $remRevCents ? 1 : 0);
-                $comShareCents = $baseComCents + ($idx < $remComCents ? 1 : 0);
+                $comShareCents = $calc['shares'][(int) $staffId] ?? 0;
 
                 $staff[$staffId]['revenue'] += ($revShareCents / 100);
                 $staff[$staffId]['commission'] += ($comShareCents / 100);
@@ -2962,65 +2933,12 @@ private function getNoShowData(
             /*
             | appointment_services uses price_at_booking.
             */
-            $gross = $services->sum(
-                fn ($s) =>
-                    (float) (
-                        $s->pivot->price_at_booking
-                        ?? $s->price
-                        ?? 0
-                    )
-            );
-
-            $discount = 0;
-
-            foreach ($services as $svc) {
-                $price = (float) (
-                    $svc->pivot->price_at_booking
-                    ?? $svc->price
-                    ?? 0
-                );
-
-                $discPrice = (float) (
-                    $svc->pivot->discount_price
-                    ?? $svc->discount_price
-                    ?? 0
-                );
-
-                if (
-                    $discPrice > 0
-                    && $discPrice < $price
-                ) {
-                    $discount +=
-                        $price - $discPrice;
-                }
-            }
-
-            if (
-                ($appt->discount_amount ?? 0) > 0
-                && $gross > 0
-            ) {
-                $discount +=
-                    $appt->discount_amount;
-            } elseif (
-                ($appt->discount_percent ?? 0) > 0
-                && $gross > 0
-            ) {
-                $discount +=
-                    $gross
-                    * (
-                        $appt->discount_percent
-                        / 100
-                    );
-            }
-
-            $net = max(0, $gross - $discount);
-
-            $therapists = $this->getAssignedTherapists($appt);
-
-            $commission =
-                $therapists->isNotEmpty() && $net > 0
-                    ? $net * self::COMMISSION_RATE
-                    : 0;
+            $amounts = $this->computeTransactionAmounts($appt);
+            $gross = $amounts['gross'];
+            $discount = $amounts['discount'];
+            $net = $amounts['net'];
+            $therapists = $amounts['therapists'];
+            $commission = $amounts['commission'];
 
             $durationMinutes = $services->sum(
                 fn ($s) =>
@@ -3107,6 +3025,9 @@ private function getNoShowData(
                         )
                         : null,
 
+                'discountType' => $appt->discount_type,
+                'discountLabel' => $appt->discount_label,
+                'shortDiscountBadge' => $appt->short_discount_badge,
                 'netAmount' =>
                     number_format(
                         $net,
@@ -3152,75 +3073,10 @@ private function getNoShowData(
         $grandCom = 0;
 
         foreach ($allFilteredAppointments as $appt) {
-            $gross = $appt->services->sum(
-                fn ($s) =>
-                    (float) (
-                        $s->pivot->price_at_booking
-                        ?? $s->price
-                        ?? 0
-                    )
-            );
-
-            $discount = 0;
-
-            foreach ($appt->services as $svc) {
-                $price = (float) (
-                    $svc->pivot->price_at_booking
-                    ?? $svc->price
-                    ?? 0
-                );
-
-                $discPrice = (float) (
-                    $svc->pivot->discount_price
-                    ?? $svc->discount_price
-                    ?? 0
-                );
-
-                if (
-                    $discPrice > 0
-                    && $discPrice < $price
-                ) {
-                    $discount +=
-                        $price - $discPrice;
-                }
-            }
-
-            if (
-                ($appt->discount_amount ?? 0) > 0
-                && $gross > 0
-            ) {
-                $discount +=
-                    $appt->discount_amount;
-            } elseif (
-                ($appt->discount_percent ?? 0) > 0
-                && $gross > 0
-            ) {
-                $discount +=
-                    $gross
-                    * (
-                        $appt->discount_percent
-                        / 100
-                    );
-            }
-
-            $net =
-                max(
-                    0,
-                    $gross - $discount
-                );
-
-            $grandGross += $gross;
-            $grandNet += $net;
-
-            $therapists = $this->getAssignedTherapists($appt);
-
-            $grandCom +=
-                (
-                    $therapists->isNotEmpty()
-                    && $net > 0
-                )
-                    ? $net * self::COMMISSION_RATE
-                    : 0;
+            $amounts = $this->computeTransactionAmounts($appt);
+            $grandGross += $amounts['gross'];
+            $grandNet += $amounts['net'];
+            $grandCom += $amounts['commission'];
         }
 
         return [
@@ -3241,6 +3097,60 @@ private function getNoShowData(
 
             'pagination' =>
                 $paginatedAppointments,
+        ];
+    }
+
+    private function computeTransactionAmounts(Appointment $appt): array
+    {
+        $services = $appt->services;
+        $gross = $appt->original_total_price !== null
+            ? (float) $appt->original_total_price
+            : (float) $services->sum(
+                fn ($s) => (float) (
+                    $s->pivot->custom_price
+                    ?? $s->pivot->price_at_booking
+                    ?? $s->price
+                    ?? 0
+                )
+            );
+
+        $discount = 0.0;
+
+        if (($appt->discount_amount ?? 0) > 0 && $gross > 0) {
+            $discount = (float) $appt->discount_amount;
+        } elseif (($appt->discount_percent ?? 0) > 0 && $gross > 0) {
+            $discount = round($gross * ((float) $appt->discount_percent / 100), 2);
+        } else {
+            foreach ($services as $svc) {
+                $price = (float) (
+                    $svc->pivot->custom_price
+                    ?? $svc->pivot->price_at_booking
+                    ?? $svc->price
+                    ?? 0
+                );
+                $discPrice = (float) (
+                    $svc->pivot->discount_price
+                    ?? $svc->discount_price
+                    ?? 0
+                );
+                if ($discPrice > 0 && $discPrice < $price) {
+                    $discount += ($price - $discPrice);
+                }
+            }
+        }
+
+        $net = max(0.0, $gross - $discount);
+        $therapists = $this->getAssignedTherapists($appt);
+        $commission = ($therapists->isNotEmpty() && $net > 0)
+            ? $net * self::COMMISSION_RATE
+            : 0.0;
+
+        return [
+            'gross' => $gross,
+            'discount' => $discount,
+            'net' => $net,
+            'therapists' => $therapists,
+            'commission' => $commission,
         ];
     }
 
@@ -3301,53 +3211,55 @@ private function getNoShowData(
                 continue;
             }
 
-            $svcCount =
-                $appt->services->count();
-
-            $grossAmount =
-                $payment->amount;
-
-            $totalServicePrice =
-                $appt->services->sum(
-                    fn ($s) =>
-                        (float) (
-                            $s->pivot->price_at_booking
-                            ?? $s->price
-                            ?? 0
-                        )
-                );
-
-            $discount = 0;
-
-            if (
-                ($appt->discount_amount ?? 0) > 0
-                && $totalServicePrice > 0
-            ) {
-                $discount =
-                    $appt->discount_amount
-                    / $svcCount;
-            } elseif (
-                ($appt->discount_percent ?? 0) > 0
-                && $grossAmount > 0
-            ) {
-                $discount =
-                    (
-                        $grossAmount
-                        * (
-                            $appt->discount_percent
-                            / 100
-                        )
-                    )
-                    / $svcCount;
+            $svcCount = $appt->services->count();
+            $paymentAmount = (float) $payment->amount;
+            if ($paymentAmount <= 0) {
+                continue;
             }
 
-            $perServiceGross =
-                $grossAmount / $svcCount;
+            $totalServicePrice = (float) $appt->services->sum(
+                fn ($s) => (float) (
+                    $s->pivot->custom_price
+                    ?? $s->pivot->price_at_booking
+                    ?? $s->price
+                    ?? 0
+                )
+            );
 
-            $perServiceNet =
-                $perServiceGross - $discount;
+            $hasApptDiscount = (($appt->discount_amount ?? 0) > 0) || (($appt->discount_percent ?? 0) > 0);
+            $apptFinalTotal = (float) ($appt->total_price ?? 0);
+
+            if ($hasApptDiscount && $apptFinalTotal > 0) {
+                // Allocate original gross and Senior/PWD discount proportionally to the cash collected
+                // in this payment, so net equals actual collected cash and discount is never double-subtracted.
+                $ratio = $paymentAmount / $apptFinalTotal;
+                $apptOriginal = $appt->original_total_price !== null
+                    ? (float) $appt->original_total_price
+                    : ($totalServicePrice > 0 ? $totalServicePrice : $apptFinalTotal);
+                $apptDiscount = ($appt->discount_amount ?? 0) > 0
+                    ? (float) $appt->discount_amount
+                    : round($apptOriginal * ((float) $appt->discount_percent / 100), 2);
+
+                $paymentGrossTotal = round($apptOriginal * $ratio, 2);
+                $paymentDiscountTotal = round($apptDiscount * $ratio, 2);
+                $paymentNetTotal = $paymentAmount;
+            } else {
+                $paymentGrossTotal = $paymentAmount;
+                $paymentDiscountTotal = 0.0;
+                $paymentNetTotal = $paymentAmount;
+            }
 
             foreach ($appt->services as $svc) {
+                $svcPrice = (float) (
+                    $svc->pivot->custom_price
+                    ?? $svc->pivot->price_at_booking
+                    ?? $svc->price
+                    ?? 0
+                );
+                $share = $totalServicePrice > 0 ? ($svcPrice / $totalServicePrice) : (1 / $svcCount);
+                $perServiceGross = $paymentGrossTotal * $share;
+                $discount = $paymentDiscountTotal * $share;
+                $perServiceNet = $paymentNetTotal * $share;
                 $name = trim((string) ($svc->pivot->service_name ?? $svc->name ?? ''));
                 if ($name === '') {
                     $name = $svc->category?->name ?: ('Service #' . $svc->id);

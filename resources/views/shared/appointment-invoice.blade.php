@@ -1484,6 +1484,16 @@
                                    rounded-2xl
                                    overflow-hidden"
                         >
+                            @if(!empty($hasDiscount))
+                                <div class="flex items-center justify-between px-5 py-2.5 text-sm text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
+                                    <span>Original Amount</span>
+                                    <span class="font-semibold">₱{{ number_format($originalTotal, 2) }}</span>
+                                </div>
+                                <div class="flex items-center justify-between px-5 py-2.5 text-sm text-amber-700 dark:text-amber-300 border-b border-gray-200 dark:border-gray-700">
+                                    <span>{{ $discountLabel }}</span>
+                                    <span class="font-semibold">-₱{{ number_format($discountAmount, 2) }}</span>
+                                </div>
+                            @endif
 
                             <div
                                 class="flex items-center

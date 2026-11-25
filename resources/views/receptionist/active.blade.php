@@ -893,40 +893,100 @@
 
             </div>
 
-            <form :action="completeUrl" method="POST" @submit.prevent="if(!submitting){ submitting=true; $el.submit(); }">
+            <form :action="completeUrl" method="POST" @submit.prevent="if(!submitting && !isExcessDeposit() && (discountType === '' || discountVerified)){ submitting=true; $el.submit(); }">
                 @csrf
 
+                <input type="hidden" name="complete_appointment_id" :value="completeAppointmentId">
                 <input
                     type="hidden"
                     name="payment_type"
-                    :value="fullyPaid ? 'full' : 'completion'"
+                    :value="computedBalance() <= 0 ? 'full' : 'completion'"
                 >
 
                 <div class="space-y-4 p-5">
 
-                    <div class="rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
-
-                        <div class="flex items-center justify-between">
-
-                            <span class="text-xs text-slate-500 dark:text-slate-400">
-                                Balance due
-                            </span>
-
-                            <span
-                                class="text-lg font-bold"
-                                :class="fullyPaid
-                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-amber-600 dark:text-amber-400'"
-                                x-text="fullyPaid
-                                    ? 'Fully Paid'
-                                    : '₱' + Number(balance).toLocaleString('en-PH', {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2
-                                    })"
-                            ></span>
-
+                    @if($errors->any() && old('complete_appointment_id'))
+                        <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-300">
+                            {{ $errors->first() }}
                         </div>
+                    @endif
 
+                    @if(session('error') && old('complete_appointment_id'))
+                        <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-300">
+                            {{ session('error') }}
+                        </div>
+                    @endif
+
+                    <div>
+                        <label for="complete_discount_type" class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            Discount (Optional)
+                        </label>
+                        <select
+                            id="complete_discount_type"
+                            name="discount_type"
+                            x-model="discountType"
+                            @change="if(discountType === '') discountVerified = false"
+                            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                            <option value="">No Discount</option>
+                            <option value="senior_citizen">Senior Citizen Discount — 20%</option>
+                            <option value="pwd">PWD Discount — 20%</option>
+                        </select>
+                    </div>
+
+                    <div x-show="discountType !== ''" x-cloak class="rounded-lg border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-800/40 dark:bg-amber-950/20">
+                        <label class="flex items-start gap-2 text-xs text-amber-900 dark:text-amber-200 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                name="discount_verified"
+                                value="1"
+                                x-model="discountVerified"
+                                class="mt-0.5 h-4 w-4 rounded border-amber-300 text-teal-600 focus:ring-teal-500"
+                            >
+                            <span>I have verified the customer's eligibility for this discount.</span>
+                        </label>
+                    </div>
+
+                    <div class="rounded-lg bg-slate-50 p-3.5 space-y-1.5 text-xs dark:bg-slate-800">
+                        <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                            <span>Original Amount</span>
+                            <span class="font-semibold" x-text="'₱' + Number(completeOriginalTotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>
+                        </div>
+                        <div x-show="discountType !== ''" class="flex items-center justify-between text-amber-700 dark:text-amber-300">
+                            <span x-text="discountType === 'senior_citizen' ? 'Senior Citizen Discount — 20%' : 'PWD Discount — 20%'"></span>
+                            <span class="font-semibold" x-text="'-₱' + discountAmount().toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>
+                        </div>
+                        <div class="flex items-center justify-between border-t border-slate-200 pt-1.5 font-bold text-slate-900 dark:border-slate-700 dark:text-white">
+                            <span>Final Payable Amount</span>
+                            <span x-text="'₱' + finalDiscountedTotal().toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>
+                        </div>
+                        <div x-show="completeTotalPaid > 0" class="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                            <span>Previously Paid</span>
+                            <span x-text="'-₱' + Number(completeTotalPaid).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>
+                        </div>
+                        <div class="flex items-center justify-between border-t border-slate-200 pt-1.5 dark:border-slate-700">
+                            <span class="font-semibold text-slate-600 dark:text-slate-300">Balance due</span>
+                            <span
+                                class="text-base font-bold"
+                                :class="isExcessDeposit()
+                                    ? 'text-rose-600 dark:text-rose-400'
+                                    : (computedBalance() <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')"
+                                x-text="isExcessDeposit()
+                                    ? 'Excess: ₱' + excessDeposit().toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                    : (computedBalance() <= 0
+                                        ? 'Fully Paid'
+                                        : '₱' + computedBalance().toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))"
+                            ></span>
+                        </div>
+                    </div>
+
+                    <div x-show="isExcessDeposit()" x-cloak class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-300">
+                        <p class="font-bold">Completion Blocked — Excess Deposit</p>
+                        <p class="mt-0.5">
+                            Payments already collected exceed the discounted payable total by
+                            <strong x-text="'₱' + excessDeposit().toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></strong>.
+                            Reconcile the excess deposit before completing this appointment.
+                        </p>
                     </div>
 
                     <div>
@@ -937,6 +997,7 @@
 
                         <select
                             name="payment_method"
+                            x-model="completePaymentMethod"
                             required
                             class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         >
@@ -963,10 +1024,10 @@
 
                     <button
                         type="submit"
-                        :disabled="submitting"
+                        :disabled="submitting || isExcessDeposit() || (discountType !== '' && !discountVerified)"
                         class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <span x-show="!submitting" x-text="fullyPaid ? 'Complete Appointment' : 'Complete &amp; Collect'"></span>
+                        <span x-show="!submitting" x-text="computedBalance() <= 0 ? 'Complete Appointment' : 'Complete &amp; Collect'"></span>
                         <span x-show="submitting">Processing...</span>
                     </button>
 
@@ -1582,6 +1643,29 @@
 
             fullyPaid: false,
             balance: 0,
+            completeAppointmentId: null,
+            completeOriginalTotal: 0,
+            completeTotalPaid: 0,
+            discountType: '',
+            discountVerified: false,
+            completePaymentMethod: 'cash',
+            completableAppointments: @js(
+                $appointments->merge($pastUnresolvedAppointments)->unique('id')->mapWithKeys(function ($appt) {
+                    $paid = max(0, (float) $appt->payments->sum('amount'));
+                    $svcSum = (float) $appt->services->sum(fn($s) => (float) ($s->pivot->custom_price ?? $s->pivot->price_at_booking ?? 0));
+                    $orig = $svcSum > 0 ? round($svcSum, 2) : round((float) ($appt->original_total_price ?? $appt->total_price), 2);
+                    $bal = max(0, (float) $appt->total_price - $paid);
+                    return [
+                        $appt->id => [
+                            'url' => route('receptionist.complete', $appt),
+                            'fullyPaid' => $bal <= 0,
+                            'balance' => $bal,
+                            'originalTotal' => $orig,
+                            'totalPaid' => $paid,
+                        ],
+                    ];
+                })
+            ),
 
             reassignStaffId: '',
             reassignReqCount: 1,
@@ -1902,6 +1986,21 @@
             init() {
                 this.$nextTick(() => {
                     this.refreshIcons();
+                    const reopenId = @js(old('complete_appointment_id'));
+                    if (reopenId && this.completableAppointments && this.completableAppointments[reopenId]) {
+                        const target = this.completableAppointments[reopenId];
+                        this.openComplete(
+                            Number(reopenId),
+                            target.url,
+                            target.fullyPaid,
+                            target.balance,
+                            target.originalTotal,
+                            target.totalPaid,
+                            @js(old('discount_type', '')),
+                            @js((bool) old('discount_verified')),
+                            @js(old('payment_method', 'cash'))
+                        );
+                    }
                 });
             },
 
@@ -2162,10 +2261,37 @@
                 this.refreshIcons();
             },
 
-            openComplete(id, url, fullyPaid, balance) {
+            discountAmount() {
+                if (!this.discountType) return 0;
+                return Math.round(Number(this.completeOriginalTotal) * 0.20 * 100) / 100;
+            },
+
+            finalDiscountedTotal() {
+                return Math.max(0, Math.round((Number(this.completeOriginalTotal) - this.discountAmount()) * 100) / 100);
+            },
+
+            computedBalance() {
+                return Math.max(0, Math.round((this.finalDiscountedTotal() - Number(this.completeTotalPaid)) * 100) / 100);
+            },
+
+            excessDeposit() {
+                return Math.max(0, Math.round((Number(this.completeTotalPaid) - this.finalDiscountedTotal()) * 100) / 100);
+            },
+
+            isExcessDeposit() {
+                return this.excessDeposit() > 0.009;
+            },
+
+            openComplete(id, url, fullyPaid, balance, originalTotal = null, totalPaid = 0, oldDiscountType = '', oldDiscountVerified = false, oldPaymentMethod = 'cash') {
+                this.completeAppointmentId = id;
                 this.completeUrl = url;
                 this.fullyPaid = fullyPaid;
                 this.balance = Number(balance) || 0;
+                this.completeOriginalTotal = originalTotal !== null ? Number(originalTotal) : (Number(balance) + Number(totalPaid));
+                this.completeTotalPaid = Number(totalPaid) || 0;
+                this.discountType = oldDiscountType || '';
+                this.discountVerified = Boolean(oldDiscountVerified);
+                this.completePaymentMethod = oldPaymentMethod || 'cash';
                 this.modal = 'complete';
 
                 this.refreshIcons();

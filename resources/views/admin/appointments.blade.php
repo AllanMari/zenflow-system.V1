@@ -1382,6 +1382,12 @@
 
                                 </span>
 
+                                @if($appt->hasDiscount())
+                                    <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800/40">
+                                        {{ $appt->short_discount_badge }}
+                                    </span>
+                                @endif
+
                                 @if($appt->status === 'cancelled' && !$isLegacyNoShow)
                                     <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
                                         Cancellation Reason: {{ $appt->cancellation_reason ? ucwords(str_replace('_', ' ', $appt->cancellation_reason)) : 'No reason provided' }}

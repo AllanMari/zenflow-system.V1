@@ -511,7 +511,7 @@
                         >
                             @if($row['discountAmount'] && $row['discountPercent'])
                                 <span class="tx-discount-badge">
-                                    {{ $row['discountPercent'] }}%
+                                    {{ $row['shortDiscountBadge'] ?? ($row['discountPercent'] . '%') }}
                                 </span>
                             @else
                                 —

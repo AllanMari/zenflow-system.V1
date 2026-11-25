@@ -223,6 +223,13 @@ class AppointmentInvoiceController extends Controller
             'refundPayments' => $refundPayments,
 
             'total' => $total,
+            'originalTotal' => $appointment->original_amount,
+            'hasDiscount' => $appointment->hasDiscount(),
+            'discountType' => $appointment->discount_type,
+            'discountLabel' => $appointment->discount_label,
+            'shortDiscountBadge' => $appointment->short_discount_badge,
+            'discountPercent' => $appointment->discount_percent ? (float) $appointment->discount_percent : 0.0,
+            'discountAmount' => (float) ($appointment->discount_amount ?? 0),
             'totalPaid' => $totalPaid,
             'totalRefunded' => $totalRefunded,
             'netPaid' => $netPaid,

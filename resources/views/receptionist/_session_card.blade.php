@@ -2,6 +2,8 @@
     $totalPaid = max(0, (float) $appointment->payments->sum('amount'));
     $balance = max(0, (float) $appointment->total_price - $totalPaid);
     $fullyPaid = $balance <= 0;
+    $serviceSum = (float) $appointment->services->sum(fn($s) => (float) ($s->pivot->custom_price ?? $s->pivot->price_at_booking ?? 0));
+    $originalTotal = $serviceSum > 0 ? round($serviceSum, 2) : round((float) ($appointment->original_total_price ?? $appointment->total_price), 2);
 
     $customerName = $appointment->client_name;
 
@@ -78,10 +80,17 @@
                     </div>
                 </div>
             </div>
-            <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                <span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                Confirmed
-            </span>
+            <div class="flex flex-wrap items-center gap-1.5">
+                @if($appointment->hasDiscount())
+                    <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40">
+                        {{ $appointment->short_discount_badge }}
+                    </span>
+                @endif
+                <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                    <span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                    Confirmed
+                </span>
+            </div>
         </div>
     </div>
     <div class="grid gap-4 p-4 lg:grid-cols-[1.4fr_1fr_1fr]">
@@ -329,7 +338,9 @@
                     {{ $appointment->id }},
                     @js(route('receptionist.complete', $appointment)),
                     {{ $fullyPaid ? 'true' : 'false' }},
-                    @js($balance)
+                    @js($balance),
+                    @js($originalTotal),
+                    @js($totalPaid)
                 )"
                 class="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-teal-700"
             >

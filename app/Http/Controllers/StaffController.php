@@ -826,30 +826,20 @@ class StaffController extends Controller
 
         $count = $therapists->count();
 
-        // 2. Resolve net amount collected
-        $collectedPayments = (float) $appt->payments
-            ->whereIn('type', ['deposit', 'full', 'completion', 'additional'])
-            ->where('amount', '>', 0)
-            ->sum('amount');
-
-        $net = $collectedPayments > 0 ? $collectedPayments : (float) ($appt->total_price ?? 0);
-        $netCents = (int) round($net * 100);
-
-        // 3. 30% Total Commission Pool calculation
-        $totalComCents = (int) round($net * 0.30 * 100);
-        $baseComCents = intdiv($totalComCents, $count);
-        $remComCents = $totalComCents % $count;
-
-        // Sort by ID for deterministic allocation of odd penny
+        // 2 & 3. Shared commission calculation from final discounted appointment total
         $sortedTherapists = $therapists->sortBy('id')->values();
-        $myIndex = $sortedTherapists->search(fn ($t) => $t->id == $userId);
-        if ($myIndex === false) {
+        $calc = app(\App\Services\TherapistCommissionService::class)
+            ->calculateForAppointment($appt, $sortedTherapists);
+
+        if (!array_key_exists($userId, $calc['shares'])) {
             return null;
         }
 
-        $myCommissionCents = $baseComCents + ($myIndex < $remComCents ? 1 : 0);
+        $netCents = $calc['commissionable_cents'];
+        $net = $calc['commissionable_amount'];
+        $myCommissionCents = $calc['shares'][$userId];
         $myCommission = $myCommissionCents / 100;
-        $totalPoolCommission = $totalComCents / 100;
+        $totalPoolCommission = $calc['total_pool'];
 
         // 4. Formatted teammates string
         $otherTherapists = $therapists->reject(fn ($t) => $t->id == $userId);
