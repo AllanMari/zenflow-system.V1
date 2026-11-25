@@ -136,6 +136,10 @@
                 $serviceSummary = $appointment->services->pluck('name')->join(', ');
                 $totalDuration = $appointment->services->sum('duration_minutes');
                 $requestedAt = $appointment->created_at?->timezone('Asia/Manila');
+                $requiredStaffCount = max(1, (int) $appointment->services->max('therapists_required'));
+                $heldTherapistsLabel = $appointment->preferredStaff->count() > 1
+                    ? 'Temporarily Reserved Therapists'
+                    : 'Temporarily Reserved Therapist';
             @endphp
 
             <article
@@ -149,6 +153,8 @@
                 data-cancel-url="{{ route('receptionist.cancel', $appointment) }}"
                 data-current-room-id="{{ $appointment->room_id ?? '' }}"
                 data-reassign-room-url="{{ route('receptionist.reassign-room', $appointment) }}"
+                data-preferred-staff-ids='@json($appointment->preferredStaff->pluck("id")->values())'
+                data-required-staff-count="{{ $requiredStaffCount }}"
             >
 
                 {{-- Compact Two-Line Summary --}}
@@ -258,15 +264,16 @@
                             </span>
 
                             <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50/80 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700/50 text-indigo-800 dark:text-indigo-200">
-                                <strong>Therapist Preference:</strong>
+                                <strong>{{ $heldTherapistsLabel }}:</strong>
                                 @if($appointment->preferredStaff->isNotEmpty())
                                     @foreach($appointment->preferredStaff as $pref)
                                         @php
                                             $prefAvail = ($staffAvailability[$appointment->id][$pref->id]['available'] ?? false);
                                         @endphp
-                                        <span>{{ $pref->first_name }} {{ $pref->last_name }}</span>
+                                        <span>{{ $pref->first_name }}</span>
                                         <span class="text-[11px] font-semibold {{ $prefAvail ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300' }}">({{ $prefAvail ? 'Available' : 'Unavailable' }})</span>@if(!$loop->last), @endif
                                     @endforeach
+                                    <span class="text-[11px] font-medium text-indigo-600 dark:text-indigo-300">(Temporarily held while pending)</span>
                                 @else
                                     <span>No preference</span>
                                 @endif
@@ -505,6 +512,7 @@
                                             onclick="handleStaffSelection({{ $appointment->id }}, {{ $staff->id }}, {{ $requiredStaffCount }}, {{ $isAvailable ? 'true' : 'false' }})"
                                             class="staff-card-{{ $appointment->id }} relative p-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 transition-all text-center h-full flex flex-col items-center justify-center select-none {{ $isAvailable ? 'cursor-pointer hover:border-teal-400' : 'opacity-50 cursor-not-allowed' }}"
                                             data-staff-id="{{ $staff->id }}"
+                                            data-available="{{ $isAvailable ? '1' : '0' }}"
                                         >
                                             <span id="staff_role_badge_{{ $appointment->id }}_{{ $staff->id }}"
                                                   class="hidden absolute -top-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider shadow-xs">
@@ -577,10 +585,10 @@
                             </div>
                         </div>
 
-                        {{-- Customer Therapist Preference (informational only, never a committed assignment) --}}
+                        {{-- Temporarily Reserved Therapist(s) (held while pending; final assignment happens on confirmation) --}}
                         <div class="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700/50">
                             <p class="text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider mb-1">
-                                Customer Therapist Preference
+                                {{ $heldTherapistsLabel }}
                             </p>
                             @if($appointment->preferredStaff->isNotEmpty())
                                 <ul class="text-sm text-indigo-900 dark:text-indigo-200 space-y-1">
@@ -589,9 +597,9 @@
                                             $prefAvail = ($staffAvailability[$appointment->id][$pref->id]['available'] ?? false);
                                         @endphp
                                         <li>
-                                            <strong>Requested:</strong> {{ $pref->first_name }} {{ $pref->last_name }}
+                                            <strong>Held:</strong> {{ $pref->first_name }}
                                             @if($prefAvail)
-                                                <span class="text-xs font-semibold text-emerald-700 dark:text-emerald-300">(Available)</span>
+                                                <span class="text-xs font-semibold text-emerald-700 dark:text-emerald-300">(Available — temporarily reserved while pending)</span>
                                             @else
                                                 <span class="text-xs font-semibold text-rose-700 dark:text-rose-300">(Unavailable — choose another)</span>
                                             @endif
@@ -600,7 +608,7 @@
                                 </ul>
                             @else
                                 <p class="text-sm text-indigo-800 dark:text-indigo-200">
-                                    <strong>Therapist Preference:</strong> No preference
+                                    <strong>Temporarily Reserved Therapist:</strong> No preference
                                 </p>
                             @endif
                         </div>
@@ -1005,6 +1013,9 @@ function toggleDetails(id) {
         if (card && card.dataset.roomsLoaded !== '1') {
             loadRoomsForAppointment(card);
         }
+        if (card && card.dataset.staffPreselected !== '1') {
+            preselectHeldTherapists(card);
+        }
 
     } else {
 
@@ -1026,6 +1037,40 @@ function toggleDetails(id) {
 }
 
 window.pendingStaffSelections = window.pendingStaffSelections || {};
+
+function preselectHeldTherapists(card) {
+    const appointmentId = card.dataset.id;
+    if (!appointmentId) return;
+
+    card.dataset.staffPreselected = '1';
+
+    let preferredIds = [];
+    try {
+        preferredIds = JSON.parse(card.dataset.preferredStaffIds || '[]').map(Number).filter(Boolean);
+    } catch (e) {
+        preferredIds = [];
+    }
+
+    if (!preferredIds.length) {
+        return;
+    }
+
+    const requiredCount = Math.max(1, Number(card.dataset.requiredStaffCount || 1));
+    const eligibleIds = [];
+
+    preferredIds.forEach(staffId => {
+        if (eligibleIds.length >= requiredCount) return;
+        const staffCard = document.getElementById(`staff_card_${appointmentId}_${staffId}`);
+        if (staffCard && staffCard.dataset.available === '1') {
+            eligibleIds.push(staffId);
+        }
+    });
+
+    if (eligibleIds.length > 0) {
+        window.pendingStaffSelections[appointmentId] = eligibleIds;
+        syncStaffSelectionUI(appointmentId, requiredCount);
+    }
+}
 
 function handleStaffSelection(appointmentId, staffId, requiredCount, isAvailable) {
     if (!isAvailable) return;

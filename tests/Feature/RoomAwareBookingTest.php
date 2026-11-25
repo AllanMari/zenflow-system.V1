@@ -331,7 +331,7 @@ class RoomAwareBookingTest extends TestCase {
         $res->assertSee('Reserved Room:</strong> No room reserved', false);
         $res->assertSee('Save Room Assignment');
         $res->assertDontSee('Change Reserved Room');
-        $res->assertSee('Therapist Preference:');
+        $res->assertSee('Temporarily Reserved Therapist:');
         $res->assertSee('Booking IP:');
         $res->assertSee('Confirm Booking');
     }

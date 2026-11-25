@@ -440,4 +440,66 @@ class PendingPreferredTherapistHoldTest extends TestCase
             app(AppointmentOccupancyService::class)->hasStaffConflict($this->therapistA->id, $this->date, '10:00:00', '11:00:00')
         );
     }
+
+    public function test_pending_bookings_view_displays_singular_plural_held_therapists_and_preselection_data(): void
+    {
+        $customer = Customer::create([
+            'first_name' => 'UI',
+            'last_name' => 'Tester',
+            'phone_number' => '09178880001',
+        ]);
+
+        // 1. Single held therapist
+        $singleAppt = Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $this->room1->id,
+            'appointment_date' => $this->date,
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'pending',
+            'total_price' => 1000,
+        ]);
+        $singleAppt->services()->attach($this->singleService->id, ['price_at_booking' => 1000]);
+        $singleAppt->preferredStaff()->sync([$this->therapistA->id]);
+
+        // 2. Multiple held therapists (couple service)
+        $multiAppt = Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $this->room2->id,
+            'appointment_date' => $this->date,
+            'start_time' => '12:00:00',
+            'end_time' => '13:00:00',
+            'status' => 'pending',
+            'total_price' => 2200,
+        ]);
+        $multiAppt->services()->attach($this->coupleService->id, ['price_at_booking' => 2200]);
+        $multiAppt->preferredStaff()->sync([$this->therapistA->id, $this->therapistB->id]);
+
+        // 3. No preference
+        $noPrefAppt = Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $this->room1->id,
+            'appointment_date' => $this->date,
+            'start_time' => '14:00:00',
+            'end_time' => '15:00:00',
+            'status' => 'pending',
+            'total_price' => 1000,
+        ]);
+        $noPrefAppt->services()->attach($this->singleService->id, ['price_at_booking' => 1000]);
+
+        $res = $this->actingAs($this->receptionist)->get(route('receptionist.pending'));
+        $res->assertOk()
+            ->assertSee('Temporarily Reserved Therapist:')
+            ->assertSee('Temporarily Reserved Therapists:')
+            ->assertSee('No preference')
+            ->assertSee('preselectHeldTherapists')
+            ->assertSee("data-preferred-staff-ids='[" . $this->therapistA->id . "]'", false)
+            ->assertSee("data-preferred-staff-ids='[" . $this->therapistA->id . ',' . $this->therapistB->id . "]'", false)
+            ->assertSee("data-preferred-staff-ids='[]'", false);
+
+        // Viewing/opening pending UI must never assign user_id or appointment_staff
+        $this->assertNull($singleAppt->fresh()->user_id);
+        $this->assertNull($multiAppt->fresh()->user_id);
+        $this->assertEquals(0, DB::table('appointment_staff')->whereIn('appointment_id', [$singleAppt->id, $multiAppt->id])->count());
+    }
 }

@@ -321,7 +321,7 @@ class PreferredTherapistBookingTest extends TestCase
 
         $this->actingAs($this->receptionist)->get(route('receptionist.pending'))
             ->assertOk()
-            ->assertSee('Customer Therapist Preference')
+            ->assertSee('Temporarily Reserved Therapist')
             ->assertSee('Elena')
             ->assertSee('(Available)');
 
