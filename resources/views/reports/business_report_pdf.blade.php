@@ -369,6 +369,7 @@
         .text-right { text-align: right; }
         .capitalize { text-transform: capitalize; }
     </style>
+    @include('partials.pdf_page_styles')
 </head>
 <body>
     @include('partials.report_header', [

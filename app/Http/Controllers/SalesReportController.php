@@ -8,6 +8,7 @@ use App\Services\SalesAnalyticsService;
 use App\Services\GeminiInsightService;
 use App\Services\ReportPdfService;
 use App\Services\CsvExportService;
+use App\Support\Pdf\PdfLayoutResolver;
 
 class SalesReportController extends Controller
 {
@@ -127,10 +128,12 @@ class SalesReportController extends Controller
             'generatedAt'         => now()->format('F d, Y g:i A'),
         ];
 
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('daily_sales', $request);
+
         $action = $request->get('action', 'download');
         return $action === 'stream'
-            ? $pdfService->streamPdf('reports.daily_sales_pdf', $pdfData, $filename)
-            : $pdfService->generatePdf('reports.daily_sales_pdf', $pdfData, $filename);
+            ? $pdfService->streamPdf('reports.daily_sales_pdf', $pdfData, $filename, $layout->orientation, $layout)
+            : $pdfService->generatePdf('reports.daily_sales_pdf', $pdfData, $filename, $layout->orientation, $layout);
     }
 
     public function businessReportPdf(Request $request, ReportPdfService $pdfService)
@@ -166,10 +169,12 @@ class SalesReportController extends Controller
             'safeNoShow'            => $data['noShowApptsInPeriod'],
         ];
 
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('business_report', $request);
+
         $action = $request->get('action', 'download');
         return $action === 'stream'
-            ? $pdfService->streamPdf('reports.business_report_pdf', $pdfData, $filename)
-            : $pdfService->generatePdf('reports.business_report_pdf', $pdfData, $filename);
+            ? $pdfService->streamPdf('reports.business_report_pdf', $pdfData, $filename, $layout->orientation, $layout)
+            : $pdfService->generatePdf('reports.business_report_pdf', $pdfData, $filename, $layout->orientation, $layout);
     }
 
     public function dailyReportCsv(Request $request, CsvExportService $csvService)

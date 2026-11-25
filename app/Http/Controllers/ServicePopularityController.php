@@ -8,6 +8,7 @@ use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Services\ReportPdfService;
 use App\Services\CsvExportService;
+use App\Support\Pdf\PdfLayoutResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -53,18 +54,24 @@ class ServicePopularityController extends Controller
             'categoryBreakdown' => $data['categoryBreakdown'],
         ];
 
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('service_popularity', $request);
+
         $action = $request->get('action', 'download');
 
         return $action === 'stream'
             ? $pdfService->streamPdf(
                 'reports.service_popularity_pdf',
                 $pdfData,
-                $filename
+                $filename,
+                $layout->orientation,
+                $layout
             )
             : $pdfService->generatePdf(
                 'reports.service_popularity_pdf',
                 $pdfData,
-                $filename
+                $filename,
+                $layout->orientation,
+                $layout
             );
     }
 

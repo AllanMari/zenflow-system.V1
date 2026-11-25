@@ -185,17 +185,31 @@
         businessCheckedBy: '',
         generateSalesReport(action) {
             const params = new URLSearchParams(window.location.search);
-            params.set('action', action);
             if (this.salesCheckedBy) {
                 params.set('checked_by', this.salesCheckedBy);
             } else {
                 params.delete('checked_by');
             }
-            const url = '{{ route($routeName . '.daily-report-pdf') }}?' + params.toString();
-            if (action === 'stream') {
-                window.open(url, '_blank', 'noopener');
+            const base = '{{ route($routeName . '.daily-report-pdf') }}';
+            if (action === 'stream' && window.zenflowPdfPreview) {
+                const streamParams = new URLSearchParams(params);
+                streamParams.set('action', 'stream');
+                const dlParams = new URLSearchParams(params);
+                dlParams.set('action', 'download');
+                window.zenflowPdfPreview.open({
+                    reportKey: 'daily_sales',
+                    streamUrl: base + '?' + streamParams.toString(),
+                    downloadUrl: base + '?' + dlParams.toString(),
+                    downloadFilename: 'sales-report.pdf',
+                });
             } else {
-                window.location.href = url;
+                params.set('action', action);
+                const url = base + '?' + params.toString();
+                if (action === 'stream') {
+                    window.open(url, '_blank', 'noopener');
+                } else {
+                    window.location.href = url;
+                }
             }
             this.salesReportModalOpen = false;
         },
@@ -213,17 +227,31 @@
         },
         generateBusinessReport(action) {
             const params = new URLSearchParams(window.location.search);
-            params.set('action', action);
             if (this.businessCheckedBy) {
                 params.set('checked_by', this.businessCheckedBy);
             } else {
                 params.delete('checked_by');
             }
-            const url = '{{ route($routeName . '.business-report-pdf') }}?' + params.toString();
-            if (action === 'stream') {
-                window.open(url, '_blank', 'noopener');
+            const base = '{{ route($routeName . '.business-report-pdf') }}';
+            if (action === 'stream' && window.zenflowPdfPreview) {
+                const streamParams = new URLSearchParams(params);
+                streamParams.set('action', 'stream');
+                const dlParams = new URLSearchParams(params);
+                dlParams.set('action', 'download');
+                window.zenflowPdfPreview.open({
+                    reportKey: 'business_report',
+                    streamUrl: base + '?' + streamParams.toString(),
+                    downloadUrl: base + '?' + dlParams.toString(),
+                    downloadFilename: 'business-report.pdf',
+                });
             } else {
-                window.location.href = url;
+                params.set('action', action);
+                const url = base + '?' + params.toString();
+                if (action === 'stream') {
+                    window.open(url, '_blank', 'noopener');
+                } else {
+                    window.location.href = url;
+                }
             }
             this.businessReportModalOpen = false;
         },
@@ -887,6 +915,9 @@
     @include('shared.sales_partials.ai-chat')
 
 </div>
+
+<x-pdf-preview-modal report-key="daily_sales" />
+<x-pdf-preview-modal report-key="business_report" />
 
 @endsection
 

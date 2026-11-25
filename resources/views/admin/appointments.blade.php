@@ -704,8 +704,7 @@
                             request()->query(),
                             ['action' => 'stream']
                         )) }}"
-                        target="_blank"
-                        rel="noopener"
+                        onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'appointment_report', streamUrl: @js(route('admin.appointments.report-pdf', array_merge(request()->query(), ['action' => 'stream']))), downloadUrl: @js(route('admin.appointments.report-pdf', array_merge(request()->query(), ['action' => 'download']))) }); }"
                         class="inline-flex items-center justify-center gap-2
                                h-10 px-3.5
                                rounded-xl
@@ -1552,6 +1551,8 @@
         </div>
     </div>
 </div>
+
+<x-pdf-preview-modal report-key="appointment_report" />
 
 @endsection
 

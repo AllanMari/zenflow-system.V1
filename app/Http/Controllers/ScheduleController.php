@@ -8,6 +8,7 @@ use App\Models\ScheduleException;
 use App\Models\WorkSchedule;
 use App\Models\Attendance;
 use App\Services\ReportPdfService;
+use App\Support\Pdf\PdfLayoutResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -104,24 +105,30 @@ class ScheduleController extends Controller
         $this->authorizeScheduleEdit();
         
         $data = $this->buildPrintableScheduleData($request);
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('weekly_schedule', $request);
 
         return $this->reportPdfService->streamPdf(
             'reports.staff-weekly-schedule-pdf',
             $data,
             $this->printableScheduleFilename($data),
-            'landscape'
+            $layout->orientation,
+            $layout
         );
     }
 
     public function downloadSchedule(Request $request)
     {
+        $this->authorizeScheduleEdit();
+
         $data = $this->buildPrintableScheduleData($request);
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('weekly_schedule', $request);
 
         return $this->reportPdfService->generatePdf(
             'reports.staff-weekly-schedule-pdf',
             $data,
             $this->printableScheduleFilename($data),
-            'landscape'
+            $layout->orientation,
+            $layout
         );
     }
 

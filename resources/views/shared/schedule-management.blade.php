@@ -932,6 +932,7 @@ $cellRegistry = $timeline->mapWithKeys(function ($row) use ($view, $date) {
       </div>
   </div>
 </div>
+<x-pdf-preview-modal report-key="weekly_schedule" />
 @endsection
 
 @push('scripts')
@@ -1117,6 +1118,19 @@ function schedApp() {
 
       if (this.report.checked_by) {
         params.append('checked_by', this.report.checked_by);
+      }
+
+      if (action === 'stream' && window.zenflowPdfPreview) {
+        const streamRoute = '{{ $isAdmin ? route('admin.schedules.print') : route('receptionist.schedules.print') }}';
+        const downloadRoute = '{{ $isAdmin ? route('admin.schedules.download') : route('receptionist.schedules.download') }}';
+        window.zenflowPdfPreview.open({
+          reportKey: 'weekly_schedule',
+          streamUrl: streamRoute + '?' + params.toString(),
+          downloadUrl: downloadRoute + '?' + params.toString(),
+          downloadFilename: 'staff-weekly-schedule.pdf',
+        });
+        this.reportOpen = false;
+        return;
       }
 
       window.open(route + '?' + params.toString(), '_blank');

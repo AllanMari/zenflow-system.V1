@@ -64,6 +64,7 @@
             display: none !important;
         }
     </style>
+    @include('partials.pdf_page_styles')
 </head>
 <body>
     @include('partials.report_header', [

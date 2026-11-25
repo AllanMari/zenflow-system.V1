@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\ReportPdfService;
 use App\Services\CsvExportService;
+use App\Support\Pdf\PdfLayoutResolver;
 use App\Models\Attendance;
 use App\Models\AttendanceLog;
 use App\Models\User;
@@ -638,12 +639,15 @@ class AttendanceController extends Controller
 
         $filename = 'attendance-report.pdf';
 
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('attendance_report', $request);
+
         if ($request->input('action') === 'download') {
             return $pdfService->generatePdf(
                 'reports.attendance-report',
                 $data,
                 $filename,
-                'landscape'
+                $layout->orientation,
+                $layout
             );
         }
 
@@ -651,7 +655,8 @@ class AttendanceController extends Controller
             'reports.attendance-report',
             $data,
             $filename,
-            'landscape'
+            $layout->orientation,
+            $layout
         );
     }
 

@@ -361,7 +361,100 @@
         }
 
     </style>
-
+    @include('partials.pdf_page_styles')
+    @if(isset($pdfLayout) && $pdfLayout instanceof \App\Support\Pdf\PdfLayoutConfig)
+        @php
+            $effectiveInvoiceWidthMm = $pdfLayout->hasContentFrame() && !empty($pdfLayout->contentFrame['width_mm'])
+                ? (float) $pdfLayout->contentFrame['width_mm']
+                : $pdfLayout->printableWidthMm();
+            $isCompactInvoice = $pdfLayout->isCompactWidth();
+            $isNarrowThermal = $effectiveInvoiceWidthMm <= 85.0;
+        @endphp
+        <style>
+            .page {
+                width: 100%;
+                margin-left: 0;
+                margin-right: 0;
+                padding-top: 0;
+                padding-bottom: 0;
+            }
+            @if($pdfLayout->hasContentFrame())
+            .page.pdf-content-frame {
+                width: {{ (float) $pdfLayout->contentFrame['width_mm'] }}mm;
+                border: 1px solid #e5e7eb;
+                padding: 4mm;
+            }
+            @endif
+            .total-table {
+                width: {{ $isCompactInvoice ? '100%' : '72mm' }};
+                margin-left: auto;
+            }
+            .total-label {
+                width: 58%;
+            }
+            .total-value {
+                width: 42%;
+            }
+            .footer-left,
+            .footer-right {
+                width: 50%;
+            }
+            .details-section,
+            .total-wrap,
+            .payment-section,
+            .footer {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            @if($isCompactInvoice)
+            body {
+                font-size: {{ $isNarrowThermal ? '7.5px' : '8px' }};
+                line-height: 1.3;
+            }
+            .details-section { margin-top: 8px; }
+            .details-table td { padding: 4px 6px; }
+            .field-label { font-size: 6px; }
+            .field-value { font-size: {{ $isNarrowThermal ? '7.5px' : '8.5px' }}; margin-top: 1px; }
+            .services-section { margin-top: 9px; }
+            .section-heading { font-size: 7px; margin-bottom: 4px; }
+            .services-table th { padding: 4px 5px; font-size: 6.5px; }
+            .services-table td { padding: 5px; font-size: {{ $isNarrowThermal ? '7.5px' : '8px' }}; }
+            .total-wrap { margin-top: 6px; }
+            .total-table td { padding: 4px 0; }
+            .total-label { font-size: 8px !important; }
+            .total-value { font-size: {{ $isNarrowThermal ? '10px' : '11px' }} !important; }
+            .payment-section { margin-top: 9px; }
+            .payment-cell { padding: 5px 6px; }
+            .payment-label { font-size: 6px; }
+            .payment-value { font-size: {{ $isNarrowThermal ? '7.5px' : '8.5px' }}; margin-top: 1px; }
+            .footer { margin-top: 10px; padding-top: 6px; }
+            .footer-label { font-size: 6px; }
+            .footer-value { font-size: 6.5px; }
+            .thank-you { margin-top: 6px; font-size: 6.5px; }
+            @endif
+            @if($isNarrowThermal)
+            .details-table td,
+            .payment-cell,
+            .footer-left,
+            .footer-right {
+                display: block;
+                width: 100% !important;
+                border-right: none !important;
+                border-left: none !important;
+                text-align: left !important;
+            }
+            .details-table tr:last-child td {
+                border-bottom: 1px solid #e5e7eb;
+            }
+            .details-table tr:last-child td:last-child {
+                border-bottom: none;
+            }
+            .payment-cell + .payment-cell {
+                border-top: 1px solid #e5e7eb;
+            }
+            @endif
+        </style>
+    @endif
 </head>
 
 <body>
@@ -418,7 +511,7 @@
 @endphp
 
 
-<div class="page">
+<div class="page {{ (isset($pdfLayout) && $pdfLayout instanceof \App\Support\Pdf\PdfLayoutConfig && $pdfLayout->hasContentFrame()) ? 'pdf-content-frame' : '' }}">
 
     {{-- ========================================================= --}}
     {{-- HEADER --}}
@@ -550,9 +643,9 @@
 
             <colgroup>
 
-                <col style="width:130mm;">
+                <col style="width:{{ isset($pdfLayout) ? '72%' : '130mm' }};">
 
-                <col style="width:50mm;">
+                <col style="width:{{ isset($pdfLayout) ? '28%' : '50mm' }};">
 
             </colgroup>
 

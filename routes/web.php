@@ -17,6 +17,7 @@ use App\Http\Controllers\BusinessScheduleController;
 use App\Http\Controllers\AppointmentInvoiceController;
 use App\Http\Controllers\DataImportController;
 use App\Http\Controllers\CustomerManagementController;
+use App\Http\Controllers\PdfDefaultController;
 
 
 // ==================== PUBLIC ROUTES (NO LOGIN REQUIRED) ====================
@@ -326,6 +327,16 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
         '/appointments/{appointment}/invoice/download',
         [AppointmentInvoiceController::class, 'download']
     )->name('admin.invoice.download');
+
+    Route::post(
+        '/pdf-defaults/{reportKey}',
+        [PdfDefaultController::class, 'save']
+    )->name('admin.pdf-defaults.save');
+
+    Route::delete(
+        '/pdf-defaults/{reportKey}',
+        [PdfDefaultController::class, 'reset']
+    )->name('admin.pdf-defaults.reset');
 });
 
 

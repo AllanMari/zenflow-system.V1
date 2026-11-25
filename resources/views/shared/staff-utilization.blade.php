@@ -144,7 +144,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-1.5">
-                    <a href="{{ route($pdfRoute, array_merge(request()->query(), ['action' => 'stream'])) }}" target="_blank" rel="noopener noreferrer" class="inline-flex h-10 w-full items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 text-xs font-bold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 sm:w-auto">
+                    <a href="{{ route($pdfRoute, array_merge(request()->query(), ['action' => 'stream'])) }}" onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'staff_utilization', streamUrl: @js(route($pdfRoute, array_merge(request()->query(), ['action' => 'stream']))), downloadUrl: @js(route($pdfRoute, array_merge(request()->query(), ['action' => 'download']))), downloadFilename: 'staff-utilization-report.pdf' }); }" class="inline-flex h-10 w-full items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 text-xs font-bold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 sm:w-auto">
                         <i data-lucide="file-text" class="h-4 w-4"></i>
                         Preview PDF
                     </a>
@@ -396,6 +396,7 @@
         </section>
 
     </div>
+<x-pdf-preview-modal report-key="staff_utilization" />
 @endsection
 
 @push('scripts')

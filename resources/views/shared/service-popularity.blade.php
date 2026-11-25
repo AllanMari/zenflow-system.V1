@@ -160,8 +160,7 @@ CONTENT
         {{-- Preview PDF --}}
         <a
             href="{{ route($pdfRoute, array_merge(request()->query(), ['action' => 'stream'])) }}"
-            target="_blank"
-            rel="noopener noreferrer"
+            onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'service_popularity', streamUrl: @js(route($pdfRoute, array_merge(request()->query(), ['action' => 'stream']))), downloadUrl: @js(route($pdfRoute, array_merge(request()->query(), ['action' => 'download']))), downloadFilename: 'service-popularity-report.pdf' }); }"
             class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:bg-[#1e293b] dark:text-gray-200 dark:hover:bg-gray-800"
         >
             <i
@@ -1168,6 +1167,8 @@ CONTENT
 
 
 </div>
+
+<x-pdf-preview-modal report-key="service_popularity" />
 
 @endsection
 

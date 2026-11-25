@@ -302,7 +302,7 @@
         }
 
     </style>
-
+    @include('partials.pdf_page_styles')
 </head>
 
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Services\ReportPdfService;
+use App\Support\Pdf\PdfLayoutResolver;
 use Illuminate\Http\Request;
 
 class AppointmentInvoiceController extends Controller
@@ -87,34 +88,40 @@ class AppointmentInvoiceController extends Controller
     /**
      * Preview individual invoice as PDF.
      */
-    public function preview(Appointment $appointment)
+    public function preview(Request $request, Appointment $appointment)
     {
         $appointment = $this->loadInvoiceAppointment($appointment);
 
         $data = $this->buildInvoiceData($appointment);
 
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('appointment_invoice', $request);
+
         return $this->reportPdfService->streamPdf(
             'reports.appointment-invoice-pdf',
             $data,
             $this->invoiceFilename($appointment),
-            'portrait'
+            $layout->orientation,
+            $layout
         );
     }
 
     /**
      * Download individual invoice as PDF.
      */
-    public function download(Appointment $appointment)
+    public function download(Request $request, Appointment $appointment)
     {
         $appointment = $this->loadInvoiceAppointment($appointment);
 
         $data = $this->buildInvoiceData($appointment);
 
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('appointment_invoice', $request);
+
         return $this->reportPdfService->generatePdf(
             'reports.appointment-invoice-pdf',
             $data,
             $this->invoiceFilename($appointment),
-            'portrait'
+            $layout->orientation,
+            $layout
         );
     }
 

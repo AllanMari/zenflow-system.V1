@@ -1284,6 +1284,8 @@
 
 </div>
 
+<x-pdf-preview-modal report-key="attendance_report" />
+
 @endsection
 
 
@@ -1857,6 +1859,18 @@ document.addEventListener('alpine:init', () => {
 
 
             if (action === 'stream') {
+                if (window.zenflowPdfPreview) {
+                    const dlParams = new URLSearchParams(params);
+                    dlParams.set('action', 'download');
+                    this.reportModalOpen = false;
+                    window.zenflowPdfPreview.open({
+                        reportKey: 'attendance_report',
+                        streamUrl: url,
+                        downloadUrl: this.reportUrl + '?' + dlParams.toString(),
+                        downloadFilename: 'attendance-report.pdf',
+                    });
+                    return;
+                }
 
                 window.open(
                     url,

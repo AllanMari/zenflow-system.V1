@@ -18,8 +18,7 @@
             </button>
 
             <a href="{{ route('admin.rooms.report-pdf', ['action' => 'stream']) }}"
-               target="_blank"
-               rel="noopener noreferrer"
+               onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'room_report', streamUrl: @js(route('admin.rooms.report-pdf', ['action' => 'stream'])), downloadUrl: @js(route('admin.rooms.report-pdf', ['action' => 'download'])), downloadFilename: 'room-inventory-status-report.pdf' }); }"
                class="bg-white text-teal-600 hover:bg-teal-50 dark:bg-gray-800 dark:text-teal-300 px-5 py-2.5 rounded-lg font-semibold text-sm shadow-sm transition flex items-center gap-2 border border-teal-200 dark:border-neutral-700">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Generate Report
@@ -289,4 +288,5 @@
             });
         }
 </script>
+<x-pdf-preview-modal report-key="room_report" />
 @endsection

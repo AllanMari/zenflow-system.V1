@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\ReportPdfService;
 use App\Services\SalesAnalyticsService;
+use App\Support\Pdf\PdfLayoutResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -51,6 +52,8 @@ class StaffUtilizationController extends Controller
             'checkedBy' => $request->input('checked_by'),
         ];
 
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('staff_utilization', $request);
+
         $action = $request->get('action', 'download');
 
         return $action === 'stream'
@@ -58,13 +61,15 @@ class StaffUtilizationController extends Controller
                 'reports.staff_utilization_pdf',
                 $pdfData,
                 'staff-utilization-report.pdf',
-                'landscape'
+                $layout->orientation,
+                $layout
             )
             : $pdfService->generatePdf(
                 'reports.staff_utilization_pdf',
                 $pdfData,
                 'staff-utilization-report.pdf',
-                'landscape'
+                $layout->orientation,
+                $layout
             );
     }
 

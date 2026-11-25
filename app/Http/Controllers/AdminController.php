@@ -11,6 +11,7 @@ use App\Models\ServiceCategory;
 use App\Models\Setting;
 use App\Services\ReportPdfService;
 use App\Services\CsvExportService;
+use App\Support\Pdf\PdfLayoutResolver;
 use App\Models\WorkSchedule;
 use App\Models\ScheduleException;
 use App\Models\LandingSetting;
@@ -1322,18 +1323,24 @@ public function index(Request $request)
             'summary' => $summary,
         ];
 
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('room_report', $request);
+
         $action = $request->get('action', 'download');
 
         return $action === 'stream'
             ? $pdfService->streamPdf(
                 'reports.room_report_pdf',
                 $pdfData,
-                'room-inventory-status-report.pdf'
+                'room-inventory-status-report.pdf',
+                $layout->orientation,
+                $layout
             )
             : $pdfService->generatePdf(
                 'reports.room_report_pdf',
                 $pdfData,
-                'room-inventory-status-report.pdf'
+                'room-inventory-status-report.pdf',
+                $layout->orientation,
+                $layout
             );
     }
 
@@ -1896,6 +1903,8 @@ public function appointmentReportPdf(
 
     $filename = 'appointment-report.pdf';
 
+    $layout = app(PdfLayoutResolver::class)->resolveFromRequest('appointment_report', $request);
+
     /*
     |--------------------------------------------------------------------------
     | PREVIEW
@@ -1907,7 +1916,9 @@ public function appointmentReportPdf(
         return $pdfService->streamPdf(
             'reports.appointments_report_pdf',
             $pdfData,
-            $filename
+            $filename,
+            $layout->orientation,
+            $layout
         );
     }
 
@@ -1920,7 +1931,9 @@ public function appointmentReportPdf(
     return $pdfService->generatePdf(
         'reports.appointments_report_pdf',
         $pdfData,
-        $filename
+        $filename,
+        $layout->orientation,
+        $layout
     );
 }
 

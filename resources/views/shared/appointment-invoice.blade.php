@@ -592,8 +592,7 @@
                                                     $previewRoute,
                                                     $invoiceAppointment
                                                 ) }}"
-                                                target="_blank"
-                                                rel="noopener"
+                                                onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'appointment_invoice', streamUrl: @js(route($previewRoute, $invoiceAppointment)), downloadUrl: @js(route($downloadRoute, $invoiceAppointment)), downloadFilename: @js('appointment-invoice-SPA-' . $invoiceAppointment->id . '.pdf') }); }"
                                                 title="Preview PDF"
                                                 class="inline-flex
                                                        items-center
@@ -806,8 +805,7 @@
                         $previewRoute,
                         $appointment
                     ) }}"
-                    target="_blank"
-                    rel="noopener"
+                    onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'appointment_invoice', streamUrl: @js(route($previewRoute, $appointment)), downloadUrl: @js(route($downloadRoute, $appointment)), downloadFilename: @js('appointment-invoice-SPA-' . $appointment->id . '.pdf') }); }"
                     class="inline-flex
                            items-center gap-2
                            px-3.5 py-2.5
@@ -1744,6 +1742,7 @@
 
 @endif
 
+<x-pdf-preview-modal report-key="appointment_invoice" />
 
 <script>
 
