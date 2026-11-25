@@ -1,861 +1,549 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Business Intelligence Report - {{ $startDate->format('F d, Y') }}</title>
+    <title>{{ $reportTitle ?? 'Business & Revenue Report' }}</title>
+
     <style>
         @page {
-            margin: 35px;
             size: A4 portrait;
+            margin: 14mm 12mm 14mm 12mm;
         }
-        * { 
-            margin: 0; 
-            padding: 0; 
-            box-sizing: border-box; 
+
+        * {
+            box-sizing: border-box;
         }
-        body { 
-            font-family: 'DejaVu Sans', 'Helvetica Neue', Arial, sans-serif; 
-            font-size: 10px; 
-            color: #1e293b;
-            line-height: 1.5;
+
+        body {
+            font-family: DejaVu Sans, sans-serif;
+            font-size: 9px;
+            line-height: 1.38;
+            color: #000000;
             background: #ffffff;
+            margin: 0;
+            padding: 0;
         }
 
-        /* ===== HERO HEADER ===== */
-        .hero-header {
-            background: #0f766e;
-            color: white;
-            padding: 30px 35px 25px;
-            position: relative;
-        }
-        .hero-header .gold-line {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: #fbbf24;
-        }
-        .hero-top {
-            margin-bottom: 20px;
-        }
-        .hero-top::after {
-            content: '';
-            display: table;
-            clear: both;
-        }
-        .brand {
-            float: left;
-        }
-        .brand h1 {
-            font-size: 22px;
-            font-weight: 800;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-        .brand .tagline {
-            font-size: 9px;
-            opacity: 0.7;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            margin-top: 3px;
-        }
-        .report-badge {
-            float: right;
-            background: rgba(255,255,255,0.12);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 8px;
-            padding: 8px 16px;
-            text-align: center;
-        }
-        .report-badge .label {
-            font-size: 7px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            opacity: 0.7;
-            margin-bottom: 2px;
-        }
-        .report-badge .value {
-            font-size: 11px;
-            font-weight: 700;
-        }
-
-        .hero-period {
-            text-align: center;
-            clear: both;
-            padding-top: 10px;
-        }
-        .hero-period .date-range {
-            font-size: 15px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-        .hero-period .meta {
-            font-size: 9px;
-            opacity: 0.6;
-            margin-top: 5px;
-        }
-
-        /* ===== STATS BAR ===== */
-        .stats-bar {
-            background: #f8fafc;
-            border-bottom: 1px solid #e2e8f0;
-            width: 100%;
-        }
-        .stats-bar td {
-            width: 33.33%;
-            padding: 14px 20px;
-            text-align: center;
-            border-right: 1px solid #e2e8f0;
-        }
-        .stats-bar td:last-child {
-            border-right: none;
-        }
-        .stats-bar .stat-label {
-            font-size: 7px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: #64748b;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-        .stats-bar .stat-value {
-            font-size: 18px;
-            font-weight: 800;
-            color: #0f766e;
-        }
-
-        /* ===== CONTENT ===== */
-        .content {
-            padding: 20px 30px 30px;
-        }
-
-        /* ===== SECTION TITLE ===== */
         .section-title {
-            font-size: 10px;
-            font-weight: 700;
+            font-size: 9px;
+            font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            color: #64748b;
-            margin-bottom: 12px;
-            margin-top: 20px;
-            border-left: 3px solid #0d9488;
-            padding-left: 10px;
+            letter-spacing: 0.4px;
+            color: #000000;
+            margin: 12px 0 5px;
+            padding-bottom: 3px;
+            border-bottom: 1.5px solid #111111;
+            page-break-after: avoid;
         }
 
-        /* ===== KPI ROWS (DomPDF compatible - uses tables) ===== */
-        .kpi-table {
+        .summary-table,
+        .data-table,
+        .signature-table {
             width: 100%;
-            border-collapse: separate;
-            border-spacing: 8px;
-            margin-bottom: 10px;
+            border-collapse: collapse;
+            table-layout: fixed;
+            margin-bottom: 8px;
         }
-        .kpi-table td {
-            width: 25%;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 14px 10px;
-            text-align: center;
-            vertical-align: top;
+
+        .summary-table {
+            page-break-inside: avoid;
         }
-        .kpi-table .kpi-icon {
-            font-size: 20px;
-            margin-bottom: 6px;
-        }
-        .kpi-table .kpi-label {
-            font-size: 7px;
+
+        .summary-table th {
+            background: #f3f4f6;
+            color: #111111;
+            border: 1px solid #d1d5db;
+            border-bottom: 1.5px solid #111111;
+            padding: 4px 6px;
+            font-size: 7.2px;
+            font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #64748b;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-        .kpi-table .kpi-value {
-            font-size: 16px;
-            font-weight: 800;
-            color: #1e293b;
-        }
-        .kpi-table .kpi-sub {
-            font-size: 8px;
-            color: #94a3b8;
-            margin-top: 3px;
-        }
-        .kpi-table .kpi-trend {
-            font-size: 8px;
-            font-weight: 700;
-            margin-top: 4px;
-            padding: 2px 8px;
-            border-radius: 10px;
-            display: inline-block;
-        }
-        .kpi-trend.up {
-            background: #ecfdf5;
-            color: #059669;
-        }
-        .kpi-trend.down {
-            background: #fff1f2;
-            color: #e11d48;
-        }
-
-        /* Color top borders for KPI cards */
-        .kpi-table td.teal { border-top: 3px solid #0d9488; }
-        .kpi-table td.blue { border-top: 3px solid #2563eb; }
-        .kpi-table td.purple { border-top: 3px solid #7c3aed; }
-        .kpi-table td.amber { border-top: 3px solid #d97706; }
-        .kpi-table td.rose { border-top: 3px solid #e11d48; }
-        .kpi-table td.emerald { border-top: 3px solid #059669; }
-        .kpi-table td.cyan { border-top: 3px solid #0891b2; }
-        .kpi-table td.indigo { border-top: 3px solid #4f46e5; }
-
-        /* ===== HEALTH ROW ===== */
-        .health-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 8px;
-            margin-bottom: 10px;
-        }
-        .health-table td {
-            width: 20%;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 14px 10px;
-            text-align: center;
-            vertical-align: top;
-        }
-        .health-table .health-icon {
-            font-size: 18px;
-            margin-bottom: 6px;
-        }
-        .health-table .health-label {
-            font-size: 7px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #64748b;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-        .health-table .health-value {
-            font-size: 18px;
-            font-weight: 800;
-            color: #1e293b;
-        }
-        .health-table .health-status {
-            font-size: 8px;
-            padding: 2px 8px;
-            border-radius: 10px;
-            display: inline-block;
-            margin-top: 5px;
-            font-weight: 600;
-        }
-        .health-status.excellent { background: #ecfdf5; color: #059669; }
-        .health-status.good { background: #f0fdfa; color: #0d9488; }
-        .health-status.warning { background: #fffbeb; color: #d97706; }
-        .health-status.critical { background: #fff1f2; color: #e11d48; }
-
-        /* ===== TABLES ===== */
-        .table-wrap {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 15px;
-        }
-        .data-table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            font-size: 9.5px;
-        }
-        .data-table thead {
-            background: #f8fafc;
-        }
-        .data-table th { 
-            color: #475569; 
-            font-weight: 700; 
-            padding: 10px 12px; 
+            letter-spacing: 0.3px;
             text-align: left;
-            border-bottom: 2px solid #e2e8f0;
-            text-transform: uppercase;
+        }
+
+        .summary-table td {
+            border: 1px solid #d1d5db;
+            padding: 5px 6px;
+            font-size: 9.5px;
+            font-weight: bold;
+            color: #000000;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .metric-sub {
+            display: block;
+            margin-top: 2px;
             font-size: 7px;
-            letter-spacing: 1px;
+            font-weight: normal;
+            color: #4b5563;
         }
-        .data-table td { 
-            padding: 9px 12px; 
-            border-bottom: 1px solid #f1f5f9;
-            color: #334155;
-            vertical-align: middle;
+
+        .data-table thead {
+            display: table-header-group;
         }
-        .data-table tbody tr:last-child td {
-            border-bottom: none;
+
+        .data-table tr {
+            page-break-inside: avoid;
         }
-        .data-table .rank {
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            display: inline-block;
+
+        .data-table th {
+            background: #f3f4f6;
+            color: #111111;
+            border: 1px solid #d1d5db;
+            border-bottom: 1.5px solid #111111;
+            padding: 5px 6px;
+            font-size: 7.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: left;
+        }
+
+        .data-table td {
+            border: 1px solid #d1d5db;
+            padding: 5px 6px;
+            font-size: 8.2px;
+            color: #000000;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .data-table tbody tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        .data-table tfoot td {
+            background: #f3f4f6;
+            border-top: 1.5px solid #111111;
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
             text-align: center;
-            line-height: 22px;
-            font-size: 9px;
-            font-weight: 800;
-            color: white;
-        }
-        .rank.gold { background: #f59e0b; }
-        .rank.silver { background: #94a3b8; }
-        .rank.bronze { background: #ea580c; }
-        .rank.other { background: #e2e8f0; color: #64748b; }
-
-        .data-table .bar-bg {
-            width: 100%;
-            height: 5px;
-            background: #f1f5f9;
-            border-radius: 3px;
-            overflow: hidden;
-            margin-top: 4px;
-        }
-        .data-table .bar-fill {
-            height: 100%;
-            border-radius: 3px;
-            background: #0d9488;
-        }
-        .data-table .bar-fill.staff {
-            background: #2563eb;
         }
 
-        .data-table .amount {
-            font-weight: 700;
-            color: #0f766e;
-            font-size: 10px;
-        }
-        .data-table .pct {
-            color: #94a3b8;
-            font-size: 9px;
-            font-weight: 600;
-        }
-        .data-table .total-row {
-            background: #f8fafc;
-            font-weight: 700;
-        }
-        .data-table .total-row td {
-            border-top: 2px solid #cbd5e1;
-            color: #1e293b;
-            font-size: 10px;
+        .bold {
+            font-weight: bold;
         }
 
-        /* ===== FOOTER ===== */
-        .footer-bar {
-            background: #0f766e;
-            color: white;
-            padding: 12px 30px;
-            font-size: 8px;
-        }
-        .footer-bar::after {
-            content: '';
-            display: table;
-            clear: both;
-        }
-        .footer-left {
-            float: left;
-        }
-        .footer-right {
-            float: right;
-            background: rgba(255,255,255,0.1);
-            padding: 3px 10px;
-            border-radius: 4px;
-            font-weight: 600;
-            letter-spacing: 1px;
+        .muted {
+            color: #4b5563;
+            font-size: 7.5px;
         }
 
-        .text-right { text-align: right; }
-        .capitalize { text-transform: capitalize; }
+        .peak-row {
+            font-weight: bold;
+        }
+
+        .empty-state {
+            border: 1px solid #d1d5db;
+            padding: 10px 12px;
+            text-align: center;
+            color: #4b5563;
+            font-size: 8.2px;
+            margin-bottom: 8px;
+        }
+
+        .signature-table {
+            margin-top: 18px;
+            page-break-inside: avoid;
+        }
+
+        .signature-table td {
+            width: 50%;
+            vertical-align: top;
+            padding-right: 24px;
+            border: 0;
+        }
+
+        .signature-label {
+            font-size: 7.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #4b5563;
+            margin-bottom: 18px;
+        }
+
+        .signature-line {
+            width: 82%;
+            border-top: 1px solid #111111;
+            padding-top: 3px;
+            font-size: 8.5px;
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .signature-role {
+            font-size: 7.2px;
+            color: #4b5563;
+        }
+
+        .doc-footer {
+            margin-top: 12px;
+            padding-top: 5px;
+            border-top: 1px solid #d1d5db;
+            font-size: 7.2px;
+            color: #4b5563;
+            text-align: right;
+        }
     </style>
+
     @include('partials.pdf_page_styles')
 </head>
 <body>
-    @include('partials.report_header', [
-        'reportTitle' => 'Business Intelligence Report'
-    ])
+@php
+    $reportTitle = $reportTitle ?? 'Business & Revenue Report';
+    $dateRangeText = $dateRange ?? ($dateLabel ?? 'Current Period');
+    $preparedByName = $preparedBy ?? 'Administrator';
+    $checkedByName = !empty($checkedBy) ? $checkedBy : null;
+    $generatedText = $generatedAt instanceof \Carbon\CarbonInterface
+        ? $generatedAt->format('F j, Y g:i A')
+        : ($generatedAt ?? now()->format('F j, Y g:i A'));
 
-    <!-- ===== STATS BAR ===== -->
-    <table class="stats-bar">
+    $totalRev = (float) ($safeTotalRevenue ?? ($totalRevenue ?? 0));
+    $avgSale = (float) ($safeAvgSale ?? 0);
+    $uniqueCustomers = (int) ($safeUniqueCustomers ?? 0);
+    $depositsTotal = (float) ($safeDeposits ?? 0);
+    $revChangePct = (float) ($safeRevenueChange ?? 0);
+    $revChangeText = $revenueChangeLabel ?? (($revChangePct >= 0 ? '+' : '') . number_format($revChangePct, 1) . '% vs prior period');
+
+    $apptTotal = (int) ($safeTotalAppts ?? ($safeTotalCount ?? 0));
+    $apptCompleted = (int) ($safeCompleted ?? 0);
+    $apptCancelled = (int) ($safeCancelled ?? 0);
+    $apptNoShow = (int) ($safeNoShow ?? 0);
+    $completionRate = (float) ($safeCompletionRate ?? 0);
+    $cancellationRate = (float) ($safeCancellationRate ?? 0);
+    $noShowRate = (float) ($safeNoShowRate ?? 0);
+
+    $servicesList = collect($topServices ?? []);
+    $staffPerfList = collect($staffPerformance ?? []);
+    $fallbackTopStaff = collect($topStaff ?? []);
+    $retentionList = collect($therapistRetentionData ?? []);
+    $peakData = is_array($peakBusinessHours ?? null) ? $peakBusinessHours : [];
+    $hourRows = collect($peakData['hours'] ?? [])->filter(fn ($row) => (int) ($row['count'] ?? 0) > 0)->values();
+    $peakSummaryLabel = $peakData['peakLabel'] ?? 'N/A';
+    $peakMaxCount = (int) ($peakData['peakCount'] ?? 0);
+    $methodRows = collect($methodBreakdown ?? []);
+    $methodGrandTotal = (float) $methodRows->sum(fn ($item) => (float) data_get($item, 'total', 0));
+@endphp
+
+@include('partials.report_header', [
+    'reportTitle' => $reportTitle,
+    'dateRange' => $dateRangeText,
+    'referenceNumber' => $referenceNumber ?? null,
+    'generatedAt' => $generatedText,
+    'preparedBy' => $preparedByName,
+])
+
+<div class="section-title">Key Metrics</div>
+<table class="summary-table">
+    <thead>
+        <tr>
+            <th style="width: 28%;">Net Revenue</th>
+            <th style="width: 24%;">Average Sale</th>
+            <th style="width: 24%;">Unique Clients</th>
+            <th style="width: 24%;">Collected Deposits</th>
+        </tr>
+    </thead>
+    <tbody>
         <tr>
             <td>
-                <div class="stat-label">Total Revenue</div>
-                <div class="stat-value">₱{{ number_format($safeTotalRevenue, 2) }}</div>
+                &#8369;{{ number_format($totalRev, 2) }}
+                <span class="metric-sub">{{ $revChangeText }}</span>
             </td>
             <td>
-                <div class="stat-label">Transactions</div>
-                <div class="stat-value" style="color: #1e293b;">{{ $safeTotalCount }}</div>
+                &#8369;{{ number_format($avgSale, 2) }}
+                <span class="metric-sub">Per completed booking</span>
             </td>
             <td>
-                <div class="stat-label">Unique Clients</div>
-                <div class="stat-value" style="color: #1e293b;">{{ $safeUniqueCustomers }}</div>
+                {{ number_format($uniqueCustomers) }}
+                <span class="metric-sub">Served in period</span>
+            </td>
+            <td>
+                &#8369;{{ number_format($depositsTotal, 2) }}
+                <span class="metric-sub">Downpayments received</span>
             </td>
         </tr>
+    </tbody>
+</table>
+
+<div class="section-title">Appointment Summary</div>
+<table class="summary-table">
+    <thead>
+        <tr>
+            <th style="width: 25%;">Total Scheduled</th>
+            <th style="width: 25%;">Completed</th>
+            <th style="width: 25%;">Cancelled</th>
+            <th style="width: 25%;">No-Show</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                {{ number_format($apptTotal) }}
+                <span class="metric-sub">All appointments in period</span>
+            </td>
+            <td>
+                {{ number_format($apptCompleted) }}
+                <span class="metric-sub">{{ number_format($completionRate, 1) }}% completion rate</span>
+            </td>
+            <td>
+                {{ number_format($apptCancelled) }}
+                <span class="metric-sub">{{ number_format($cancellationRate, 1) }}% cancellation rate</span>
+            </td>
+            <td>
+                {{ number_format($apptNoShow) }}
+                <span class="metric-sub">{{ number_format($noShowRate, 1) }}% no-show rate</span>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="section-title">Top Performing Services</div>
+@if($servicesList->isNotEmpty())
+    <table class="data-table pdf-scalable-table">
+        <thead>
+            <tr>
+                <th style="width: 10%;" class="text-center">Rank</th>
+                <th style="width: 52%;">Service Name</th>
+                <th style="width: 20%;" class="text-right">Revenue</th>
+                <th style="width: 18%;" class="text-right">Revenue Share</th>
+            </tr>
+        </thead>
+        <tbody>
+            @php
+                $topServicesSum = (float) $servicesList->sum(fn ($val) => is_array($val) ? (float) ($val['revenue'] ?? $val['total'] ?? 0) : (float) $val);
+                $serviceRank = 1;
+            @endphp
+            @foreach($servicesList as $svcKey => $svcVal)
+                @php
+                    $svcName = is_array($svcVal) ? ($svcVal['name'] ?? $svcKey) : (string) $svcKey;
+                    $svcRevenue = is_array($svcVal) ? (float) ($svcVal['revenue'] ?? $svcVal['total'] ?? 0) : (float) $svcVal;
+                    $svcShareBase = $totalRev > 0 ? $totalRev : $topServicesSum;
+                    $svcShare = $svcShareBase > 0 ? ($svcRevenue / $svcShareBase) * 100 : 0;
+                @endphp
+                <tr>
+                    <td class="text-center">{{ $serviceRank++ }}</td>
+                    <td class="bold">{{ $svcName }}</td>
+                    <td class="text-right">&#8369;{{ number_format($svcRevenue, 2) }}</td>
+                    <td class="text-right">{{ number_format($svcShare, 1) }}%</td>
+                </tr>
+            @endforeach
+        </tbody>
     </table>
+@else
+    <div class="empty-state">No service revenue data recorded for this period.</div>
+@endif
 
-    <!-- ===== CONTENT ===== -->
-    <div class="content">
-
-        <!-- KPI Grid -->
-        <div class="section-title">Key Performance Indicators</div>
-        <table class="kpi-table">
+<div class="section-title">Staff Performance</div>
+@if($staffPerfList->isNotEmpty())
+    <table class="data-table pdf-scalable-table">
+        <thead>
             <tr>
-                <td class="teal">
-                    <div class="kpi-icon">💰</div>
-                    <div class="kpi-label">Total Revenue</div>
-                    <div class="kpi-value">₱{{ number_format($safeTotalRevenue, 0) }}</div>
-                    <div class="kpi-sub">Net collections</div>
-                </td>
-                <td class="blue">
-                    <div class="kpi-icon">🧾</div>
-                    <div class="kpi-label">Avg Ticket</div>
-                    <div class="kpi-value">₱{{ number_format($safeAvgSale, 0) }}</div>
-                    <div class="kpi-sub">Per transaction</div>
-                </td>
-                <td class="purple">
-                    <div class="kpi-icon">👥</div>
-                    <div class="kpi-label">Unique Clients</div>
-                    <div class="kpi-value">{{ $safeUniqueCustomers }}</div>
-                    <div class="kpi-sub">Distinct customers</div>
-                </td>
-                <td class="amber">
-                    <div class="kpi-icon">🔒</div>
-                    <div class="kpi-label">Deposits Held</div>
-                    <div class="kpi-value">₱{{ number_format($safeDeposits ?? 0, 0) }}</div>
-                    <div class="kpi-sub">Pending realization</div>
-                </td>
+                <th style="width: 7%;" class="text-center">Rank</th>
+                <th style="width: 23%;">Staff Member</th>
+                <th style="width: 10%;" class="text-right">Appts</th>
+                <th style="width: 11%;" class="text-right">Completed</th>
+                <th style="width: 10%;" class="text-right">Services</th>
+                <th style="width: 11%;" class="text-right">Rate</th>
+                <th style="width: 14%;" class="text-right">Revenue</th>
+                <th style="width: 14%;" class="text-right">Commission</th>
             </tr>
-        </table>
-        <table class="kpi-table">
+        </thead>
+        <tbody>
+            @foreach($staffPerfList as $index => $member)
+                @php
+                    $mRank = data_get($member, 'rank', $index + 1);
+                    $mName = data_get($member, 'name', 'Unknown');
+                    $mAppts = (int) data_get($member, 'appointments', 0);
+                    $mCompleted = (int) data_get($member, 'completed', 0);
+                    $mServices = (int) data_get($member, 'services', 0);
+                    $mRate = (float) data_get($member, 'completion_rate', 0);
+                    $mRev = (float) data_get($member, 'revenue', 0);
+                    $mComm = (float) data_get($member, 'commission', 0);
+                @endphp
+                <tr>
+                    <td class="text-center">{{ $mRank }}</td>
+                    <td class="bold">{{ $mName }}</td>
+                    <td class="text-right">{{ number_format($mAppts) }}</td>
+                    <td class="text-right">{{ number_format($mCompleted) }}</td>
+                    <td class="text-right">{{ number_format($mServices) }}</td>
+                    <td class="text-right">{{ number_format($mRate, 1) }}%</td>
+                    <td class="text-right">&#8369;{{ number_format($mRev, 2) }}</td>
+                    <td class="text-right">&#8369;{{ number_format($mComm, 2) }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+        <tfoot>
             <tr>
-                <td class="emerald">
-                    <div class="kpi-icon">✅</div>
-                    <div class="kpi-label">Completion Rate</div>
-                    <div class="kpi-value">{{ $safeCompletionRate }}%</div>
-                    <div class="kpi-trend {{ $safeCompletionRate >= 80 ? 'up' : 'down' }}">
-                        {{ $safeCompletionRate >= 80 ? 'Excellent' : 'Needs Work' }}
-                    </div>
-                </td>
-                <td class="rose">
-                    <div class="kpi-icon">🚫</div>
-                    <div class="kpi-label">No-Show Rate</div>
-                    <div class="kpi-value">{{ $safeNoShowRate }}%</div>
-                    <div class="kpi-trend {{ $safeNoShowRate <= 10 ? 'up' : 'down' }}">
-                        {{ $safeNoShowRate <= 10 ? 'Healthy' : 'Critical' }}
-                    </div>
-                </td>
-                <td class="cyan">
-                    <div class="kpi-icon">📉</div>
-                    <div class="kpi-label">Cancellation Rate</div>
-                    <div class="kpi-value">{{ $safeCancellationRate }}%</div>
-                    <div class="kpi-trend {{ $safeCancellationRate <= 15 ? 'up' : 'down' }}">
-                        {{ $safeCancellationRate <= 15 ? 'Acceptable' : 'High Risk' }}
-                    </div>
-                </td>
-                <td class="indigo">
-                    <div class="kpi-icon">📈</div>
-                    <div class="kpi-label">Revenue Growth</div>
-                    <div class="kpi-value">{{ $revenueChangeLabel ?? '0' }}%</div>
-                    <div class="kpi-trend {{ ($safeRevenueChange ?? 0) >= 0 ? 'up' : 'down' }}">
-                        {{ ($safeRevenueChange ?? 0) >= 0 ? 'Growing' : 'Declining' }}
-                    </div>
-                </td>
+                <td colspan="2">Total Staff ({{ $staffPerfList->count() }})</td>
+                <td class="text-right">{{ number_format($staffPerfList->sum(fn ($m) => (int) data_get($m, 'appointments', 0))) }}</td>
+                <td class="text-right">{{ number_format($staffPerfList->sum(fn ($m) => (int) data_get($m, 'completed', 0))) }}</td>
+                <td class="text-right">{{ number_format($staffPerfList->sum(fn ($m) => (int) data_get($m, 'services', 0))) }}</td>
+                <td class="text-right">—</td>
+                <td class="text-right">&#8369;{{ number_format($staffPerfList->sum(fn ($m) => (float) data_get($m, 'revenue', 0)), 2) }}</td>
+                <td class="text-right">&#8369;{{ number_format($staffPerfList->sum(fn ($m) => (float) data_get($m, 'commission', 0)), 2) }}</td>
             </tr>
-        </table>
-
-        <!-- Appointment Health -->
-        <div class="section-title">Appointment Health</div>
-        <table class="health-table">
+        </tfoot>
+    </table>
+@elseif($fallbackTopStaff->isNotEmpty())
+    <table class="data-table pdf-scalable-table">
+        <thead>
             <tr>
-                <td>
-                    <div class="health-icon">📋</div>
-                    <div class="health-label">Total</div>
-                    <div class="health-value">{{ $safeTotalAppts }}</div>
-                </td>
-                <td>
-                    <div class="health-icon">✅</div>
-                    <div class="health-label">Completed</div>
-                    <div class="health-value" style="color: #059669;">{{ $safeCompleted }}</div>
-                    <div class="health-status {{ $safeCompletionRate >= 80 ? 'excellent' : ($safeCompletionRate >= 60 ? 'good' : 'warning') }}">
-                        {{ $safeCompletionRate }}%
-                    </div>
-                </td>
-                <td>
-                    <div class="health-icon">❌</div>
-                    <div class="health-label">Cancelled</div>
-                    <div class="health-value" style="color: #e11d48;">{{ $safeCancelled }}</div>
-                    <div class="health-status {{ $safeCancellationRate <= 10 ? 'good' : 'warning' }}">
-                        {{ $safeCancellationRate }}%
-                    </div>
-                </td>
-                <td>
-                    <div class="health-icon">⏰</div>
-                    <div class="health-label">No-Shows</div>
-                    <div class="health-value" style="color: #d97706;">{{ $safeNoShow }}</div>
-                    <div class="health-status {{ $safeNoShowRate <= 8 ? 'excellent' : ($safeNoShowRate <= 15 ? 'good' : 'critical') }}">
-                        {{ $safeNoShowRate }}%
-                    </div>
-                </td>
-                <td>
-                    <div class="health-icon">💵</div>
-                    <div class="health-label">Rev / Appt</div>
-                    <div class="health-value" style="color: #2563eb;">₱{{ number_format($safeTotalAppts > 0 ? $safeTotalRevenue / $safeTotalAppts : 0, 0) }}</div>
-                    <div class="health-status good">Average</div>
-                </td>
+                <th style="width: 12%;" class="text-center">Rank</th>
+                <th style="width: 58%;">Staff Member</th>
+                <th style="width: 30%;" class="text-right">Revenue</th>
             </tr>
-        </table>
+        </thead>
+        <tbody>
+            @php $fallbackRank = 1; @endphp
+            @foreach($fallbackTopStaff as $staffName => $staffRevenue)
+                <tr>
+                    <td class="text-center">{{ $fallbackRank++ }}</td>
+                    <td class="bold">{{ $staffName }}</td>
+                    <td class="text-right">&#8369;{{ number_format((float) $staffRevenue, 2) }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+@else
+    <div class="empty-state">No staff performance data recorded for this period.</div>
+@endif
 
-        <!-- Top Services -->
-        <div class="section-title">Top Performing Services</div>
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width: 5%;">#</th>
-                        <th style="width: 45%;">Service</th>
-                        <th style="width: 25%;" class="text-right">Revenue</th>
-                        <th style="width: 25%;" class="text-right">Market Share</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @php 
-                        $svcTotal = collect($topServices ?? [])->sum();
-                        $rank = 0;
-                    @endphp
-                    @foreach($topServices as $name => $amount)
-                    @php
-                        $rank++;
-                        $share = $svcTotal > 0 ? round(($amount / $svcTotal) * 100, 1) : 0;
-                        $rankClass = $rank === 1 ? 'gold' : ($rank === 2 ? 'silver' : ($rank === 3 ? 'bronze' : 'other'));
-                    @endphp
-                    <tr>
-                        <td><span class="rank {{ $rankClass }}">{{ $rank }}</span></td>
-                        <td>
-                            <strong>{{ $name }}</strong>
-                            <div class="bar-bg">
-                                <div class="bar-fill" style="width: {{ $share }}%"></div>
-                            </div>
-                        </td>
-                        <td class="text-right amount">₱{{ number_format($amount, 2) }}</td>
-                        <td class="text-right pct">{{ $share }}%</td>
-                    </tr>
-                    @endforeach
-                    <tr class="total-row">
-                        <td></td>
-                        <td>Total Service Revenue</td>
-                        <td class="text-right">₱{{ number_format($svcTotal, 2) }}</td>
-                        <td class="text-right">100%</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Staff Performance -->
-        <div class="section-title">Staff Performance</div>
-
-        <div class="table-wrap">
-            <table class="data-table">
-
-                <thead>
-                    <tr>
-                        <th style="width: 5%;">#</th>
-                        <th style="width: 22%;">Staff Member</th>
-                        <th style="width: 10%;" class="text-right">Appointments</th>
-                        <th style="width: 10%;" class="text-right">Completed</th>
-                        <th style="width: 9%;" class="text-right">No-Shows</th>
-                        <th style="width: 9%;" class="text-right">Cancelled</th>
-                        <th style="width: 11%;" class="text-right">Completion</th>
-                        <th style="width: 14%;" class="text-right">Revenue</th>
-                        <th style="width: 10%;" class="text-right">Commission</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-
-                    @forelse($staffPerformance ?? [] as $staff)
-
-                        <tr>
-
-                            <td>
-                                @php
-                                    $rank = $staff['rank'];
-                                    $rankClass =
-                                        $rank === 1
-                                            ? 'gold'
-                                            : ($rank === 2
-                                                ? 'silver'
-                                                : ($rank === 3
-                                                    ? 'bronze'
-                                                    : 'other'));
-                                @endphp
-
-                                <span class="rank {{ $rankClass }}">
-                                    {{ $rank }}
-                                </span>
-                            </td>
-
-                            <td>
-                                <strong>
-                                    {{ $staff['name'] }}
-                                </strong>
-
-                                <div style="font-size: 7px; color: #94a3b8; margin-top: 2px;">
-                                    {{ $staff['services'] }}
-                                    service{{ $staff['services'] == 1 ? '' : 's' }}
-                                    handled
-                                </div>
-                            </td>
-
-                            <td class="text-right">
-                                {{ $staff['appointments'] }}
-                            </td>
-
-                            <td class="text-right" style="color: #059669; font-weight: 700;">
-                                {{ $staff['completed'] }}
-                            </td>
-
-                            <td class="text-right" style="color: #d97706; font-weight: 700;">
-                                {{ $staff['no_shows'] }}
-                            </td>
-
-                            <td class="text-right" style="color: #e11d48; font-weight: 700;">
-                                {{ $staff['cancelled'] }}
-                            </td>
-
-                            <td class="text-right">
-
-                                <strong>
-                                    {{ number_format($staff['completion_rate'], 1) }}%
-                                </strong>
-
-                                <div class="bar-bg">
-                                    <div
-                                        class="bar-fill staff"
-                                        style="width: {{ min($staff['completion_rate'], 100) }}%"
-                                    ></div>
-                                </div>
-
-                            </td>
-
-                            <td class="text-right amount">
-                                ₱{{ number_format($staff['revenue'], 2) }}
-                            </td>
-
-                            <td class="text-right">
-                                ₱{{ number_format($staff['commission'], 2) }}
-                            </td>
-
-                        </tr>
-
-                    @empty
-
-                        <tr>
-                            <td colspan="9" style="text-align: center; color: #94a3b8; padding: 20px;">
-                                No staff performance data available for this period.
-                            </td>
-                        </tr>
-
-                    @endforelse
-
-                </tbody>
-
-            </table>
-        </div>
-
-        <!-- Therapist Retention & Loyalty -->
-        <div class="section-title">Therapist Retention &amp; Client Loyalty</div>
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width: 5%;">#</th>
-                        <th style="width: 27%;">Therapist</th>
-                        <th style="width: 17%;" class="text-right">Completed Visits</th>
-                        <th style="width: 17%;" class="text-right">Unique Clients</th>
-                        <th style="width: 17%;" class="text-right">Repeat Clients</th>
-                        <th style="width: 17%;" class="text-right">Retention Rate</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($therapistRetentionData ?? [] as $index => $row)
-                    @php
-                        $rank = $index + 1;
-                        $rankClass = $rank === 1 ? 'gold' : ($rank === 2 ? 'silver' : ($rank === 3 ? 'bronze' : 'other'));
-                    @endphp
-                    <tr>
-                        <td><span class="rank {{ $rankClass }}">{{ $rank }}</span></td>
-                        <td><strong>{{ $row->therapist_name }}</strong></td>
-                        <td class="text-right">{{ $row->total_appointments }}</td>
-                        <td class="text-right">{{ $row->unique_clients }}</td>
-                        <td class="text-right" style="color: #0d9488; font-weight: 700;">{{ $row->repeat_clients }}</td>
-                        <td class="text-right">
-                            <strong style="color: #0f766e;">{{ number_format($row->retention_rate, 1) }}%</strong>
-                            <div class="bar-bg">
-                                <div class="bar-fill" style="width: {{ min($row->retention_rate, 100) }}%"></div>
-                            </div>
-                        </td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">
-                            No therapist retention data available for this period.
-                        </td>
-                    </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-
-
-
-        <!-- Peak Business Hours -->
-        <div class="section-title">Peak Business Hours</div>
-
-        <div class="table-wrap">
-
-            <table class="data-table">
-
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th class="text-right">Appointments</th>
-                        <th class="text-right">Demand Share</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-
-                    @php
-                        $peakHours = $peakBusinessHours['hours'] ?? [];
-                        $totalPeakAppointments = collect($peakHours)->sum('count');
-                        $maxPeakCount = collect($peakHours)->max('count') ?: 1;
-                    @endphp
-
-                    @foreach($peakHours as $hour)
-
-                        @if($hour['count'] > 0)
-
-                            @php
-                                $share = $totalPeakAppointments > 0
-                                    ? round(($hour['count'] / $totalPeakAppointments) * 100, 1)
-                                    : 0;
-                            @endphp
-
-                            <tr>
-
-                                <td>
-                                    <strong>
-                                        {{ $hour['label'] }}
-                                    </strong>
-                                </td>
-
-                                <td class="text-right">
-                                    {{ $hour['count'] }}
-                                </td>
-
-                                <td class="text-right pct">
-                                    {{ $share }}%
-                                </td>
-
-                                <td>
-                                    @if($hour['is_peak'])
-                                        <strong style="color: #0f766e;">
-                                            Peak Hour
-                                        </strong>
-                                    @else
-                                        <span style="color: #64748b;">
-                                            Normal
-                                        </span>
-                                    @endif
-                                </td>
-
-                            </tr>
-
-                        @endif
-
-                    @endforeach
-
-                    @if(empty(array_filter($peakHours, fn($h) => $h['count'] > 0)))
-
-                        <tr>
-                            <td colspan="4" style="text-align: center; color: #94a3b8; padding: 20px;">
-                                No appointment activity available.
-                            </td>
-                        </tr>
-
-                    @endif
-
-                </tbody>
-
-            </table>
-
-        </div>
-
-        <!-- Payment Methods -->
-        <div class="section-title">Payment Method Breakdown</div>
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Method</th>
-                        <th class="text-right">Transactions</th>
-                        <th class="text-right">Volume</th>
-                        <th class="text-right">Share</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @php $methodTotal = collect($methodBreakdown)->sum('total'); @endphp
-                    @foreach($methodBreakdown as $method => $data)
-                    @php
-                        $share = $methodTotal > 0 ? round(($data['total'] / $methodTotal) * 100, 1) : 0;
-                    @endphp
-                    <tr>
-                        <td class="capitalize"><strong>{{ str_replace('_', ' ', $method) }}</strong></td>
-                        <td class="text-right">{{ $data['count'] }}</td>
-                        <td class="text-right amount">₱{{ number_format($data['total'], 2) }}</td>
-                        <td class="text-right pct">{{ $share }}%</td>
-                    </tr>
-                    @endforeach
-                    <tr class="total-row">
-                        <td>Total</td>
-                        <td class="text-right">{{ collect($methodBreakdown)->sum('count') }}</td>
-                        <td class="text-right">₱{{ number_format($methodTotal, 2) }}</td>
-                        <td class="text-right">100%</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-    </div>
-
-    {{-- ===== SIGNATURES ===== --}}
-    @if(!empty($preparedBy) || !empty($checkedBy))
-        <table style="width: 100%; margin: 25px 0; padding: 0 20px; text-align: left; page-break-inside: avoid;">
+<div class="section-title">Therapist Retention &amp; Client Loyalty</div>
+@if($retentionList->isNotEmpty())
+    <table class="data-table pdf-scalable-table">
+        <thead>
             <tr>
-                <td style="width: 50%; padding-right: 20px;">
-                    <div style="border-bottom: 1px solid #cbd5e1; height: 25px;"></div>
-                    <div style="font-size: 8px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-top: 4px;">Prepared By</div>
-                    <div style="font-size: 9px; font-weight: 600; color: #1e293b; margin-top: 2px;">{{ $preparedBy }}</div>
-                </td>
-                <td style="width: 50%; padding-left: 20px;">
-                    <div style="border-bottom: 1px solid #cbd5e1; height: 25px;"></div>
-                    <div style="font-size: 8px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-top: 4px;">Checked / Verified By</div>
-                    @if(!empty($checkedBy))
-                        <div style="font-size: 9px; font-weight: 600; color: #1e293b; margin-top: 2px;">{{ $checkedBy }}</div>
-                    @endif
-                </td>
+                <th style="width: 28%;">Therapist</th>
+                <th style="width: 15%;" class="text-right">Completed</th>
+                <th style="width: 15%;" class="text-right">Unique Clients</th>
+                <th style="width: 14%;" class="text-right">Repeat Clients</th>
+                <th style="width: 14%;" class="text-right">New Clients</th>
+                <th style="width: 14%;" class="text-right">Retention Rate</th>
             </tr>
-        </table>
-    @endif
+        </thead>
+        <tbody>
+            @foreach($retentionList as $row)
+                <tr>
+                    <td class="bold">{{ data_get($row, 'therapist_name', 'Unknown Staff') }}</td>
+                    <td class="text-right">{{ number_format((int) data_get($row, 'total_appointments', 0)) }}</td>
+                    <td class="text-right">{{ number_format((int) data_get($row, 'unique_clients', 0)) }}</td>
+                    <td class="text-right">{{ number_format((int) data_get($row, 'repeat_clients', 0)) }}</td>
+                    <td class="text-right">{{ number_format((int) data_get($row, 'new_clients', 0)) }}</td>
+                    <td class="text-right bold">{{ number_format((float) data_get($row, 'retention_rate', 0), 1) }}%</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+@else
+    <div class="empty-state">No therapist retention data available for this period.</div>
+@endif
 
-    <!-- ===== FOOTER ===== -->
-    <div class="footer-bar">
-        <div class="footer-left">
-            Spa Alexandria &nbsp;|&nbsp; {{ $startDate->format('M d, Y') }} — {{ $endDate->format('M d, Y') }}
-        </div>
-        <div class="footer-right">CONFIDENTIAL</div>
-    </div>
+<div class="section-title">Peak Business Hours</div>
+@if($hourRows->isNotEmpty())
+    <table class="data-table pdf-scalable-table">
+        <thead>
+            <tr>
+                <th style="width: 25%;">Hour Window</th>
+                <th style="width: 25%;" class="text-right">Appointments</th>
+                <th style="width: 25%;" class="text-right">Share of Total</th>
+                <th style="width: 25%;">Classification</th>
+            </tr>
+        </thead>
+        <tbody>
+            @php
+                $totalHourCount = max(1, (int) $hourRows->sum('count'));
+            @endphp
+            @foreach($hourRows as $hourRow)
+                @php
+                    $isPeak = !empty($hourRow['is_peak']);
+                    $cnt = (int) ($hourRow['count'] ?? 0);
+                    $sharePct = ($cnt / $totalHourCount) * 100;
+                @endphp
+                <tr class="{{ $isPeak ? 'peak-row' : '' }}">
+                    <td>{{ $hourRow['label'] ?? '' }}</td>
+                    <td class="text-right">{{ number_format($cnt) }}</td>
+                    <td class="text-right">{{ number_format($sharePct, 1) }}%</td>
+                    <td>{{ $isPeak ? 'Peak Hour' : 'Standard' }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4">Peak Window(s): {{ $peakSummaryLabel }} ({{ number_format($peakMaxCount) }} appointments)</td>
+            </tr>
+        </tfoot>
+    </table>
+@else
+    <div class="empty-state">No hourly booking distribution recorded for this period.</div>
+@endif
+
+<div class="section-title">Payment Method Breakdown</div>
+@if($methodRows->isNotEmpty())
+    <table class="data-table pdf-scalable-table">
+        <thead>
+            <tr>
+                <th style="width: 40%;">Payment Method</th>
+                <th style="width: 20%;" class="text-right">Transactions</th>
+                <th style="width: 22%;" class="text-right">Total Amount</th>
+                <th style="width: 18%;" class="text-right">Share</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($methodRows as $methodName => $methodData)
+                @php
+                    $mCount = (int) data_get($methodData, 'count', 0);
+                    $mTotal = (float) data_get($methodData, 'total', 0);
+                    $mShare = $methodGrandTotal > 0 ? ($mTotal / $methodGrandTotal) * 100 : 0;
+                @endphp
+                <tr>
+                    <td class="bold">{{ ucwords(str_replace('_', ' ', (string) $methodName)) }}</td>
+                    <td class="text-right">{{ number_format($mCount) }}</td>
+                    <td class="text-right">&#8369;{{ number_format($mTotal, 2) }}</td>
+                    <td class="text-right">{{ number_format($mShare, 1) }}%</td>
+                </tr>
+            @endforeach
+        </tbody>
+        <tfoot>
+            <tr>
+                <td>Total Collected</td>
+                <td class="text-right">{{ number_format($methodRows->sum(fn ($item) => (int) data_get($item, 'count', 0))) }}</td>
+                <td class="text-right">&#8369;{{ number_format($methodGrandTotal, 2) }}</td>
+                <td class="text-right">100.0%</td>
+            </tr>
+        </tfoot>
+    </table>
+@else
+    <div class="empty-state">No payment method breakdown recorded for this period.</div>
+@endif
+
+<table class="signature-table">
+    <tr>
+        <td>
+            <div class="signature-label">Prepared by</div>
+            <div class="signature-line">{{ $preparedByName }}</div>
+            <div class="signature-role">Staff / Administrator</div>
+        </td>
+        <td>
+            <div class="signature-label">Checked by</div>
+            <div class="signature-line">{{ $checkedByName ?: '____________________________' }}</div>
+            <div class="signature-role">Manager / Owner</div>
+        </td>
+    </tr>
+</table>
+
+<div class="doc-footer">
+    ZenFlow Spa Management System &bull; {{ $reportTitle }} &bull; Generated {{ $generatedText }}
+</div>
 </body>
 </html>

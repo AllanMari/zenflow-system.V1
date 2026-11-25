@@ -160,6 +160,7 @@ class SalesReportController extends Controller
             'safeRevenueChange'     => $data['revenueChange'],
             'topServices'           => $data['topServices'],
             'topStaff'              => $data['topStaff'],
+            'staffPerformance'      => $data['staffPerformance'] ?? [],
             'methodBreakdown'       => $data['methodBreakdown'],
             'therapistRetentionData'=> $data['therapistRetentionData'] ?? [],
             'peakBusinessHours'     => $data['peakBusinessHours'] ?? [],

@@ -25,6 +25,11 @@
         margin: {{ $marginsPt['top'] }}pt {{ $marginsPt['right'] }}pt {{ $marginsPt['bottom'] }}pt {{ $marginsPt['left'] }}pt;
     }
 
+    html {
+        margin: {{ $marginsPt['top'] }}pt {{ $marginsPt['right'] }}pt {{ $marginsPt['bottom'] }}pt {{ $marginsPt['left'] }}pt !important;
+        padding: 0 !important;
+    }
+
     @if($pdfLayout->scalePercent !== 100)
     @php $scaleFactor = $pdfLayout->scalePercent / 100; @endphp
     body {

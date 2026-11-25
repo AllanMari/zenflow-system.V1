@@ -1,821 +1,431 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <title>{{ $reportTitle }}</title>
-
+    <title>{{ $reportTitle ?? 'Service Popularity Breakdown Report' }}</title>
 
     <style>
-
         @page {
-            margin: 35px;
             size: A4 portrait;
+            margin: 14mm 12mm 14mm 12mm;
         }
 
         * {
             box-sizing: border-box;
         }
 
-
         body {
             font-family: DejaVu Sans, sans-serif;
-            color: #1f2937;
-            font-size: 10px;
-            margin: 0;
-        }
-
-
-        /* =====================================================
-           HEADER
-        ====================================================== */
-
-        .header {
-            border-bottom: 2px solid #0f766e;
-            padding-bottom: 12px;
-            margin-bottom: 16px;
-        }
-
-        .brand {
-            font-size: 18px;
-            font-weight: bold;
-            color: #0f766e;
-            margin-bottom: 3px;
-        }
-
-        .spa-name {
-            font-size: 11px;
-            color: #4b5563;
-        }
-
-        .report-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #111827;
-            margin-top: 14px;
-            margin-bottom: 4px;
-        }
-
-        .generated {
             font-size: 9px;
-            color: #6b7280;
+            line-height: 1.38;
+            color: #000000;
+            background: #ffffff;
+            margin: 0;
+            padding: 0;
         }
 
-
-        /* =====================================================
-           FILTERS
-        ====================================================== */
-
-        .filter-box {
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            border-radius: 5px;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-
-        .filter-title {
-            font-size: 10px;
+        .section-title {
+            font-size: 9px;
             font-weight: bold;
-            margin-bottom: 7px;
-            color: #374151;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #000000;
+            margin: 12px 0 5px;
+            padding-bottom: 3px;
+            border-bottom: 1.5px solid #111111;
+            page-break-after: avoid;
         }
 
-        .filter-table {
+        .filter-table,
+        .summary-table,
+        .report-table,
+        .signature-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
+            margin-bottom: 8px;
         }
 
         .filter-table td {
-            width: 50%;
-            padding: 3px 5px;
+            border: 1px solid #d1d5db;
+            padding: 4px 6px;
+            font-size: 8px;
             vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .filter-label {
-            font-size: 8px;
-            color: #6b7280;
+            display: block;
+            font-size: 6.8px;
+            font-weight: bold;
             text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: #4b5563;
+            margin-bottom: 1px;
         }
 
         .filter-value {
-            font-size: 9px;
             font-weight: bold;
-            color: #111827;
-            margin-top: 2px;
+            color: #000000;
         }
 
-
-        /* =====================================================
-           SUMMARY
-        ====================================================== */
-
-        .summary {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 5px;
-            margin: 0 -5px 15px -5px;
-        }
-
-        .summary td {
-            border: 1px solid #d1d5db;
-            border-radius: 5px;
-            padding: 9px;
-            width: 16.66%;
-            vertical-align: top;
-        }
-
-        .summary-label {
-            font-size: 7px;
-            color: #6b7280;
-            text-transform: uppercase;
-        }
-
-        .summary-value {
-            font-size: 15px;
-            font-weight: bold;
-            margin-top: 3px;
-            color: #111827;
-        }
-
-
-        /* =====================================================
-           SECTIONS
-        ====================================================== */
-
-        .section-title {
-            font-size: 12px;
-            font-weight: bold;
-            margin: 12px 0 7px 0;
-            color: #111827;
-        }
-
-
-        /* =====================================================
-           TABLES
-        ====================================================== */
-
-        table.report-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-        }
-
-        table.report-table thead {
-            background: #0f766e;
-            color: #ffffff;
-        }
-
-        table.report-table th {
-            font-size: 8px;
-            font-weight: bold;
-            text-align: left;
-            padding: 7px 5px;
-            border: 1px solid #0f766e;
-        }
-
-        table.report-table td {
-            font-size: 8px;
-            padding: 6px 5px;
-            border: 1px solid #d1d5db;
-            vertical-align: top;
-        }
-
-        table.report-table tr:nth-child(even) {
-            background: #f9fafb;
-        }
-
-
-        /* =====================================================
-           SERVICE / PACKAGE / CATEGORY
-        ====================================================== */
-
-        .service-name {
-            font-weight: bold;
-            color: #111827;
-        }
-
-        .code {
-            font-size: 7px;
-            color: #6b7280;
-            margin-top: 2px;
-        }
-
-        .muted {
-            color: #6b7280;
-        }
-
-        .number {
-            text-align: center;
-            font-weight: bold;
-        }
-
-        .money {
-            text-align: right;
-            font-weight: bold;
-            color: #111827;
-        }
-
-        .percentage {
-            text-align: right;
-            font-weight: bold;
-        }
-
-
-        /* =====================================================
-           BADGES
-        ====================================================== */
-
-        .badge {
-            display: inline-block;
-            padding: 3px 5px;
-            border-radius: 3px;
-            font-size: 7px;
-            font-weight: bold;
-        }
-
-        .badge-teal {
-            background: #ccfbf1;
-            color: #115e59;
-        }
-
-        .badge-purple {
-            background: #f3e8ff;
-            color: #6b21a8;
-        }
-
-        .badge-blue {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-
-        /* =====================================================
-           EMPTY STATE
-        ====================================================== */
-
-        .empty {
-            text-align: center;
-            padding: 25px;
-            border: 1px solid #d1d5db;
-            color: #6b7280;
-        }
-
-
-        /* =====================================================
-           INCLUDED SERVICES
-        ====================================================== */
-
-        .included-service {
-            display: inline-block;
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            border-radius: 3px;
-            padding: 3px 5px;
-            margin: 1px 2px 1px 0;
-            font-size: 7px;
-            color: #374151;
-        }
-
-
-        /* =====================================================
-           FOOTER
-        ====================================================== */
-
-        .footer {
-            border-top: 1px solid #d1d5db;
-            margin-top: 20px;
-            padding-top: 8px;
-            font-size: 8px;
-            color: #6b7280;
-        }
-
-
-        /* =====================================================
-           PAGE BREAK
-        ====================================================== */
-
-        .page-break {
+        .summary-table {
             page-break-inside: avoid;
         }
 
+        .summary-table th {
+            background: #f3f4f6;
+            color: #111111;
+            border: 1px solid #d1d5db;
+            border-bottom: 1.5px solid #111111;
+            padding: 4px 5px;
+            font-size: 6.8px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: center;
+        }
+
+        .summary-table td {
+            border: 1px solid #d1d5db;
+            padding: 5px 4px;
+            font-size: 9.5px;
+            font-weight: bold;
+            text-align: center;
+            color: #000000;
+        }
+
+        .report-table thead {
+            display: table-header-group;
+        }
+
+        .report-table tr {
+            page-break-inside: avoid;
+        }
+
+        .report-table th {
+            background: #f3f4f6;
+            color: #111111;
+            border: 1px solid #d1d5db;
+            border-bottom: 1.5px solid #111111;
+            padding: 5px 6px;
+            font-size: 7.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: left;
+        }
+
+        .report-table td {
+            border: 1px solid #d1d5db;
+            padding: 5px 6px;
+            font-size: 8.2px;
+            color: #000000;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .report-table tbody tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        .report-table tfoot td {
+            background: #f3f4f6;
+            border-top: 1.5px solid #111111;
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .bold {
+            font-weight: bold;
+        }
+
+        .muted {
+            color: #4b5563;
+            font-size: 7.4px;
+        }
+
+        .included-list {
+            margin-top: 2px;
+            font-size: 7.4px;
+            color: #374151;
+        }
+
+        .empty-state {
+            border: 1px solid #d1d5db;
+            padding: 10px 12px;
+            text-align: center;
+            color: #4b5563;
+            font-size: 8.2px;
+            margin-bottom: 8px;
+        }
+
+        .signature-table {
+            margin-top: 18px;
+            page-break-inside: avoid;
+        }
+
+        .signature-table td {
+            width: 50%;
+            vertical-align: top;
+            padding-right: 24px;
+            border: 0;
+        }
+
+        .signature-label {
+            font-size: 7.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #4b5563;
+            margin-bottom: 18px;
+        }
+
+        .signature-line {
+            width: 82%;
+            border-top: 1px solid #111111;
+            padding-top: 3px;
+            font-size: 8.5px;
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .signature-role {
+            font-size: 7.2px;
+            color: #4b5563;
+        }
+
+        .doc-footer {
+            margin-top: 12px;
+            padding-top: 5px;
+            border-top: 1px solid #d1d5db;
+            font-size: 7.2px;
+            color: #4b5563;
+            text-align: right;
+        }
     </style>
+
     @include('partials.pdf_page_styles')
 </head>
-
-
 <body>
+@php
+    $reportTitle = $reportTitle ?? 'SERVICE POPULARITY BREAKDOWN REPORT';
+    $dateText = $dateDisplay ?? ($dateRange ?? 'All Dates');
+    $categoryText = $selectedCategoryName ?? 'All Categories';
+    $preparedByName = $preparedBy ?? 'Administrator';
+    $reviewedByName = !empty($reviewedBy) ? $reviewedBy : null;
+    $generatedText = $generatedAt instanceof \Carbon\CarbonInterface
+        ? $generatedAt->format('F j, Y g:i A')
+        : ($generatedAt ?? now('Asia/Manila')->format('F j, Y g:i A'));
 
+    $summaryData = is_array($summary ?? null) ? $summary : [];
+    $completedAppointments = (int) ($summaryData['completed_appointments'] ?? 0);
+    $servicesCompleted = (int) ($summaryData['services_completed'] ?? 0);
+    $servicesRepresented = (int) ($summaryData['services_represented'] ?? 0);
+    $serviceRevenue = (float) ($summaryData['service_revenue'] ?? 0);
+    $packagesBooked = (int) ($summaryData['packages_booked'] ?? 0);
+    $packageRevenue = (float) ($summaryData['package_revenue'] ?? 0);
 
-    {{-- =====================================================
-         HEADER
-    ====================================================== --}}
+    $servicesList = collect($serviceBreakdown ?? []);
+    $packagesList = collect($packageBreakdown ?? []);
+    $categoriesList = collect($categoryBreakdown ?? []);
+@endphp
 
-    @include('partials.report_header', [
-        'reportTitle' => $reportTitle ?? 'Service & Package Popularity'
-    ])
+@include('partials.report_header', [
+    'reportTitle' => $reportTitle,
+    'dateRange' => $dateText,
+    'referenceNumber' => $referenceNumber ?? null,
+    'generatedAt' => $generatedText,
+    'preparedBy' => $preparedByName,
+])
 
+<table class="filter-table">
+    <tr>
+        <td style="width: 40%;">
+            <span class="filter-label">Period / Date Range</span>
+            <span class="filter-value">{{ $dateText }}</span>
+        </td>
+        <td style="width: 35%;">
+            <span class="filter-label">Category Filter</span>
+            <span class="filter-value">{{ $categoryText }}</span>
+        </td>
+        <td style="width: 25%;">
+            <span class="filter-label">Prepared By</span>
+            <span class="filter-value">{{ $preparedByName }}</span>
+        </td>
+    </tr>
+</table>
 
-    {{-- =====================================================
-         FILTERS
-    ====================================================== --}}
-
-    <div class="filter-box">
-
-        <div class="filter-title">
-            Report Filters
-        </div>
-
-
-        <table class="filter-table">
-
-            <tr>
-
-                <td>
-
-                    <div class="filter-label">
-                        Date Range
-                    </div>
-
-                    <div class="filter-value">
-
-                        {{ $dateDisplay }}
-
-                    </div>
-
-                </td>
-
-
-                <td>
-
-                    <div class="filter-label">
-                        Category
-                    </div>
-
-                    <div class="filter-value">
-
-                        {{ $selectedCategoryName ?: 'All Categories' }}
-
-                    </div>
-
-                </td>
-
-            </tr>
-
-        </table>
-
-    </div>
-
-
-    {{-- =====================================================
-         SUMMARY
-    ====================================================== --}}
-
-    <table class="summary">
-
+<table class="summary-table">
+    <thead>
         <tr>
-
-            <td>
-
-                <div class="summary-label">
-                    Completed Appointments
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($summary['completed_appointments']) }}
-                </div>
-
-            </td>
-
-
-            <td>
-
-                <div class="summary-label">
-                    Services Completed
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($summary['services_completed']) }}
-                </div>
-
-            </td>
-
-
-            <td>
-
-                <div class="summary-label">
-                    Services Represented
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($summary['services_represented']) }}
-                </div>
-
-            </td>
-
-
-            <td>
-
-                <div class="summary-label">
-                    Packages Booked
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($summary['packages_booked']) }}
-                </div>
-
-            </td>
-
-
-            <td>
-
-                <div class="summary-label">
-                    Package Revenue
-                </div>
-
-                <div class="summary-value">
-                    ₱{{ number_format($summary['package_revenue'], 2) }}
-                </div>
-
-            </td>
-
-
-            <td>
-
-                <div class="summary-label">
-                    Service Revenue
-                </div>
-
-                <div class="summary-value">
-                    ₱{{ number_format($summary['service_revenue'], 2) }}
-                </div>
-
-            </td>
-
+            <th>Completed Appts</th>
+            <th>Services Rendered</th>
+            <th>Catalog Services</th>
+            <th>Service Revenue</th>
+            <th>Packages Booked</th>
+            <th>Package Revenue</th>
         </tr>
-
-    </table>
-
-
-    {{-- =====================================================
-         INDIVIDUAL SERVICE POPULARITY
-    ====================================================== --}}
-
-    <div class="section-title">
-        Individual Service Popularity
-    </div>
-
-
-    @if(count($serviceBreakdown))
-
-        <table class="report-table">
-
-            <thead>
-
-                <tr>
-
-                    <th style="width: 6%;">
-                        #
-                    </th>
-
-                    <th style="width: 29%;">
-                        Service
-                    </th>
-
-                    <th style="width: 20%;">
-                        Category
-                    </th>
-
-                    <th style="width: 12%; text-align: center;">
-                        Completed
-                    </th>
-
-                    <th style="width: 13%; text-align: right;">
-                        Share
-                    </th>
-
-                    <th style="width: 20%; text-align: right;">
-                        Revenue
-                    </th>
-
-                </tr>
-
-            </thead>
-
-
-            <tbody>
-
-                @foreach($serviceBreakdown as $index => $service)
-
-                    <tr class="page-break">
-
-                        <td class="number">
-                            {{ $index + 1 }}
-                        </td>
-
-
-                        <td>
-
-                            <div class="service-name">
-                                {{ $service['name'] }}
-                            </div>
-
-                            @if(!empty($service['code']))
-
-                                <div class="code">
-                                    {{ $service['code'] }}
-                                </div>
-
-                            @endif
-
-                        </td>
-
-
-                        <td>
-                            {{ $service['category'] }}
-                        </td>
-
-
-                        <td class="number">
-
-                            <span class="badge badge-teal">
-                                {{ number_format($service['completed_count']) }}
-                            </span>
-
-                        </td>
-
-
-                        <td class="percentage">
-
-                            {{ number_format($service['share'], 2) }}%
-
-                        </td>
-
-
-                        <td class="money">
-
-                            ₱{{ number_format($service['revenue'], 2) }}
-
-                        </td>
-
-                    </tr>
-
-                @endforeach
-
-            </tbody>
-
-        </table>
-
-    @else
-
-        <div class="empty">
-            No completed services were found for the selected filters.
-        </div>
-
-    @endif
-
-
-    {{-- =====================================================
-         PACKAGE BREAKDOWN
-    ====================================================== --}}
-
-    <div class="section-title">
-        Package Breakdown
-    </div>
-
-
-    @if(count($packageBreakdown))
-
-        <table class="report-table">
-
-            <thead>
-
-                <tr>
-
-                    <th style="width: 25%;">
-                        Package
-                    </th>
-
-                    <th style="width: 18%;">
-                        Category
-                    </th>
-
-                    <th style="width: 35%;">
-                        Included Services
-                    </th>
-
-                    <th style="width: 10%; text-align: center;">
-                        Completed
-                    </th>
-
-                    <th style="width: 12%; text-align: right;">
-                        Revenue
-                    </th>
-
-                </tr>
-
-            </thead>
-
-
-            <tbody>
-
-                @foreach($packageBreakdown as $package)
-
-                    <tr class="page-break">
-
-                        <td>
-
-                            <div class="service-name">
-                                {{ $package['name'] }}
-                            </div>
-
-                            @if(!empty($package['code']))
-
-                                <div class="code">
-                                    {{ $package['code'] }}
-                                </div>
-
-                            @endif
-
-                        </td>
-
-
-                        <td>
-                            {{ $package['category'] }}
-                        </td>
-
-
-                        <td>
-
-                            @forelse($package['included_services'] as $included)
-
-                                <span class="included-service">
-                                    {{ $included['name'] }}
-                                </span>
-
-                            @empty
-
-                                <span class="muted">
-                                    None listed
-                                </span>
-
-                            @endforelse
-
-                        </td>
-
-
-                        <td class="number">
-
-                            <span class="badge badge-purple">
-                                {{ number_format($package['completed_count']) }}
-                            </span>
-
-                        </td>
-
-
-                        <td class="money">
-
-                            ₱{{ number_format($package['revenue'], 2) }}
-
-                        </td>
-
-                    </tr>
-
-                @endforeach
-
-            </tbody>
-
-        </table>
-
-    @else
-
-        <div class="empty">
-            No completed packages were found for the selected filters.
-        </div>
-
-    @endif
-
-
-    {{-- =====================================================
-         CATEGORY BREAKDOWN
-    ====================================================== --}}
-
-    <div class="section-title">
-        Category Breakdown
-    </div>
-
-
-    @if(count($categoryBreakdown))
-
-        <table class="report-table">
-
-            <thead>
-
-                <tr>
-
-                    <th style="width: 55%;">
-                        Category
-                    </th>
-
-                    <th style="width: 20%; text-align: center;">
-                        Services Completed
-                    </th>
-
-                    <th style="width: 25%; text-align: right;">
-                        Revenue
-                    </th>
-
-                </tr>
-
-            </thead>
-
-
-            <tbody>
-
-                @foreach($categoryBreakdown as $category)
-
-                    <tr class="page-break">
-
-                        <td>
-
-                            <div class="service-name">
-                                {{ $category['name'] }}
-                            </div>
-
-                        </td>
-
-
-                        <td class="number">
-
-                            <span class="badge badge-blue">
-                                {{ number_format($category['completed_count']) }}
-                            </span>
-
-                        </td>
-
-
-                        <td class="money">
-
-                            ₱{{ number_format($category['revenue'], 2) }}
-
-                        </td>
-
-                    </tr>
-
-                @endforeach
-
-            </tbody>
-
-        </table>
-
-    @else
-
-        <div class="empty">
-            No category activity was found for the selected filters.
-        </div>
-
-    @endif
-
-
-    {{-- =====================================================
-         FOOTER
-    ====================================================== --}}
-
-    {{-- =====================================================
-          SIGNATURES
-     ====================================================== --}}
-    @if(!empty($preparedBy) || !empty($reviewedBy))
-        <table style="width: 100%; margin-top: 30px; margin-bottom: 20px; text-align: left; page-break-inside: avoid;">
+    </thead>
+    <tbody>
+        <tr>
+            <td>{{ number_format($completedAppointments) }}</td>
+            <td>{{ number_format($servicesCompleted) }}</td>
+            <td>{{ number_format($servicesRepresented) }}</td>
+            <td>&#8369;{{ number_format($serviceRevenue, 2) }}</td>
+            <td>{{ number_format($packagesBooked) }}</td>
+            <td>&#8369;{{ number_format($packageRevenue, 2) }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="section-title">Individual Service Breakdown</div>
+@if($servicesList->isNotEmpty())
+    <table class="report-table pdf-scalable-table">
+        <thead>
             <tr>
-                <td style="width: 50%;">
-                    <div style="font-size: 7px; color: #6b7280; text-transform: uppercase;">Prepared by</div>
-                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline; color: #111827;">{{ $preparedBy }}</div>
-                </td>
-                @if(!empty($reviewedBy))
-                <td style="width: 50%;">
-                    <div style="font-size: 7px; color: #6b7280; text-transform: uppercase;">Checked / Verified by</div>
-                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline; color: #111827;">{{ $reviewedBy }}</div>
-                </td>
-                @endif
+                <th style="width: 7%;" class="text-center">Rank</th>
+                <th style="width: 12%;">Code</th>
+                <th style="width: 31%;">Service Name</th>
+                <th style="width: 18%;">Category</th>
+                <th style="width: 10%;" class="text-right">Count</th>
+                <th style="width: 10%;" class="text-right">Share</th>
+                <th style="width: 12%;" class="text-right">Revenue</th>
             </tr>
-        </table>
-    @endif
+        </thead>
+        <tbody>
+            @foreach($servicesList as $index => $row)
+                <tr>
+                    <td class="text-center">{{ $index + 1 }}</td>
+                    <td class="muted">{{ data_get($row, 'code') ?: '—' }}</td>
+                    <td class="bold">{{ data_get($row, 'name', 'Unnamed Service') }}</td>
+                    <td>{{ data_get($row, 'category', 'Uncategorized') }}</td>
+                    <td class="text-right bold">{{ number_format((int) data_get($row, 'completed_count', 0)) }}</td>
+                    <td class="text-right">{{ number_format((float) data_get($row, 'share', 0), 1) }}%</td>
+                    <td class="text-right">&#8369;{{ number_format((float) data_get($row, 'revenue', 0), 2) }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4">Total Individual Services ({{ $servicesList->count() }})</td>
+                <td class="text-right">{{ number_format($servicesList->sum(fn ($r) => (int) data_get($r, 'completed_count', 0))) }}</td>
+                <td class="text-right">100.0%</td>
+                <td class="text-right">&#8369;{{ number_format($servicesList->sum(fn ($r) => (float) data_get($r, 'revenue', 0)), 2) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+@else
+    <div class="empty-state">No individual service records matched the selected filters.</div>
+@endif
 
-    <div class="footer">
+<div class="section-title">Package Breakdown</div>
+@if($packagesList->isNotEmpty())
+    <table class="report-table pdf-scalable-table">
+        <thead>
+            <tr>
+                <th style="width: 7%;" class="text-center">Rank</th>
+                <th style="width: 12%;">Code</th>
+                <th style="width: 45%;">Package &amp; Included Services</th>
+                <th style="width: 14%;">Category</th>
+                <th style="width: 10%;" class="text-right">Booked</th>
+                <th style="width: 12%;" class="text-right">Revenue</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($packagesList as $index => $pkg)
+                @php
+                    $includedNames = collect(data_get($pkg, 'included_services', []))
+                        ->map(fn ($item) => is_array($item) ? ($item['name'] ?? '') : data_get($item, 'name', ''))
+                        ->filter()
+                        ->implode(', ');
+                @endphp
+                <tr>
+                    <td class="text-center">{{ $index + 1 }}</td>
+                    <td class="muted">{{ data_get($pkg, 'code') ?: '—' }}</td>
+                    <td>
+                        <div class="bold">{{ data_get($pkg, 'name', 'Unnamed Package') }}</div>
+                        @if($includedNames !== '')
+                            <div class="included-list">Includes: {{ $includedNames }}</div>
+                        @endif
+                    </td>
+                    <td>{{ data_get($pkg, 'category', 'Uncategorized') }}</td>
+                    <td class="text-right bold">{{ number_format((int) data_get($pkg, 'completed_count', 0)) }}</td>
+                    <td class="text-right">&#8369;{{ number_format((float) data_get($pkg, 'revenue', 0), 2) }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4">Total Packages ({{ $packagesList->count() }})</td>
+                <td class="text-right">{{ number_format($packagesList->sum(fn ($p) => (int) data_get($p, 'completed_count', 0))) }}</td>
+                <td class="text-right">&#8369;{{ number_format($packagesList->sum(fn ($p) => (float) data_get($p, 'revenue', 0)), 2) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+@else
+    <div class="empty-state">No package bookings recorded for this period.</div>
+@endif
 
-        <div>
-            Prepared by: {{ $preparedBy }}
-        </div>
+<div class="section-title">Category Breakdown</div>
+@if($categoriesList->isNotEmpty())
+    <table class="report-table pdf-scalable-table">
+        <thead>
+            <tr>
+                <th style="width: 8%;" class="text-center">Rank</th>
+                <th style="width: 52%;">Category Name</th>
+                <th style="width: 18%;" class="text-right">Completed Count</th>
+                <th style="width: 22%;" class="text-right">Attributed Revenue</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($categoriesList as $index => $cat)
+                <tr>
+                    <td class="text-center">{{ $index + 1 }}</td>
+                    <td class="bold">{{ data_get($cat, 'name', 'Uncategorized') }}</td>
+                    <td class="text-right">{{ number_format((int) data_get($cat, 'completed_count', 0)) }}</td>
+                    <td class="text-right">&#8369;{{ number_format((float) data_get($cat, 'revenue', 0), 2) }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="2">Total Categories ({{ $categoriesList->count() }})</td>
+                <td class="text-right">{{ number_format($categoriesList->sum(fn ($c) => (int) data_get($c, 'completed_count', 0))) }}</td>
+                <td class="text-right">&#8369;{{ number_format($categoriesList->sum(fn ($c) => (float) data_get($c, 'revenue', 0)), 2) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+@else
+    <div class="empty-state">No category summary available for this period.</div>
+@endif
 
-        <div>
-            ZenFlow System — Spa Alexandria
-        </div>
+<table class="signature-table">
+    <tr>
+        <td>
+            <div class="signature-label">Prepared by</div>
+            <div class="signature-line">{{ $preparedByName }}</div>
+            <div class="signature-role">Staff / Administrator</div>
+        </td>
+        <td>
+            <div class="signature-label">Reviewed by</div>
+            <div class="signature-line">{{ $reviewedByName ?: '____________________________' }}</div>
+            <div class="signature-role">Manager / Owner</div>
+        </td>
+    </tr>
+</table>
 
-    </div>
-
-
+<div class="doc-footer">
+    ZenFlow Spa Management System &bull; Service Popularity Breakdown &bull; Generated {{ $generatedText }}
+</div>
 </body>
-
 </html>

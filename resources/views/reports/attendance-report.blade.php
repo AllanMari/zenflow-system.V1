@@ -1,9 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-
     <title>{{ $reportTitle ?? 'Attendance Report' }}</title>
 
     @php
@@ -91,18 +89,21 @@
                     : 'System'
             );
 
-        $absenceRows = collect(
-            $absenceRecords ?? []
-        );
+        $checkedByName = !empty($checkedBy) ? $checkedBy : null;
 
-        $exceptionRows = collect(
-            $exceptionRecords ?? []
-        );
+        $absenceRows = collect($absenceRecords ?? []);
+        $exceptionRows = collect($exceptionRecords ?? []);
+        $overtimeSummaryRows = collect($staffOvertimeSummary ?? []);
+
+        $generatedText = $generatedAt instanceof \Carbon\CarbonInterface
+            ? $generatedAt->format('F j, Y g:i A')
+            : (string) $generatedAt;
     @endphp
 
     <style>
         @page {
-            margin: 35px 35px 40px 35px;
+            size: A4 landscape;
+            margin: 14mm 12mm 14mm 12mm;
         }
 
         * {
@@ -111,1091 +112,474 @@
 
         body {
             font-family: DejaVu Sans, sans-serif;
-            color: #1f2937;
-            font-size: 10px;
+            font-size: 9px;
+            line-height: 1.38;
+            color: #000000;
+            background: #ffffff;
             margin: 0;
-        }
-
-        .header {
-            border-bottom: 2px solid #0f766e;
-            padding-bottom: 12px;
-            margin-bottom: 16px;
-        }
-
-        .brand {
-            font-size: 18px;
-            font-weight: bold;
-            color: #0f766e;
-            margin-bottom: 3px;
-        }
-
-        .spa-name {
-            font-size: 11px;
-            color: #4b5563;
-        }
-
-        .report-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #111827;
-            margin-top: 14px;
-            margin-bottom: 4px;
-        }
-
-        .generated {
-            font-size: 9px;
-            color: #6b7280;
-        }
-
-        .filter-box {
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            border-radius: 5px;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-
-        .filter-title {
-            font-size: 10px;
-            font-weight: bold;
-            margin-bottom: 7px;
-            color: #374151;
-        }
-
-        .filter-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .filter-table td {
-            width: 25%;
-            padding: 3px 5px;
-            vertical-align: top;
-        }
-
-        .filter-label {
-            font-size: 8px;
-            color: #6b7280;
-            text-transform: uppercase;
-        }
-
-        .filter-value {
-            font-size: 9px;
-            font-weight: bold;
-            color: #111827;
-            margin-top: 2px;
-        }
-
-        .summary {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 4px;
-            margin: 0 -4px 15px -4px;
-        }
-
-        .summary td {
-            border: 1px solid #d1d5db;
-            border-radius: 5px;
-            padding: 8px;
-            width: 12.5%;
-            vertical-align: top;
-        }
-
-        .summary-label {
-            font-size: 7px;
-            color: #6b7280;
-            text-transform: uppercase;
-        }
-
-        .summary-value {
-            font-size: 14px;
-            font-weight: bold;
-            margin-top: 3px;
-            color: #111827;
+            padding: 0;
         }
 
         .section-title {
-            font-size: 12px;
+            font-size: 9px;
             font-weight: bold;
-            margin: 12px 0 7px 0;
-            color: #111827;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #000000;
+            margin: 12px 0 5px;
+            padding-bottom: 3px;
+            border-bottom: 1.5px solid #111111;
+            page-break-after: avoid;
         }
 
-        table.attendance {
+        .filter-table,
+        .summary-table,
+        .attendance,
+        .hours-table,
+        .signature-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
+            table-layout: fixed;
+            margin-bottom: 8px;
         }
 
-        table.attendance thead {
-            background: #0f766e;
-            color: #ffffff;
-        }
-
-        table.attendance th {
-            font-size: 8px;
-            font-weight: bold;
-            text-align: left;
-            padding: 7px 5px;
-            border: 1px solid #0f766e;
-        }
-
-        table.attendance td {
-            font-size: 8px;
-            padding: 6px 5px;
+        .filter-table td {
             border: 1px solid #d1d5db;
+            padding: 4px 6px;
+            font-size: 8px;
             vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
-        table.attendance tr:nth-child(even) {
+        .filter-label {
+            display: block;
+            font-size: 6.8px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: #4b5563;
+            margin-bottom: 1px;
+        }
+
+        .filter-value {
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .summary-table {
+            page-break-inside: avoid;
+        }
+
+        .summary-table th {
+            background: #f3f4f6;
+            color: #111111;
+            border: 1px solid #d1d5db;
+            border-bottom: 1.5px solid #111111;
+            padding: 4px 3px;
+            font-size: 6.8px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+            text-align: center;
+        }
+
+        .summary-table td {
+            border: 1px solid #d1d5db;
+            padding: 5px 3px;
+            font-size: 9.2px;
+            font-weight: bold;
+            text-align: center;
+            color: #000000;
+        }
+
+        .attendance thead,
+        .hours-table thead {
+            display: table-header-group;
+        }
+
+        .attendance tr,
+        .hours-table tr {
+            page-break-inside: avoid;
+        }
+
+        .attendance th,
+        .hours-table th {
+            background: #f3f4f6;
+            color: #111111;
+            border: 1px solid #d1d5db;
+            border-bottom: 1.5px solid #111111;
+            padding: 5px 5px;
+            font-size: 7.4px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: left;
+        }
+
+        .attendance td,
+        .hours-table td {
+            border: 1px solid #d1d5db;
+            padding: 5px 5px;
+            font-size: 8px;
+            color: #000000;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .attendance tbody tr:nth-child(even),
+        .hours-table tbody tr:nth-child(even) {
             background: #f9fafb;
         }
 
-        .date {
+        .hours-table tfoot td {
+            background: #f3f4f6;
+            border-top: 1.5px solid #111111;
             font-weight: bold;
-            color: #111827;
+            color: #000000;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .bold {
+            font-weight: bold;
         }
 
         .muted {
-            color: #6b7280;
+            color: #4b5563;
+            font-size: 7.2px;
         }
 
-        .status {
-            display: inline-block;
-            padding: 3px 5px;
-            border-radius: 3px;
-            font-size: 7px;
+        .status-text {
             font-weight: bold;
+            font-size: 7.5px;
+            text-transform: uppercase;
+            color: #000000;
         }
 
-        .status-present {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-completed {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-checked-in {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .status-late {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .status-on-leave {
-            background: #f3e8ff;
-            color: #6b21a8;
-        }
-
-        .status-absent {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .status-day-off {
-            background: #e5e7eb;
-            color: #374151;
-        }
-
-        .status-holiday {
-            background: #cffafe;
-            color: #155e75;
-        }
-
-        .status-default {
-            background: #f3f4f6;
-            color: #374151;
-        }
-
-        .hours-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-        }
-
-        .hours-table th {
-            background: #0f766e;
-            color: #ffffff;
-            font-size: 8px;
-            font-weight: bold;
-            text-align: left;
-            padding: 7px;
-            border: 1px solid #0f766e;
-        }
-
-        .hours-table td {
+        .empty-state {
             border: 1px solid #d1d5db;
-            padding: 7px;
-            font-size: 8px;
-        }
-
-        .hours-table tr:nth-child(even) {
-            background: #f9fafb;
-        }
-
-        .totals-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .totals-table td {
-            border: 1px solid #d1d5db;
-            padding: 7px;
-        }
-
-        .total-label {
-            color: #6b7280;
-        }
-
-        .total-value {
-            text-align: right;
-            font-weight: bold;
-        }
-
-        .footer {
-            border-top: 1px solid #d1d5db;
-            margin-top: 20px;
-            padding-top: 8px;
-            font-size: 8px;
-            color: #6b7280;
-        }
-
-        .empty {
+            padding: 10px 12px;
             text-align: center;
-            padding: 25px;
-            border: 1px solid #d1d5db;
-            color: #6b7280;
-            margin-bottom: 15px;
+            color: #4b5563;
+            font-size: 8.2px;
+            margin-bottom: 8px;
         }
 
-        .page-break {
+        .signature-table {
+            margin-top: 18px;
             page-break-inside: avoid;
         }
+
+        .signature-table td {
+            width: 50%;
+            vertical-align: top;
+            padding-right: 24px;
+            border: 0;
+        }
+
+        .signature-label {
+            font-size: 7.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #4b5563;
+            margin-bottom: 18px;
+        }
+
+        .signature-line {
+            width: 82%;
+            border-top: 1px solid #111111;
+            padding-top: 3px;
+            font-size: 8.5px;
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .signature-role {
+            font-size: 7.2px;
+            color: #4b5563;
+        }
+
+        .doc-footer {
+            margin-top: 12px;
+            padding-top: 5px;
+            border-top: 1px solid #d1d5db;
+            font-size: 7.2px;
+            color: #4b5563;
+            text-align: right;
+        }
     </style>
+
     @include('partials.pdf_page_styles')
 </head>
-
 <body>
+@include('partials.report_header', [
+    'reportTitle' => $reportTitle,
+    'dateRange' => $dateLabel,
+    'referenceNumber' => $referenceNumber ?? null,
+    'generatedAt' => $generatedText,
+    'preparedBy' => $preparedBy,
+])
 
-    @include('partials.report_header', [
-        'reportTitle' => $reportTitle,
-        'referenceNumber' => $referenceNumber,
-        'dateRange' => $dateRange,
-        'generatedAt' => $generatedAt,
-        'preparedBy' => $preparedBy
-    ])
+<table class="filter-table">
+    <tr>
+        <td style="width: 30%;">
+            <span class="filter-label">Date Range</span>
+            <span class="filter-value">{{ $dateLabel }}</span>
+        </td>
+        <td style="width: 22%;">
+            <span class="filter-label">Status Filter</span>
+            <span class="filter-value">{{ $statusLabel }}</span>
+        </td>
+        <td style="width: 26%;">
+            <span class="filter-label">Staff Filter</span>
+            <span class="filter-value">{{ $staffLabel }}</span>
+        </td>
+        <td style="width: 22%;">
+            <span class="filter-label">Search Query</span>
+            <span class="filter-value">{{ $searchLabel }}</span>
+        </td>
+    </tr>
+</table>
 
+<table class="summary-table">
+    <thead>
+        <tr>
+            <th>Present</th>
+            <th>Late</th>
+            <th>Absent</th>
+            <th>On Leave</th>
+            <th>Day Off</th>
+            <th>Holiday</th>
+            <th>Worked Hrs</th>
+            <th>Overtime Hrs</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>{{ number_format($present) }}</td>
+            <td>{{ number_format($late) }}</td>
+            <td>{{ number_format($absent) }}</td>
+            <td>{{ number_format($onLeave) }}</td>
+            <td>{{ number_format($dayOff) }}</td>
+            <td>{{ number_format($holiday) }}</td>
+            <td>{{ number_format($workedHours, 2) }}</td>
+            <td>{{ number_format($overtimeHours, 2) }}</td>
+        </tr>
+    </tbody>
+</table>
 
-    {{-- FILTERS --}}
-    <div class="filter-box">
-
-        <div class="filter-title">
-            Report Filters
-        </div>
-
-        <table class="filter-table">
-
+<div class="section-title">Attendance Details ({{ number_format($totalAttendance) }} records)</div>
+@if($records->isNotEmpty())
+    <table class="attendance pdf-scalable-table">
+        <thead>
             <tr>
-
-                <td>
-                    <div class="filter-label">
-                        Date Range
-                    </div>
-
-                    <div class="filter-value">
-                        {{ $dateLabel }}
-                    </div>
-                </td>
-
-                <td>
-                    <div class="filter-label">
-                        Status
-                    </div>
-
-                    <div class="filter-value">
-                        {{ $statusLabel }}
-                    </div>
-                </td>
-
-                <td>
-                    <div class="filter-label">
-                        Staff
-                    </div>
-
-                    <div class="filter-value">
-                        {{ $staffLabel }}
-                    </div>
-                </td>
-
-                <td>
-                    <div class="filter-label">
-                        Search
-                    </div>
-
-                    <div class="filter-value">
-                        {{ $searchLabel }}
-                    </div>
-                </td>
-
+                <th style="width: 12%;">Date</th>
+                <th style="width: 20%;">Staff Member</th>
+                <th style="width: 11%;">Status</th>
+                <th style="width: 11%;">Time In</th>
+                <th style="width: 11%;">Time Out</th>
+                <th style="width: 10%;" class="text-right">Worked</th>
+                <th style="width: 10%;" class="text-right">Overtime</th>
+                <th style="width: 15%;">Marked By / Notes</th>
             </tr>
+        </thead>
+        <tbody>
+            @foreach($records as $att)
+                @php
+                    $staffUser = $att->user ?? null;
+                    $staffName = $staffUser
+                        ? ($staffUser->full_name ?? trim(($staffUser->first_name ?? '') . ' ' . ($staffUser->last_name ?? '')))
+                        : 'N/A';
+                    $rolesText = $staffUser && $staffUser->roles
+                        ? $staffUser->roles->pluck('name')->map(fn ($r) => ucfirst($r))->implode(', ')
+                        : '';
+                    $attDate = $att->date
+                        ? \Carbon\Carbon::parse($att->date)->format('M j, Y')
+                        : 'N/A';
+                    $statusText = ucwords(str_replace('_', ' ', (string) ($att->status ?? 'unknown')));
 
-        </table>
-
-    </div>
-
-
-    {{-- SUMMARY --}}
-    <table class="summary">
-
-        <tr>
-
-            <td>
-                <div class="summary-label">
-                    Present
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($present) }}
-                </div>
-            </td>
-
-            <td>
-                <div class="summary-label">
-                    Late
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($late) }}
-                </div>
-            </td>
-
-            <td>
-                <div class="summary-label">
-                    Absent
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($absent) }}
-                </div>
-            </td>
-
-            <td>
-                <div class="summary-label">
-                    Leave
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($onLeave) }}
-                </div>
-            </td>
-
-            <td>
-                <div class="summary-label">
-                    Day Off
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($dayOff) }}
-                </div>
-            </td>
-
-            <td>
-                <div class="summary-label">
-                    Holiday
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($holiday) }}
-                </div>
-            </td>
-
-            <td>
-                <div class="summary-label">
-                    Worked Hours
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($workedHours, 2) }}
-                </div>
-            </td>
-
-            <td>
-                <div class="summary-label">
-                    Overtime
-                </div>
-
-                <div class="summary-value">
-                    {{ number_format($overtimeHours, 2) }}
-                </div>
-            </td>
-
-        </tr>
-
-    </table>
-
-
-    {{-- ATTENDANCE DETAILS --}}
-    <div class="section-title">
-        Attendance Details
-    </div>
-
-    @if($records->count())
-
-        <table class="attendance">
-
-            <thead>
-
-                <tr>
-
-                    <th style="width: 10%;">
-                        Date
-                    </th>
-
-                    <th style="width: 15%;">
-                        Staff
-                    </th>
-
-                    <th style="width: 10%;">
-                        Status
-                    </th>
-
-                    <th style="width: 10%;">
-                        Check-in
-                    </th>
-
-                    <th style="width: 10%;">
-                        Check-out
-                    </th>
-
-                    <th style="width: 10%;">
-                        Sched. Hrs
-                    </th>
-
-                    <th style="width: 10%;">
-                        Worked Hrs
-                    </th>
-
-                    <th style="width: 10%;">
-                        Overtime
-                    </th>
-
-                    <th style="width: 15%;">
-                        Marked By
-                    </th>
-
-                </tr>
-
-            </thead>
-
-            <tbody>
-
-                @foreach($records as $attendance)
-
-                    @php
-
-                        $attendanceStatus =
-                            strtolower(
-                                (string) (
-                                    $attendance->status
-                                    ?? ''
-                                )
-                            );
-
-                        $statusText = match ($attendanceStatus) {
-                            'present' => 'Present',
-                            'completed' => 'Present',
-                            'checked_in' => 'Present',
-                            'late' => 'Late',
-                            default => ucwords(
-                                str_replace(
-                                    '_',
-                                    ' ',
-                                    $attendanceStatus
-                                )
-                            ),
-                        };
-
-                        $statusClass = match ($attendanceStatus) {
-                            'present' =>
-                                'status-present',
-
-                            'completed' =>
-                                'status-completed',
-
-                            'checked_in' =>
-                                'status-checked-in',
-
-                            'late' =>
-                                'status-late',
-
-                            'on_leave',
-                            'leave' =>
-                                'status-on-leave',
-
-                            'absent' =>
-                                'status-absent',
-
-                            default =>
-                                'status-default',
-                        };
-
-                        $staffName =
-                            $attendance->user->full_name
-                            ?? trim(
-                                ($attendance->user->first_name ?? '')
-                                . ' '
-                                . ($attendance->user->last_name ?? '')
-                            );
-
-                        if (!$staffName) {
-                            $staffName = 'Unknown Staff';
+                    $checkInText = '—';
+                    if (!empty($att->check_in)) {
+                        try {
+                            $checkInText = \Carbon\Carbon::parse($att->check_in)->format('g:i A');
+                        } catch (\Throwable $e) {
+                            $checkInText = (string) $att->check_in;
                         }
+                    }
 
-                        $markedByName = 'System';
-
-                        if ($attendance->marker) {
-                            $markedByName =
-                                $attendance->marker->full_name
-                                ?? trim(
-                                    ($attendance->marker->first_name ?? '')
-                                    . ' '
-                                    . ($attendance->marker->last_name ?? '')
-                                );
-
-                            if (!$markedByName) {
-                                $markedByName = 'System';
-                            }
+                    $checkOutText = '—';
+                    if (!empty($att->check_out)) {
+                        try {
+                            $checkOutText = \Carbon\Carbon::parse($att->check_out)->format('g:i A');
+                        } catch (\Throwable $e) {
+                            $checkOutText = (string) $att->check_out;
                         }
+                    }
 
-                        $attendanceDate = $attendance->date
-                            ? \Carbon\Carbon::parse(
-                                $attendance->date
-                            )->format('M j, Y')
-                            : '—';
-
-                        $checkIn = $attendance->check_in
-                            ? \Carbon\Carbon::parse(
-                                $attendance->check_in
-                            )->format('g:i A')
-                            : '—';
-
-                        $checkOut = $attendance->check_out
-                            ? \Carbon\Carbon::parse(
-                                $attendance->check_out
-                            )->format('g:i A')
-                            : '—';
-
-                        $scheduledHours =
-                            (float) (
-                                $attendance->scheduled_hours
-                                ?? 0
-                            );
-
-                        $workedHoursRecord =
-                            (float) (
-                                $attendance->worked_hours
-                                ?? 0
-                            );
-
-                        $overtimeRecord =
-                            (float) (
-                                $attendance->overtime_hours
-                                ?? 0
-                            );
-
-                    @endphp
-
-                    <tr class="page-break">
-
-                        <td>
-                            <div class="date">
-                                {{ $attendanceDate }}
-                            </div>
-                        </td>
-
-                        <td>
-                            <strong>
-                                {{ $staffName }}
-                            </strong>
-                        </td>
-
-                        <td>
-                            <span class="status {{ $statusClass }}">
-                                {{ $statusText ?: 'Unknown' }}
-                            </span>
-                        </td>
-
-                        <td>
-                            {{ $checkIn }}
-                        </td>
-
-                        <td>
-                            {{ $checkOut }}
-                        </td>
-
-                        <td>
-                            {{ number_format(
-                                $scheduledHours,
-                                2
-                            ) }}
-                        </td>
-
-                        <td>
-                            <strong>
-                                {{ number_format(
-                                    $workedHoursRecord,
-                                    2
-                                ) }}
-                            </strong>
-                        </td>
-
-                        <td>
-                            <strong>
-                                {{ number_format(
-                                    $overtimeRecord,
-                                    2
-                                ) }}
-                            </strong>
-                        </td>
-
-                        <td>
-                            {{ $markedByName }}
-                        </td>
-
-                    </tr>
-
-                @endforeach
-
-            </tbody>
-
-        </table>
-
-    @else
-
-        <div class="empty">
-            No attendance records were found for the selected filters.
-        </div>
-
-    @endif
-
-
-    {{-- ABSENCES --}}
-    <div class="section-title">
-        Absence Records
-    </div>
-
-    @if($absenceRows->count())
-
-        <table class="attendance">
-
-            <thead>
-
+                    $rowWorked = (float) ($att->worked_hours ?? 0);
+                    $rowOvertime = (float) ($att->overtime_hours ?? 0);
+                    $markerName = $att->marker->full_name ?? ($att->marker->name ?? 'System');
+                    $noteText = trim((string) ($att->notes ?? ''));
+                @endphp
                 <tr>
-
-                    <th style="width: 20%;">
-                        Date
-                    </th>
-
-                    <th style="width: 30%;">
-                        Staff
-                    </th>
-
-                    <th style="width: 20%;">
-                        Status
-                    </th>
-
-                    <th style="width: 30%;">
-                        Reason
-                    </th>
-
+                    <td class="bold">{{ $attDate }}</td>
+                    <td>
+                        <div class="bold">{{ $staffName }}</div>
+                        @if($rolesText !== '')
+                            <div class="muted">{{ $rolesText }}</div>
+                        @endif
+                    </td>
+                    <td><span class="status-text">{{ $statusText }}</span></td>
+                    <td>{{ $checkInText }}</td>
+                    <td>{{ $checkOutText }}</td>
+                    <td class="text-right">{{ number_format($rowWorked, 2) }}h</td>
+                    <td class="text-right">{{ number_format($rowOvertime, 2) }}h</td>
+                    <td>
+                        <div>{{ $markerName }}</div>
+                        @if($noteText !== '')
+                            <div class="muted">{{ $noteText }}</div>
+                        @endif
+                    </td>
                 </tr>
-
-            </thead>
-
-            <tbody>
-
-                @foreach($absenceRows as $row)
-
-                    @php
-                        $staffName =
-                            $row['user']->full_name
-                            ?? trim(
-                                ($row['user']->first_name ?? '')
-                                . ' '
-                                . ($row['user']->last_name ?? '')
-                            );
-                    @endphp
-
-                    <tr class="page-break">
-
-                        <td>
-                            {{ $row['date']->format('M j, Y') }}
-                        </td>
-
-                        <td>
-                            <strong>
-                                {{ $staffName ?: 'Unknown Staff' }}
-                            </strong>
-                        </td>
-
-                        <td>
-                            <span class="status status-absent">
-                                Absent
-                            </span>
-                        </td>
-
-                        <td>
-                            {{ $row['reason'] ?? 'No attendance recorded' }}
-                        </td>
-
-                    </tr>
-
-                @endforeach
-
-            </tbody>
-
-        </table>
-
-    @else
-
-        <div class="empty">
-            No absences were recorded for the selected period.
-        </div>
-
-    @endif
-
-
-    {{-- LEAVE / DAY OFF / HOLIDAY --}}
-    <div class="section-title">
-        Leave and Schedule Exceptions
-    </div>
-
-    @if($exceptionRows->count())
-
-        <table class="attendance">
-
-            <thead>
-
-                <tr>
-
-                    <th style="width: 20%;">
-                        Date
-                    </th>
-
-                    <th style="width: 30%;">
-                        Staff
-                    </th>
-
-                    <th style="width: 20%;">
-                        Type
-                    </th>
-
-                    <th style="width: 30%;">
-                        Reason
-                    </th>
-
-                </tr>
-
-            </thead>
-
-            <tbody>
-
-                @foreach($exceptionRows as $row)
-
-                    @php
-
-                        $staffName =
-                            $row['user']->full_name
-                            ?? trim(
-                                ($row['user']->first_name ?? '')
-                                . ' '
-                                . ($row['user']->last_name ?? '')
-                            );
-
-                        $exceptionClass = match ($row['type']) {
-                            'day_off' =>
-                                'status-day-off',
-
-                            'holiday' =>
-                                'status-holiday',
-
-                            'sick_leave',
-                            'urgent_leave' =>
-                                'status-on-leave',
-
-                            default =>
-                                'status-default',
-                        };
-
-                    @endphp
-
-                    <tr class="page-break">
-
-                        <td>
-                            {{ $row['date']->format('M j, Y') }}
-                        </td>
-
-                        <td>
-                            <strong>
-                                {{ $staffName ?: 'Unknown Staff' }}
-                            </strong>
-                        </td>
-
-                        <td>
-
-                            <span class="status {{ $exceptionClass }}">
-                                {{ $row['label'] }}
-                            </span>
-
-                        </td>
-
-                        <td>
-                            {{ $row['reason'] ?? '—' }}
-                        </td>
-
-                    </tr>
-
-                @endforeach
-
-            </tbody>
-
-        </table>
-
-    @else
-
-        <div class="empty">
-            No leave, day-off, or holiday records were found
-            for the selected period.
-        </div>
-
-    @endif
-
-
-    {{-- STAFF OVERTIME BREAKDOWN --}}
-    <div class="section-title">
-        Staff Overtime Breakdown
-    </div>
-
-    @if(isset($staffOvertimeSummary) && count($staffOvertimeSummary))
-
-        <table class="hours-table">
-
-            <thead>
-
-                <tr>
-
-                    <th style="width: 60%;">
-                        Staff
-                    </th>
-
-                    <th style="width: 20%;">
-                        Overtime Hours
-                    </th>
-
-                    <th style="width: 20%;">
-                        Share of Overtime
-                    </th>
-
-                </tr>
-
-            </thead>
-
-            <tbody>
-
-                @foreach($staffOvertimeSummary as $row)
-
-                    @php
-
-                        $rowName =
-                            $row['staff_name']
-                            ?? $row['name']
-                            ?? 'Unknown Staff';
-
-                        $rowOvertime =
-                            (float) (
-                                $row['overtime_hours']
-                                ?? $row['overtime']
-                                ?? 0
-                            );
-
-                        $share =
-                            $overtimeHours > 0
-                                ? (
-                                    $rowOvertime
-                                    / $overtimeHours
-                                ) * 100
-                                : 0;
-
-                    @endphp
-
-                    <tr class="page-break">
-
-                        <td>
-                            <strong>
-                                {{ $rowName }}
-                            </strong>
-                        </td>
-
-                        <td>
-                            {{ number_format(
-                                $rowOvertime,
-                                2
-                            ) }}
-                            hrs
-                        </td>
-
-                        <td>
-                            {{ number_format(
-                                $share,
-                                1
-                            ) }}%
-                        </td>
-
-                    </tr>
-
-                @endforeach
-
-            </tbody>
-
-        </table>
-
-    @else
-
-        <div class="empty">
-            No overtime records were found for the selected filters.
-        </div>
-
-    @endif
-
-
-    {{-- ATTENDANCE TOTALS --}}
-    <div class="section-title">
-        Attendance Totals
-    </div>
-
-    <table class="totals-table">
-
-        <tr>
-            <td class="total-label">
-                Present
-            </td>
-
-            <td class="total-value">
-                {{ number_format($present) }}
-            </td>
-        </tr>
-
-        <tr>
-            <td class="total-label">
-                Late
-            </td>
-
-            <td class="total-value">
-                {{ number_format($late) }}
-            </td>
-        </tr>
-
-        <tr>
-            <td class="total-label">
-                Absent
-            </td>
-
-            <td class="total-value">
-                {{ number_format($absent) }}
-            </td>
-        </tr>
-
-        <tr>
-            <td class="total-label">
-                Leave
-            </td>
-
-            <td class="total-value">
-                {{ number_format($onLeave) }}
-            </td>
-        </tr>
-
-        <tr>
-            <td class="total-label">
-                Day Off
-            </td>
-
-            <td class="total-value">
-                {{ number_format($dayOff) }}
-            </td>
-        </tr>
-
-        <tr>
-            <td class="total-label">
-                Holiday
-            </td>
-
-            <td class="total-value">
-                {{ number_format($holiday) }}
-            </td>
-        </tr>
-
-        <tr>
-            <td class="total-label">
-                Worked Hours
-            </td>
-
-            <td class="total-value">
-                {{ number_format($workedHours, 2) }}
-            </td>
-        </tr>
-
-        <tr>
-            <td class="total-label">
-                Overtime Hours
-            </td>
-
-            <td class="total-value">
-                {{ number_format($overtimeHours, 2) }}
-            </td>
-        </tr>
-
+            @endforeach
+        </tbody>
     </table>
+@else
+    <div class="empty-state">No attendance logs matched the selected filters.</div>
+@endif
 
-
-    {{-- FOOTER --}}
-    @if(!empty($preparedBy) || !empty($checkedBy))
-        <table style="width: 100%; margin-top: 40px; margin-bottom: 20px; text-align: left; page-break-inside: avoid;">
+@if($absenceRows->isNotEmpty())
+    <div class="section-title">Absence Records ({{ number_format($absenceRows->count()) }})</div>
+    <table class="hours-table pdf-scalable-table">
+        <thead>
             <tr>
-                @if(!empty($preparedBy))
-                <td style="width: 50%;">
-                    <div style="font-size: 7px; color: #666; text-transform: uppercase;">Prepared by</div>
-                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline;">{{ $preparedBy }}</div>
-                </td>
-                @endif
-                @if(!empty($checkedBy))
-                <td style="width: 50%;">
-                    <div style="font-size: 7px; color: #666; text-transform: uppercase;">Checked by</div>
-                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline;">{{ $checkedBy }}</div>
-                </td>
-                @endif
+                <th style="width: 18%;">Date</th>
+                <th style="width: 34%;">Staff Member</th>
+                <th style="width: 20%;">Status</th>
+                <th style="width: 28%;">Remarks</th>
             </tr>
-        </table>
-    @endif
-    <div class="footer">
+        </thead>
+        <tbody>
+            @foreach($absenceRows as $row)
+                @php
+                    $rowUser = data_get($row, 'user');
+                    $rowStaffName = $rowUser
+                        ? ($rowUser->full_name ?? trim(($rowUser->first_name ?? '') . ' ' . ($rowUser->last_name ?? '')))
+                        : 'N/A';
+                    $rowDateVal = data_get($row, 'date');
+                    $rowDateText = $rowDateVal
+                        ? \Carbon\Carbon::parse($rowDateVal)->format('M j, Y (D)')
+                        : 'N/A';
+                    $rowLabel = data_get($row, 'label', 'Absent');
+                    $rowReason = data_get($row, 'reason') ?: 'Scheduled shift with no check-in record';
+                @endphp
+                <tr>
+                    <td class="bold">{{ $rowDateText }}</td>
+                    <td>{{ $rowStaffName }}</td>
+                    <td class="status-text">{{ $rowLabel }}</td>
+                    <td class="muted">{{ $rowReason }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+@endif
 
-        <div>
-            @if(empty($preparedBy) && empty($checkedBy))
-                Prepared by: {{ $preparedBy ?? 'System User' }}
-            @endif
-        </div>
+@if($exceptionRows->isNotEmpty())
+    <div class="section-title">Leave, Day-Off &amp; Holiday Records ({{ number_format($exceptionRows->count()) }})</div>
+    <table class="hours-table pdf-scalable-table">
+        <thead>
+            <tr>
+                <th style="width: 18%;">Date</th>
+                <th style="width: 32%;">Staff Member</th>
+                <th style="width: 20%;">Classification</th>
+                <th style="width: 30%;">Reason / Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($exceptionRows as $row)
+                @php
+                    $rowUser = data_get($row, 'user');
+                    $rowStaffName = $rowUser
+                        ? ($rowUser->full_name ?? trim(($rowUser->first_name ?? '') . ' ' . ($rowUser->last_name ?? '')))
+                        : 'N/A';
+                    $rowDateVal = data_get($row, 'date');
+                    $rowDateText = $rowDateVal
+                        ? \Carbon\Carbon::parse($rowDateVal)->format('M j, Y (D)')
+                        : 'N/A';
+                    $rowLabel = data_get($row, 'label', 'Exception');
+                    $rowReason = data_get($row, 'reason') ?: '—';
+                @endphp
+                <tr>
+                    <td class="bold">{{ $rowDateText }}</td>
+                    <td>{{ $rowStaffName }}</td>
+                    <td class="status-text">{{ $rowLabel }}</td>
+                    <td>{{ $rowReason }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+@endif
 
-        <div>
-            ZenFlow System — Spa Alexandria
-        </div>
+@if($overtimeSummaryRows->isNotEmpty())
+    <div class="section-title">Staff Overtime &amp; Hours Breakdown</div>
+    <table class="hours-table pdf-scalable-table">
+        <thead>
+            <tr>
+                <th style="width: 36%;">Staff Member</th>
+                <th style="width: 16%;" class="text-right">Days Worked</th>
+                <th style="width: 16%;" class="text-right">Scheduled Hrs</th>
+                <th style="width: 16%;" class="text-right">Worked Hrs</th>
+                <th style="width: 16%;" class="text-right">Overtime Hrs</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($overtimeSummaryRows as $row)
+                <tr>
+                    <td class="bold">{{ data_get($row, 'name', 'N/A') }}</td>
+                    <td class="text-right">{{ number_format((int) data_get($row, 'days_worked', 0)) }}</td>
+                    <td class="text-right">{{ number_format((float) data_get($row, 'scheduled_hours', 0), 2) }}</td>
+                    <td class="text-right">{{ number_format((float) data_get($row, 'worked_hours', 0), 2) }}</td>
+                    <td class="text-right bold">{{ number_format((float) data_get($row, 'overtime_hours', 0), 2) }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+        <tfoot>
+            <tr>
+                <td>Total ({{ $overtimeSummaryRows->count() }} staff)</td>
+                <td class="text-right">{{ number_format($overtimeSummaryRows->sum(fn ($r) => (int) data_get($r, 'days_worked', 0))) }}</td>
+                <td class="text-right">{{ number_format($overtimeSummaryRows->sum(fn ($r) => (float) data_get($r, 'scheduled_hours', 0)), 2) }}</td>
+                <td class="text-right">{{ number_format($overtimeSummaryRows->sum(fn ($r) => (float) data_get($r, 'worked_hours', 0)), 2) }}</td>
+                <td class="text-right">{{ number_format($overtimeSummaryRows->sum(fn ($r) => (float) data_get($r, 'overtime_hours', 0)), 2) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+@endif
 
-    </div>
+<table class="signature-table">
+    <tr>
+        <td>
+            <div class="signature-label">Prepared by</div>
+            <div class="signature-line">{{ $preparedBy }}</div>
+            <div class="signature-role">Staff / Administrator</div>
+        </td>
+        <td>
+            <div class="signature-label">Checked by</div>
+            <div class="signature-line">{{ $checkedByName ?: '____________________________' }}</div>
+            <div class="signature-role">Manager / Supervisor</div>
+        </td>
+    </tr>
+</table>
 
+<div class="doc-footer">
+    ZenFlow Spa Management System &bull; {{ $reportTitle }} &bull; Generated {{ $generatedText }}
+</div>
 </body>
 </html>

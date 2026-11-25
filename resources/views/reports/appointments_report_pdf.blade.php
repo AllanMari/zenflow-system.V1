@@ -2,13 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-
-    <title>{{ $reportTitle }}</title>
+    <title>{{ $reportTitle ?? 'Appointment Report' }}</title>
 
     <style>
         @page {
-            margin: 35px;
             size: A4 portrait;
+            margin: 14mm 12mm 14mm 12mm;
         }
 
         * {
@@ -17,571 +16,480 @@
 
         body {
             font-family: DejaVu Sans, sans-serif;
-            color: #1f2937;
-            font-size: 10px;
+            font-size: 9px;
+            line-height: 1.38;
+            color: #000000;
+            background: #ffffff;
             margin: 0;
-        }
-
-        .header {
-            border-bottom: 2px solid #0f766e;
-            padding-bottom: 12px;
-            margin-bottom: 16px;
-        }
-
-        .brand {
-            font-size: 18px;
-            font-weight: bold;
-            color: #0f766e;
-            margin-bottom: 3px;
-        }
-
-        .spa-name {
-            font-size: 11px;
-            color: #4b5563;
-        }
-
-        .report-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #111827;
-            margin-top: 14px;
-            margin-bottom: 4px;
-        }
-
-        .generated {
-            font-size: 9px;
-            color: #6b7280;
-        }
-
-        .filter-box {
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            border-radius: 5px;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-
-        .filter-title {
-            font-size: 10px;
-            font-weight: bold;
-            margin-bottom: 7px;
-            color: #374151;
-        }
-
-        .filter-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .filter-table td {
-            width: 25%;
-            padding: 3px 5px;
-            vertical-align: top;
-        }
-
-        .filter-label {
-            font-size: 8px;
-            color: #6b7280;
-            text-transform: uppercase;
-        }
-
-        .filter-value {
-            font-size: 9px;
-            font-weight: bold;
-            color: #111827;
-            margin-top: 2px;
-        }
-
-        .summary {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 5px;
-            margin: 0 -5px 15px -5px;
-        }
-
-        .summary td {
-            border: 1px solid #d1d5db;
-            border-radius: 5px;
-            padding: 9px;
-            width: 16.66%;
-            vertical-align: top;
-        }
-
-        .summary-label {
-            font-size: 7px;
-            color: #6b7280;
-            text-transform: uppercase;
-        }
-
-        .summary-value {
-            font-size: 15px;
-            font-weight: bold;
-            margin-top: 3px;
-            color: #111827;
+            padding: 0;
         }
 
         .section-title {
-            font-size: 12px;
+            font-size: 9px;
             font-weight: bold;
-            margin: 12px 0 7px 0;
-            color: #111827;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #000000;
+            margin: 12px 0 5px;
+            padding-bottom: 3px;
+            border-bottom: 1.5px solid #111111;
+            page-break-after: avoid;
         }
 
-        table.appointments {
+        .filter-table,
+        .summary-table,
+        .appointments,
+        .snapshot-table,
+        .signature-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
+            table-layout: fixed;
         }
 
-        table.appointments thead {
-            background: #0f766e;
-            color: #ffffff;
+        .filter-table {
+            margin: 0 0 8px;
         }
 
-        table.appointments th {
+        .filter-table td {
+            border: 1px solid #d1d5db;
+            padding: 4px 6px;
             font-size: 8px;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .filter-label {
+            display: block;
+            font-size: 6.8px;
             font-weight: bold;
-            text-align: left;
-            padding: 7px 5px;
-            border: 1px solid #0f766e;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: #4b5563;
+            margin-bottom: 1px;
         }
 
-        table.appointments td {
+        .filter-value {
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .summary-table {
+            margin: 0 0 10px;
+            page-break-inside: avoid;
+        }
+
+        .summary-table th {
+            border: 1px solid #d1d5db;
+            border-bottom: 1.5px solid #111111;
+            background: #f3f4f6;
+            padding: 4px 5px;
+            font-size: 7px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: center;
+            color: #111111;
+        }
+
+        .summary-table td {
+            border: 1px solid #d1d5db;
+            padding: 5px;
+            font-size: 10px;
+            font-weight: bold;
+            text-align: center;
+            color: #000000;
+        }
+
+        .appointments {
+            margin-bottom: 10px;
+        }
+
+        .appointments thead {
+            display: table-header-group;
+        }
+
+        .appointments tr {
+            page-break-inside: avoid;
+        }
+
+        .appointments th {
+            background: #f3f4f6;
+            color: #111111;
+            font-size: 7.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: left;
+            padding: 5px 5px;
+            border: 1px solid #d1d5db;
+            border-bottom: 1.5px solid #111111;
+        }
+
+        .appointments td {
+            padding: 5px 5px;
             font-size: 8px;
-            padding: 6px 5px;
             border: 1px solid #d1d5db;
             vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
-        table.appointments tr:nth-child(even) {
+        .appointments tbody tr:nth-child(even) {
             background: #f9fafb;
         }
 
-        .date {
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .bold {
             font-weight: bold;
-            color: #111827;
         }
 
         .muted {
-            color: #6b7280;
+            color: #4b5563;
+            font-size: 7.2px;
         }
 
-        .status {
-            display: inline-block;
-            padding: 3px 5px;
-            border-radius: 3px;
-            font-size: 7px;
+        .status-text {
             font-weight: bold;
+            font-size: 7.5px;
+            text-transform: uppercase;
+            color: #000000;
         }
 
-        .status-pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .status-confirmed {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .status-completed {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-cancelled {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .status-no-show {
-            background: #f3e8ff;
-            color: #6b21a8;
-        }
-
-        .payment-section {
-            margin-top: 8px;
-        }
-
-        .payment-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .payment-table td {
-            border: 1px solid #d1d5db;
-            padding: 7px;
-        }
-
-        .payment-label {
-            color: #6b7280;
-        }
-
-        .payment-value {
-            text-align: right;
-            font-weight: bold;
-        }
-
-        .footer {
-            border-top: 1px solid #d1d5db;
-            margin-top: 20px;
-            padding-top: 8px;
-            font-size: 8px;
-            color: #6b7280;
-        }
-
-        .empty {
-            text-align: center;
-            padding: 25px;
-            border: 1px solid #d1d5db;
-            color: #6b7280;
-        }
-
-        .page-break {
+        .snapshot-table {
+            margin-top: 6px;
             page-break-inside: avoid;
         }
+
+        .snapshot-table th {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-bottom: 1.5px solid #111111;
+            padding: 5px 6px;
+            font-size: 7.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            text-align: right;
+            color: #111111;
+        }
+
+        .snapshot-table th:first-child {
+            text-align: left;
+        }
+
+        .snapshot-table td {
+            border: 1px solid #d1d5db;
+            padding: 5px 6px;
+            font-size: 8.5px;
+            font-weight: bold;
+            text-align: right;
+            color: #000000;
+        }
+
+        .snapshot-table td:first-child {
+            text-align: left;
+            font-weight: normal;
+            color: #111111;
+        }
+
+        .empty-state {
+            border: 1px solid #d1d5db;
+            padding: 14px;
+            text-align: center;
+            color: #4b5563;
+            font-size: 8.5px;
+            margin-bottom: 10px;
+        }
+
+        .signature-table {
+            margin-top: 18px;
+            page-break-inside: avoid;
+        }
+
+        .signature-table td {
+            width: 50%;
+            vertical-align: top;
+            padding-right: 24px;
+        }
+
+        .signature-label {
+            font-size: 7.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #4b5563;
+            margin-bottom: 18px;
+        }
+
+        .signature-line {
+            width: 82%;
+            border-top: 1px solid #111111;
+            padding-top: 3px;
+            font-size: 8.5px;
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .signature-role {
+            font-size: 7.2px;
+            color: #4b5563;
+        }
+
+        .doc-footer {
+            margin-top: 12px;
+            padding-top: 5px;
+            border-top: 1px solid #d1d5db;
+            font-size: 7.2px;
+            color: #4b5563;
+            text-align: right;
+        }
     </style>
+
     @include('partials.pdf_page_styles')
 </head>
-
 <body>
+@php
+    $reportTitle = $reportTitle ?? 'Appointment Report';
+    $dateLabel = $dateLabel ?? 'All Dates';
+    $statusLabel = $statusLabel ?? 'All Statuses';
+    $staffLabel = $staffLabel ?? 'All Staff';
+    $searchText = !empty($search) ? $search : 'None';
 
-    @include('partials.report_header', [
-        'reportTitle' => $reportTitle
-    ])
+    $totalAppointments = (int) ($totalAppointments ?? 0);
+    $completed = (int) ($completed ?? 0);
+    $confirmed = (int) ($confirmed ?? 0);
+    $pending = (int) ($pending ?? 0);
+    $cancelled = (int) ($cancelled ?? 0);
+    $noShow = (int) ($noShow ?? 0);
 
-    <div class="filter-box">
-        <div class="filter-title">
-            Report Filters
-        </div>
+    $recordedValue = (float) ($recordedValue ?? 0);
+    $paidValue = (float) ($paidValue ?? 0);
+    $outstandingValue = (float) ($outstandingValue ?? 0);
 
-        <table class="filter-table">
+    $preparedByName = $preparedBy ?? 'Administrator';
+    $checkedByName = !empty($checkedBy) ? $checkedBy : null;
+    $generatedText = $generatedAt instanceof \Carbon\CarbonInterface
+        ? $generatedAt->format('F j, Y g:i A')
+        : ($generatedAt ?? now()->format('F j, Y g:i A'));
+@endphp
+
+@include('partials.report_header', [
+    'reportTitle' => $reportTitle,
+    'dateRange' => $dateLabel,
+    'generatedAt' => $generatedText,
+    'preparedBy' => $preparedByName,
+])
+
+<table class="filter-table">
+    <tr>
+        <td style="width: 28%;">
+            <span class="filter-label">Date Range</span>
+            <span class="filter-value">{{ $dateLabel }}</span>
+        </td>
+        <td style="width: 22%;">
+            <span class="filter-label">Status Filter</span>
+            <span class="filter-value">{{ $statusLabel }}</span>
+        </td>
+        <td style="width: 25%;">
+            <span class="filter-label">Staff Filter</span>
+            <span class="filter-value">{{ $staffLabel }}</span>
+        </td>
+        <td style="width: 25%;">
+            <span class="filter-label">Search Query</span>
+            <span class="filter-value">{{ $searchText }}</span>
+        </td>
+    </tr>
+</table>
+
+<table class="summary-table">
+    <thead>
+        <tr>
+            <th>Total</th>
+            <th>Completed</th>
+            <th>Confirmed</th>
+            <th>Pending</th>
+            <th>Cancelled</th>
+            <th>No-Show</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>{{ number_format($totalAppointments) }}</td>
+            <td>{{ number_format($completed) }}</td>
+            <td>{{ number_format($confirmed) }}</td>
+            <td>{{ number_format($pending) }}</td>
+            <td>{{ number_format($cancelled) }}</td>
+            <td>{{ number_format($noShow) }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="section-title">Appointment Schedule &amp; Billing Register</div>
+
+@if(isset($appointments) && count($appointments) > 0)
+    <table class="appointments pdf-scalable-table">
+        <thead>
             <tr>
-                <td>
-                    <div class="filter-label">Date Range</div>
-                    <div class="filter-value">
-                        {{ $dateLabel }}
-                    </div>
-                </td>
-
-                <td>
-                    <div class="filter-label">Status</div>
-                    <div class="filter-value">
-                        {{ $statusLabel }}
-                    </div>
-                </td>
-
-                <td>
-                    <div class="filter-label">Staff</div>
-                    <div class="filter-value">
-                        {{ $staffLabel }}
-                    </div>
-                </td>
-
-                <td>
-                    <div class="filter-label">Search</div>
-                    <div class="filter-value">
-                        {{ $search !== '' ? $search : 'All Customers' }}
-                    </div>
-                </td>
+                <th style="width: 12%;">Date / Time</th>
+                <th style="width: 16%;">Client</th>
+                <th style="width: 20%;">Services</th>
+                <th style="width: 16%;">Staff &amp; Room</th>
+                <th style="width: 10%;">Status</th>
+                <th style="width: 16%;" class="text-right">Billing</th>
+                <th style="width: 10%;">Ref / Notes</th>
             </tr>
-        </table>
-    </div>
+        </thead>
+        <tbody>
+            @foreach($appointments as $appointment)
+                @php
+                    $aptDate = $appointment->appointment_date
+                        ? \Carbon\Carbon::parse($appointment->appointment_date)->format('M j, Y')
+                        : 'N/A';
 
-    <table class="summary">
-        <tr>
-            <td>
-                <div class="summary-label">Total</div>
-                <div class="summary-value">
-                    {{ $totalAppointments }}
-                </div>
-            </td>
+                    $startText = $appointment->start_time
+                        ? \Carbon\Carbon::parse($appointment->start_time)->format('g:i A')
+                        : '';
+                    $endText = $appointment->end_time
+                        ? \Carbon\Carbon::parse($appointment->end_time)->format('g:i A')
+                        : '';
+                    $timeText = trim($startText . ($endText ? ' - ' . $endText : ''));
 
-            <td>
-                <div class="summary-label">Completed</div>
-                <div class="summary-value">
-                    {{ $completed }}
-                </div>
-            </td>
+                    $clientName = $appointment->client_name
+                        ?? ($appointment->customer->full_name ?? $appointment->guest_name ?? 'Guest');
+                    $clientPhone = $appointment->customer->phone_number
+                        ?? $appointment->guest_phone
+                        ?? null;
 
-            <td>
-                <div class="summary-label">Confirmed</div>
-                <div class="summary-value">
-                    {{ $confirmed }}
-                </div>
-            </td>
+                    $serviceNames = $appointment->services
+                        ? $appointment->services->pluck('name')->filter()->implode(', ')
+                        : '';
 
-            <td>
-                <div class="summary-label">Pending</div>
-                <div class="summary-value">
-                    {{ $pending }}
-                </div>
-            </td>
-
-            <td>
-                <div class="summary-label">Cancelled</div>
-                <div class="summary-value">
-                    {{ $cancelled }}
-                </div>
-            </td>
-
-            <td>
-                <div class="summary-label">No-Show</div>
-                <div class="summary-value">
-                    {{ $noShow }}
-                </div>
-            </td>
-        </tr>
-    </table>
-
-    <div class="section-title">
-        Appointment Details
-    </div>
-
-    @if($appointments->count())
-
-        <table class="appointments">
-            <thead>
-                <tr>
-                    <th style="width: 11%;">Date / Time</th>
-                    <th style="width: 17%;">Customer</th>
-                    <th style="width: 20%;">Service</th>
-                    <th style="width: 15%;">Staff</th>
-                    <th style="width: 10%;">Room</th>
-                    <th style="width: 10%;">Payment</th>
-                    <th style="width: 9%;">Status</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                @foreach($appointments as $appointment)
-
-                    @php
-                        $isLegacyNoShow = $appointment->status === 'cancelled' && $appointment->cancellation_reason === 'customer_no_show';
-                        $appointmentStatus = $isLegacyNoShow ? 'no_show' : $appointment->status;
-
-                        $statusClass = match ($appointmentStatus) {
-                            'pending' => 'status-pending',
-                            'confirmed' => 'status-confirmed',
-                            'completed' => 'status-completed',
-                            'cancelled' => 'status-cancelled',
-                            'no_show' => 'status-no-show',
-                            default => 'status-pending',
-                        };
-
-                        $statusText = ucwords(
-                            str_replace('_', ' ', $appointmentStatus)
-                        );
-
-                        $customerName =
-                            $appointment->client_name
-                            ?? 'Walk-in';
-
-                        if ($appointment->assignedStaff && $appointment->assignedStaff->count() > 1) {
-                            $staffName = $appointment->assignedStaff->map(fn($s) => $s->full_name ?? $s->name)->filter()->implode(', ');
-                        } else {
-                            $staffName =
-                                $appointment->staff->full_name
-                                ?? $appointment->staff->name
-                                ?? 'Unassigned';
-                        }
-
-                        $roomName =
-                            $appointment->room->name
-                            ?? $appointment->room->room_name
-                            ?? '—';
-
-                        $paidAmount = (float) $appointment->payments->sum('amount');
-
-                        $totalAmount = (float) ($appointment->total_price ?? 0);
-
-                        $balance = max(
-                            0,
-                            $totalAmount - $paidAmount
-                        );
-
-                        $serviceNames = $appointment->services
-                            ->pluck('name')
+                    if ($appointment->assignedStaff && $appointment->assignedStaff->isNotEmpty()) {
+                        $staffNames = $appointment->assignedStaff
+                            ->map(fn ($member) => $member->full_name ?? $member->name)
                             ->filter()
-                            ->values()
-                            ->all();
+                            ->implode(', ');
+                    } else {
+                        $staffNames = $appointment->staff
+                            ? ($appointment->staff->full_name ?? $appointment->staff->name)
+                            : 'Unassigned';
+                    }
 
-                        $serviceText = count($serviceNames)
-                            ? implode(', ', $serviceNames)
-                            : '—';
+                    $roomName = $appointment->room->name ?? 'Unassigned';
 
-                        $appointmentDate = $appointment->appointment_date
-                            ? \Carbon\Carbon::parse(
-                                $appointment->appointment_date
-                            )->format('M j, Y')
-                            : '—';
+                    $rawStatus = (string) ($appointment->status ?? '');
+                    $isNoShow = $rawStatus === 'no_show'
+                        || ($rawStatus === 'cancelled' && ($appointment->cancellation_reason ?? null) === 'customer_no_show');
+                    $displayStatus = $isNoShow
+                        ? 'No-Show'
+                        : ucwords(str_replace('_', ' ', $rawStatus ?: 'Unknown'));
 
-                        $startTime = $appointment->start_time
-                            ? \Carbon\Carbon::parse(
-                                $appointment->start_time
-                            )->format('g:i A')
-                            : '—';
+                    $rowTotal = (float) ($appointment->total_price ?? 0);
+                    $rowPaid = $appointment->payments
+                        ? (float) $appointment->payments->sum('amount')
+                        : 0.0;
+                    $rowBalance = (float) ($appointment->active_outstanding_balance ?? max(0, $rowTotal - $rowPaid));
+                    $paymentLabel = $rowPaid >= $rowTotal && $rowTotal > 0
+                        ? 'Paid'
+                        : ($rowPaid > 0 ? 'Partial' : 'Unpaid');
 
-                        $endTime = $appointment->end_time
-                            ? \Carbon\Carbon::parse(
-                                $appointment->end_time
-                            )->format('g:i A')
-                            : null;
-                    @endphp
-
-                    <tr class="page-break">
-                        <td>
-                            <div class="date">
-                                {{ $appointmentDate }}
-                            </div>
-
-                            <div class="muted">
-                                {{ $startTime }}
-
-                                @if($endTime)
-                                    – {{ $endTime }}
-                                @endif
-                            </div>
-                        </td>
-
-                        <td>
-                            <strong>
-                                {{ $customerName }}
-                            </strong>
-
-                            @if($appointment->customer?->phone_number)
-                                <div class="muted">
-                                    {{ $appointment->customer->phone_number }}
-                                </div>
-                            @endif
-                        </td>
-
-                        <td>
-                            {{ $serviceText }}
-                        </td>
-
-                        <td>
-                            {{ $staffName }}
-                        </td>
-
-                        <td>
-                            {{ $roomName }}
-                        </td>
-
-                        <td>
-                            <strong>
-                                ₱{{ number_format($totalAmount, 2) }}
-                            </strong>
-
-                            @if($paidAmount > 0)
-                                <div class="muted">
-                                    Paid:
-                                    ₱{{ number_format($paidAmount, 2) }}
-                                </div>
-                            @endif
-
-                            @if($balance > 0)
-                                <div class="muted">
-                                    Balance:
-                                    ₱{{ number_format($balance, 2) }}
-                                </div>
-                            @endif
-                        </td>
-
-                        <td>
-                            <span class="status {{ $statusClass }}">
-                                {{ $statusText }}
-                            </span>
-                                @if($appointmentStatus === 'cancelled')
-                                    <div class="muted" style="font-size: 8px; margin-top: 4px;">
-                                        Reason: {{ $appointment->cancellation_reason ? ucwords(str_replace('_', ' ', $appointment->cancellation_reason)) : 'No reason provided' }}
-                                    </div>
-                                @endif
-
-                                @if($appointmentStatus === 'no_show')
-                                    <div class="muted" style="font-size: 8px; margin-top: 4px;">
-                                        No-Show Reason: {{ $appointment->no_show_reason ? ucwords(str_replace('_', ' ', $appointment->no_show_reason)) : 'No reason provided' }}
-                                    </div>
-                                @endif
-                        </td>
-                    </tr>
-
-                @endforeach
-            </tbody>
-        </table>
-
-    @else
-
-        <div class="empty">
-            No appointments were found for the selected filters.
-        </div>
-
-    @endif
-
-    <div class="section-title">
-        Payment Snapshot
-    </div>
-
-    <table class="payment-table">
-        <tr>
-            <td class="payment-label">
-                Recorded Appointment Value
-            </td>
-
-            <td class="payment-value">
-                ₱{{ number_format($recordedValue, 2) }}
-            </td>
-        </tr>
-
-        <tr>
-            <td class="payment-label">
-                Recorded Payments
-            </td>
-
-            <td class="payment-value">
-                ₱{{ number_format($paidValue, 2) }}
-            </td>
-        </tr>
-
-        <tr>
-            <td class="payment-label">
-                Outstanding Balance
-            </td>
-
-            <td class="payment-value">
-                ₱{{ number_format($outstandingValue, 2) }}
-            </td>
-        </tr>
-    </table>
-
-    <div class="footer">
-        @if(!empty($preparedBy) || !empty($checkedBy))
-            <table style="width: 100%; margin-bottom: 20px; text-align: left; page-break-inside: avoid;">
+                    $reasonText = $appointment->cancellation_reason
+                        ? ucwords(str_replace('_', ' ', $appointment->cancellation_reason))
+                        : ($appointment->no_show_notes ?? null);
+                    $refText = '#' . ($appointment->reference_number ?? $appointment->id ?? '-');
+                @endphp
                 <tr>
-                    @if(!empty($preparedBy))
-                    <td style="width: 50%;">
-                        <div style="font-size: 7px; color: #6b7280; text-transform: uppercase;">Prepared by</div>
-                        <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline; color: #111827;">{{ $preparedBy }}</div>
+                    <td>
+                        <div class="bold">{{ $aptDate }}</div>
+                        @if($timeText !== '')
+                            <div class="muted">{{ $timeText }}</div>
+                        @endif
                     </td>
-                    @endif
-                    @if(!empty($checkedBy))
-                    <td style="width: 50%;">
-                        <div style="font-size: 7px; color: #6b7280; text-transform: uppercase;">Checked by</div>
-                        <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline; color: #111827;">{{ $checkedBy }}</div>
+                    <td>
+                        <div class="bold">{{ $clientName }}</div>
+                        @if($clientPhone)
+                            <div class="muted">{{ $clientPhone }}</div>
+                        @endif
                     </td>
-                    @endif
+                    <td>{{ $serviceNames !== '' ? $serviceNames : '—' }}</td>
+                    <td>
+                        <div>{{ $staffNames }}</div>
+                        <div class="muted">Room: {{ $roomName }}</div>
+                    </td>
+                    <td>
+                        <div class="status-text">{{ $displayStatus }}</div>
+                        @if($reasonText)
+                            <div class="muted">{{ $reasonText }}</div>
+                        @endif
+                    </td>
+                    <td class="text-right">
+                        <div class="bold">&#8369;{{ number_format($rowTotal, 2) }}</div>
+                        <div class="muted">Paid: &#8369;{{ number_format($rowPaid, 2) }}</div>
+                        @if($rowBalance > 0.009)
+                            <div class="muted">Bal: &#8369;{{ number_format($rowBalance, 2) }}</div>
+                        @else
+                            <div class="muted">{{ $paymentLabel }}</div>
+                        @endif
+                    </td>
+                    <td>
+                        <div class="bold">{{ $refText }}</div>
+                        @if(!empty($appointment->notes))
+                            <div class="muted">{{ \Illuminate\Support\Str::limit($appointment->notes, 60) }}</div>
+                        @endif
+                    </td>
                 </tr>
-            </table>
-        @else
-            <div>
-                Prepared by: System User
-            </div>
-        @endif
-
-        <div style="margin-top: 15px; border-top: 1px solid #d1d5db; padding-top: 5px;">
-            ZenFlow System — Spa Alexandria
-        </div>
+            @endforeach
+        </tbody>
+    </table>
+@else
+    <div class="empty-state">
+        No appointments matched the selected filters.
     </div>
+@endif
 
+<div class="section-title">Payment Snapshot</div>
+<table class="snapshot-table">
+    <thead>
+        <tr>
+            <th style="width: 40%;">Summary Metric</th>
+            <th style="width: 20%;">Recorded Value</th>
+            <th style="width: 20%;">Collected Payments</th>
+            <th style="width: 20%;">Outstanding Balance</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td class="bold">Filtered Appointments Financial Totals ({{ number_format($totalAppointments) }} records)</td>
+            <td>&#8369;{{ number_format($recordedValue, 2) }}</td>
+            <td>&#8369;{{ number_format($paidValue, 2) }}</td>
+            <td>&#8369;{{ number_format($outstandingValue, 2) }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<table class="signature-table">
+    <tr>
+        <td>
+            <div class="signature-label">Prepared by</div>
+            <div class="signature-line">{{ $preparedByName }}</div>
+            <div class="signature-role">Staff / Administrator</div>
+        </td>
+        <td>
+            <div class="signature-label">Checked by</div>
+            <div class="signature-line">{{ $checkedByName ?: '____________________________' }}</div>
+            <div class="signature-role">Manager / Supervisor</div>
+        </td>
+    </tr>
+</table>
+
+<div class="doc-footer">
+    ZenFlow Spa Management System &bull; Appointment Report &bull; Generated {{ $generatedText }}
+</div>
 </body>
 </html>

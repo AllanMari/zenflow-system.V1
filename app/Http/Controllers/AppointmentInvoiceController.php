@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
+use App\Models\Service;
 use App\Services\ReportPdfService;
 use App\Support\Pdf\PdfLayoutResolver;
 use Illuminate\Http\Request;
@@ -142,6 +143,8 @@ class AppointmentInvoiceController extends Controller
             'assignedStaff',
             'room',
             'services',
+            'packageSelections.choiceGroup',
+            'packageSelections.selectedService',
             'payments',
         ]);
     }
@@ -208,11 +211,55 @@ class AppointmentInvoiceController extends Controller
 
         $assignedStaffList = ($appointment->relationLoaded('assignedStaff') && $appointment->assignedStaff && $appointment->assignedStaff->isNotEmpty())
             ? $appointment->assignedStaff
+                ->sortBy(fn ($member) => ($member->pivot->role ?? '') === 'primary' ? 0 : 1)
+                ->unique('id')
+                ->values()
             : ($appointment->staff ? collect([$appointment->staff]) : collect());
 
         $staffNames = $assignedStaffList->isNotEmpty()
-            ? $assignedStaffList->pluck('full_name')->join(', ')
-            : ($appointment->staff?->full_name ?? 'Unassigned');
+            ? $assignedStaffList
+                ->map(fn ($member) => trim((string) ($member->full_name ?? $member->name ?? '')))
+                ->filter()
+                ->unique()
+                ->join(', ')
+            : ($appointment->staff?->full_name ?? $appointment->staff?->name ?? 'Unassigned');
+
+        $bookedServices = $appointment->services ?? collect();
+        $packages = $bookedServices->filter(fn ($service) => (bool) $service->is_package)->values();
+        $packageSelections = $appointment->relationLoaded('packageSelections')
+            ? $appointment->packageSelections
+            : collect();
+
+        $includedServiceIds = $packages
+            ->flatMap(function ($package) {
+                $raw = $package->included_services;
+                if (is_string($raw)) {
+                    $raw = json_decode($raw, true) ?: [];
+                }
+                return is_array($raw) ? $raw : [];
+            })
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $includedServiceNamesById = $includedServiceIds->isNotEmpty()
+            ? Service::whereIn('id', $includedServiceIds)->pluck('name', 'id')
+            : collect();
+
+        $packageIncludedMap = [];
+        foreach ($packages as $package) {
+            $rawIds = $package->included_services;
+            if (is_string($rawIds)) {
+                $rawIds = json_decode($rawIds, true) ?: [];
+            }
+            $names = collect(is_array($rawIds) ? $rawIds : [])
+                ->map(fn ($id) => $includedServiceNamesById->get((int) $id))
+                ->filter()
+                ->values()
+                ->all();
+            $packageIncludedMap[$package->id] = $names;
+        }
 
         return [
             'appointment' => $appointment,
@@ -221,9 +268,12 @@ class AppointmentInvoiceController extends Controller
             'clientPhone' => $appointment->client_phone,
             'staff' => $appointment->staff,
             'assignedStaff' => $assignedStaffList,
-            'staffNames' => $staffNames,
+            'staffNames' => $staffNames ?: 'Unassigned',
             'room' => $appointment->room,
-            'services' => $appointment->services,
+            'services' => $bookedServices,
+            'packages' => $packages,
+            'packageIncludedMap' => $packageIncludedMap,
+            'packageSelections' => $packageSelections,
 
             'payments' => $payments,
             'paidPayments' => $paidPayments,

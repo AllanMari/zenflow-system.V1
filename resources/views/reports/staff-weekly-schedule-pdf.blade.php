@@ -48,7 +48,7 @@
         */
 
         .page {
-            width: 92%;
+            width: 100%;
             margin: 0 auto;
             padding: 1mm 0 0;
         }
@@ -453,7 +453,13 @@
             border-spacing: 0;
 
             border: 1.8px solid #111111;
+        }
 
+        .combined-table thead {
+            display: table-header-group;
+        }
+
+        .combined-table tbody tr {
             page-break-inside: avoid;
         }
 
@@ -525,12 +531,12 @@
         .combined-role {
             padding: 1mm 0.7mm;
 
-            font-size: 5.3px;
+            font-size: 6px;
             font-weight: 700;
 
             text-transform: uppercase;
 
-            line-height: 1.05;
+            line-height: 1.08;
         }
 
 
@@ -577,37 +583,37 @@
         }
 
         .compact-title {
-            font-size: 5.5px;
+            font-size: 7.5px;
             font-weight: 700;
 
             text-transform: uppercase;
-            line-height: 1;
+            line-height: 1.05;
         }
 
         .compact-time {
             margin-top: 0.45mm;
 
-            font-size: 5px;
+            font-size: 6.5px;
             font-weight: 700;
 
-            line-height: 1;
+            line-height: 1.05;
         }
 
         .compact-duration {
             margin-top: 0.3mm;
 
-            font-size: 4.2px;
+            font-size: 5.5px;
             font-weight: 700;
 
             text-transform: uppercase;
-            line-height: 1;
+            line-height: 1.05;
         }
 
         .compact-reason {
             margin-top: 0.35mm;
 
-            font-size: 3.8px;
-            line-height: 1;
+            font-size: 5px;
+            line-height: 1.05;
         }
 
 
@@ -632,7 +638,7 @@
         .weekend-label {
             margin-bottom: 0.3mm;
 
-            font-size: 4.5px;
+            font-size: 5.8px;
             font-weight: 700;
 
             text-transform: uppercase;
@@ -650,15 +656,15 @@
             padding-top: 0.8mm;
             padding-bottom: 0.8mm;
 
-            font-size: 5.2px;
+            font-size: 6px;
         }
 
         .combined-table.tight .combined-name {
-            font-size: 5.4px;
+            font-size: 6.5px;
         }
 
         .combined-table.tight .combined-role {
-            font-size: 4.3px;
+            font-size: 5.2px;
         }
 
         .combined-table.tight .compact-day {
@@ -669,19 +675,19 @@
         }
 
         .combined-table.tight .compact-title {
-            font-size: 4.2px;
+            font-size: 5.5px;
         }
 
         .combined-table.tight .compact-time {
-            font-size: 3.8px;
+            font-size: 5px;
         }
 
         .combined-table.tight .compact-duration {
-            font-size: 3.1px;
+            font-size: 4.2px;
         }
 
         .combined-table.tight .compact-reason {
-            font-size: 2.9px;
+            font-size: 3.8px;
         }
 
 
@@ -843,11 +849,9 @@
         |--------------------------------------------------------------------------
         */
 
-        .header,
         .staff-info,
         .schedule-table,
         .summary-table,
-        .combined-table,
         .signature-table {
             page-break-inside: avoid;
         }
@@ -1914,6 +1918,7 @@
                 class="
                     combined-table
                     {{ $combinedClass }}
+                    pdf-scalable-table
                 "
             >
 
@@ -2640,25 +2645,6 @@
 
 
 
-    @if(!empty($preparedBy) || !empty($checkedBy))
-        <table style="width: 100%; margin-top: 40px; text-align: left;">
-            <tr>
-                @if(!empty($preparedBy))
-                <td style="width: 50%;">
-                    <div style="font-size: 7px; color: #666; text-transform: uppercase;">Prepared by</div>
-                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline;">{{ $preparedBy }}</div>
-                </td>
-                @endif
-                @if(!empty($checkedBy))
-                <td style="width: 50%;">
-                    <div style="font-size: 7px; color: #666; text-transform: uppercase;">Checked by</div>
-                    <div style="margin-top: 20px; font-size: 9px; font-weight: bold; text-decoration: underline;">{{ $checkedBy }}</div>
-                </td>
-                @endif
-            </tr>
-        </table>
-    @endif
-
     {{-- =========================================================
          SIGNATURES
     ========================================================== --}}
@@ -2689,10 +2675,16 @@
             <td>
 
                 <div class="signature-heading">
-                    Approved by
+                    {{ !empty($checkedBy) ? 'Checked / Approved by' : 'Approved by' }}
                 </div>
 
                 <div class="signature-line"></div>
+
+                @if(!empty($checkedBy))
+                    <div class="signature-name">
+                        {{ $checkedBy }}
+                    </div>
+                @endif
 
                 <div class="signature-caption">
                     Authorized approval

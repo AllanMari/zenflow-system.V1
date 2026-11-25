@@ -1,45 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <title>
-        Appointment Invoice - {{ $referenceNumber }}
-    </title>
-
+    <title>Appointment Invoice - {{ $referenceNumber }}</title>
     <style>
-
         @page {
-            size: A4 portrait;
-            margin: 0;
+            margin: 10mm 12mm;
         }
 
         * {
             box-sizing: border-box;
         }
 
-        html,
         body {
             margin: 0;
             padding: 0;
-        }
-
-        body {
-            font-family: "DejaVu Sans", Arial, sans-serif;
-            font-size: 9px;
-            line-height: 1.4;
-            color: #1f2937;
             background: #ffffff;
+            color: #000000;
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            font-size: 8px;
+            line-height: 1.3;
         }
 
         .page {
-            width: 180mm;
-            margin-left: 15mm;
-            margin-right: 15mm;
-            padding-top: 14mm;
-            padding-bottom: 10mm;
+            width: 100%;
+            margin: 0;
+            padding: 0;
         }
 
         table {
@@ -55,311 +41,155 @@
             overflow-wrap: break-word;
         }
 
-        .right {
-            text-align: right;
-        }
+        .right { text-align: right; }
+        .center { text-align: center; }
+        .muted { color: #4b5563; }
 
-        .center {
-            text-align: center;
-        }
-
-        .muted {
-            color: #6b7280;
-        }
-
-        /* ====================================================== */
-        /* HEADER */
-        /* ====================================================== */
-
-        .business-cell {
-            width: 105mm;
-            vertical-align: top;
-        }
-
-        .meta-cell {
-            width: 75mm;
-            vertical-align: top;
-            text-align: right;
-        }
-
-        .business-name {
-            font-size: 18px;
-            font-weight: 800;
-            color: #0f766e;
-            letter-spacing: .3px;
-        }
-
-        .business-subtitle {
-            margin-top: 2px;
-            font-size: 7px;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: .9px;
-        }
-
-        .business-location {
-            margin-top: 2px;
-            font-size: 7px;
-            color: #9ca3af;
-        }
-
-        .invoice-title {
-            font-size: 16px;
-            font-weight: 800;
-            color: #111827;
-            letter-spacing: .8px;
-        }
-
-        .meta-line {
-            margin-top: 3px;
-            font-size: 7.5px;
-            color: #6b7280;
-        }
-
-        .meta-value {
-            font-weight: 700;
-            color: #111827;
-        }
-
-        .header-line {
+        /* Compact 2-column info block with thin horizontal rules */
+        .meta-block {
             width: 100%;
-            height: 2px;
-            background: #0f766e;
-            margin-top: 14px;
+            border-bottom: 1px solid #d1d5db;
+            margin-bottom: 6px;
+            page-break-inside: avoid;
+            break-inside: avoid;
         }
 
-        /* ====================================================== */
-        /* CUSTOMER / APPOINTMENT */
-        /* ====================================================== */
-
-        .details-section {
-            margin-top: 18px;
-        }
-
-        .details-table {
-            border: 1px solid #e5e7eb;
-        }
-
-        .details-table td {
-            width: 50%;
-            padding: 10px;
+        .meta-block td {
+            padding: 2.5px 0;
             vertical-align: top;
-            border-bottom: 1px solid #e5e7eb;
+            font-size: 7.5px;
         }
 
-        .details-table td:first-child {
-            border-right: 1px solid #e5e7eb;
-        }
-
-        .details-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .field-label {
-            font-size: 7px;
-            color: #9ca3af;
+        .meta-label {
+            font-size: 6.5px;
+            color: #4b5563;
             text-transform: uppercase;
-            letter-spacing: .6px;
+            letter-spacing: 0.4px;
         }
 
-        .field-value {
-            margin-top: 3px;
-            font-size: 10px;
+        .meta-val {
+            font-size: 8px;
             font-weight: 700;
-            color: #111827;
-        }
-
-        /* ====================================================== */
-        /* SERVICES */
-        /* ====================================================== */
-
-        .services-section {
-            margin-top: 20px;
+            color: #000000;
         }
 
         .section-heading {
-            margin-bottom: 7px;
-            font-size: 8px;
-            font-weight: 800;
-            color: #0f766e;
+            margin: 5px 0 3px 0;
+            font-size: 7.5px;
+            font-weight: 700;
+            color: #000000;
             text-transform: uppercase;
-            letter-spacing: .9px;
+            letter-spacing: 0.5px;
         }
 
-        .services-table {
-            border: 1px solid #dfe4ea;
+        /* Itemized Services Table */
+        table.items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6px;
         }
 
-        .services-table th {
-            padding: 8px 9px;
-            background: #f8fafc;
-            border-bottom: 1px solid #d1d5db;
+        table.items-table thead th {
+            padding: 4px 2px;
+            border-top: 1px solid #111111;
+            border-bottom: 1px solid #111111;
+            background: #f3f4f6;
             font-size: 7px;
             font-weight: 700;
-            color: #6b7280;
+            color: #000000;
             text-transform: uppercase;
-            letter-spacing: .6px;
             text-align: left;
         }
 
-        .services-table th:last-child {
+        table.items-table thead th:last-child {
             text-align: right;
         }
 
-        .services-table td {
-            padding: 9px;
-            font-size: 9px;
-            border-bottom: 1px solid #edf0f3;
-            vertical-align: middle;
+        table.items-table tbody td {
+            padding: 4px 2px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 8px;
+            color: #000000;
+            vertical-align: top;
         }
 
-        .services-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .service-name {
+        .service-tag {
+            font-size: 6.5px;
+            color: #333333;
             font-weight: 700;
-            color: #111827;
-        }
-
-        .extra-badge {
-            display: inline-block;
-            margin-left: 5px;
-            padding: 2px 5px;
-            background: #f0fdfa;
-            border: 1px solid #99f6e4;
-            color: #0f766e;
-            font-size: 6px;
-            font-weight: 700;
-            text-transform: uppercase;
         }
 
         .service-amount {
             text-align: right;
-            color: #111827;
             font-weight: 700;
             white-space: nowrap;
         }
 
-        /* ====================================================== */
-        /* TOTAL */
-        /* ====================================================== */
-
-        .total-wrap {
-            margin-top: 10px;
-        }
-
-        .total-table {
-            width: 72mm;
-            margin-left: auto;
-        }
-
-        .total-table td {
-            padding: 8px 0;
-            border-top: 2px solid #0f766e;
-        }
-
-        .total-label {
-            width: 40mm;
-            color: #111827;
-            font-size: 9px;
-            font-weight: 800;
-            text-transform: uppercase;
-        }
-
-        .total-value {
-            width: 32mm;
-            text-align: right;
-            color: #0f766e;
-            font-size: 13px;
-            font-weight: 800;
-            white-space: nowrap;
-        }
-
-        /* ====================================================== */
-        /* PAYMENT */
-        /* ====================================================== */
-
-        .payment-section {
-            margin-top: 22px;
-        }
-
-        .payment-table {
-            border: 1px solid #dfe4ea;
-        }
-
-        .payment-cell {
-            width: 50%;
-            padding: 9px 10px;
-            vertical-align: top;
-        }
-
-        .payment-cell + .payment-cell {
-            border-left: 1px solid #e5e7eb;
-        }
-
-        .payment-label {
-            font-size: 7px;
-            color: #9ca3af;
-            text-transform: uppercase;
-            letter-spacing: .6px;
-        }
-
-        .payment-value {
-            margin-top: 3px;
-            font-size: 10px;
-            font-weight: 700;
-            color: #111827;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-        }
-
-        .amount-paid {
-            color: #047857;
-        }
-
-        /* ====================================================== */
-        /* FOOTER */
-        /* ====================================================== */
-
-        .footer {
-            margin-top: 28px;
-            padding-top: 10px;
-            border-top: 1px solid #d1d5db;
-        }
-
-        .footer-left {
-            width: 90mm;
-            vertical-align: top;
-        }
-
-        .footer-right {
-            width: 90mm;
-            vertical-align: top;
-            text-align: right;
-        }
-
-        .footer-label {
-            font-size: 6.5px;
-            color: #9ca3af;
-            text-transform: uppercase;
-            letter-spacing: .6px;
-        }
-
-        .footer-value {
+        /* Financial Reconciliation */
+        .reconciliation {
+            width: 100%;
+            border-top: 1px solid #111111;
+            padding-top: 4px;
             margin-top: 2px;
-            font-size: 7.5px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .recon-table {
+            width: 100%;
+        }
+
+        .recon-table td {
+            padding: 2px 0;
+            font-size: 7.8px;
+            color: #333333;
+        }
+
+        .recon-table td.val {
+            text-align: right;
             font-weight: 700;
-            color: #4b5563;
+            color: #000000;
+            white-space: nowrap;
         }
 
-        .thank-you {
-            margin-top: 12px;
+        .recon-table tr.row-total td {
+            padding: 4px 0;
+            border-top: 1px solid #111111;
+            border-bottom: 1px solid #d1d5db;
+            font-size: 9.5px;
+            font-weight: 700;
+            color: #000000;
+        }
+
+        .recon-table tr.row-balance td {
+            padding: 4px 0;
+            border-top: 1px solid #111111;
+            border-bottom: 1.5px solid #111111;
+            font-size: 9.5px;
+            font-weight: 700;
+            color: #000000;
+        }
+
+        .payment-meta {
+            margin-top: 5px;
+            padding-top: 4px;
+            border-top: 1px solid #d1d5db;
+            font-size: 7.2px;
+            color: #333333;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .invoice-footer {
+            margin-top: 7px;
+            padding-top: 4px;
+            border-top: 1px solid #d1d5db;
             text-align: center;
-            font-size: 7px;
-            color: #9ca3af;
+            font-size: 6.5px;
+            color: #4b5563;
+            page-break-inside: avoid;
+            break-inside: avoid;
         }
-
     </style>
     @include('partials.pdf_page_styles')
     @if(isset($pdfLayout) && $pdfLayout instanceof \App\Support\Pdf\PdfLayoutConfig)
@@ -367,100 +197,42 @@
             $effectiveInvoiceWidthMm = $pdfLayout->hasContentFrame() && !empty($pdfLayout->contentFrame['width_mm'])
                 ? (float) $pdfLayout->contentFrame['width_mm']
                 : $pdfLayout->printableWidthMm();
-            $isCompactInvoice = $pdfLayout->isCompactWidth();
-            $isNarrowThermal = $effectiveInvoiceWidthMm <= 85.0;
+            $isNarrowThermal = in_array($pdfLayout->paper, ['roll_58', 'roll_80'], true)
+                || $effectiveInvoiceWidthMm < 65.0;
         @endphp
         <style>
-            .page {
-                width: 100%;
-                margin-left: 0;
-                margin-right: 0;
-                padding-top: 0;
-                padding-bottom: 0;
-            }
             @if($pdfLayout->hasContentFrame())
             .page.pdf-content-frame {
                 width: {{ (float) $pdfLayout->contentFrame['width_mm'] }}mm;
-                border: 1px solid #e5e7eb;
+                border: 1px solid #111111;
                 padding: 4mm;
             }
             @endif
-            .total-table {
-                width: {{ $isCompactInvoice ? '100%' : '72mm' }};
-                margin-left: auto;
-            }
-            .total-label {
-                width: 58%;
-            }
-            .total-value {
-                width: 42%;
-            }
-            .footer-left,
-            .footer-right {
-                width: 50%;
-            }
-            .details-section,
-            .total-wrap,
-            .payment-section,
-            .footer {
-                page-break-inside: avoid;
-                break-inside: avoid;
-            }
-            @if($isCompactInvoice)
-            body {
-                font-size: {{ $isNarrowThermal ? '7.5px' : '8px' }};
-                line-height: 1.3;
-            }
-            .details-section { margin-top: 8px; }
-            .details-table td { padding: 4px 6px; }
-            .field-label { font-size: 6px; }
-            .field-value { font-size: {{ $isNarrowThermal ? '7.5px' : '8.5px' }}; margin-top: 1px; }
-            .services-section { margin-top: 9px; }
-            .section-heading { font-size: 7px; margin-bottom: 4px; }
-            .services-table th { padding: 4px 5px; font-size: 6.5px; }
-            .services-table td { padding: 5px; font-size: {{ $isNarrowThermal ? '7.5px' : '8px' }}; }
-            .total-wrap { margin-top: 6px; }
-            .total-table td { padding: 4px 0; }
-            .total-label { font-size: 8px !important; }
-            .total-value { font-size: {{ $isNarrowThermal ? '10px' : '11px' }} !important; }
-            .payment-section { margin-top: 9px; }
-            .payment-cell { padding: 5px 6px; }
-            .payment-label { font-size: 6px; }
-            .payment-value { font-size: {{ $isNarrowThermal ? '7.5px' : '8.5px' }}; margin-top: 1px; }
-            .footer { margin-top: 10px; padding-top: 6px; }
-            .footer-label { font-size: 6px; }
-            .footer-value { font-size: 6.5px; }
-            .thank-you { margin-top: 6px; font-size: 6.5px; }
+            @if(!$pdfLayout->isCompactWidth())
+            body { font-size: 9px; line-height: 1.38; }
+            .meta-label { font-size: 7px; }
+            .meta-val { font-size: 8.8px; }
+            table.items-table thead th { font-size: 7.5px; padding: 5px 4px; }
+            table.items-table tbody td { font-size: 8.8px; padding: 5px 4px; }
+            .recon-table td { font-size: 8.5px; padding: 2.5px 0; }
+            .recon-table tr.row-total td,
+            .recon-table tr.row-balance td { font-size: 10.5px; }
             @endif
             @if($isNarrowThermal)
-            .details-table td,
-            .payment-cell,
-            .footer-left,
-            .footer-right {
-                display: block;
-                width: 100% !important;
-                border-right: none !important;
-                border-left: none !important;
-                text-align: left !important;
-            }
-            .details-table tr:last-child td {
-                border-bottom: 1px solid #e5e7eb;
-            }
-            .details-table tr:last-child td:last-child {
-                border-bottom: none;
-            }
-            .payment-cell + .payment-cell {
-                border-top: 1px solid #e5e7eb;
-            }
+            body { font-size: 7.3px; }
+            .meta-block td { display: block; width: 100% !important; padding: 1.5px 0; }
+            .meta-val { font-size: 7.5px; }
+            table.items-table thead th { font-size: 6.5px; padding: 3px 1px; }
+            table.items-table tbody td { font-size: 7.3px; padding: 3px 1px; }
+            .recon-table td { font-size: 7.2px; }
+            .recon-table tr.row-total td,
+            .recon-table tr.row-balance td { font-size: 8.5px; }
             @endif
         </style>
     @endif
 </head>
-
 <body>
-
 @php
-
     $customerName = !empty($clientName)
         ? $clientName
         : ($appointment->client_name ?? ($customerName ?? 'Walk-in Customer'));
@@ -469,440 +241,280 @@
         ? $clientPhone
         : ($appointment->client_phone ?? ($customer->phone_number ?? '—'));
 
-    $appointmentDate =
-        $appointment->appointment_date
-        ? $appointment->appointment_date->format('F d, Y')
+    $appointmentDate = $appointment->appointment_date
+        ? $appointment->appointment_date->format('M d, Y')
         : '—';
-
 
     $startTime = $appointment->start_time
-        ? \Carbon\Carbon::parse(
-            $appointment->start_time
-        )->format('g:i A')
+        ? \Carbon\Carbon::parse($appointment->start_time)->format('g:i A')
         : '—';
-
 
     $endTime = $appointment->end_time
-        ? \Carbon\Carbon::parse(
-            $appointment->end_time
-        )->format('g:i A')
+        ? \Carbon\Carbon::parse($appointment->end_time)->format('g:i A')
         : '—';
 
+    $paymentMethodText = $paymentMethods
+        ->map(fn ($method) => ucwords(str_replace('_', ' ', (string) $method)))
+        ->implode(', ');
 
-    $paymentMethodText =
-        $paymentMethods
-            ->map(
-                fn ($method) =>
-                    str_replace(
-                        '_',
-                        ' ',
-                        $method
-                    )
-            )
-            ->implode(', ');
-
+    $assignedStaffCollection = collect($assignedStaff ?? [])->filter()->unique('id')->values();
     $staffDisplay = !empty($staffNames)
         ? $staffNames
-        : ((!empty($assignedStaff) && $assignedStaff->isNotEmpty())
-            ? $assignedStaff->pluck('full_name')->join(', ')
-            : ($staff?->full_name ?? ($appointment->staff?->full_name ?? '—')));
+        : ($assignedStaffCollection->isNotEmpty()
+            ? $assignedStaffCollection
+                ->map(fn ($member) => trim((string) ($member->full_name ?? $member->name ?? '')))
+                ->filter()
+                ->unique()
+                ->join(', ')
+            : ($staff?->full_name ?? $staff?->name ?? ($appointment->staff?->full_name ?? $appointment->staff?->name ?? 'Unassigned')));
+    $hasMultipleTherapists = $assignedStaffCollection->count() > 1 || substr_count((string) $staffDisplay, ',') >= 1;
+
+    $bookedServiceItems = collect($services ?? []);
+    $standalonePackageItems = collect($packages ?? []);
+    $displayItems = $bookedServiceItems->isNotEmpty()
+        ? $bookedServiceItems
+        : $standalonePackageItems;
+    $packageSelectionItems = collect($packageSelections ?? []);
+    $packageCountInItems = $displayItems->filter(fn ($item) => (bool) ($item->is_package ?? false))->count();
+    $resolvedPackageIncludedMap = is_array($packageIncludedMap ?? null) ? $packageIncludedMap : [];
+
+    // Fallback: if rendered directly without controller-built $packageIncludedMap, resolve existing catalog names once
+    if ($resolvedPackageIncludedMap === [] && $packageCountInItems > 0) {
+        $fallbackIncludedIds = $displayItems
+            ->filter(fn ($item) => (bool) ($item->is_package ?? false))
+            ->flatMap(function ($item) {
+                $raw = $item->included_services ?? [];
+                if (is_string($raw)) {
+                    $raw = json_decode($raw, true) ?: [];
+                }
+                return is_array($raw) ? $raw : [];
+            })
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($fallbackIncludedIds->isNotEmpty()) {
+            $fallbackNamesById = \App\Models\Service::whereIn('id', $fallbackIncludedIds)->pluck('name', 'id');
+            foreach ($displayItems as $item) {
+                if (!empty($item->is_package) && !empty($item->id)) {
+                    $raw = is_string($item->included_services ?? null)
+                        ? (json_decode($item->included_services, true) ?: [])
+                        : ($item->included_services ?? []);
+                    $resolvedPackageIncludedMap[$item->id] = collect(is_array($raw) ? $raw : [])
+                        ->map(fn ($id) => $fallbackNamesById->get((int) $id))
+                        ->filter()
+                        ->values()
+                        ->all();
+                }
+            }
+        }
+    }
 
     $roomDisplay = $room?->name ?? ($appointment->room?->name ?? '—');
+
+    $paidAmount = (float) ($totalPaid ?? 0);
+    $refundedAmount = (float) ($totalRefunded ?? 0);
+    $netPaidAmount = isset($netPaid) ? (float) $netPaid : ($paidAmount - $refundedAmount);
+    $balanceDue = isset($balance) ? (float) $balance : max(0.0, (float) $total - $netPaidAmount);
+
+    if ($balanceDue <= 0.009 && $netPaidAmount > 0) {
+        $paymentStatus = 'Paid in Full';
+    } elseif ($netPaidAmount > 0 && $balanceDue > 0.009) {
+        $paymentStatus = 'Partial Payment / Balance Due';
+    } else {
+        $paymentStatus = 'Unpaid / Balance Due';
+    }
 @endphp
 
-
 <div class="page {{ (isset($pdfLayout) && $pdfLayout instanceof \App\Support\Pdf\PdfLayoutConfig && $pdfLayout->hasContentFrame()) ? 'pdf-content-frame' : '' }}">
-
-    {{-- ========================================================= --}}
-    {{-- HEADER --}}
-    {{-- ========================================================= --}}
-
     @include('partials.report_header', [
         'reportTitle' => 'Appointment Invoice',
         'referenceNumber' => $referenceNumber,
-        'dateRange' => $appointmentDate,
-        'generatedAt' => $generatedAt->format('F d, Y h:i A'),
-        'preparedBy' => $preparedBy ?? 'System Administrator'
+        'dateRange' => $appointmentDate . ' (' . $startTime . '–' . $endTime . ')',
     ])
 
+    {{-- Customer & Appointment Details --}}
+    <table class="meta-block">
+        <tr>
+            <td style="width: 52%; padding-right: 4px;">
+                <div class="meta-label">Customer</div>
+                <div class="meta-val">{{ $customerName }}</div>
+                <div class="muted" style="font-size: 7px;">{{ $customerPhone ?: '—' }}</div>
+            </td>
+            <td style="width: 48%; padding-left: 4px;">
+                <div class="meta-label">{{ $hasMultipleTherapists ? 'Assigned Therapists' : 'Therapist' }} / Room</div>
+                <div class="meta-val">{{ $staffDisplay }}</div>
+                <div class="muted" style="font-size: 7px;">Room: {{ $roomDisplay }}</div>
+            </td>
+        </tr>
+    </table>
 
-    {{-- ========================================================= --}}
-    {{-- CUSTOMER / APPOINTMENT --}}
-    {{-- ========================================================= --}}
-
-    <div class="details-section">
-
-        <table class="details-table">
-
+    {{-- Itemized Services & Packages --}}
+    <div class="section-heading">{{ $packageCountInItems > 0 ? 'Services & Packages' : 'Services' }}</div>
+    <table class="items-table pdf-scalable-table">
+        <colgroup>
+            <col style="width: 70%;">
+            <col style="width: 30%;">
+        </colgroup>
+        <thead>
             <tr>
-
-                <td>
-
-                    <div class="field-label">
-                        Customer
-                    </div>
-
-                    <div class="field-value">
-                        {{ $customerName }}
-                    </div>
-
-                </td>
-
-
-                <td>
-
-                    <div class="field-label">
-                        Phone
-                    </div>
-
-                    <div class="field-value">
-                        {{ $customerPhone ?? '—' }}
-                    </div>
-
-                </td>
-
+                <th>Description</th>
+                <th>Amount</th>
             </tr>
-
-
-            <tr>
-
-                <td>
-
-                    <div class="field-label">
-                        Appointment Date
-                    </div>
-
-                    <div class="field-value">
-                        {{ $appointmentDate }}
-                    </div>
-
-                </td>
-
-
-                <td>
-
-                    <div class="field-label">
-                        Appointment Time
-                    </div>
-
-                    <div class="field-value">
-                        {{ $startTime }} – {{ $endTime }}
-                    </div>
-
-                </td>
-
-            </tr>
-
-
-            <tr>
-
-                <td>
-
-                    <div class="field-label">
-                        Assigned {{ (!empty($assignedStaff) && $assignedStaff->count() > 1) ? 'Therapists' : 'Staff' }}
-                    </div>
-
-                    <div class="field-value">
-                        {{ $staffDisplay }}
-                    </div>
-
-                </td>
-
-
-                <td>
-
-                    <div class="field-label">
-                        Room
-                    </div>
-
-                    <div class="field-value">
-                        {{ $roomDisplay }}
-                    </div>
-
-                </td>
-
-            </tr>
-
-        </table>
-
-    </div>
-
-
-    {{-- ========================================================= --}}
-    {{-- SERVICES --}}
-    {{-- ========================================================= --}}
-
-    <div class="services-section">
-
-        <div class="section-heading">
-            Services
-        </div>
-
-
-        <table class="services-table">
-
-            <colgroup>
-
-                <col style="width:{{ isset($pdfLayout) ? '72%' : '130mm' }};">
-
-                <col style="width:{{ isset($pdfLayout) ? '28%' : '50mm' }};">
-
-            </colgroup>
-
-
-            <thead>
-
-                <tr>
-
-                    <th>
-                        Service
-                    </th>
-
-                    <th>
-                        Amount
-                    </th>
-
-                </tr>
-
-            </thead>
-
-
-            <tbody>
-
-                @forelse($services as $service)
-
+        </thead>
+        <tbody>
+            @if($displayItems->isNotEmpty())
+                @php $renderedSelectionIds = []; @endphp
+                @foreach($displayItems as $service)
                     @php
-
-                        $serviceName =
-                            $service->pivot->service_name
-                            ?? $service->name
-                            ?? 'Service';
-
-                        $servicePrice =
-                            $service->pivot->price_at_booking
-                            ?? $service->price
-                            ?? 0;
-
-                        $isExtra = (bool) (
-                            $service->pivot->is_extra ?? false
-                        );
-
+                        $serviceName = $service->pivot->service_name ?? $service->name ?? 'Service';
+                        $servicePrice = $service->pivot->price_at_booking ?? $service->price ?? 0;
+                        $isExtra = (bool) ($service->pivot->is_extra ?? false);
+                        $isPackage = (bool) ($service->is_package ?? false);
                         $participantsReq = (int) ($service->participants_required ?? 1);
                         $therapistsReq = (int) ($service->therapists_required ?? 1);
                         $isDuo = $participantsReq >= 2 || stripos($serviceName, 'couple') !== false;
                         $isFourHands = !$isDuo && $therapistsReq >= 2;
 
+                        $includedNames = $isPackage && !empty($service->id)
+                            ? ($resolvedPackageIncludedMap[$service->id] ?? [])
+                            : [];
+
+                        $matchingSelections = collect();
+                        if ($isPackage && $packageSelectionItems->isNotEmpty()) {
+                            $matchingSelections = $packageSelectionItems->filter(function ($sel) use ($service, $packageCountInItems) {
+                                $groupServiceId = $sel->choiceGroup?->service_id;
+                                if ($groupServiceId !== null && !empty($service->id)) {
+                                    return (int) $groupServiceId === (int) $service->id;
+                                }
+                                return $packageCountInItems === 1;
+                            })->values();
+                            foreach ($matchingSelections as $sel) {
+                                if (!empty($sel->id)) {
+                                    $renderedSelectionIds[] = $sel->id;
+                                }
+                            }
+                        }
                     @endphp
-
-
                     <tr>
-
                         <td>
-
-                            <span class="service-name">
-                                {{ $serviceName }}
-                            </span>
-
+                            <span style="font-weight: 700;">{{ $serviceName }}</span>
+                            @if($isPackage)
+                                <span class="service-tag">[Package]</span>
+                            @endif
                             @if($isDuo)
-                                <span style="display:inline-block; font-size: 8px; padding: 1px 4px; border-radius: 3px; background: #e0f2fe; color: #0369a1; font-weight: bold; margin-left: 4px; border: 1px solid #bae6fd;">
-                                    Duo (2 Guests · 2 Therapists)
-                                </span>
+                                <span class="service-tag">[Duo · 2 Guests · {{ max(2, $therapistsReq) }} Therapists]</span>
                             @elseif($isFourHands)
-                                <span style="display:inline-block; font-size: 8px; padding: 1px 4px; border-radius: 3px; background: #fae8ff; color: #86198f; font-weight: bold; margin-left: 4px; border: 1px solid #f5d0fe;">
-                                    Four-Hands (2 Therapists)
-                                </span>
+                                <span class="service-tag">[Four-Hands · {{ $therapistsReq }} Therapists]</span>
                             @endif
-
                             @if($isExtra)
-
-                                <span class="extra-badge">
-                                    Extra
-                                </span>
-
+                                <span class="service-tag">[Extra]</span>
                             @endif
-
+                            @if(!empty($includedNames))
+                                <div class="muted" style="font-size: 6.8px; margin-top: 1.5px;">
+                                    Includes: {{ implode(', ', $includedNames) }}
+                                </div>
+                            @endif
+                            @if($matchingSelections->isNotEmpty())
+                                <div class="muted" style="font-size: 6.8px; margin-top: 1px;">
+                                    Selected: {{ $matchingSelections->map(fn ($sel) => $sel->choice_group_name . ': ' . $sel->selected_name)->join('; ') }}
+                                </div>
+                            @endif
                         </td>
-
-
-                        <td class="service-amount">
-
-                            ₱{{ number_format(
-                                (float) $servicePrice,
-                                2
-                            ) }}
-
-                        </td>
-
+                        <td class="service-amount">₱{{ number_format((float) $servicePrice, 2) }}</td>
                     </tr>
-
-
-                @empty
-
+                @endforeach
+                @php
+                    $remainingSelections = $packageSelectionItems->filter(
+                        fn ($sel) => empty($sel->id) || !in_array($sel->id, $renderedSelectionIds, true)
+                    );
+                @endphp
+                @if($remainingSelections->isNotEmpty())
                     <tr>
-
-                        <td
-                            colspan="2"
-                            class="center muted"
-                        >
-                            No service records found.
-                        </td>
-
-                    </tr>
-
-                @endforelse
-
-            </tbody>
-
-        </table>
-
-
-        <div class="total-wrap">
-
-            <table class="total-table">
-
-                @if(!empty($hasDiscount))
-                    <tr>
-                        <td class="total-label" style="font-weight:normal; font-size:11px; color:#475569;">
-                            Original Amount
-                        </td>
-                        <td class="total-value" style="font-weight:600; font-size:11px; color:#475569;">
-                            ₱{{ number_format($originalTotal, 2) }}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="total-label" style="font-weight:normal; font-size:11px; color:#b45309;">
-                            {{ $discountLabel }}
-                        </td>
-                        <td class="total-value" style="font-weight:600; font-size:11px; color:#b45309;">
-                            -₱{{ number_format($discountAmount, 2) }}
+                        <td colspan="2" class="muted" style="font-size: 6.8px;">
+                            Package Selections: {{ $remainingSelections->map(fn ($sel) => $sel->choice_group_name . ': ' . $sel->selected_name)->join('; ') }}
                         </td>
                     </tr>
                 @endif
-
+            @elseif($packageSelectionItems->isNotEmpty())
                 <tr>
-
-                    <td class="total-label">
-                        Total
+                    <td>
+                        <span style="font-weight: 700;">Package Booking</span>
+                        <span class="service-tag">[Package]</span>
+                        <div class="muted" style="font-size: 6.8px; margin-top: 1.5px;">
+                            Selected: {{ $packageSelectionItems->map(fn ($sel) => $sel->choice_group_name . ': ' . $sel->selected_name)->join('; ') }}
+                        </div>
                     </td>
-
-                    <td class="total-value">
-                        ₱{{ number_format(
-                            $total,
-                            2
-                        ) }}
-                    </td>
-
+                    <td class="service-amount">₱{{ number_format((float) $total, 2) }}</td>
                 </tr>
+            @else
+                <tr>
+                    <td colspan="2" class="center muted">No service records found.</td>
+                </tr>
+            @endif
+        </tbody>
+    </table>
 
-            </table>
-
-        </div>
-
-    </div>
-
-
-    {{-- ========================================================= --}}
-    {{-- PAYMENT --}}
-    {{-- ========================================================= --}}
-
-    <div class="payment-section">
-
-        <div class="section-heading">
-            Payment
-        </div>
-
-
-        <table class="payment-table">
-
-            <tr>
-
-                <td class="payment-cell">
-
-                    <div class="payment-label">
-                        Payment Method
-                    </div>
-
-                    <div class="payment-value">
-                        {{ $paymentMethodText ?: '—' }}
-                    </div>
-
-                </td>
-
-
-                <td class="payment-cell">
-
-                    <div class="payment-label">
-                        Amount Paid
-                    </div>
-
-                    <div class="payment-value amount-paid">
-                        ₱{{ number_format(
-                            $totalPaid,
-                            2
-                        ) }}
-                    </div>
-
-                </td>
-
+    {{-- Financial Reconciliation --}}
+    <div class="reconciliation">
+        <table class="recon-table">
+            <colgroup>
+                <col style="width: 60%;">
+                <col style="width: 40%;">
+            </colgroup>
+            @if(!empty($hasDiscount))
+                <tr>
+                    <td>Original Amount</td>
+                    <td class="val">₱{{ number_format((float) $originalTotal, 2) }}</td>
+                </tr>
+                <tr>
+                    <td>{{ $discountLabel ?: 'Discount' }}</td>
+                    <td class="val">-₱{{ number_format((float) $discountAmount, 2) }}</td>
+                </tr>
+            @endif
+            <tr class="row-total">
+                <td>TOTAL</td>
+                <td class="val">₱{{ number_format((float) $total, 2) }}</td>
             </tr>
-
+            <tr>
+                <td>Amount Paid</td>
+                <td class="val">₱{{ number_format($paidAmount, 2) }}</td>
+            </tr>
+            @if($refundedAmount > 0)
+                <tr>
+                    <td>Refunded</td>
+                    <td class="val">-₱{{ number_format($refundedAmount, 2) }}</td>
+                </tr>
+                <tr>
+                    <td>Net Paid</td>
+                    <td class="val">₱{{ number_format($netPaidAmount, 2) }}</td>
+                </tr>
+            @endif
+            <tr class="row-balance">
+                <td>BALANCE DUE</td>
+                <td class="val">₱{{ number_format($balanceDue, 2) }}</td>
+            </tr>
         </table>
 
-    </div>
-
-
-    {{-- ========================================================= --}}
-    {{-- FOOTER --}}
-    {{-- ========================================================= --}}
-
-    <div class="footer">
-
-        <table>
-
+        <table class="payment-meta">
             <tr>
-
-                <td class="footer-left">
-
-                    <div class="footer-label">
-                        Appointment Reference
-                    </div>
-
-                    <div class="footer-value">
-                        {{ $referenceNumber }}
-                    </div>
-
+                <td style="width: 55%;">
+                    <span class="muted">Method:</span>
+                    <strong style="color: #000000;">{{ $paymentMethodText ?: '—' }}</strong>
                 </td>
-
-
-                <td class="footer-right">
-
-                    <div class="footer-label">
-                        Generated
-                    </div>
-
-                    <div class="footer-value">
-                        {{ $generatedAt
-                            ->timezone('Asia/Manila')
-                            ->format(
-                                'F d, Y \a\t g:i A'
-                            ) }}
-                    </div>
-
+                <td style="width: 45%; text-align: right;">
+                    <span class="muted">Status:</span>
+                    <strong style="color: #000000;">{{ $paymentStatus }}</strong>
                 </td>
-
             </tr>
-
         </table>
-
-
-        <div class="thank-you">
-            Thank you for choosing Spa Alexandria.
-        </div>
-
     </div>
 
+    <div class="invoice-footer">
+        <div>Prepared by: {{ $preparedBy ?? 'System Administrator' }} &bull; {{ $generatedAt->timezone('Asia/Manila')->format('M d, Y g:i A') }}</div>
+        <div style="margin-top: 2px;">Thank you for choosing Spa Alexandria.</div>
+    </div>
 </div>
-
 </body>
-
 </html>
