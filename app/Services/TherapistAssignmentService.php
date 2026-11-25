@@ -127,21 +127,7 @@ class TherapistAssignmentService
             ];
         }
 
-        // 4. Check WorkSchedule for the day of week
-        $schedule = $user->workSchedules()->where('day_of_week', $dayOfWeek)->first();
-
-        if (!$schedule || $schedule->is_day_off) {
-            return [
-                'available' => false,
-                'status' => 'day_off',
-                'reason' => "Therapist {$user->full_name} has a scheduled day off on " . Carbon::getDays()[$dayOfWeek] . '.',
-            ];
-        }
-
-        $schStart = substr($schedule->start_time, 0, 5);
-        $schEnd = substr($schedule->end_time, 0, 5);
-
-        // Custom hours exception override
+        // 4. Custom hours exception override (applies even if no recurring WorkSchedule exists)
         if ($exception && $exception->type === 'custom_hours') {
             $exStart = substr($exception->start_time, 0, 5);
             $exEnd = substr($exception->end_time, 0, 5);
@@ -153,12 +139,28 @@ class TherapistAssignmentService
                     'reason' => "Therapist {$user->full_name} has custom hours ({$exStart}-{$exEnd}) on this date.",
                 ];
             }
-        } elseif ($startStr < $schStart || $resourceEndStr > $schEnd) {
-            return [
-                'available' => false,
-                'status' => 'outside_hours',
-                'reason' => "Appointment time ({$startStr}-{$resourceEndStr}, including preparation) falls outside {$user->full_name}'s scheduled shift ({$schStart}-{$schEnd}).",
-            ];
+        } else {
+            // Check WorkSchedule for the day of week
+            $schedule = $user->workSchedules()->where('day_of_week', $dayOfWeek)->first();
+
+            if (!$schedule || $schedule->is_day_off) {
+                return [
+                    'available' => false,
+                    'status' => 'day_off',
+                    'reason' => "Therapist {$user->full_name} has a scheduled day off on " . Carbon::getDays()[$dayOfWeek] . '.',
+                ];
+            }
+
+            $schStart = substr($schedule->start_time, 0, 5);
+            $schEnd = substr($schedule->end_time, 0, 5);
+
+            if ($startStr < $schStart || $resourceEndStr > $schEnd) {
+                return [
+                    'available' => false,
+                    'status' => 'outside_hours',
+                    'reason' => "Appointment time ({$startStr}-{$resourceEndStr}, including preparation) falls outside {$user->full_name}'s scheduled shift ({$schStart}-{$schEnd}).",
+                ];
+            }
         }
 
         // 5. Today's attendance blockers (absent, on_leave, holiday)
@@ -202,6 +204,103 @@ class TherapistAssignmentService
             'status' => 'available',
             'reason' => null,
         ];
+    }
+
+    /**
+     * Customer-safe therapist availability list for a selected date, start time, and duration.
+     * Exposes only id, first_name, sanitized status, and generic label.
+     *
+     * @return array<int, array{id: int, first_name: string, status: string, label: string}>
+     */
+    public static function customerAvailability(
+        string $date,
+        string $startTime,
+        int $durationMinutes
+    ): array {
+        $tz = 'Asia/Manila';
+        $dateStr = Carbon::parse($date, $tz)->toDateString();
+        $startStr = substr($startTime, 0, 5);
+        $endStr = Carbon::parse("{$dateStr} {$startStr}:00", $tz)
+            ->addMinutes(max(1, $durationMinutes))
+            ->format('H:i');
+
+        $bizWindow = BusinessScheduleService::getOperatingWindow($dateStr);
+        $isBizOpen = (bool) ($bizWindow['is_open'] ?? true);
+
+        $staffMembers = User::whereHas('roles', fn ($q) => $q->where('name', 'staff'))
+            ->where('is_active', true)
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'is_active']);
+
+        if (!$isBizOpen) {
+            return $staffMembers->map(fn (User $u) => [
+                'id' => (int) $u->id,
+                'first_name' => (string) $u->first_name,
+                'status' => 'not_scheduled',
+                'label' => 'Not Scheduled',
+            ])->values()->all();
+        }
+
+        $dayOfWeek = Carbon::parse($dateStr, $tz)->dayOfWeek;
+
+        return $staffMembers->map(function (User $u) use ($dateStr, $startStr, $endStr, $dayOfWeek) {
+            $check = self::checkTherapistAvailability($u, $dateStr, $startStr, $endStr);
+
+            if ($check['available']) {
+                return [
+                    'id' => (int) $u->id,
+                    'first_name' => (string) $u->first_name,
+                    'status' => 'available',
+                    'label' => 'Available',
+                ];
+            }
+
+            $status = 'not_scheduled';
+            $label = 'Not Scheduled';
+
+            switch ($check['status']) {
+                case 'conflict':
+                    $status = 'occupied';
+                    $label = 'Occupied';
+                    break;
+                case 'blocked':
+                    $ex = $u->scheduleExceptions()->whereDate('exception_date', $dateStr)->first();
+                    if ($ex && in_array($ex->type, ['sick_leave', 'urgent_leave'], true)) {
+                        $status = 'on_leave';
+                        $label = 'On Leave';
+                    } else {
+                        $status = 'day_off';
+                        $label = 'Day Off';
+                    }
+                    break;
+                case 'attendance_blocked':
+                    $status = 'on_leave';
+                    $label = 'On Leave';
+                    break;
+                case 'day_off':
+                    $hasRow = $u->workSchedules()->where('day_of_week', $dayOfWeek)->exists();
+                    if ($hasRow) {
+                        $status = 'day_off';
+                        $label = 'Day Off';
+                    } else {
+                        $status = 'not_scheduled';
+                        $label = 'Not Scheduled';
+                    }
+                    break;
+                case 'outside_hours':
+                default:
+                    $status = 'not_scheduled';
+                    $label = 'Not Scheduled';
+                    break;
+            }
+
+            return [
+                'id' => (int) $u->id,
+                'first_name' => (string) $u->first_name,
+                'status' => $status,
+                'label' => $label,
+            ];
+        })->values()->all();
     }
 
     /**

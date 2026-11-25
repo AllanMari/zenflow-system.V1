@@ -78,6 +78,16 @@ class Appointment extends Model
     }
 
     /**
+     * Customer-requested preferred therapists (informational only, never a reservation).
+     * Completely separate from assignedStaff() / appointment_staff.
+     */
+    public function preferredStaff()
+    {
+        return $this->belongsToMany(User::class, 'appointment_preferred_staff', 'appointment_id', 'user_id')
+                    ->withTimestamps();
+    }
+
+    /**
      * Multi-therapist pivot relationship via appointment_staff.
      * Includes all assigned therapists with their role (primary/assisting).
      */
@@ -350,6 +360,39 @@ class Appointment extends Model
     }
 
     /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Scopes Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+
+    /**
+     * Whether this appointment currently occupies therapist/room capacity.
+     */
+    public function isOccupyingResource(): bool
+    {
+        if (in_array($this->status, ['confirmed', 'completed'], true)) {
+            return true;
+        }
+
+        return $this->status === 'pending' && !$this->is_expired;
+    }
+
+    /**
+     * Appointments that currently occupy therapist/room capacity.
+     * Excludes cancelled, no_show, expired, and overdue pending bookings
+     * even before any scheduled cleanup job updates their status.
+     */
+    public function scopeOccupyingResources(Builder $query): Builder
+    {
+        $now = Carbon::now(config('app.timezone', 'UTC'));
+        $todayStr = $now->toDateString();
+        $cutoff24h = $now->copy()->subHours(24);
+
+        return $query->where(function (Builder $q) use ($cutoff24h, $todayStr) {
+            $q->whereIn('status', ['confirmed', 'completed'])
+              ->orWhere(function (Builder $pending) use ($cutoff24h, $todayStr) {
+                  $pending->where('status', 'pending')
+                      ->where('created_at', '>', $cutoff24h)
+                      ->whereDate('appointment_date', '>=', $todayStr);
+              });
+        });
+    }
 
     public function scopePending(Builder $query): Builder
     {

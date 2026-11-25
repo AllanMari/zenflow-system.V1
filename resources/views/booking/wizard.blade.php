@@ -1015,151 +1015,152 @@
 
                                     <div class="space-y-5">
 
-                                        <!-- Morning -->
+                                        @foreach ([
+                                            ['key' => 'morning', 'slots' => 'morningSlots', 'label' => 'Morning', 'icon' => 'sunrise', 'iconClass' => 'text-amber-500'],
+                                            ['key' => 'afternoon', 'slots' => 'afternoonSlots', 'label' => 'Afternoon', 'icon' => 'sun', 'iconClass' => 'text-orange-500'],
+                                            ['key' => 'evening', 'slots' => 'eveningSlots', 'label' => 'Evening', 'icon' => 'sunset', 'iconClass' => 'text-indigo-500'],
+                                        ] as $group)
+                                            <template x-if="{{ $group['slots'] }}.length">
+                                                <div>
+                                                    <div class="mb-2 flex items-center gap-2">
+                                                        <i data-lucide="{{ $group['icon'] }}" class="h-4 w-4 {{ $group['iconClass'] }}"></i>
+                                                        <span class="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">{{ $group['label'] }}</span>
+                                                    </div>
 
-                                        <template x-if="morningSlots.length">
-                                            <div>
-                                                <div class="mb-2 flex items-center gap-2">
-                                                    <i data-lucide="sunrise" class="h-4 w-4 text-amber-500"></i>
+                                                    <div class="grid grid-cols-2 gap-2">
+                                                        <template x-for="slot in {{ $group['slots'] }}" :key="slot.time">
+                                                            <div class="contents">
+                                                                <div class="relative flex flex-col">
+                                                                    <button
+                                                                        type="button"
+                                                                        @click="selectSlot(slot)"
+                                                                        :disabled="slot.room_available === false"
+                                                                        class="flex h-16 w-full flex-col items-center justify-center rounded-xl border px-3 py-2 text-sm font-bold transition-colors"
+                                                                        :class="selectedTime === slot.time
+                                                                            ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
+                                                                            : slot.room_available === false
+                                                                                ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
+                                                                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
+                                                                    >
+                                                                        <span x-text="formatTime(slot.time)"></span>
+                                                                        <span class="text-[10px] font-normal" x-text="((slot.free_rooms || []).length + ' compatible room' + ((slot.free_rooms || []).length !== 1 ? 's' : '') + ' available')"></span>
+                                                                    </button>
+                                                                </div>
+                                                                <div :data-slot-anchor="slot.time" x-show="selectedTime === slot.time" x-cloak class="col-span-2"></div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        @endforeach
 
-                                                    <span class="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">
-                                                        Morning
-                                                    </span>
+                                        <!-- Single Shared Room & Preferred Therapist Card (moved directly below the selected slot) -->
+                                        <div
+                                            x-ref="preferenceCard"
+                                            x-show="selectedTime"
+                                            x-cloak
+                                            class="my-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 shadow-inner space-y-3"
+                                        >
+                                            <!-- Room Preference (optional) -->
+                                            <div @click.away="roomPreferenceOpen = false">
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <p class="font-bold text-xs text-slate-500 uppercase tracking-wider">Room preference (optional)</p>
+                                                    <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400" x-text="selectedSlotRooms.length + ' available'"></span>
                                                 </div>
 
-                                                <div class="grid grid-cols-2 gap-2">
-                                                    <template x-for="slot in morningSlots" :key="slot.time">
-                                                        <div class="relative flex flex-col" :class="selectedTime === slot.time ? 'col-span-2' : ''">
-                                                            <button
-                                                                type="button"
-                                                                @click="selectSlot(slot)"
-                                                                :disabled="slot.room_available === false"
-                                                                class="flex h-16 w-full flex-col items-center justify-center rounded-xl border px-3 py-2 text-sm font-bold transition"
-                                                                :class="selectedTime === slot.time
-                                                                    ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
-                                                                    : slot.room_available === false
-                                                                        ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
-                                                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
-                                                            >
-                                                                <span x-text="formatTime(slot.time)"></span>
-                                                                <span class="text-[10px] font-normal" x-text="((slot.free_rooms || []).length + ' compatible room' + ((slot.free_rooms || []).length !== 1 ? 's' : '') + ' available')"></span>
-                                                            </button>
+                                                <button
+                                                    type="button"
+                                                    @click="roomPreferenceOpen = !roomPreferenceOpen"
+                                                    class="flex w-full items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-left text-sm transition-colors hover:border-zen-300"
+                                                >
+                                                    <span class="truncate font-medium text-slate-700 dark:text-slate-200" x-text="selectedRoomSummary"></span>
+                                                    <span class="ml-2 text-xs text-slate-400" x-text="roomPreferenceOpen ? '▲' : '▼'"></span>
+                                                </button>
 
-                                                            <!-- Animated Room Drawer -->
-                                                            <div x-show="selectedTime === slot.time" x-cloak x-transition class="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 shadow-inner">
-                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider">Room preference (optional)</p>
-                                                                <div class="mt-3 space-y-2">
-                                                                    <template x-for="r in (slot.compatible_rooms || slot.free_rooms || [])" :key="r.id">
-                                                                        <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition">
-                                                                            <input type="radio" :value="r.id" :name="'room_pref_' + slot.time" x-model="selectedRoomId" class="text-zen-600 focus:ring-zen-500">
-                                                                            <span x-text="r.name" class="text-slate-700 dark:text-slate-300 font-medium"></span>
-                                                                        </label>
-                                                                    </template>
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                                <div x-show="roomPreferenceOpen" x-cloak class="mt-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 space-y-1 shadow-sm">
+                                                    <div class="mx-1 mb-1 rounded-md bg-slate-50 dark:bg-slate-900/60 px-2.5 py-2 text-[11px] text-slate-600 dark:text-slate-300">
+                                                        <p class="font-bold text-slate-700 dark:text-slate-200">Room Reservation</p>
+                                                        <p class="mt-0.5 leading-relaxed">Your selected room is temporarily reserved while your booking is pending. This reservation ends if your booking expires or is cancelled.</p>
+                                                    </div>
+                                                    <label class="flex items-center gap-2 text-sm cursor-pointer px-2.5 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                                        <input type="radio" :value="null" name="room_pref_selected" x-model="selectedRoomId" class="text-zen-600 focus:ring-zen-500">
+                                                        <span class="text-slate-600 dark:text-slate-300 font-medium">No preference</span>
+                                                    </label>
+                                                    <template x-for="r in selectedSlotRooms" :key="r.id">
+                                                        <label class="flex items-center gap-2 text-sm cursor-pointer px-2.5 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                                            <input type="radio" :value="r.id" name="room_pref_selected" x-model="selectedRoomId" class="text-zen-600 focus:ring-zen-500">
+                                                            <span x-text="r.name" class="text-slate-700 dark:text-slate-300 font-medium"></span>
+                                                        </label>
                                                     </template>
                                                 </div>
                                             </div>
-                                        </template>
 
-
-                                        <!-- Afternoon -->
-
-                                        <template x-if="afternoonSlots.length">
-                                            <div>
-                                                <div class="mb-2 flex items-center gap-2">
-                                                    <i data-lucide="sun" class="h-4 w-4 text-orange-500"></i>
-
-                                                    <span class="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">
-                                                        Afternoon
-                                                    </span>
+                                            <!-- Preferred Therapist (optional) -->
+                                            <div class="pt-3 border-t border-slate-200 dark:border-slate-700" @click.away="preferredTherapistsOpen = false">
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <p class="font-bold text-xs text-slate-500 uppercase tracking-wider">Preferred Therapist (optional)</p>
+                                                    <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400" x-text="'Max ' + requiredTherapistCount"></span>
                                                 </div>
 
-                                                <div class="grid grid-cols-2 gap-2">
-                                                    <template x-for="slot in afternoonSlots" :key="slot.time">
-                                                        <div class="relative flex flex-col" :class="selectedTime === slot.time ? 'col-span-2' : ''">
-                                                            <button
-                                                                type="button"
-                                                                @click="selectSlot(slot)"
-                                                                :disabled="slot.room_available === false"
-                                                                class="flex h-16 w-full flex-col items-center justify-center rounded-xl border px-3 py-2 text-sm font-bold transition"
-                                                                :class="selectedTime === slot.time
-                                                                    ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
-                                                                    : slot.room_available === false
-                                                                        ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
-                                                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
-                                                            >
-                                                                <span x-text="formatTime(slot.time)"></span>
-                                                                <span class="text-[10px] font-normal" x-text="((slot.free_rooms || []).length + ' compatible room' + ((slot.free_rooms || []).length !== 1 ? 's' : '') + ' available')"></span>
-                                                            </button>
+                                                <button
+                                                    type="button"
+                                                    @click="preferredTherapistsOpen = !preferredTherapistsOpen"
+                                                    class="flex w-full items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-left text-sm transition-colors hover:border-zen-300"
+                                                >
+                                                    <span class="truncate font-medium text-slate-700 dark:text-slate-200" x-text="preferredTherapistSummary"></span>
+                                                    <span class="ml-2 text-xs text-slate-400" x-text="preferredTherapistsOpen ? '▲' : '▼'"></span>
+                                                </button>
 
-                                                            <!-- Animated Room Drawer -->
-                                                            <div x-show="selectedTime === slot.time" x-cloak x-transition class="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 shadow-inner">
-                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider">Room preference (optional)</p>
-                                                                <div class="mt-3 space-y-2">
-                                                                    <template x-for="r in (slot.compatible_rooms || slot.free_rooms || [])" :key="r.id">
-                                                                        <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition">
-                                                                            <input type="radio" :value="r.id" :name="'room_pref_' + slot.time" x-model="selectedRoomId" class="text-zen-600 focus:ring-zen-500">
-                                                                            <span x-text="r.name" class="text-slate-700 dark:text-slate-300 font-medium"></span>
-                                                                        </label>
-                                                                    </template>
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                                <div x-show="preferredTherapistsOpen" x-cloak class="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 space-y-1 shadow-sm">
+                                                    <div class="mx-1 mb-1 rounded-md bg-slate-50 dark:bg-slate-900/60 px-2.5 py-2 text-[11px] text-slate-600 dark:text-slate-300">
+                                                        <p class="font-bold text-slate-700 dark:text-slate-200">Preferred Therapist Request</p>
+                                                        <p class="mt-0.5 leading-relaxed">This therapist is currently shown as available for your selected schedule. Your selection is a preference request, not a confirmed assignment. The receptionist will finalize the therapist assignment when confirming your booking.</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        @click="clearPreferredTherapists()"
+                                                        class="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                                                        :class="selectedPreferredStaffIds.length === 0 ? 'bg-zen-50 text-zen-700 dark:bg-teal-900/30 dark:text-teal-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'"
+                                                    >
+                                                        <span>No preference</span>
+                                                        <span x-show="selectedPreferredStaffIds.length === 0" class="text-[10px]">Selected</span>
+                                                    </button>
+
+                                                    <div x-show="loadingPreferredTherapists" class="px-2.5 py-2 text-xs text-slate-400">Checking availability…</div>
+
+                                                    <template x-for="t in preferredTherapists" :key="t.id">
+                                                        <label
+                                                            class="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors"
+                                                            :class="t.status === 'available'
+                                                                ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                                                : 'cursor-not-allowed opacity-60'"
+                                                        >
+                                                            <span class="flex items-center gap-2 min-w-0">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    :value="t.id"
+                                                                    :checked="selectedPreferredStaffIds.includes(t.id)"
+                                                                    :disabled="t.status !== 'available' || (!selectedPreferredStaffIds.includes(t.id) && selectedPreferredStaffIds.length >= requiredTherapistCount)"
+                                                                    @change="togglePreferredTherapist(t)"
+                                                                    class="rounded border-slate-300 text-zen-600 focus:ring-zen-500"
+                                                                >
+                                                                <span class="truncate font-medium text-slate-700 dark:text-slate-200" x-text="t.first_name"></span>
+                                                            </span>
+                                                            <span
+                                                                class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                                                :class="{
+                                                                    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300': t.status === 'available',
+                                                                    'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300': t.status === 'not_scheduled' || t.status === 'day_off',
+                                                                    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300': t.status === 'on_leave',
+                                                                    'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300': t.status === 'occupied'
+                                                                }"
+                                                                x-text="t.label"
+                                                            ></span>
+                                                        </label>
                                                     </template>
                                                 </div>
                                             </div>
-                                        </template>
-
-
-                                        <!-- Evening -->
-
-                                        <template x-if="eveningSlots.length">
-                                            <div>
-                                                <div class="mb-2 flex items-center gap-2">
-                                                    <i data-lucide="sunset" class="h-4 w-4 text-indigo-500"></i>
-
-                                                    <span class="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">
-                                                        Evening
-                                                    </span>
-                                                </div>
-
-                                                <div class="grid grid-cols-2 gap-2">
-                                                    <template x-for="slot in eveningSlots" :key="slot.time">
-                                                        <div class="relative flex flex-col" :class="selectedTime === slot.time ? 'col-span-2' : ''">
-                                                            <button
-                                                                type="button"
-                                                                @click="selectSlot(slot)"
-                                                                :disabled="slot.room_available === false"
-                                                                class="flex h-16 w-full flex-col items-center justify-center rounded-xl border px-3 py-2 text-sm font-bold transition"
-                                                                :class="selectedTime === slot.time
-                                                                    ? 'border-zen-600 bg-zen-600 text-white shadow-md shadow-zen-100'
-                                                                    : slot.room_available === false
-                                                                        ? 'cursor-not-allowed border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900 text-slate-300'
-                                                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-zen-300 hover:bg-zen-50 dark:hover:bg-teal-900/20 hover:text-zen-700'"
-                                                            >
-                                                                <span x-text="formatTime(slot.time)"></span>
-                                                                <span class="text-[10px] font-normal" x-text="((slot.free_rooms || []).length + ' compatible room' + ((slot.free_rooms || []).length !== 1 ? 's' : '') + ' available')"></span>
-                                                            </button>
-
-                                                            <!-- Animated Room Drawer -->
-                                                            <div x-show="selectedTime === slot.time" x-cloak x-transition class="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 shadow-inner">
-                                                                <p class="font-bold text-xs text-slate-500 uppercase tracking-wider">Room preference (optional)</p>
-                                                                <div class="mt-3 space-y-2">
-                                                                    <template x-for="r in (slot.compatible_rooms || slot.free_rooms || [])" :key="r.id">
-                                                                        <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition">
-                                                                            <input type="radio" :value="r.id" :name="'room_pref_' + slot.time" x-model="selectedRoomId" class="text-zen-600 focus:ring-zen-500">
-                                                                            <span x-text="r.name" class="text-slate-700 dark:text-slate-300 font-medium"></span>
-                                                                        </label>
-                                                                    </template>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </template>
-                                                </div>
-                                            </div>
-                                        </template>
+                                        </div>
 
                                     </div>
 
@@ -1515,6 +1516,24 @@
                                                 <span x-text="formatTime(endTime)"></span>
                                             </span>
                                         </p>
+                                    </div>
+
+                                    <div class="rounded-2xl bg-slate-50 dark:bg-slate-900 p-4">
+                                        <div class="flex items-center gap-2 text-slate-400 dark:text-slate-500">
+                                            <i data-lucide="door-open" class="h-4 w-4"></i>
+                                            <span class="text-[11px] font-bold uppercase tracking-wider">Room Preference</span>
+                                        </div>
+                                        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100" x-text="selectedRoomSummary"></p>
+                                        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Your selected room will be temporarily reserved once your booking is submitted, subject to confirmation and expiration.</p>
+                                    </div>
+
+                                    <div class="rounded-2xl bg-slate-50 dark:bg-slate-900 p-4">
+                                        <div class="flex items-center gap-2 text-slate-400 dark:text-slate-500">
+                                            <i data-lucide="user-check" class="h-4 w-4"></i>
+                                            <span class="text-[11px] font-bold uppercase tracking-wider">Therapist Preference</span>
+                                        </div>
+                                        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100" x-text="preferredTherapistSummary"></p>
+                                        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Preference only; final assignment is made by the receptionist during confirmation.</p>
                                     </div>
 
                                 </div>
@@ -2406,6 +2425,14 @@
             >
         </template>
 
+        <template x-for="prefId in selectedPreferredStaffIds" :key="prefId">
+            <input
+                type="hidden"
+                name="preferred_staff_ids[]"
+                :value="prefId"
+            >
+        </template>
+
         <template x-for="(optId, grpId) in packageChoices" :key="grpId">
             <input
                 type="hidden"
@@ -2474,6 +2501,14 @@
                 diagnostics: null,
 
                 loadingSlots: false,
+                roomPreferenceOpen: false,
+                selectedPreferredStaffIds: [],
+                preferredTherapists: [],
+                preferredTherapistsOpen: false,
+                loadingPreferredTherapists: false,
+                preferredTherapistsSeq: 0,
+                preferredTherapistsAbort: null,
+                preferredTherapistsLastKey: '',
 
                 availabilityTimer: null,
                 availabilitySeq: 0,
@@ -2678,6 +2713,11 @@
                      */
 
                     this.selectedTime = '';
+                    this.selectedRoomId = null;
+                    this.selectedPreferredStaffIds = [];
+                    this.preferredTherapists = [];
+                    this.preferredTherapistsOpen = false;
+                    this.preferredTherapistsLastKey = '';
 
                     if (this.appointmentDate) {
                         this.loadTimeSlots();
@@ -2947,6 +2987,11 @@
                      */
 
                     this.selectedTime = '';
+                    this.selectedRoomId = null;
+                    this.selectedPreferredStaffIds = [];
+                    this.preferredTherapists = [];
+                    this.preferredTherapistsOpen = false;
+                    this.preferredTherapistsLastKey = '';
 
                     this.loadTimeSlots();
                     this.noteBookingInteraction();
@@ -3031,7 +3076,9 @@
                     }
                     this.availabilityAbort = new AbortController();
 
-                    this.loadingSlots = true;
+                    if (!silent) {
+                        this.loadingSlots = true;
+                    }
 
                     try {
 
@@ -3144,6 +3191,19 @@
 
                         if (!stillAvailable) {
                             this.selectedTime = '';
+                            this.selectedRoomId = null;
+                            this.roomPreferenceOpen = false;
+                            this.selectedPreferredStaffIds = [];
+                            this.preferredTherapists = [];
+                            this.preferredTherapistsOpen = false;
+                            this.preferredTherapistsLastKey = '';
+                        } else if (this.selectedTime) {
+                            if (this.selectedRoomId && !this.selectedSlotRooms.some(r => Number(r.id) === Number(this.selectedRoomId))) {
+                                this.selectedRoomId = null;
+                            }
+                            if (silent && (this.preferredTherapistsOpen || this.selectedPreferredStaffIds.length > 0)) {
+                                this.loadPreferredTherapists(true);
+                            }
                         }
 
                     } catch (error) {
@@ -3183,10 +3243,13 @@
                             this.scheduleAvailabilityPoll();
                         }
 
-                        this.$nextTick(() => {
-                            this.refreshIcons();
-                            this.refreshCalendarSelection();
-                        });
+                        if (!silent) {
+                            this.loadingSlots = false;
+                            this.$nextTick(() => {
+                                this.refreshIcons();
+                                this.refreshCalendarSelection();
+                            });
+                        }
                     }
                 },
 
@@ -3282,18 +3345,164 @@
                 },
 
 
+                get selectedTimeGroup() {
+                    if (!this.selectedTime) {
+                        return null;
+                    }
+
+                    const h = this.hourOf(this.selectedTime);
+                    if (h < 12) return 'morning';
+                    if (h < 17) return 'afternoon';
+                    return 'evening';
+                },
+
+                get selectedSlotRooms() {
+                    if (!this.selectedTime) {
+                        return [];
+                    }
+
+                    const slot = this.availableSlots.find(s => s.time === this.selectedTime);
+
+                    return slot ? (slot.compatible_rooms || slot.free_rooms || []) : [];
+                },
+
+
+                get selectedRoomSummary() {
+                    if (!this.selectedRoomId) {
+                        return 'No preference';
+                    }
+                    const room = this.selectedSlotRooms.find(r => Number(r.id) === Number(this.selectedRoomId));
+                    return room ? room.name : 'No preference';
+                },
+
+                get requiredTherapistCount() {
+                    if (!this.selectedServiceObjects.length) {
+                        return 1;
+                    }
+                    const maxReq = Math.max(...this.selectedServiceObjects.map(s => Number(s.therapists_required || 1)));
+                    return Math.max(1, maxReq);
+                },
+
+                get preferredTherapistSummary() {
+                    if (!this.selectedPreferredStaffIds.length) {
+                        return 'No preference';
+                    }
+                    const names = this.selectedPreferredStaffIds
+                        .map(id => this.preferredTherapists.find(t => Number(t.id) === Number(id))?.first_name)
+                        .filter(Boolean);
+                    return names.length ? names.join(', ') : 'No preference';
+                },
+
+                clearPreferredTherapists() {
+                    this.selectedPreferredStaffIds = [];
+                    this.preferredTherapistsOpen = false;
+                },
+
+                togglePreferredTherapist(therapist) {
+                    if (!therapist || therapist.status !== 'available') {
+                        return;
+                    }
+                    const id = Number(therapist.id);
+                    const idx = this.selectedPreferredStaffIds.indexOf(id);
+                    if (idx !== -1) {
+                        this.selectedPreferredStaffIds.splice(idx, 1);
+                        return;
+                    }
+                    if (this.selectedPreferredStaffIds.length >= this.requiredTherapistCount) {
+                        return;
+                    }
+                    this.selectedPreferredStaffIds.push(id);
+                },
+
+                async loadPreferredTherapists(force = false) {
+                    if (!this.appointmentDate || !this.selectedTime || !this.selectedServices.length) {
+                        this.preferredTherapists = [];
+                        this.selectedPreferredStaffIds = [];
+                        this.preferredTherapistsLastKey = '';
+                        return;
+                    }
+
+                    const key = `${this.appointmentDate}|${this.selectedTime}|${this.selectedServices.slice().sort().join(',')}`;
+                    if (!force && key === this.preferredTherapistsLastKey && this.preferredTherapists.length) {
+                        return;
+                    }
+                    this.preferredTherapistsLastKey = key;
+
+                    if (this.preferredTherapistsAbort) {
+                        this.preferredTherapistsAbort.abort();
+                    }
+                    this.preferredTherapistsAbort = new AbortController();
+                    const seq = ++this.preferredTherapistsSeq;
+                    this.loadingPreferredTherapists = true;
+
+                    try {
+                        const params = new URLSearchParams();
+                        params.set('date', this.appointmentDate);
+                        params.set('start_time', this.selectedTime);
+                        this.selectedServices.forEach(id => params.append('services[]', id));
+
+                        const res = await fetch(`{{ route('api.booking.preferred-therapists') }}?${params.toString()}`, {
+                            headers: { 'Accept': 'application/json' },
+                            signal: this.preferredTherapistsAbort.signal
+                        });
+                        if (!res.ok) return;
+                        const data = await res.json();
+                        if (seq !== this.preferredTherapistsSeq) return;
+
+                        this.preferredTherapists = Array.isArray(data.therapists) ? data.therapists : [];
+                        const maxAllowed = Math.max(1, Number(data.required_count || this.requiredTherapistCount));
+                        const availableIds = new Set(
+                            this.preferredTherapists.filter(t => t.status === 'available').map(t => Number(t.id))
+                        );
+                        this.selectedPreferredStaffIds = this.selectedPreferredStaffIds
+                            .filter(id => availableIds.has(Number(id)))
+                            .slice(0, maxAllowed);
+                    } catch (e) {
+                        if (e.name !== 'AbortError') {
+                            this.preferredTherapists = [];
+                        }
+                    } finally {
+                        if (seq === this.preferredTherapistsSeq) {
+                            this.loadingPreferredTherapists = false;
+                        }
+                    }
+                },
+
                 selectSlot(slot) {
 
                     if (!slot || slot.room_available === false) {
                         return;
                     }
 
+                    if (this.selectedTime === slot.time) {
+                        this.selectedTime = '';
+                        this.selectedRoomId = null;
+                        this.roomPreferenceOpen = false;
+                        this.selectedPreferredStaffIds = [];
+                        this.preferredTherapists = [];
+                        this.preferredTherapistsOpen = false;
+                        this.preferredTherapistsLastKey = '';
+                        this.preferredTherapistsSeq++;
+                        if (this.preferredTherapistsAbort) {
+                            this.preferredTherapistsAbort.abort();
+                            this.preferredTherapistsAbort = null;
+                        }
+                        this.loadingPreferredTherapists = false;
+                        return;
+                    }
+
                     this.selectedTime = slot.time;
                     this.selectedRoomId = null;
-
+                    this.roomPreferenceOpen = false;
+                    this.selectedPreferredStaffIds = [];
+                    this.preferredTherapistsOpen = false;
                     this.$nextTick(() => {
-                        this.refreshIcons();
+                        const anchor = document.querySelector(`[data-slot-anchor="${slot.time}"]`);
+                        if (anchor && this.$refs.preferenceCard && anchor !== this.$refs.preferenceCard.parentElement) {
+                            anchor.appendChild(this.$refs.preferenceCard);
+                        }
                     });
+                    this.loadPreferredTherapists(true);
                 },
 
 

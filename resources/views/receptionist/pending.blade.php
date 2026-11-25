@@ -58,13 +58,43 @@
                     <option value="week">Next 7 Days</option>
                 </select>
 
-                <select
-                    id="sortBy"
-                    class="pl-3 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"
-                >
-                    <option value="date_asc">Soonest First</option>
-                    <option value="date_desc">Latest First</option>
-                </select>
+                <div class="flex items-center gap-2">
+                    <label for="sortBy" class="text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Sort by Request Date</label>
+                    <div class="relative inline-flex items-center" id="sortTooltipWrapper">
+                        <button
+                            type="button"
+                            id="sortTooltipBtn"
+                            aria-label="Sorting information"
+                            aria-describedby="sortTooltipContent"
+                            class="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:text-teal-600 focus:text-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500/30 transition-colors"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        </button>
+                        <div
+                            id="sortTooltipContent"
+                            role="tooltip"
+                            class="hidden absolute right-0 top-7 z-40 w-72 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-xs text-gray-600 dark:text-gray-300 shadow-lg space-y-2"
+                        >
+                            <div>
+                                <p class="font-bold text-gray-900 dark:text-white">Earliest Request First</p>
+                                <p class="mt-0.5 leading-relaxed">Customers who submitted their booking requests earlier appear at the top.</p>
+                            </div>
+                            <div class="pt-2 border-t border-gray-100 dark:border-gray-700">
+                                <p class="font-bold text-gray-900 dark:text-white">Latest Request First</p>
+                                <p class="mt-0.5 leading-relaxed">The newest booking requests appear at the top.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <select
+                        id="sortBy"
+                        name="sort"
+                        onchange="const u = new URL(window.location.href); u.searchParams.set('sort', this.value); u.searchParams.delete('page'); window.location.href = u.toString();"
+                        class="pl-3 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"
+                    >
+                        <option value="oldest" {{ ($sort ?? 'oldest') === 'oldest' ? 'selected' : '' }}>Earliest Request First</option>
+                        <option value="newest" {{ ($sort ?? 'oldest') === 'newest' ? 'selected' : '' }}>Latest Request First</option>
+                    </select>
+                </div>
             </div>
         </div>
     @endif
@@ -100,45 +130,41 @@
                     default => ['bg-gray-100 text-gray-600 border-gray-200', $apptDateTime->diffForHumans()]
                 };
 
-                $initials = collect(explode(' ', $appointment->client_name))
-                    ->map(fn($n) => strtoupper(substr($n, 0, 1)))
-                    ->filter()
-                    ->take(2)
-                    ->join('');
+                $phoneNum = $appointment->guest_phone ?: ($appointment->customer?->phone_number ?: 'N/A');
+                $hasPhone = !empty($phoneNum) && $phoneNum !== 'N/A';
+                $requiresRoom = $appointment->services->contains(fn($s) => $s->requires_room);
+                $serviceSummary = $appointment->services->pluck('name')->join(', ');
+                $totalDuration = $appointment->services->sum('duration_minutes');
+                $requestedAt = $appointment->created_at?->timezone('Asia/Manila');
             @endphp
 
             <article
-                class="appointment-card group bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 {{ $urgencyClass }}"
+                class="appointment-card group bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border-l-4 {{ $urgencyClass }}"
                 data-id="{{ $appointment->id }}"
                 data-customer="{{ strtolower($appointment->client_name) }}"
-                data-phone="{{ $appointment->guest_phone ?: ($appointment->customer?->phone_number ?: 'N/A') }}"
+                data-phone="{{ $phoneNum }}"
                 data-date="{{ $dateStr }}"
                 data-timestamp="{{ $apptDateTime->timestamp }}"
                 data-expires-at="{{ $appointment->expires_at?->toISOString() }}"
                 data-cancel-url="{{ route('receptionist.cancel', $appointment) }}"
+                data-current-room-id="{{ $appointment->room_id ?? '' }}"
+                data-reassign-room-url="{{ route('receptionist.reassign-room', $appointment) }}"
             >
 
-                {{-- Header --}}
-                <div class="p-5 cursor-pointer" onclick="toggleDetails({{ $appointment->id }})">
+                {{-- Compact Two-Line Summary --}}
+                <div class="px-4 py-3 cursor-pointer" onclick="toggleDetails({{ $appointment->id }})">
 
-                    <div class="flex items-center gap-4">
-
-                        <div class="shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                            {{ $initials ?: '?' }}
-                        </div>
-
-                        <div class="flex-1 min-w-0">
-
-                            <div class="flex flex-wrap items-center gap-2 mb-1">
-
-                                <span class="px-2 py-0.5 rounded-md text-[11px] font-bold border uppercase tracking-wide {{ $urgencyBadge[0] }}">
+                    {{-- Line 1: Identity, Badges, Request Time, Appointment Date/Time, Price & Expand --}}
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide {{ $urgencyBadge[0] }}">
                                     {{ $urgencyBadge[1] }}
                                 </span>
 
-                                {{-- Live Expiration Countdown Badge --}}
                                 @if($appointment->expires_at)
                                     <span
-                                        class="pending-countdown-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50"
+                                        class="pending-countdown-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50"
                                         data-countdown-id="{{ $appointment->id }}"
                                         data-expires-at="{{ $appointment->expires_at->toISOString() }}"
                                         title="Authoritative expiration deadline: {{ $appointment->expires_at->format('M j, Y g:i A') }}"
@@ -150,33 +176,32 @@
                                     </span>
                                 @endif
 
-                                <span class="text-[11px] font-mono text-gray-400">
-                                    #{{ $appointment->id }}
-                                </span>
+                                <span class="text-[11px] font-mono text-gray-400">#{{ $appointment->id }}</span>
 
                                 @if(!empty($meta['hasDepositRequired']))
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30 text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                        </svg>
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30 text-[10px] font-bold text-amber-700 dark:text-amber-400">
                                         Deposit {{ $meta['maxDepositPercent'] ?? 0 }}%
                                     </span>
                                 @endif
 
+                                @if($requestedAt)
+                                    <span class="text-[11px] text-gray-400 dark:text-gray-500">
+                                        · Requested {{ $requestedAt->format('M j, Y g:i A') }}
+                                    </span>
+                                @endif
+
+                                <span class="text-[11px] text-gray-500 dark:text-gray-400" title="Booker's IP address">
+                                    · <strong>Booking IP:</strong> <span class="font-mono">{{ $appointment->ip_address ?? 'N/A' }}</span>
+                                </span>
                             </div>
 
-                            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-0.5">
-                                <h3 class="text-base font-bold text-gray-900 dark:text-white break-words">
+                            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                                <h3 class="text-sm sm:text-base font-bold text-gray-900 dark:text-white break-words">
                                     {{ $appointment->client_name }}
                                 </h3>
 
-                                @php
-                                    $phoneNum = $appointment->guest_phone ?: ($appointment->customer?->phone_number ?: 'N/A');
-                                    $hasPhone = !empty($phoneNum) && $phoneNum !== 'N/A';
-                                @endphp
-
-                                <span class="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <span class="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                    <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a2 2 0 011.498 1.21l1.498 4.493A2 2 0 0119 21h-1C9.716 21 3 14.284 3 6V5z"/>
                                     </svg>
                                     @if($hasPhone)
@@ -189,53 +214,76 @@
                                 </span>
                             </div>
 
-                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-gray-500 dark:text-gray-400">
-
-                                <span class="flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                    </svg>
-                                    {{ $apptDateTime->format('M j, Y') }}
-                                </span>
-
-                                <span class="flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    {{ $apptDateTime->format('g:i A') }}
-                                </span>
-
-                                <span class="flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-                                    </svg>
-                                    {{ $appointment->services->count() }} service{{ $appointment->services->count() !== 1 ? 's' : '' }}
-                                </span>
-
-                                <span class="flex items-center gap-1.5 text-gray-400" title="Booker's IP address">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0 3-4.03 3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
-                                    </svg>
-                                    {{ $appointment->ip_address ?? 'N/A' }}
-                                </span>
-
-                            </div>
                         </div>
 
-                        <div class="shrink-0 flex items-center gap-2">
+                        <div class="flex items-center justify-between md:justify-end gap-3 shrink-0">
+                            <div class="text-left md:text-right">
+                                <p class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">
+                                    {{ $apptDateTime->format('M j, Y · g:i A') }}
+                                </p>
+                                <p class="text-xs font-semibold text-teal-700 dark:text-teal-400">
+                                    ₱{{ number_format($appointment->total_price, 2) }}
+                                </p>
+                            </div>
 
                             <div
-                                class="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center transition-transform duration-200"
+                                class="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center transition-transform duration-200 shrink-0"
                                 id="chevron-{{ $appointment->id }}"
+                                title="Review & Confirm"
                             >
-                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-4 h-4 text-gray-500 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                 </svg>
                             </div>
+                        </div>
+                    </div>
 
+                    {{-- Line 2: Triage Strip --}}
+
+                    <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/60 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-xs">
+                        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 min-w-0">
+                            <span class="text-gray-700 dark:text-gray-200 font-medium truncate max-w-md" title="{{ $serviceSummary }}">
+                                {{ $serviceSummary ?: 'No services' }} <span class="text-gray-400 dark:text-gray-500">({{ $totalDuration }} min)</span>
+                            </span>
+
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800/40 text-teal-800 dark:text-teal-200" id="reserved-room-display-{{ $appointment->id }}">
+                                @if($appointment->room)
+                                    <strong>Reserved Room:</strong> {{ $appointment->room->name }}
+                                    <span class="text-[11px] font-medium text-teal-600 dark:text-teal-400">(Temporarily reserved while pending)</span>
+                                @elseif($appointment->requestedRoom)
+                                    <strong>Reserved Room:</strong> {{ $appointment->requestedRoom->name }}
+                                @else
+                                    <strong>Reserved Room:</strong> No room reserved
+                                @endif
+                            </span>
+
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50/80 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700/50 text-indigo-800 dark:text-indigo-200">
+                                <strong>Therapist Preference:</strong>
+                                @if($appointment->preferredStaff->isNotEmpty())
+                                    @foreach($appointment->preferredStaff as $pref)
+                                        @php
+                                            $prefAvail = ($staffAvailability[$appointment->id][$pref->id]['available'] ?? false);
+                                        @endphp
+                                        <span>{{ $pref->first_name }} {{ $pref->last_name }}</span>
+                                        <span class="text-[11px] font-semibold {{ $prefAvail ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300' }}">({{ $prefAvail ? 'Available' : 'Unavailable' }})</span>@if(!$loop->last), @endif
+                                    @endforeach
+                                @else
+                                    <span>No preference</span>
+                                @endif
+                            </span>
                         </div>
 
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button
+                                type="button"
+                                onclick="event.stopPropagation(); openCancelModal({{ $appointment->id }})"
+                                class="inline-flex items-center gap-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-2.5 py-1 rounded-lg transition font-semibold"
+                            >
+                                Cancel
+                            </button>
+                        </div>
                     </div>
+
                 </div>
 
                 {{-- Expandable Details --}}
@@ -245,7 +293,7 @@
                         id="confirm-form-{{ $appointment->id }}"
                         action="{{ route('receptionist.confirm', $appointment) }}"
                         method="POST"
-                        class="p-5 space-y-6"
+                        class="p-4 space-y-4"
                     >
                         @csrf
                         <input type="hidden" name="staff_id" id="hidden_staff_id_{{ $appointment->id }}" value="">
@@ -253,10 +301,14 @@
 
                         {{-- Services --}}
                         <div>
-
-                            <h4 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-                                Services & Pricing
-                            </h4>
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                                    Services & Pricing
+                                </h4>
+                                <span class="text-[11px] text-gray-400" title="Booker's IP address">
+                                    IP: {{ $appointment->ip_address ?? 'N/A' }}
+                                </span>
+                            </div>
 
                             <div class="bg-gray-50 dark:bg-gray-900/30 rounded-xl p-4 space-y-3">
 
@@ -501,7 +553,7 @@
 
                         </div>
 
-                        {{-- Customer Room Request --}}
+                        {{-- Reserved Room Status --}}
                         <div class="p-4 bg-teal-50 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-800/30 rounded-xl flex items-start gap-3">
                             <div class="shrink-0 w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
                                 <svg class="w-4 h-4 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -510,24 +562,68 @@
                             </div>
                             <div>
                                 <p class="text-xs font-bold text-teal-700 dark:text-teal-300 uppercase tracking-wider mb-1">
-                                    Customer Room Request
+                                    Reserved Room
                                 </p>
                                 <p class="text-sm text-teal-800 dark:text-teal-200 leading-relaxed">
-                                    @if($appointment->requestedRoom)
-                                        <strong>Requested Room:</strong> {{ $appointment->requestedRoom->name }}
+                                    @if($appointment->room)
+                                        <strong>Reserved Room:</strong> {{ $appointment->room->name }}
+                                        <span class="text-xs font-medium text-teal-600 dark:text-teal-400">(Temporarily reserved while pending)</span>
+                                    @elseif($appointment->requestedRoom)
+                                        <strong>Reserved Room:</strong> {{ $appointment->requestedRoom->name }}
                                     @else
-                                        <strong>Room Preference:</strong> No preference
+                                        <strong>Reserved Room:</strong> No room reserved
                                     @endif
                                 </p>
                             </div>
                         </div>
 
+                        {{-- Customer Therapist Preference (informational only, never a committed assignment) --}}
+                        <div class="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700/50">
+                            <p class="text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider mb-1">
+                                Customer Therapist Preference
+                            </p>
+                            @if($appointment->preferredStaff->isNotEmpty())
+                                <ul class="text-sm text-indigo-900 dark:text-indigo-200 space-y-1">
+                                    @foreach($appointment->preferredStaff as $pref)
+                                        @php
+                                            $prefAvail = ($staffAvailability[$appointment->id][$pref->id]['available'] ?? false);
+                                        @endphp
+                                        <li>
+                                            <strong>Requested:</strong> {{ $pref->first_name }} {{ $pref->last_name }}
+                                            @if($prefAvail)
+                                                <span class="text-xs font-semibold text-emerald-700 dark:text-emerald-300">(Available)</span>
+                                            @else
+                                                <span class="text-xs font-semibold text-rose-700 dark:text-rose-300">(Unavailable — choose another)</span>
+                                            @endif
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @else
+                                <p class="text-sm text-indigo-800 dark:text-indigo-200">
+                                    <strong>Therapist Preference:</strong> No preference
+                                </p>
+                            @endif
+                        </div>
+
                         {{-- Room Assignment --}}
                         <div class="p-4 rounded-xl bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-600/50">
 
-                            <h4 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-                                Room Assignment
-                            </h4>
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <h4 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                                    Room Assignment
+                                </h4>
+                                @if($requiresRoom)
+                                    <button
+                                        type="button"
+                                        id="save-room-btn-{{ $appointment->id }}"
+                                        onclick="savePendingRoomAssignment({{ $appointment->id }})"
+                                        disabled
+                                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Save Room Assignment
+                                    </button>
+                                @endif
+                            </div>
 
                             <div
                                 id="room-loading-{{ $appointment->id }}"
@@ -551,11 +647,16 @@
                                 class="text-sm text-amber-600 dark:text-amber-400 text-center py-2 hidden"
                             ></div>
 
+                            <div
+                                id="room-reassign-status-{{ $appointment->id }}"
+                                class="text-xs font-medium mt-2 hidden"
+                            ></div>
+
                             <input
                                 type="hidden"
                                 name="room_id"
                                 id="room-id-{{ $appointment->id }}"
-                                value=""
+                                value="{{ $appointment->room_id ?? '' }}"
                             >
 
                         </div>
@@ -704,37 +805,32 @@
 
                         </div>
 
+                        {{-- Confirmation Footer Actions (inside expandable details) --}}
+                        <div class="pt-3 border-t border-gray-100 dark:border-gray-700/50 flex flex-wrap items-center gap-3">
+                            <button
+                                type="submit"
+                                form="confirm-form-{{ $appointment->id }}"
+                                id="confirm-btn-{{ $appointment->id }}"
+                                onclick="if(this.disabled) return false; this.disabled=true; this.textContent='Confirming...'; this.form.submit();"
+                                class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                                disabled
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                                </svg>
+                                Confirm Booking
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="openCancelModal({{ $appointment->id }})"
+                                class="ml-auto inline-flex items-center gap-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-3.5 py-2 rounded-xl transition text-xs sm:text-sm font-bold"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+
                     </form>
-                </div>
-
-                {{-- Footer Actions --}}
-                <div class="px-5 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700/50 flex flex-wrap items-center gap-3">
-
-                    <button
-                        type="submit"
-                        form="confirm-form-{{ $appointment->id }}"
-                        id="confirm-btn-{{ $appointment->id }}"
-                        onclick="if(this.disabled) return false; this.disabled=true; this.textContent='Confirming...'; this.form.submit();"
-                        class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
-                        disabled
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                        </svg>
-                        Confirm Booking
-                    </button>
-
-                    <button
-                        type="button"
-                        onclick="openCancelModal({{ $appointment->id }})"
-                        class="ml-auto inline-flex items-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-2.5 rounded-xl transition text-sm font-bold"
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                        Cancel
-                    </button>
-
                 </div>
 
             </article>
@@ -899,9 +995,16 @@ function toggleDetails(id) {
 
         chevron.classList.remove(
             'bg-gray-50',
+            'bg-gray-100',
             'dark:bg-gray-700',
-            'text-gray-400'
+            'text-gray-400',
+            'text-gray-500'
         );
+
+        const card = document.querySelector(`.appointment-card[data-id="${id}"]`);
+        if (card && card.dataset.roomsLoaded !== '1') {
+            loadRoomsForAppointment(card);
+        }
 
     } else {
 
@@ -1247,31 +1350,30 @@ function filterAppointments() {
 
         card.style.display = show ? '' : 'none';
     });
-
-    const list = document.getElementById('appointmentsList');
-
-    if (!list) return;
-
-    const visibleCards = cards.filter(
-        card => card.style.display !== 'none'
-    );
-
-    visibleCards.sort((a, b) => {
-
-        const ta = parseInt(a.dataset.timestamp || '0', 10);
-        const tb = parseInt(b.dataset.timestamp || '0', 10);
-
-        return sort === 'date_asc'
-            ? ta - tb
-            : tb - ta;
-    });
-
-    visibleCards.forEach(card => list.appendChild(card));
 }
 
 searchInput?.addEventListener('input', filterAppointments);
 dateFilter?.addEventListener('change', filterAppointments);
-sortBy?.addEventListener('change', filterAppointments);
+
+(function () {
+    const wrapper = document.getElementById('sortTooltipWrapper');
+    const btn = document.getElementById('sortTooltipBtn');
+    const tip = document.getElementById('sortTooltipContent');
+    if (!wrapper || !btn || !tip) return;
+    const show = () => tip.classList.remove('hidden');
+    const hide = () => tip.classList.add('hidden');
+    wrapper.addEventListener('mouseenter', show);
+    wrapper.addEventListener('mouseleave', hide);
+    btn.addEventListener('focus', show);
+    btn.addEventListener('blur', hide);
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        tip.classList.toggle('hidden');
+    });
+    document.addEventListener('click', (e) => {
+        if (!wrapper.contains(e.target)) hide();
+    });
+})();
 
 function loadRoomsForAppointment(card) {
 
@@ -1302,7 +1404,7 @@ function loadRoomsForAppointment(card) {
         return;
     }
 
-    fetch(`/receptionist/booking/${appointmentId}/rooms`)
+    fetch(`/receptionist/booking/${appointmentId}/rooms?compatible_only=1`)
         .then(response => {
 
             if (!response.ok) {
@@ -1334,19 +1436,22 @@ function loadRoomsForAppointment(card) {
                 return;
             }
 
-            if (
-                !Array.isArray(data.rooms) ||
-                data.rooms.length === 0
-            ) {
+            const compatibleRooms = Array.isArray(data.rooms)
+                ? data.rooms.filter(r => r.is_compatible)
+                : [];
+
+            if (compatibleRooms.length === 0) {
 
                 messageEl.textContent =
                     data.message ||
-                    'No rooms available for this time slot.';
+                    'No compatible rooms available for this time slot.';
 
                 messageEl.classList.remove('hidden');
 
                 return;
             }
+
+            data.rooms = compatibleRooms;
 
             optionsEl.innerHTML = '';
 
@@ -1436,6 +1541,11 @@ function loadRoomsForAppointment(card) {
                     );
 
                     hiddenInput.value = room.id;
+
+                    const saveRoomBtn = document.getElementById('save-room-btn-' + appointmentId);
+                    if (saveRoomBtn) {
+                        saveRoomBtn.disabled = false;
+                    }
                 }
 
                 radio.addEventListener('change', selectRoom);
@@ -1452,10 +1562,14 @@ function loadRoomsForAppointment(card) {
 
                 optionsEl.appendChild(label);
 
-                if (index === 0) {
+                const currentRoomId = String(card.dataset.currentRoomId || '');
+                const hasCurrentMatch = currentRoomId && data.rooms.some(r => String(r.id) === currentRoomId);
+                if (hasCurrentMatch ? String(room.id) === currentRoomId : index === 0) {
                     selectRoom();
                 }
             });
+
+            card.dataset.roomsLoaded = '1';
 
         })
         .catch(error => {
@@ -1478,13 +1592,69 @@ function loadRoomsForAppointment(card) {
         });
 }
 
+function savePendingRoomAssignment(appointmentId) {
+    const card = document.querySelector(`.appointment-card[data-id="${appointmentId}"]`);
+    const hiddenInput = document.getElementById('room-id-' + appointmentId);
+    const statusEl = document.getElementById('room-reassign-status-' + appointmentId);
+    const saveBtn = document.getElementById('save-room-btn-' + appointmentId);
+
+    if (!card || !hiddenInput || !hiddenInput.value || !statusEl || !saveBtn) return;
+
+    const csrfToken = document.querySelector(`#confirm-form-${appointmentId} input[name="_token"]`)?.value
+        || document.querySelector('meta[name="csrf-token"]')?.content
+        || '';
+
+    statusEl.classList.add('hidden');
+    statusEl.classList.remove('text-emerald-700', 'dark:text-emerald-300', 'text-red-600', 'dark:text-red-400');
+    statusEl.textContent = '';
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    fetch(card.dataset.reassignRoomUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': csrfToken
+        },
+        body: JSON.stringify({ room_id: Number(hiddenInput.value) })
+    })
+        .then(async response => {
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.success) {
+                throw new Error(payload.message || 'Unable to save room assignment.');
+            }
+            return payload;
+        })
+        .then(payload => {
+            if (payload.room) {
+                card.dataset.currentRoomId = String(payload.room.id);
+                hiddenInput.value = String(payload.room.id);
+
+                const displayEl = document.getElementById('reserved-room-display-' + appointmentId);
+                if (displayEl) {
+                    displayEl.innerHTML = `<strong>Reserved Room:</strong> ${payload.room.name} <span class="text-[11px] font-medium text-teal-600 dark:text-teal-400">(Temporarily reserved while pending)</span>`;
+                }
+            }
+
+            statusEl.textContent = (payload.message || 'Reserved room updated.') + ' (Appointment remains pending.)';
+            statusEl.classList.add('text-emerald-700', 'dark:text-emerald-300');
+            statusEl.classList.remove('hidden');
+        })
+        .catch(err => {
+            statusEl.textContent = err.message || 'Unable to save room assignment.';
+            statusEl.classList.add('text-red-600', 'dark:text-red-400');
+            statusEl.classList.remove('hidden');
+        })
+        .finally(() => {
+            saveBtn.textContent = 'Save Room Assignment';
+            saveBtn.disabled = !hiddenInput.value;
+        });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
 
-    document
-        .querySelectorAll('.appointment-card')
-        .forEach(loadRoomsForAppointment);
-
-    // Initialize live pending expiration countdowns
+    // Initialize live pending expiration countdowns (room options load on demand)
     initPendingCountdowns();
 
 });

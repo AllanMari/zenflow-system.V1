@@ -1255,6 +1255,38 @@ class BookingController extends Controller
      * Uses the same schedule, attendance, exception and occupancy rules as the
      * actual booking validation so the UI can never contradict the backend.
      */
+    public function preferredTherapists(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => 'required|date',
+            'start_time' => 'required|date_format:H:i',
+            'services' => 'required|array|min:1',
+            'services.*' => 'integer|exists:services,id',
+        ]);
+
+        $services = Service::whereIn('id', $validated['services'])
+            ->where('is_active', true)
+            ->get();
+
+        if ($services->isEmpty()) {
+            return response()->json(['message' => 'Selected services are invalid.'], 422);
+        }
+
+        $duration = max(1, (int) $services->sum('duration_minutes'));
+        $requiredCount = max(1, (int) $services->max('therapists_required'));
+
+        $therapists = \App\Services\TherapistAssignmentService::customerAvailability(
+            $validated['date'],
+            $validated['start_time'],
+            $duration
+        );
+
+        return response()->json([
+            'required_count' => $requiredCount,
+            'therapists' => $therapists,
+        ]);
+    }
+
     public function therapistStatuses(Request $request)
     {
         $validated = $request->validate([
@@ -1434,7 +1466,8 @@ class BookingController extends Controller
         $assignedStaffId,
         array $assistingStaffIds,
         $roomId,
-        callable $fail
+        callable $fail,
+        array $preferredStaffIds = []
     ) {
         $tz = 'Asia/Manila';
         $date = $startTime->format('Y-m-d');
@@ -1447,7 +1480,11 @@ class BookingController extends Controller
         }
 
         $therapistIds = array_values(array_unique(array_filter(
-            array_merge([(int) $assignedStaffId], array_map('intval', $assistingStaffIds))
+            array_merge(
+                [(int) $assignedStaffId],
+                array_map('intval', $assistingStaffIds),
+                array_map('intval', $preferredStaffIds)
+            )
         )));
 
         $requiredCount = app(\App\Services\AppointmentAvailabilityService::class)
@@ -1467,7 +1504,7 @@ class BookingController extends Controller
                 ->get()
                 ->keyBy('id');
         }
-        if ($assignedStaffId && $lockedUsers->count() !== count($therapistIds)) {
+        if (($assignedStaffId || !empty($preferredStaffIds)) && $lockedUsers->count() !== count($therapistIds)) {
             throw new \RuntimeException('One or more selected therapists could not be found.');
         }
 
@@ -1522,11 +1559,25 @@ class BookingController extends Controller
                     throw new \RuntimeException('Selected therapist ' . $therapist->full_name . ' is not available: ' . $reason);
                 }
             }
+        } elseif (!empty($preferredStaffIds)) {
+            foreach ($preferredStaffIds as $prefId) {
+                $prefCheck = \App\Services\TherapistAssignmentService::checkTherapistAvailability(
+                    $lockedUsers->get($prefId),
+                    $date,
+                    $startStr,
+                    $endStr,
+                    null,
+                    true
+                );
+                if (!$prefCheck['available']) {
+                    throw new \RuntimeException('One of your selected preferred therapists is no longer available for this time. Please refresh and choose another or continue with No preference.');
+                }
+            }
         } else {
             $hasAvailableStaff = User::whereHas('roles', fn($q) => $q->where('name', 'staff'))
                 ->where('is_active', true)
                 ->get()
-                ->contains(fn($staff) => !$occupancy->hasStaffConflict((int) $staff->id, $date, $startStr, $endStr));
+                ->contains(fn($staff) => !$occupancy->hasStaffConflict((int) $staff->id, $date, $startStr, $endStr, null, true));
 
             if (!$hasAvailableStaff) {
                 throw new \RuntimeException('Sorry — no available staff at this hour (all staff are occupied or off-shift). Please choose a different time slot.');
@@ -1553,6 +1604,8 @@ class BookingController extends Controller
             'customer_id' => 'nullable|exists:customers,id',
             'services' => 'required|array|min:1',
             'services.*' => 'exists:services,id',
+            'preferred_staff_ids' => 'nullable|array',
+            'preferred_staff_ids.*' => 'integer|exists:users,id',
             'appointment_date' =>
                 'required|date|after_or_equal:today',
             'start_time' => 'required',
@@ -1999,6 +2052,17 @@ class BookingController extends Controller
 
         $assignedStaffId = $isReceptionist && $request->filled('staff_id') ? (int) $request->staff_id : null;
         $assistingStaffIds = $isReceptionist ? array_map('intval', (array) $request->input('assisting_staff_ids', [])) : [];
+        $preferredStaffIds = !$isReceptionist ? array_map('intval', array_filter((array) $request->input('preferred_staff_ids', []))) : [];
+
+        if (!empty($preferredStaffIds)) {
+            if (count($preferredStaffIds) !== count(array_unique($preferredStaffIds))) {
+                return $fail('Duplicate preferred therapists are not allowed.');
+            }
+            $requiredCount = max(1, (int) $services->max('therapists_required'));
+            if (count($preferredStaffIds) > $requiredCount) {
+                return $fail("You may select up to {$requiredCount} preferred therapist(s) for the selected services.");
+            }
+        }
 
         $appointment = null;
         $isDuplicateSubmission = false;
@@ -2018,6 +2082,7 @@ class BookingController extends Controller
             $isReceptionist,
             $assignedStaffId,
             $assistingStaffIds,
+            $preferredStaffIds,
             $validatedPackageChoices,
             $fail,
             &$appointment,
@@ -2032,7 +2097,8 @@ class BookingController extends Controller
                 $assignedStaffId,
                 $assistingStaffIds,
                 $request->room_id,
-                $fail
+                $fail,
+                $preferredStaffIds
             );
 
             if ($failure) {
@@ -2084,6 +2150,8 @@ class BookingController extends Controller
 
             if ($isReceptionist && $assignedStaffId) {
                 $appointment->syncStaff($assignedStaffId, $assistingStaffIds);
+            } elseif (!empty($preferredStaffIds)) {
+                $appointment->preferredStaff()->sync($preferredStaffIds);
             }
 
             foreach ($services as $service) {

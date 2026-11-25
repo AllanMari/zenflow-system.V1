@@ -315,7 +315,7 @@ class RoomAwareBookingTest extends TestCase {
         // 2. Appointment with NO preference
         $appNoPref = Appointment::create([
             'customer_id' => $customer->id,
-            'room_id' => $room->id,
+            'room_id' => null,
             'requested_room_id' => null,
             'appointment_date' => Carbon::tomorrow()->toDateString(),
             'start_time' => '11:00:00',
@@ -327,7 +327,195 @@ class RoomAwareBookingTest extends TestCase {
 
         $res = $this->actingAs($receptionist)->get(route('receptionist.pending'));
         $res->assertStatus(200);
-        $res->assertSee('Requested Room:</strong> Special Room', false);
-        $res->assertSee('Room Preference:</strong> No preference', false);
+        $res->assertSee('Reserved Room:</strong> Special Room', false);
+        $res->assertSee('Reserved Room:</strong> No room reserved', false);
+        $res->assertSee('Save Room Assignment');
+        $res->assertDontSee('Change Reserved Room');
+        $res->assertSee('Therapist Preference:');
+        $res->assertSee('Booking IP:');
+        $res->assertSee('Confirm Booking');
+    }
+
+    public function test_receptionist_can_reassign_pending_reserved_room_and_release_old_room()
+    {
+        $receptionist = User::factory()->create();
+        $receptionist->roles()->attach(Role::firstOrCreate(['name' => 'receptionist'])->id);
+
+        $therapist = User::factory()->create();
+        $therapist->roles()->attach(Role::firstOrCreate(['name' => 'staff'])->id);
+
+        $cat = RoomCategory::create(['name' => 'Massage', 'code' => 'MASSAGE']);
+        $roomA = Room::create(['name' => 'Room A', 'is_active' => true, 'status' => 'available']);
+        $roomB = Room::create(['name' => 'Room B', 'is_active' => true, 'status' => 'available']);
+        $roomA->roomCategories()->attach($cat->id);
+        $roomB->roomCategories()->attach($cat->id);
+
+        $srvCat = ServiceCategory::create(['name' => 'Massage']);
+        $srv = Service::create([
+            'category_id' => $srvCat->id,
+            'room_category_id' => $cat->id,
+            'name' => 'Swedish Massage',
+            'duration_minutes' => 60,
+            'price' => 500,
+            'requires_room' => true,
+            'is_active' => true,
+        ]);
+
+        $customer = Customer::create(['first_name' => 'Ana', 'last_name' => 'Cruz', 'phone_number' => '09171112222']);
+        $date = Carbon::tomorrow()->toDateString();
+
+        $appointment = Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $roomA->id,
+            'requested_room_id' => $roomA->id,
+            'appointment_date' => $date,
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'pending',
+            'total_price' => 500,
+        ]);
+        $appointment->services()->attach($srv->id, ['price_at_booking' => 500]);
+        $appointment->preferredStaff()->attach($therapist->id);
+
+        $res = $this->actingAs($receptionist)
+            ->postJson(route('receptionist.reassign-room', $appointment), [
+                'room_id' => $roomB->id,
+            ]);
+
+        $res->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'room' => ['id' => $roomB->id, 'name' => 'Room B'],
+            ]);
+
+        $appointment->refresh();
+        $this->assertEquals('pending', $appointment->status);
+        $this->assertEquals($roomB->id, $appointment->room_id);
+        $this->assertNull($appointment->user_id);
+        $this->assertEquals([$therapist->id], $appointment->preferredStaff()->pluck('users.id')->all());
+        $this->assertTrue($roomA->fresh()->isAvailableFor($date, '10:00:00', '11:00:00'));
+        $this->assertFalse($roomB->fresh()->isAvailableFor($date, '10:00:00', '11:00:00'));
+    }
+
+    public function test_pending_room_reassignment_rejects_incompatible_inactive_maintenance_occupied_and_buffer_conflicts()
+    {
+        $receptionist = User::factory()->create();
+        $receptionist->roles()->attach(Role::firstOrCreate(['name' => 'receptionist'])->id);
+
+        $catMassage = RoomCategory::create(['name' => 'Massage', 'code' => 'MASSAGE']);
+        $catFacial = RoomCategory::create(['name' => 'Facial', 'code' => 'FACIAL']);
+
+        $roomValid = Room::create(['name' => 'Valid Room', 'is_active' => true, 'status' => 'available']);
+        $roomIncompatible = Room::create(['name' => 'Facial Only', 'is_active' => true, 'status' => 'available']);
+        $roomInactive = Room::create(['name' => 'Inactive Room', 'is_active' => false, 'status' => 'available']);
+        $roomMaintenance = Room::create(['name' => 'Maintenance Room', 'is_active' => true, 'status' => 'maintenance']);
+        $roomOccupied = Room::create(['name' => 'Occupied Room', 'is_active' => true, 'status' => 'available']);
+        $roomBufferConflict = Room::create(['name' => 'Buffer Room', 'is_active' => true, 'status' => 'available']);
+
+        $roomValid->roomCategories()->attach($catMassage->id);
+        $roomIncompatible->roomCategories()->attach($catFacial->id);
+        $roomInactive->roomCategories()->attach($catMassage->id);
+        $roomMaintenance->roomCategories()->attach($catMassage->id);
+        $roomOccupied->roomCategories()->attach($catMassage->id);
+        $roomBufferConflict->roomCategories()->attach($catMassage->id);
+
+        $srvCat = ServiceCategory::create(['name' => 'Massage']);
+        $srv = Service::create([
+            'category_id' => $srvCat->id,
+            'room_category_id' => $catMassage->id,
+            'name' => 'Deep Tissue',
+            'duration_minutes' => 60,
+            'price' => 600,
+            'requires_room' => true,
+            'is_active' => true,
+        ]);
+
+        $customer = Customer::create(['first_name' => 'Ben', 'last_name' => 'Lim', 'phone_number' => '09173334444']);
+        $date = Carbon::tomorrow()->toDateString();
+
+        $appointment = Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $roomValid->id,
+            'appointment_date' => $date,
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'pending',
+            'total_price' => 600,
+        ]);
+        $appointment->services()->attach($srv->id, ['price_at_booking' => 600]);
+
+        // Another appointment occupying $roomOccupied at 10:00-11:00
+        Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $roomOccupied->id,
+            'appointment_date' => $date,
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'confirmed',
+            'total_price' => 600,
+        ]);
+
+        // Another appointment at 11:03-12:03 on $roomBufferConflict (inside 5-min prep buffer of 10:00-11:00 -> 11:05)
+        Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $roomBufferConflict->id,
+            'appointment_date' => $date,
+            'start_time' => '11:03:00',
+            'end_time' => '12:03:00',
+            'status' => 'confirmed',
+            'total_price' => 600,
+        ]);
+
+        foreach ([$roomIncompatible, $roomInactive, $roomMaintenance, $roomOccupied, $roomBufferConflict] as $badRoom) {
+            $res = $this->actingAs($receptionist)
+                ->postJson(route('receptionist.reassign-room', $appointment), [
+                    'room_id' => $badRoom->id,
+                ]);
+
+            $res->assertStatus(422)->assertJson(['success' => false]);
+            $this->assertEquals($roomValid->id, $appointment->fresh()->room_id);
+        }
+
+        // compatible_only=1 endpoint must exclude incompatible, inactive, maintenance, occupied, and buffer-conflict rooms
+        $roomsRes = $this->actingAs($receptionist)
+            ->getJson(route('receptionist.rooms.available', ['appointment' => $appointment->id, 'compatible_only' => 1]));
+        $roomsRes->assertStatus(200);
+        $returnedIds = collect($roomsRes->json('rooms'))->pluck('id')->all();
+        $this->assertContains($roomValid->id, $returnedIds);
+        $this->assertNotContains($roomIncompatible->id, $returnedIds);
+        $this->assertNotContains($roomInactive->id, $returnedIds);
+        $this->assertNotContains($roomMaintenance->id, $returnedIds);
+        $this->assertNotContains($roomOccupied->id, $returnedIds);
+        $this->assertNotContains($roomBufferConflict->id, $returnedIds);
+    }
+
+    public function test_non_receptionist_cannot_reassign_pending_reserved_room()
+    {
+        $customerUser = User::factory()->create();
+        $customerUser->roles()->attach(Role::firstOrCreate(['name' => 'customer'])->id);
+
+        $cat = RoomCategory::create(['name' => 'Massage', 'code' => 'MASSAGE']);
+        $roomA = Room::create(['name' => 'Room A', 'is_active' => true, 'status' => 'available']);
+        $roomB = Room::create(['name' => 'Room B', 'is_active' => true, 'status' => 'available']);
+
+        $customer = Customer::create(['user_id' => $customerUser->id, 'first_name' => 'Cathy', 'last_name' => 'Tan', 'phone_number' => '09175556666']);
+        $appointment = Appointment::create([
+            'customer_id' => $customer->id,
+            'room_id' => $roomA->id,
+            'appointment_date' => Carbon::tomorrow()->toDateString(),
+            'start_time' => '13:00:00',
+            'end_time' => '14:00:00',
+            'status' => 'pending',
+            'total_price' => 500,
+        ]);
+
+        $this->postJson(route('receptionist.reassign-room', $appointment), ['room_id' => $roomB->id])
+            ->assertStatus(401);
+
+        $this->actingAs($customerUser)
+            ->postJson(route('receptionist.reassign-room', $appointment), ['room_id' => $roomB->id])
+            ->assertStatus(403);
+
+        $this->assertEquals($roomA->id, $appointment->fresh()->room_id);
     }
 }

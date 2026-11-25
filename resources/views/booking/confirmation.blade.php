@@ -224,10 +224,10 @@
                         </div>
                     </div>
 
-                    @if($hasRequestedRoom)
+                    @if($appointment->room || $hasRequestedRoom)
                         <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800">
                             <i data-lucide="door-closed" class="w-3.5 h-3.5 text-teal-500"></i>
-                            <span>Preferred Room: {{ $appointment->requestedRoom->name }}</span>
+                            <span>Reserved Room: {{ $appointment->room?->name ?? $appointment->requestedRoom->name }}</span>
                         </div>
                     @endif
                 </div>

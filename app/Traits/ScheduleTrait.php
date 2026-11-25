@@ -914,15 +914,21 @@ trait ScheduleTrait
         $dates = array_values(array_unique(array_map(fn ($i) => Carbon::parse($i['date'])->toDateString(), $items)));
 
         $appointments = Appointment::query()
-            ->whereIn('status', AppointmentOccupancyService::BLOCKING_STATUSES)
+            ->occupyingResources()
             ->whereIn(DB::raw('DATE(appointment_date)'), $dates)
             ->where(function ($q) use ($userIds) {
                 $q->whereIn('user_id', $userIds)
                     ->orWhereHas('assignedStaff', function ($sub) use ($userIds) {
                         $sub->whereIn('users.id', $userIds);
+                    })
+                    ->orWhere(function ($pendingPref) use ($userIds) {
+                        $pendingPref->where('status', 'pending')
+                            ->whereHas('preferredStaff', function ($sub) use ($userIds) {
+                                $sub->whereIn('users.id', $userIds);
+                            });
                     });
             })
-            ->with(['services', 'assignedStaff:id'])
+            ->with(['services', 'assignedStaff:id', 'preferredStaff:id'])
             ->get();
 
         if ($appointments->isEmpty()) {
@@ -947,7 +953,11 @@ trait ScheduleTrait
                     return true;
                 }
 
-                return $appt->assignedStaff->contains('id', $uid);
+                if ($appt->assignedStaff->contains('id', $uid)) {
+                    return true;
+                }
+
+                return $appt->status === 'pending' && $appt->preferredStaff->contains('id', $uid);
             });
 
             if ($matching->isEmpty()) {

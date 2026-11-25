@@ -164,6 +164,24 @@ class ReceptionistController extends Controller
                 return back()->with('error', 'This appointment has expired and cannot be confirmed. Please ask the customer to rebook.');
             }
 
+            // Validate payment amounts BEFORE TherapistAssignmentService::assignStaff()
+            // writes appointments.user_id / appointment_staff, so a failed payment check
+            // never leaves partial therapist assignments on a still-pending appointment.
+            if ($request->payment_type === 'deposit') {
+                if ($request->amount < $depositRequired) {
+                    return back()->with('error', 'Deposit amount must be at least ₱' . number_format($depositRequired, 2));
+                }
+                if ($request->amount > $appointment->total_price) {
+                    return back()->with('error', 'Deposit cannot exceed total price of ₱' . number_format($appointment->total_price, 2));
+                }
+            }
+            if ($request->payment_type === 'full' && $request->amount < $appointment->total_price) {
+                return back()->with('error', 'Full payment must be at least ₱' . number_format($appointment->total_price, 2));
+            }
+            if ($request->payment_type === 'cash_on_site' && $request->amount != 0) {
+                return back()->with('error', 'Cash on site amount must be 0.');
+            }
+
             $primaryId = (int) $request->staff_id;
             $assistingIds = array_map('intval', (array) $request->input('assisting_staff_ids', []));
 
@@ -176,21 +194,6 @@ class ReceptionistController extends Controller
                 );
             } catch (\InvalidArgumentException $e) {
                 return back()->with('error', $e->getMessage());
-            }
-
-            if ($request->payment_type === 'deposit') {
-                if ($request->amount < $depositRequired) {
-                    return back()->with('error', 'Deposit amount must be at least ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($depositRequired, 2));
-                }
-                if ($request->amount > $appointment->total_price) {
-                    return back()->with('error', 'Deposit cannot exceed total price of ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($appointment->total_price, 2));
-                }
-            }
-            if ($request->payment_type === 'full' && $request->amount < $appointment->total_price) {
-                return back()->with('error', 'Full payment must be at least ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' . number_format($appointment->total_price, 2));
-            }
-            if ($request->payment_type === 'cash_on_site' && $request->amount != 0) {
-                return back()->with('error', 'Cash on site amount must be 0.');
             }
 
             $updateData = [
@@ -317,11 +320,15 @@ class ReceptionistController extends Controller
             }
         });
 
+        $sort = request('sort', 'oldest') === 'newest' ? 'newest' : 'oldest';
+        $direction = $sort === 'newest' ? 'desc' : 'asc';
+
         $appointments = Appointment::pendingValid()
-            ->with(['customer', 'services.category', 'packageSelections'])
-            ->orderBy('appointment_date')
-            ->orderBy('start_time')
-            ->paginate(20);
+            ->with(['customer', 'services.category', 'packageSelections', 'preferredStaff'])
+            ->orderBy('created_at', $direction)
+            ->orderBy('id', $direction)
+            ->paginate(20)
+            ->withQueryString();
 
         $staffAvailability = [];
         $appointmentMeta = [];
@@ -366,7 +373,7 @@ class ReceptionistController extends Controller
 
         return view('receptionist.pending', compact(
             'appointments', 'staffAvailability', 'allStaff',
-            'appointmentMeta', 'pendingCount', 'urgentCount'
+            'appointmentMeta', 'pendingCount', 'urgentCount', 'sort'
         ));
     }
 
@@ -1109,13 +1116,14 @@ public function active()
         );
 
         $rooms = $eval['compatible_rooms'];
-        if ($rooms->isEmpty()) {
+        if ($rooms->isEmpty() && !$request->boolean('compatible_only')) {
             $rooms = $eval['free_rooms'];
         }
 
         return response()->json([
             'requires_room' => true,
             'review_required' => false,
+            'current_room_id' => $appointment->room_id,
             'rooms' => $rooms->map(fn($room) => [
                 'id' => $room->id,
                 'name' => $room->name,
@@ -1123,8 +1131,105 @@ public function active()
                 'is_general' => $room->roomCategories->isEmpty() && is_null($room->category_id),
                 'is_compatible' => $eval['compatible_rooms']->contains('id', $room->id),
             ])->values(),
-            'message' => $rooms->isEmpty() ? 'No rooms available for this time slot.' : null
+            'message' => $rooms->isEmpty() ? 'No compatible rooms available for this time slot.' : null
         ]);
+    }
+
+    /**
+     * Reassign the reserved room for a still-pending appointment without confirming or changing other fields.
+     */
+    public function reassignRoom(Request $request, Appointment $appointment)
+    {
+        $validated = $request->validate([
+            'room_id' => 'required|exists:rooms,id',
+        ]);
+
+        $newRoomId = (int) $validated['room_id'];
+
+        return DB::transaction(function () use ($request, $appointment, $newRoomId) {
+            $appointment = Appointment::lockForUpdate()
+                ->with(['services.category', 'room'])
+                ->findOrFail($appointment->id);
+
+            if ($appointment->status !== 'pending') {
+                return $this->reassignRoomResponse($request, false, 'Only pending appointments can have their reserved room reassigned.', 422);
+            }
+
+            if ($appointment->is_expired) {
+                return $this->reassignRoomResponse($request, false, 'This appointment has expired and its room cannot be reassigned.', 422);
+            }
+
+            $availability = app(\App\Services\AppointmentAvailabilityService::class);
+            $requirements = $availability->requirements($appointment->services, $appointment);
+
+            if (!$requirements['requires_room']) {
+                return $this->reassignRoomResponse($request, false, 'This appointment does not require a room.', 422);
+            }
+
+            $oldRoomId = $appointment->room_id ? (int) $appointment->room_id : null;
+            if ($oldRoomId === $newRoomId) {
+                return $this->reassignRoomResponse($request, true, 'Reserved room is already set to ' . ($appointment->room?->name ?? 'this room') . '.', 200, [
+                    'room' => $appointment->room ? ['id' => $appointment->room->id, 'name' => $appointment->room->name] : null,
+                ]);
+            }
+
+            $compatible = \App\Services\RoomCompatibilityService::findCompatibleForServices($requirements['services']);
+            if (!$compatible->contains('id', $newRoomId)) {
+                return $this->reassignRoomResponse($request, false, 'The selected room is not compatible with all services on this appointment.', 422);
+            }
+
+            // Lock rooms in ascending ID order after locking the appointment.
+            $lockIds = collect([$oldRoomId, $newRoomId])->filter()->unique()->sort()->values()->all();
+            $lockedRooms = Room::whereIn('id', $lockIds)->orderBy('id', 'asc')->lockForUpdate()->get()->keyBy('id');
+            $lockedNewRoom = $lockedRooms->get($newRoomId);
+
+            if (!$lockedNewRoom) {
+                return $this->reassignRoomResponse($request, false, 'The selected room could not be found.', 422);
+            }
+
+            if (!$lockedNewRoom->is_active || $lockedNewRoom->status === 'maintenance') {
+                return $this->reassignRoomResponse($request, false, "Room [{$lockedNewRoom->name}] is inactive or under maintenance.", 422);
+            }
+
+            $occupancy = app(\App\Services\AppointmentOccupancyService::class);
+            $treatmentEnd = $occupancy->treatmentEnd($appointment);
+
+            if (!$lockedNewRoom->isAvailableFor(
+                $appointment->appointment_date,
+                $appointment->start_time,
+                $treatmentEnd->format('H:i:s'),
+                $appointment->id,
+                true
+            )) {
+                return $this->reassignRoomResponse($request, false, "Room [{$lockedNewRoom->name}] is not available for this appointment slot.", 422);
+            }
+
+            $appointment->update([
+                'room_id' => $newRoomId,
+            ]);
+
+            $this->clearScheduleCache();
+
+            return $this->reassignRoomResponse($request, true, "Reserved room updated to {$lockedNewRoom->name}.", 200, [
+                'appointment_id' => $appointment->id,
+                'room' => [
+                    'id' => $lockedNewRoom->id,
+                    'name' => $lockedNewRoom->name,
+                ],
+            ]);
+        });
+    }
+
+    private function reassignRoomResponse(Request $request, bool $success, string $message, int $status = 200, array $extra = [])
+    {
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(array_merge([
+                'success' => $success,
+                'message' => $message,
+            ], $extra), $status);
+        }
+
+        return back()->with($success ? 'success' : 'error', $message);
     }
 
     /**

@@ -119,13 +119,8 @@ class AppointmentOccupancyService
     ): Collection {
         [$requestStart, $requestEnd] = $this->requestWindow($date, $startTime, $endTime);
 
-        $query = $this->baseQuery($date, $excludeAppointmentId)
-            ->where(function ($q) use ($staffId) {
-                $q->where('user_id', $staffId)
-                    ->orWhereHas('assignedStaff', function ($sub) use ($staffId) {
-                        $sub->where('users.id', $staffId);
-                    });
-            });
+        $query = $this->baseQuery($date, $excludeAppointmentId);
+        $this->whereOccupiesStaff($query, $staffId);
 
         // Under InnoDB REPEATABLE READ a plain SELECT can return an older
         // snapshot. Write paths call this AFTER acquiring resource locks and
@@ -174,13 +169,10 @@ class AppointmentOccupancyService
     {
         $dayEnd = Carbon::parse($this->dateString($date) . ' 23:59:59');
 
-        return $this->baseQuery($date, $excludeAppointmentId)
-            ->where(function ($q) use ($staffId) {
-                $q->where('user_id', $staffId)
-                    ->orWhereHas('assignedStaff', function ($sub) use ($staffId) {
-                        $sub->where('users.id', $staffId);
-                    });
-            })
+        $query = $this->baseQuery($date, $excludeAppointmentId);
+        $this->whereOccupiesStaff($query, $staffId);
+
+        return $query
             ->with('services')
             ->get()
             ->map(function (Appointment $appointment) use ($dayEnd) {
@@ -256,7 +248,7 @@ class AppointmentOccupancyService
         ?int $excludeAppointmentId = null
     ): Collection {
         return $appointments->filter(function ($appointment) use ($staffId, $roomId, $excludeAppointmentId) {
-            if (!in_array($appointment->status, self::BLOCKING_STATUSES, true)) {
+            if (!($appointment instanceof Appointment ? $appointment->isOccupyingResource() : in_array($appointment->status, self::BLOCKING_STATUSES, true))) {
                 return false;
             }
 
@@ -271,7 +263,10 @@ class AppointmentOccupancyService
             if ($staffId) {
                 $isStaff = (int) $appointment->user_id === $staffId
                     || ($appointment->relationLoaded('assignedStaff')
-                        && $appointment->assignedStaff->contains('id', $staffId));
+                        && $appointment->assignedStaff->contains('id', $staffId))
+                    || ($appointment->status === 'pending'
+                        && $appointment->relationLoaded('preferredStaff')
+                        && $appointment->preferredStaff->contains('id', $staffId));
 
                 if (!$isStaff) {
                     return false;
@@ -305,10 +300,26 @@ class AppointmentOccupancyService
     {
         return Appointment::query()
             ->whereDate('appointment_date', $this->dateString($date))
-            ->whereIn('status', self::BLOCKING_STATUSES)
+            ->occupyingResources()
             ->when($excludeAppointmentId, function ($q) use ($excludeAppointmentId) {
                 $q->where('id', '!=', $excludeAppointmentId);
             });
+    }
+
+    private function whereOccupiesStaff($query, int $staffId): void
+    {
+        $query->where(function ($q) use ($staffId) {
+            $q->where('user_id', $staffId)
+                ->orWhereHas('assignedStaff', function ($sub) use ($staffId) {
+                    $sub->where('users.id', $staffId);
+                })
+                ->orWhere(function ($pendingPref) use ($staffId) {
+                    $pendingPref->where('status', 'pending')
+                        ->whereHas('preferredStaff', function ($sub) use ($staffId) {
+                            $sub->where('users.id', $staffId);
+                        });
+                });
+        });
     }
 
     private function dateString($value): string

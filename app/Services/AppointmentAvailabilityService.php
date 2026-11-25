@@ -159,8 +159,8 @@ class AppointmentAvailabilityService
 
         $appointments = Appointment::whereDate('appointment_date', '>=', $startDate)
             ->whereDate('appointment_date', '<=', $endDate)
-            ->whereIn('status', AppointmentOccupancyService::BLOCKING_STATUSES)
-            ->with(['services', 'assignedStaff'])
+            ->occupyingResources()
+            ->with(['services', 'assignedStaff', 'preferredStaff'])
             ->get()
             ->groupBy(fn($a) => $a->appointment_date->toDateString());
 
@@ -300,9 +300,9 @@ class AppointmentAvailabilityService
         $dayAppointments = $options['appointments'] ?? null;
         if ($dayAppointments === null) {
             $dayAppointments = Appointment::whereDate('appointment_date', $date)
-                ->whereIn('status', AppointmentOccupancyService::BLOCKING_STATUSES)
+                ->occupyingResources()
                 ->when($exclude, fn($q) => $q->where('id', '!=', $exclude))
-                ->with(['services', 'assignedStaff'])
+                ->with(['services', 'assignedStaff', 'preferredStaff'])
                 ->get();
         } else {
             $dayAppointments = collect($dayAppointments)

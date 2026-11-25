@@ -33,6 +33,7 @@ Route::middleware('web')->group(function () {
     // Booking (guests can book without logging in)
     Route::get('/book', [BookingController::class, 'wizard'])->name('booking.wizard');
     Route::get('/api/booking/slots', [BookingController::class, 'getSlots'])->name('booking.slots');
+    Route::get('/api/booking/preferred-therapists', [BookingController::class, 'preferredTherapists'])->name('api.booking.preferred-therapists');
     Route::get('/api/occupied-slots', [BookingController::class, 'occupiedSlots'])->name('api.occupied-slots');
     Route::post('/book', [BookingController::class, 'store'])->name('booking.store');
     Route::get('/book/confirmation/{appointment}', [BookingController::class, 'confirmation'])->name('booking.confirmation');
@@ -87,6 +88,7 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     Route::get('/pending', [ReceptionistController::class, 'pending'])->name('receptionist.pending');
     Route::get('/active', [ReceptionistController::class, 'active'])->name('receptionist.active');
     Route::get('/booking/{appointment}/rooms', [ReceptionistController::class, 'availableRooms'])->name('receptionist.rooms.available');
+    Route::post('/booking/{appointment}/reassign-room', [ReceptionistController::class, 'reassignRoom'])->name('receptionist.reassign-room');
     Route::get('/quick-book', [BookingController::class, 'quickBook'])->name('receptionist.quick-book');
     Route::get('/api/booking/next-slots', [BookingController::class, 'nextSlots'])->name('api.next-slots');
     Route::get('/api/booking/therapist-statuses', [BookingController::class, 'therapistStatuses'])->name('api.therapist-statuses');
