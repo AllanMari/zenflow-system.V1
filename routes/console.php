@@ -131,3 +131,19 @@ Artisan::command('appointments:expire-pending', function () {
 Schedule::command('appointments:expire-pending')
     ->everyMinute()
     ->withoutOverlapping();
+
+Artisan::command('attendance:send-reminders', function () {
+    $now = \Carbon\Carbon::now(\App\Services\AttendanceReminderService::TZ);
+    $service = app(\App\Services\AttendanceReminderService::class);
+
+    $day = $service->sendDueDayReminders($now);
+    $stages = $service->sendDueReminders($now);
+    $sent = $day['sent'] + $stages['sent'];
+
+    $this->info("[{$now->toDateTimeString()}] Attendance reminders: {$sent} sent (appointment-day: {$day['sent']}, T-60/T-30/T-15: {$stages['sent']}).");
+})->purpose('Send appointment-day and T-60/T-30/T-15 attendance reminders');
+
+Schedule::command('attendance:send-reminders')
+    ->everyMinute()
+    ->timezone('Asia/Manila')
+    ->withoutOverlapping();

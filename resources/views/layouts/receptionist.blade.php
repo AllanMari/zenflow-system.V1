@@ -25,7 +25,7 @@ $activeCount  = \App\Models\Appointment::where('status', 'confirmed')
 
 $navItems = [
     ['r'=>'receptionist.dashboard','l'=>'Dashboard','p'=>'receptionist.dashboard','i'=>'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z'],
-    ['r'=>'receptionist.active','l'=>'Active Sessions','p'=>'receptionist.active','i'=>'M13 10V3L4 14h7v7l9-11h-7z','badge'=>$activeCount],
+    ['r'=>'receptionist.active','l'=>'Confirmed Bookings','p'=>'receptionist.active','i'=>'M13 10V3L4 14h7v7l9-11h-7z','badge'=>$activeCount],
     ['r'=>'receptionist.pending','l'=>'Pending Bookings','p'=>'receptionist.pending','i'=>'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z','badge'=>$pendingCount],
     [
         'r' => 'receptionist.appointment-invoice',
@@ -112,6 +112,88 @@ $navItems[] = [
         </a>
     @endforeach
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    const FEED_URL = @js(route('api.notifications.attendance-feed'));
+    const POLL_MS = 10000;
+    const STORAGE_KEY = 'zenflow.attendance.seen';
+
+    let seen = new Set();
+    try { seen = new Set(JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]')); }
+    catch (e) { seen = new Set(); }
+    let primed = false;
+
+    function persistSeen() {
+        try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(seen).slice(-200))); }
+        catch (e) { /* storage unavailable: in-memory dedupe still works */ }
+    }
+
+    function escapeHtml(value) {
+        const node = document.createElement('div');
+        node.textContent = value == null ? '' : String(value);
+        return node.innerHTML;
+    }
+
+    function showToast(item) {
+        if (typeof Swal === 'undefined') return;
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'warning',
+            title: escapeHtml(item.title || 'Attendance reminder'),
+            html: '<div class="text-left text-xs">' + escapeHtml(item.message || '') + '</div>',
+            showConfirmButton: true,
+            confirmButtonText: 'Open',
+            showCancelButton: true,
+            cancelButtonText: 'Dismiss',
+            timer: 12000,
+            timerProgressBar: true,
+            background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
+            color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+            customClass: { popup: 'rounded-xl', confirmButton: 'rounded-lg px-3 py-1.5 text-xs', cancelButton: 'rounded-lg px-3 py-1.5 text-xs' }
+        }).then(function (result) {
+            if (result.isConfirmed && item.action_url) window.location.href = item.action_url;
+        });
+    }
+
+    async function pollAttendance() {
+        try {
+            const response = await fetch(FEED_URL, {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF }
+            });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const data = await response.json();
+
+            if (typeof updateBadge === 'function') updateBadge(data.unread_count || 0);
+
+            const incoming = (Array.isArray(data.notifications) ? data.notifications : []).filter(function (n) { return n && n.id; });
+            if (!primed) {
+                incoming.forEach(function (n) { seen.add(n.id); });
+                primed = true;
+                persistSeen();
+            } else {
+                incoming.forEach(function (n) {
+                    if (!seen.has(n.id)) {
+                        seen.add(n.id);
+                        showToast(n);
+                    }
+                });
+                persistSeen();
+            }
+        } catch (error) {
+            console.warn('Attendance feed unavailable:', error);
+        }
+    }
+
+    setInterval(function () { if (!document.hidden) pollAttendance(); }, POLL_MS);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) pollAttendance(); });
+    window.addEventListener('load', pollAttendance);
+})();
+</script>
+@endpush
 
 @section('sidebar-nav-mobile')
     @foreach($navItems as $item)

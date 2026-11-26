@@ -7,7 +7,7 @@
 
     $customerName = $appointment->client_name;
 
-    $phone = $appointment->customer?->phone_number;
+    $phone = $appointment->guest_phone ?? $appointment->customer?->phone_number;
     $isPastUnresolved = isset($isPastUnresolved) ? $isPastUnresolved : false;
     $isToday = !$isPastUnresolved && $appointment->appointment_date->isToday();
     $services = $appointment->services;
@@ -28,6 +28,38 @@
             'selected_service_id' => (int) $selection->selected_service_id,
         ]
     )->values()->all();
+
+    $attendance = $attendance ?? null;
+    $attendanceState = $attendance['state'] ?? 'awaiting';
+    $attendanceConfirmed = (bool) ($attendance['confirmed'] ?? false);
+    $attendanceAttempts = (int) ($attendance['attempts'] ?? 0);
+    $attendanceHistory = $attendance['history'] ?? [];
+    $attendanceSourceLabel = match ($attendance['source'] ?? null) {
+        'customer' => 'Customer',
+        'receptionist' => 'Receptionist (phone)',
+        default => null,
+    };
+    $attendanceStateLabel = match ($attendanceState) {
+        'confirmed' => 'Confirmed',
+        'no_answer' => 'No answer',
+        'unreachable' => 'Unable to reach',
+        default => 'Awaiting confirmation',
+    };
+    $attendanceBadgeClass = match ($attendanceState) {
+        'confirmed' => 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+        'no_answer' => 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+        'unreachable' => 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
+        default => 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+    };
+
+    // Tab-scoped option: future bookings only show attendance state, never contact actions.
+    $attendanceActionsVisible = isset($attendanceActionsVisible) ? (bool) $attendanceActionsVisible : true;
+    $isLateAttention = isset($isLateAttention) ? (bool) $isLateAttention : false;
+    $elapsedLateMinutes = isset($elapsedLateMinutes) ? (int) $elapsedLateMinutes : null;
+    $sessionContext = isset($sessionContext) ? $sessionContext : 'active';
+    $pastUnresolvedReason = isset($pastUnresolvedReason) ? $pastUnresolvedReason : null;
+    $canManageBeforeSession = in_array($sessionContext, ['active', 'confirmed'], true);
+    $canResolveSession = in_array($sessionContext, ['active', 'past_unresolved'], true);
 @endphp
 
 <article
@@ -92,6 +124,121 @@
                 </span>
             </div>
         </div>
+    </div>
+    {{-- Attendance confirmation --}}
+    <div class="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div class="flex items-start gap-2.5">
+                <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg {{ $attendanceConfirmed ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' : ($attendanceState === 'awaiting' ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300' : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400') }}">
+                    <i data-lucide="{{ $attendanceConfirmed ? 'check-circle-2' : 'phone-call' }}" class="h-4 w-4"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Attendance</span>
+                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold {{ $attendanceBadgeClass }}">
+                            <span class="h-1.5 w-1.5 rounded-full {{ $attendanceConfirmed ? 'bg-emerald-500' : ($attendanceState === 'awaiting' ? 'bg-slate-400' : 'bg-amber-500') }}"></span>
+                            {{ $attendanceStateLabel }}
+                        </span>
+                    </div>
+
+                    @if($attendanceConfirmed)
+                        <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                            Confirmed{{ $attendanceSourceLabel ? ' via ' . $attendanceSourceLabel : '' }}
+                            @if(!empty($attendance['confirmed_by_name']))
+                                by <span class="font-semibold">{{ $attendance['confirmed_by_name'] }}</span>
+                            @endif
+                            @if(!empty($attendance['confirmed_at']))
+                                on {{ \Carbon\Carbon::parse($attendance['confirmed_at'])->format('M j, Y g:i A') }}
+                            @endif
+                        </p>
+                    @elseif($attendanceAttempts > 0)
+                        <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                            {{ $attendanceAttempts }} contact {{ $attendanceAttempts === 1 ? 'attempt' : 'attempts' }} recorded.
+                            Latest: <span class="font-semibold">{{ $attendanceStateLabel }}</span>
+                            @if(!empty($attendance['last_attempt_by_name']))
+                                by {{ $attendance['last_attempt_by_name'] }}
+                            @endif
+                            @if(!empty($attendance['last_attempt_at']))
+                                on {{ \Carbon\Carbon::parse($attendance['last_attempt_at'])->format('M j, g:i A') }}
+                            @endif
+                        </p>
+                    @else
+                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            No attendance confirmation yet.
+                            @if($attendanceActionsVisible)
+                                Use “Confirm Attendance by Phone” once the customer acknowledges the booking.
+                            @endif
+                        </p>
+                    @endif
+
+                    @if($isPastUnresolved && !$attendanceConfirmed)
+                        @if($pastUnresolvedReason === 'late')
+                            <p class="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                                <i data-lucide="clock-alert" class="h-3.5 w-3.5"></i>
+                                15+ minutes late — {{ $elapsedLateMinutes }} min past scheduled start. Attention only; no automatic cancellation or No Show.
+                            </p>
+                        @else
+                            <p class="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+                                <i data-lucide="clock-alert" class="h-3.5 w-3.5"></i>
+                                Appointment time passed — resolution is still manual. Phone confirmation remains available while unconfirmed.
+                            </p>
+                        @endif
+                    @endif
+                </div>
+            </div>
+            <p class="text-[10px] text-slate-400 sm:max-w-[15rem] sm:text-right">
+                Attendance only acknowledges the booking. It does not check the customer in or change the appointment status.
+            </p>
+        </div>
+
+        @if(!empty($attendanceHistory))
+            <div class="mt-3">
+                <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Contact history</p>
+                <div class="active-session-scroll max-h-36 space-y-1.5 overflow-y-auto pr-1">
+                    @foreach($attendanceHistory as $event)
+                        @php
+                            $eventOutcome = $event['outcome'] ?? null;
+                            $eventLabel = match ($eventOutcome) {
+                                'confirmed' => 'Attendance confirmed',
+                                'no_answer' => 'No answer',
+                                'unreachable' => 'Unable to reach',
+                                default => 'Attendance update',
+                            };
+                            $eventIcon = match ($eventOutcome) {
+                                'confirmed' => 'check-circle-2',
+                                'no_answer' => 'phone-off',
+                                default => 'phone-missed',
+                            };
+                            $eventTone = match ($eventOutcome) {
+                                'confirmed' => 'text-emerald-600 dark:text-emerald-400',
+                                'no_answer' => 'text-amber-600 dark:text-amber-400',
+                                default => 'text-rose-600 dark:text-rose-400',
+                            };
+                        @endphp
+                        <div class="flex items-start gap-2 rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-slate-800/60">
+                            <i data-lucide="{{ $eventIcon }}" class="mt-0.5 h-3.5 w-3.5 shrink-0 {{ $eventTone }}"></i>
+                            <div class="min-w-0">
+                                <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                                    {{ $eventLabel }}
+                                    @if($event['source'] ?? null)
+                                        · {{ $event['source'] === 'receptionist' ? 'Receptionist' : 'Customer' }}
+                                    @endif
+                                    @if(!empty($event['actor_name']))
+                                        · {{ $event['actor_name'] }}
+                                    @endif
+                                    @if(!empty($event['at']))
+                                        <span class="font-normal text-slate-400">· {{ \Carbon\Carbon::parse($event['at'])->format('M j, g:i A') }}</span>
+                                    @endif
+                                </p>
+                                @if(!empty($event['note']))
+                                    <p class="mt-0.5 break-words text-[11px] text-slate-500 dark:text-slate-400">{{ $event['note'] }}</p>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
     </div>
     <div class="grid gap-4 p-4 lg:grid-cols-[1.4fr_1fr_1fr]">
         <div>
@@ -259,6 +406,7 @@
         </div>
     </div>
     <div class="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/30">
+        @if($canManageBeforeSession)
         <button
             type="button"
             @click="openExtra(
@@ -274,6 +422,8 @@
             <i data-lucide="plus-circle" class="h-3.5 w-3.5"></i>
             Add Service
         </button>
+        @endif
+        @if($canManageBeforeSession)
         <button
             type="button"
             @click="openReassign(
@@ -288,6 +438,7 @@
             <i data-lucide="user-round-cog" class="h-3.5 w-3.5"></i>
             Reassign
         </button>
+        @endif
         <button
             type="button"
             @click="openTreatmentNotes(
@@ -301,6 +452,7 @@
             <i data-lucide="file-text" class="h-3.5 w-3.5 text-teal-600 dark:text-teal-400"></i>
             Notes
         </button>
+        @if($canManageBeforeSession)
         <button
             type="button"
             @click="openReschedule(
@@ -318,6 +470,76 @@
             <i data-lucide="calendar-clock" class="h-3.5 w-3.5"></i>
             Reschedule
         </button>
+        @endif
+        @if($attendanceActionsVisible)
+            @if($attendanceConfirmed)
+                <span class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
+                <i data-lucide="check-circle-2" class="h-3.5 w-3.5"></i>
+                Attendance confirmed
+            </span>
+        @else
+            <button
+                type="button"
+                @click="openAttendance(
+                    {{ $appointment->id }},
+                    'confirm',
+                    @js(route('receptionist.attendance.confirm', $appointment->id)),
+                    @js($customerName),
+                    @js($phone)
+                )"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+            >
+                <i data-lucide="phone-call" class="h-3.5 w-3.5"></i>
+                Confirm Attendance by Phone
+            </button>
+            <button
+                type="button"
+                @click="openAttendance(
+                    {{ $appointment->id }},
+                    'no_answer',
+                    @js(route('receptionist.attendance.no-answer', $appointment->id)),
+                    @js($customerName),
+                    @js($phone)
+                )"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 dark:border-amber-900/60 dark:bg-slate-900 dark:text-amber-400 dark:hover:bg-amber-950/30"
+            >
+                <i data-lucide="phone-off" class="h-3.5 w-3.5"></i>
+                No Answer
+            </button>
+            <button
+                type="button"
+                @click="openAttendance(
+                    {{ $appointment->id }},
+                    'unable_to_reach',
+                    @js(route('receptionist.attendance.unable-to-reach', $appointment->id)),
+                    @js($customerName),
+                    @js($phone)
+                )"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/60 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/30"
+            >
+                <i data-lucide="phone-missed" class="h-3.5 w-3.5"></i>
+                Unable to Reach
+            </button>
+            @endif
+        @else
+            <span class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <i data-lucide="clock" class="h-3.5 w-3.5"></i>
+                Attendance {{ $attendanceConfirmed ? 'confirmed' : 'pending' }}
+            </span>
+        @endif
+        <button
+            type="button"
+            @click="openCancel(
+                {{ $appointment->id }},
+                @js(route('receptionist.cancel', $appointment)),
+                @js($customerName)
+            )"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/60 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/30"
+        >
+            <i data-lucide="circle-x" class="h-3.5 w-3.5"></i>
+            Cancel
+        </button>
+        @if($canResolveSession)
         <button
             type="button"
             @click="openNoShow(
@@ -352,6 +574,7 @@
                 @endif
             </button>
         </div>
+        @endif
     </div>
 </article>
 

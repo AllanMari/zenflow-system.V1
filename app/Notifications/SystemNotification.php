@@ -27,6 +27,8 @@ class SystemNotification extends Notification
             'severity'    => $this->payload['severity']    ?? 'info',
             'action_url'  => $this->payload['action_url']  ?? null,
             'action_text' => $this->payload['action_text'] ?? 'View',
+            'stage'       => $this->payload['stage']       ?? null,
+            'appointment_id' => $this->payload['appointment_id'] ?? null,
         ];
     }
 }

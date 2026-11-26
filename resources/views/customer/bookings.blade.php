@@ -41,8 +41,17 @@
                     $isConfirmed = $booking->status === 'confirmed';
                     $appointmentDateTime = \Carbon\Carbon::parse($booking->appointment_date->format('Y-m-d') . ' ' . $booking->start_time);
                     $isCancellable = in_array($booking->status, ['pending', 'confirmed']) && $appointmentDateTime->isFuture();
+
+                    $attendance = $attendanceStates[$booking->id] ?? null;
+                    $attendanceConfirmed = (bool) ($attendance['confirmed'] ?? false);
+                    $canConfirmAttendance = $booking->status === 'confirmed' && !$attendanceConfirmed;
+                    $attendanceSourceLabel = match ($attendance['source'] ?? null) {
+                        'customer' => 'you',
+                        'receptionist' => 'our receptionist (phone)',
+                        default => 'ZenFlow',
+                    };
                 @endphp
-                <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden p-6 space-y-4">
+                <div id="booking-{{ $booking->id }}" class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden p-6 space-y-4">
                     <div class="flex justify-between items-center border-b pb-3">
                         <span class="font-mono text-xs font-bold text-gray-500">#SPA-{{ $booking->id }}</span>
                         <span class="px-3 py-1 rounded-full text-xs font-bold {{ $isConfirmed ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700' }}">
@@ -113,6 +122,48 @@
                             </div>
                         </div>
                     </div>
+
+                    @if($isConfirmed || $attendanceConfirmed)
+                    <div class="border-t pt-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div class="flex items-start gap-3">
+                                <div class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl {{ $attendanceConfirmed ? 'bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:text-teal-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700/40 dark:text-gray-300' }}">
+                                    <i data-lucide="{{ $attendanceConfirmed ? 'check-circle-2' : 'calendar-check' }}" class="h-4 w-4"></i>
+                                </div>
+                                <div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Attendance</span>
+                                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold {{ $attendanceConfirmed ? 'bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700/40 dark:text-gray-300' }}">
+                                            <span class="h-1.5 w-1.5 rounded-full {{ $attendanceConfirmed ? 'bg-teal-500' : 'bg-gray-400' }}"></span>
+                                            {{ $attendanceConfirmed ? 'Attendance confirmed' : 'Awaiting attendance confirmation' }}
+                                        </span>
+                                    </div>
+                                    @if($attendanceConfirmed)
+                                        <p class="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                                            Confirmed by {{ $attendanceSourceLabel }}
+                                            @if(!empty($attendance['confirmed_at']))
+                                                on {{ \Carbon\Carbon::parse($attendance['confirmed_at'])->format('M j, Y g:i A') }}
+                                            @endif
+                                        </p>
+                                    @else
+                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            Let us know you received this booking. This does not check you in or change your appointment.
+                                        </p>
+                                    @endif
+                                </div>
+                            </div>
+
+                            @if($canConfirmAttendance)
+                            <button type="button"
+                                    onclick="confirmAttendance({{ \Illuminate\Support\Js::from(route('customer.attendance.confirm', $booking->id)) }}, {{ \Illuminate\Support\Js::from($booking->services->pluck('name')->join(', ') ?: 'your appointment') }})"
+                                    class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs rounded-xl font-bold shrink-0">
+                                <i data-lucide="check-circle-2" class="h-3.5 w-3.5"></i>
+                                Confirm Attendance
+                            </button>
+                            @endif
+                        </div>
+                    </div>
+                    @endif
 
                     @if($isCancellable)
                     <div class="border-t pt-3 flex justify-end">
@@ -235,6 +286,56 @@ async function cancelAppointment(url, serviceNames) {
             form.appendChild(noteInput);
         }
         
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+async function confirmAttendance(url, serviceNames) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'Confirm Attendance',
+        html: `
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Please confirm that you received the booking for
+                <span class="font-semibold text-gray-800 dark:text-white">${serviceNames}</span>.
+            </p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                This only acknowledges the booking. It does not check you in or change your appointment status.
+            </p>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Confirm',
+        cancelButtonText: 'Not Now',
+        confirmButtonColor: '#0d9488',
+        cancelButtonColor: '#9ca3af',
+        background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
+        color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+        width: '400px',
+        padding: '1.25rem',
+        customClass: {
+            popup: 'rounded-2xl',
+            title: 'text-lg font-bold',
+            htmlContainer: 'text-sm',
+            confirmButton: 'rounded-lg px-4 py-2 text-sm',
+            cancelButton: 'rounded-lg px-4 py-2 text-sm'
+        }
+    });
+
+    if (isConfirmed) {
+        Swal.showLoading();
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = '_token';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+
         document.body.appendChild(form);
         form.submit();
     }

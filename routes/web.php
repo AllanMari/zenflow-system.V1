@@ -56,6 +56,7 @@ Route::middleware(['auth', 'role:customer'])->prefix('customer')->group(function
     Route::get('/dashboard', [CustomerController::class, 'index'])->name('customer-dashboard');
     Route::get('/bookings', [CustomerController::class, 'bookings'])->name('customer.bookings');
     Route::post('/appointments/{appointment}/cancel', [CustomerController::class, 'cancelBooking'])->name('customer.appointments.cancel');
+    Route::post('/appointments/{appointment}/attendance/confirm', [CustomerController::class, 'confirmAttendance'])->name('customer.attendance.confirm');
     Route::put('/medical-notes', [CustomerController::class, 'updateMedicalNotes'])->name('customer.medical-notes.update');
     Route::put('/profile', [CustomerController::class, 'updateProfile'])->name('customer.profile.update');
     Route::get('/profile', [CustomerController::class, 'profile'])->name('customer.profile');
@@ -102,6 +103,11 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
     Route::post('/appointments/{appointment}/add-extra', [ReceptionistController::class, 'addExtraService'])->name('receptionist.add-extra');
     // No-show deposit handling
     Route::post('/appointments/{appointment}/no-show', [ReceptionistController::class, 'handleNoShow'])->name('receptionist.no-show');
+
+    // Attendance confirmation (separate from booking approval and no-show)
+    Route::post('/appointments/{appointment}/attendance/confirm', [ReceptionistController::class, 'confirmAttendance'])->name('receptionist.attendance.confirm');
+    Route::post('/appointments/{appointment}/attendance/no-answer', [ReceptionistController::class, 'recordAttendanceNoAnswer'])->name('receptionist.attendance.no-answer');
+    Route::post('/appointments/{appointment}/attendance/unable-to-reach', [ReceptionistController::class, 'recordAttendanceUnableToReach'])->name('receptionist.attendance.unable-to-reach');
 
     // â”€â”€â”€ SCHEDULE VIEW ROUTES (all receptionists can view) â”€â”€â”€
     Route::get('/schedules', [ScheduleController::class, 'index'])->name('receptionist.schedules');
@@ -394,6 +400,8 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['web', 'auth'])->prefix('api/notifications')->group(function () {
     Route::get('/', [NotificationController::class, 'index'])->name('api.notifications');
     Route::get('/count', [NotificationController::class, 'count'])->name('api.notifications.count');
+Route::get('/attendance-feed', [NotificationController::class, 'attendanceFeed'])->middleware('role:receptionist')->name('api.notifications.attendance-feed');
+Route::get('/customer-attendance-feed', [NotificationController::class, 'customerAttendanceFeed'])->middleware('role:customer')->name('api.notifications.customer-attendance-feed');
     Route::post('/{id}/read', [NotificationController::class, 'markAsRead'])->name('api.notifications.read');
     Route::post('/read-all', [NotificationController::class, 'markAllAsRead'])->name('api.notifications.read-all');
 });

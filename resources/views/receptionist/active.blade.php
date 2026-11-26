@@ -406,7 +406,7 @@
 
 @section('content')
 @php
-    $calendarEvents = $appointments->map(function ($appointment) {
+    $calendarEvents = $appointments->merge($confirmedUpcoming)->map(function ($appointment) {
         $customerName = $appointment->client_name;
 
         return [
@@ -428,13 +428,8 @@
         ];
     })->values();
 
-    $todayCount = $appointments->filter(
-        fn($appointment) => $appointment->appointment_date->isToday()
-    )->count();
-
-    $upcomingCount = $appointments->filter(
-        fn($appointment) => !$appointment->appointment_date->isToday()
-    )->count();
+    $todayCount = $appointments->count();
+    $upcomingCount = $confirmedUpcoming->count();
 @endphp
 
 <div
@@ -467,6 +462,18 @@
             >
                 <i data-lucide="list" class="h-4 w-4 shrink-0"></i>
                 <span>Active Appointments ({{ $appointments->count() }})</span>
+            </button>
+
+            <button
+                type="button"
+                @click="activeTab = 'confirmed'; closeCalendar()"
+                :class="!showCalendar && activeTab === 'confirmed'
+                    ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
+                    : 'bg-white text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'"
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition"
+            >
+                <i data-lucide="calendar-check-2" class="h-4 w-4 shrink-0"></i>
+                <span>Confirmed Bookings ({{ $confirmedUpcoming->count() }})</span>
             </button>
 
             <button
@@ -632,12 +639,66 @@
                         No active sessions
                     </h3>
                     <p class="mx-auto mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">
-                        There are no confirmed appointments scheduled for today or upcoming dates.
+                        There are no confirmed appointments scheduled for today.
                     </p>
                 </div>
             @else
                 @foreach($appointments as $appointment)
-                    @include('receptionist._session_card', ['appointment' => $appointment])
+                    @php
+                        $startsAt = \Carbon\Carbon::parse(
+                            $appointment->appointment_date->format('Y-m-d') . ' ' . $appointment->start_time,
+                            'Asia/Manila'
+                        );
+                        // Contact controls appear only once the session is near.
+                        $actionsVisible = $now->gte($startsAt->copy()->subMinutes(15));
+                    @endphp
+                    @include('receptionist._session_card', [
+                        'appointment' => $appointment,
+                        'attendance' => $attendanceStates[$appointment->id] ?? null,
+                        'attendanceActionsVisible' => $actionsVisible,
+                        'sessionContext' => 'active',
+                    ])
+                @endforeach
+            @endif
+        </div>
+
+        <div x-show="activeTab === 'confirmed'" x-cloak class="space-y-4">
+            @if($confirmedUpcoming->isEmpty())
+                <div class="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center dark:border-slate-700 dark:bg-slate-900">
+                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-sky-50 dark:bg-sky-950/40">
+                        <i data-lucide="calendar-check-2" class="h-6 w-6 text-sky-500"></i>
+                    </div>
+                    <h3 class="mt-4 text-sm font-bold text-slate-900 dark:text-white">
+                        No future confirmed bookings
+                    </h3>
+                    <p class="mx-auto mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">
+                        Approved bookings scheduled after today will appear here. Attendance confirmation is tracked separately.
+                    </p>
+                </div>
+            @else
+                <div class="rounded-xl border border-sky-200 bg-sky-50/50 p-4 dark:border-sky-900/50 dark:bg-sky-950/20">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300">
+                            <i data-lucide="calendar-check-2" class="h-5 w-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-sky-900 dark:text-sky-200">
+                                Approved, awaiting their scheduled date
+                            </h3>
+                            <p class="text-xs text-sky-700 dark:text-sky-400">
+                                These confirmed bookings are scheduled after today. Attendance confirmation is a separate state.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                @foreach($confirmedUpcoming as $appointment)
+                    @include('receptionist._session_card', [
+                        'appointment' => $appointment,
+                        'attendance' => $attendanceStates[$appointment->id] ?? null,
+                        'attendanceActionsVisible' => false,
+                        'sessionContext' => 'confirmed',
+                    ])
                 @endforeach
             @endif
         </div>
@@ -666,14 +727,34 @@
                                 Unresolved Past Bookings
                             </h3>
                             <p class="text-xs text-purple-700 dark:text-purple-400">
-                                These confirmed appointments have passed their scheduled end time but require manual completion or no-show resolution.
+                                Confirmed follow-ups that are 15+ minutes past their start or past their scheduled end. Attendance is still unresolved — no automatic No Show or cancellation.
                             </p>
                         </div>
                     </div>
                 </div>
 
                 @foreach($pastUnresolvedAppointments as $appointment)
-                    @include('receptionist._session_card', ['appointment' => $appointment, 'isPastUnresolved' => true])
+                    @php
+                        $startsAt = \Carbon\Carbon::parse(
+                            $appointment->appointment_date->format('Y-m-d') . ' ' . $appointment->start_time,
+                            'Asia/Manila'
+                        );
+                        $endsAt = \Carbon\Carbon::parse(
+                            $appointment->appointment_date->format('Y-m-d') . ' ' . $appointment->end_time,
+                            'Asia/Manila'
+                        );
+                        $pastUnresolvedReason = $now->gte($endsAt) ? 'time_passed' : 'late';
+                        $elapsedLateMinutes = abs((int) $now->diffInMinutes($startsAt));
+                    @endphp
+                    @include('receptionist._session_card', [
+                        'appointment' => $appointment,
+                        'isPastUnresolved' => true,
+                        'attendance' => $attendanceStates[$appointment->id] ?? null,
+                        'attendanceActionsVisible' => true,
+                        'pastUnresolvedReason' => $pastUnresolvedReason,
+                        'elapsedLateMinutes' => $elapsedLateMinutes,
+                        'sessionContext' => 'past_unresolved',
+                    ])
                 @endforeach
             @endif
         </div>
@@ -1275,7 +1356,7 @@
     >
         <div class="absolute inset-0 modal-backdrop" @click="closeModal()"></div>
 
-        <div class="relative w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+        <div class="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
 
             <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
 
@@ -1327,7 +1408,9 @@
 
                     <div>
 
-                        <div class="mb-2 flex items-center justify-between">
+                        <input type="hidden" name="start_time" :value="rescheduleTime" :required="!rescheduleTime ? true : null">
+
+                        <div class="mb-2 flex items-center justify-between gap-2">
                             <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                                 Available times
                             </label>
@@ -1340,41 +1423,76 @@
                             </span>
                         </div>
 
-                        <input type="hidden" name="start_time" :value="rescheduleTime" :required="!rescheduleTime ? true : null">
+                        {{-- Selected date/time review --}}
+                        <div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-teal-50 px-2.5 py-1.5 text-[11px] font-semibold text-teal-700 dark:bg-teal-950/30 dark:text-teal-300">
+                            <i data-lucide="calendar-check-2" class="h-3.5 w-3.5"></i>
+                            <span>Selected</span>
+                            <span x-text="rescheduleDate || '—'"></span>
+                            <span class="text-teal-400">•</span>
+                            <span x-text="rescheduleTime || 'Choose a time below'"></span>
+                        </div>
 
+                        {{-- Compact, internally scrollable time picker --}}
                         <div
-                            x-show="!rescheduleLoading && rescheduleTimes.length > 0"
-                            class="grid grid-cols-2 gap-2 sm:grid-cols-3"
+                            x-show="!rescheduleLoading && rescheduleGroups.length > 0"
+                            class="active-session-scroll max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/60 p-2.5 dark:border-slate-700 dark:bg-slate-800/40"
                         >
-                            <template x-for="slot in rescheduleTimes" :key="slot.time">
-                                <button
-                                    type="button"
-                                    @click="rescheduleTime = slot.time; rescheduleError = ''"
-                                    :class="rescheduleTime === slot.time
-                                        ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-300'
-                                        : 'border-slate-200 bg-white text-slate-700 hover:border-teal-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'"
-                                    class="rounded-lg border px-2 py-2 text-center text-xs font-bold transition"
-                                >
-                                    <span x-text="slot.time"></span>
-                                    <span class="mt-0.5 block text-[10px] font-normal text-slate-400" x-text="slot.end_time"></span>
-                                </button>
+                            <template x-for="group in rescheduleGroups" :key="group.key">
+                                <div class="mb-2 last:mb-0">
+                                    <div class="mb-1.5 flex items-center gap-1.5">
+                                        <span x-show="group.key === 'morning'"><i data-lucide="sun" class="h-3.5 w-3.5 text-amber-500"></i></span>
+                                        <span x-show="group.key === 'afternoon'"><i data-lucide="sun-dim" class="h-3.5 w-3.5 text-orange-500"></i></span>
+                                        <span x-show="group.key === 'evening'"><i data-lucide="moon" class="h-3.5 w-3.5 text-indigo-500"></i></span>
+                                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400" x-text="group.label"></span>
+                                        <span class="text-[10px] text-slate-400" x-text="'(' + group.times.filter(t => t.available).length + ')'"></span>
+                                    </div>
+
+                                    <div class="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                                        <template x-for="slot in group.times" :key="slot.time">
+                                            <button
+                                                type="button"
+                                                :disabled="!slot.available"
+                                                @click="if (slot.available) { rescheduleTime = slot.time; rescheduleError = '' }"
+                                                :class="!slot.available
+                                                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 line-through dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-600'
+                                                    : (rescheduleTime === slot.time
+                                                        ? 'border-teal-500 bg-teal-600 text-white shadow-sm'
+                                                        : 'border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-teal-700')"
+                                                class="rounded-md border px-1.5 py-1.5 text-center text-[11px] font-bold leading-tight transition"
+                                            >
+                                                <span x-text="slot.time"></span>
+                                                <span x-show="slot.end_time" class="mt-0.5 block text-[9px] font-normal opacity-70" x-text="slot.end_time"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
                             </template>
+                        </div>
+
+                        <div x-show="rescheduleLoading" class="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                            Checking available times...
                         </div>
 
                         <div
                             x-show="!rescheduleLoading && rescheduleError"
-                            class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300"
+                            class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300"
                             x-text="rescheduleError"
                         ></div>
 
                         <div
                             x-show="!rescheduleLoading && !rescheduleError && rescheduleTimes.length === 0"
-                            class="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
+                            class="mt-2 rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
                         >
                             No valid time with the current therapist team and room on this date.
                         </div>
 
-                        <p class="mt-2 text-[11px] text-slate-400">
+                        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400">
+                            <span class="inline-flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-teal-600"></span>Selected</span>
+                            <span class="inline-flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800"></span>Available</span>
+                            <span class="inline-flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-slate-200 dark:bg-slate-700"></span>Unavailable</span>
+                        </div>
+
+                        <p class="mt-1.5 text-[11px] text-slate-400">
                             Treatment: <span x-text="rescheduleDuration"></span> min + 5 min preparation. The assigned therapists and room are preserved.
                         </p>
 
@@ -1605,6 +1723,166 @@
 
         </div>
     </div>
+
+    {{-- Attendance Contact Modal --}}
+    <div
+        x-show="modal === 'attendance'"
+        x-cloak
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        @keydown.escape.window="closeModal()"
+    >
+        <div class="absolute inset-0 modal-backdrop" @click="closeModal()"></div>
+
+        <div class="relative w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+
+            <div class="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="flex h-10 w-10 items-center justify-center rounded-full"
+                        :class="attendanceOutcome === 'confirm'
+                            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+                            : (attendanceOutcome === 'no_answer'
+                                ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
+                                : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400')"
+                    >
+                        <i data-lucide="phone" class="h-5 w-5"></i>
+                    </div>
+
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white" x-text="attendanceTitle"></h3>
+                        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            <span x-text="attendanceCustomer"></span>
+                            <template x-if="attendancePhone">
+                                <span> · <span x-text="attendancePhone"></span></span>
+                            </template>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <form :action="attendanceUrl" method="POST" @submit.prevent="if(!submitting){ submitting=true; $el.submit(); }">
+                @csrf
+
+                <div class="space-y-3 p-5">
+                    <p class="text-sm text-slate-600 dark:text-slate-300" x-text="attendanceDescription"></p>
+
+                    <div>
+                        <label for="attendance-note" class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Note (optional)
+                        </label>
+                        <textarea
+                            id="attendance-note"
+                            name="note"
+                            rows="3"
+                            maxlength="500"
+                            x-model="attendanceNote"
+                            placeholder="e.g. Customer confirmed by phone."
+                            class="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        ></textarea>
+                    </div>
+
+                    <p class="text-[11px] text-slate-400">
+                        This records attendance only. It does not check the customer in, change the appointment status, or cancel the booking.
+                    </p>
+                </div>
+
+                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+                    <button
+                        type="button"
+                        @click="closeModal()"
+                        class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        :disabled="submitting"
+                        class="rounded-lg px-4 py-2 text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        :class="attendanceOutcome === 'confirm'
+                            ? 'bg-emerald-600 hover:bg-emerald-700'
+                            : (attendanceOutcome === 'no_answer'
+                                ? 'bg-amber-600 hover:bg-amber-700'
+                                : 'bg-rose-600 hover:bg-rose-700')"
+                    >
+                        <span x-show="!submitting" x-text="attendanceSubmitLabel"></span>
+                        <span x-show="submitting">Saving...</span>
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    {{-- Manual cancellation modal (confirmed or pending bookings) --}}
+    <div
+        x-show="modal === 'cancel'"
+        x-cloak
+        class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-4"
+        @keydown.escape.window="closeModal()"
+    >
+        <div class="absolute inset-0 modal-backdrop" @click="closeModal()"></div>
+
+        <div class="relative w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+                        <i data-lucide="circle-x" class="h-5 w-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white">Cancel Booking</h3>
+                        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            <span x-text="cancelCustomer"></span> · this records a cancellation, not a no-show.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <form :action="cancelUrl" method="POST" @submit.prevent="if(!submitting){ submitting=true; $el.submit(); }">
+                @csrf
+
+                <div class="space-y-3 p-5">
+                    <p class="text-sm text-slate-600 dark:text-slate-300">
+                        Cancelling releases the room and therapist for this appointment. The booking remains in history with a cancelled status.
+                    </p>
+
+                    <div>
+                        <label for="cancel-reason" class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Cancellation reason
+                        </label>
+                        <select id="cancel-reason" name="reason" x-model="cancelReason" required
+                                class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                            <option value="staff_unavailable">Staff unavailable</option>
+                            <option value="customer_cancelled">Customer cancelled</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div x-show="cancelReason === 'other'" x-cloak>
+                        <label for="cancel-other-reason" class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Specify reason
+                        </label>
+                        <textarea id="cancel-other-reason" name="other_reason" rows="3" maxlength="500"
+                                  x-model="cancelOtherReason" :required="cancelReason === 'other'"
+                                  placeholder="Explain why this booking is being cancelled."
+                                  class="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+                    <button type="button" @click="closeModal()"
+                            class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                        Keep booking
+                    </button>
+                    <button type="submit" :disabled="submitting"
+                            class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span x-show="!submitting">Cancel Booking</span>
+                        <span x-show="submitting">Cancelling...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -1636,6 +1914,11 @@
             reassignUrl: '',
             rescheduleUrl: '',
             noShowUrl: '',
+
+            cancelUrl: '',
+            cancelCustomer: '',
+            cancelReason: 'staff_unavailable',
+            cancelOtherReason: '',
 
             noShowAction: 'forfeit',
             noShowReason: 'Customer did not arrive',
@@ -1909,6 +2192,54 @@
                 this.rescheduleFlatpickr.set('disable', disabled);
             },
 
+            /**
+             * Group server-provided available times into compact display buckets.
+             * This is presentation only: every submitted start_time still comes
+             * from a slot returned by the availability endpoint and is validated
+             * again by the server on save.
+             */
+            buildRescheduleGroups() {
+                const available = Array.isArray(this.rescheduleTimes) ? this.rescheduleTimes : [];
+                const toMinutes = (value) => {
+                    const parts = String(value).split(':').map(Number);
+                    return (parts[0] || 0) * 60 + (parts[1] || 0);
+                };
+                const format = (minutes) =>
+                    String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
+
+                const byTime = new Map(available.map((slot) => [slot.time, slot]));
+                const minuteValues = available.map((slot) => toMinutes(slot.time));
+                const grid = new Set(available.map((slot) => slot.time));
+
+                if (minuteValues.length) {
+                    const earliest = Math.min(...minuteValues);
+                    const latest = Math.max(...minuteValues);
+                    for (let minutes = Math.ceil(earliest / 30) * 30; minutes <= latest; minutes += 30) {
+                        grid.add(format(minutes));
+                    }
+                }
+
+                const groups = [
+                    { key: 'morning', label: 'Morning', times: [] },
+                    { key: 'afternoon', label: 'Afternoon', times: [] },
+                    { key: 'evening', label: 'Evening', times: [] },
+                ];
+
+                grid.forEach((time) => {
+                    const slot = byTime.get(time);
+                    const hour = Number(String(time).slice(0, 2));
+                    const group = hour < 12 ? groups[0] : (hour < 17 ? groups[1] : groups[2]);
+                    group.times.push({
+                        time: time,
+                        end_time: slot ? (slot.end_time || '') : '',
+                        available: Boolean(slot),
+                    });
+                });
+
+                groups.forEach((group) => group.times.sort((a, b) => a.time.localeCompare(b.time)));
+                this.rescheduleGroups = groups.filter((group) => group.times.length > 0);
+            },
+
             async loadRescheduleAvailability(withMonth = false, withTimes = false) {
                 if (!this.rescheduleAppointmentId) return;
 
@@ -1950,6 +2281,8 @@
                         } else if (!this.rescheduleTime && !this.rescheduleTimes.length && data.message) {
                             this.rescheduleError = data.message;
                         }
+
+                        this.buildRescheduleGroups();
                     }
                 } catch (error) {
                     if (seq === this.rescheduleRequestSeq) {
@@ -1973,12 +2306,22 @@
             rescheduleStaffIds: [],
             rescheduleReqCount: 1,
             rescheduleTimes: [],
+            rescheduleGroups: [],
             rescheduleLoading: false,
             rescheduleError: '',
             rescheduleRequestSeq: 0,
 
             noShowHasPayment: false,
             noShowCustomer: '',
+
+            attendanceUrl: '',
+            attendanceOutcome: 'confirm',
+            attendanceCustomer: '',
+            attendancePhone: '',
+            attendanceNote: '',
+            attendanceTitle: 'Confirm Attendance by Phone',
+            attendanceDescription: '',
+            attendanceSubmitLabel: 'Confirm Attendance',
 
             today: @js(now()->format('Y-m-d')),
             events: @js($calendarEvents),
@@ -2342,6 +2685,7 @@
                 this.rescheduleStaffIds = (Array.isArray(staffIds) ? staffIds : []).map(Number);
                 this.rescheduleReqCount = Number(reqCount) || 1;
                 this.rescheduleTimes = [];
+                this.rescheduleGroups = [];
                 this.rescheduleError = '';
                 this.modal = 'reschedule';
 
@@ -2390,6 +2734,42 @@
                 this.noShowReason = 'Customer did not arrive';
                 this.noShowCustomText = '';
                 this.modal = 'no-show';
+
+                this.refreshIcons();
+            },
+
+            openCancel(id, url, customer) {
+                this.cancelUrl = url;
+                this.cancelCustomer = customer || 'Customer';
+                this.cancelReason = 'staff_unavailable';
+                this.cancelOtherReason = '';
+                this.modal = 'cancel';
+
+                this.refreshIcons();
+            },
+
+            openAttendance(id, outcome, url, customer, phone) {
+                this.attendanceUrl = url;
+                this.attendanceOutcome = outcome;
+                this.attendanceCustomer = customer || 'Customer';
+                this.attendancePhone = phone || '';
+                this.attendanceNote = '';
+
+                if (outcome === 'confirm') {
+                    this.attendanceTitle = 'Confirm Attendance by Phone';
+                    this.attendanceDescription = 'Confirm that the customer has acknowledged this appointment by phone. Attendance reminders and follow-ups will stop. The appointment status is not changed.';
+                    this.attendanceSubmitLabel = 'Confirm Attendance';
+                } else if (outcome === 'no_answer') {
+                    this.attendanceTitle = 'Record No Answer';
+                    this.attendanceDescription = 'Record that the customer did not answer the phone. Reminders continue and the appointment is not cancelled or marked no-show.';
+                    this.attendanceSubmitLabel = 'Save No Answer';
+                } else {
+                    this.attendanceTitle = 'Record Unable to Reach';
+                    this.attendanceDescription = 'Record that the customer could not be reached. Reminders continue and the appointment is not cancelled or marked no-show.';
+                    this.attendanceSubmitLabel = 'Save Unable to Reach';
+                }
+
+                this.modal = 'attendance';
 
                 this.refreshIcons();
             },

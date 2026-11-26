@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\Appointment;
+use App\Services\AttendanceConfirmationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -90,6 +91,7 @@ class CustomerController extends Controller
 
         $upcomingBookings = collect();
         $pastBookings = collect();
+        $attendanceStates = [];
 
         if ($customer) {
             $allAppointments = Appointment::with(['services', 'staff', 'room', 'payments'])
@@ -106,9 +108,11 @@ class CustomerController extends Controller
             $pastBookings = $allAppointments->reject(function ($appt) use ($upcomingBookings) {
                 return $upcomingBookings->contains('id', $appt->id);
             })->values();
+
+            $attendanceStates = app(AttendanceConfirmationService::class)->statesFor($allAppointments);
         }
 
-        return view('customer.bookings', compact('upcomingBookings', 'pastBookings', 'customer'));
+        return view('customer.bookings', compact('upcomingBookings', 'pastBookings', 'customer', 'attendanceStates'));
     }
 
     /**
@@ -342,5 +346,41 @@ class CustomerController extends Controller
         }
 
         return back()->with('success', 'Your appointment has been cancelled successfully.');
+    }
+
+    /**
+     * Confirm attendance for the customer's own approved appointment.
+     *
+     * Attendance is an acknowledgement only: appointment status, confirmed_at,
+     * and confirmed_by (booking approval) are never modified. The service also
+     * re-validates ownership defensively inside its transaction.
+     */
+    public function confirmAttendance(Request $request, Appointment $appointment)
+    {
+        $user = $request->user();
+        $customer = Customer::where('user_id', $user->id)->first();
+
+        if (!$customer || (int) $appointment->customer_id !== (int) $customer->id) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $result = app(AttendanceConfirmationService::class)->confirmByCustomer(
+            $appointment,
+            $user,
+            null,
+            $request->ip()
+        );
+
+        if (!($result['recorded'] ?? false)) {
+            $message = match ($result['reason'] ?? null) {
+                'appointment_not_confirmed' => 'Attendance can only be confirmed for approved appointments.',
+                'already_confirmed' => 'Attendance has already been confirmed for this appointment.',
+                default => 'Attendance could not be confirmed. Please try again.',
+            };
+
+            return back()->with('error', $message);
+        }
+
+        return back()->with('success', 'Attendance confirmed. Thank you!');
     }
 }

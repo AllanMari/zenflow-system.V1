@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Appointment;
 use App\Models\AppointmentPackageSelection;
 use App\Models\Payment;
+use App\Services\AttendanceConfirmationService;
 use App\Services\TherapistAssignmentService;
 use App\Models\User;
 use App\Models\WorkSchedule;
@@ -259,10 +261,17 @@ class ReceptionistController extends Controller
 
     public function cancel(Request $request, Appointment $appointment)
     {
-        $request->validate(['reason' => 'required|in:customer_cancelled,staff_unavailable,other']);
-        $reason = $request->reason === 'other' ? $request->other_reason : str_replace('_', ' ', $request->reason);
+        $request->validate([
+            'reason' => 'required|in:customer_cancelled,staff_unavailable,other',
+            'other_reason' => 'required_if:reason,other|nullable|string|max:500',
+        ]);
+        $reason = $request->reason === 'other'
+            ? trim($request->other_reason)
+            : str_replace('_', ' ', $request->reason);
+        $actor = $request->user();
+        $actorName = $actor?->full_name ?: 'Receptionist';
 
-        return DB::transaction(function () use ($appointment, $request, $reason) {
+        return DB::transaction(function () use ($appointment, $request, $reason, $actor, $actorName) {
             $lockedAppt = Appointment::lockForUpdate()->findOrFail($appointment->id);
 
             if ($lockedAppt->status === 'cancelled') {
@@ -273,13 +282,33 @@ class ReceptionistController extends Controller
                 return back()->with('error', 'Cannot cancel an appointment that is already ' . $lockedAppt->status . '.');
             }
 
+            $previousStatus = $lockedAppt->status;
+
             if ($lockedAppt->room_id) {
                 Room::where('id', $lockedAppt->room_id)->update(['status' => 'available']);
             }
 
             $lockedAppt->status = 'cancelled';
             $lockedAppt->cancellation_reason = $request->reason;
+            $notePrefix = "\n[Receptionist Cancellation (" . Carbon::now()->format('M j, Y g:i A') . ') by ' . $actorName . ']: ';
+            $lockedAppt->notes = trim(($lockedAppt->notes ?? '') . $notePrefix . $reason);
             $lockedAppt->save();
+
+            ActivityLog::create([
+                'user_id' => $actor?->id,
+                'action' => 'appointment_cancelled_receptionist',
+                'entity_type' => Appointment::class,
+                'entity_id' => $lockedAppt->id,
+                'details' => json_encode([
+                    'reason' => $request->reason,
+                    'reason_text' => $reason,
+                    'actor_name' => $actorName,
+                    'previous_status' => $previousStatus,
+                ], JSON_UNESCAPED_UNICODE),
+            ]);
+
+            // Manual cancellation frees therapist capacity immediately.
+            $this->clearScheduleCache();
 
             if ($lockedAppt->customer && $lockedAppt->customer->user) {
                 NotificationController::sendTo(
@@ -794,9 +823,78 @@ class ReceptionistController extends Controller
         });
     }
 
+    /**
+     * Confirm attendance by phone.
+     *
+     * Attendance is an acknowledgement only. Appointment status, confirmed_at,
+     * confirmed_by, cancellation fields, and no-show fields are never changed.
+     */
+    public function confirmAttendance(Request $request, Appointment $appointment)
+    {
+        $validated = $request->validate([
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $result = app(AttendanceConfirmationService::class)->confirmByReceptionist(
+            $appointment,
+            $request->user(),
+            $validated['note'] ?? null,
+            $request->ip()
+        );
+
+        if (!($result['recorded'] ?? false)) {
+            return back()->with('error', $this->attendanceFailureMessage($result));
+        }
+
+        return back()->with('success', 'Attendance confirmed by phone.');
+    }
+
+    public function recordAttendanceNoAnswer(Request $request, Appointment $appointment)
+    {
+        return $this->recordAttendanceContact($request, $appointment, AttendanceConfirmationService::STATE_NO_ANSWER);
+    }
+
+    public function recordAttendanceUnableToReach(Request $request, Appointment $appointment)
+    {
+        return $this->recordAttendanceContact($request, $appointment, AttendanceConfirmationService::STATE_UNREACHABLE);
+    }
+
+    private function recordAttendanceContact(Request $request, Appointment $appointment, string $outcome)
+    {
+        $validated = $request->validate([
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $result = app(AttendanceConfirmationService::class)->recordContactAttempt(
+            $appointment,
+            $request->user(),
+            $outcome,
+            $validated['note'] ?? null,
+            $request->ip()
+        );
+
+        if (!($result['recorded'] ?? false)) {
+            return back()->with('error', $this->attendanceFailureMessage($result));
+        }
+
+        return back()->with('success', $outcome === AttendanceConfirmationService::STATE_NO_ANSWER
+            ? 'No-answer contact attempt recorded. Reminders continue.'
+            : 'Unable-to-reach contact attempt recorded. Reminders continue.');
+    }
+
+    private function attendanceFailureMessage(array $result): string
+    {
+        return match ($result['reason'] ?? null) {
+            'appointment_not_confirmed' => 'Attendance can only be recorded for confirmed appointments.',
+            'already_confirmed' => 'Attendance has already been confirmed for this appointment.',
+            'duplicate_contact_attempt' => 'This contact attempt was just recorded. Please wait a moment before trying again.',
+            default => 'The attendance action could not be completed.',
+        };
+    }
+
 public function active()
 {
-    $appointments = Appointment::with([
+    $relations = [
         'customer',
         'services',
         'payments',
@@ -804,30 +902,61 @@ public function active()
         'assignedStaff',
         'room',
         'packageSelections',
-    ])
+    ];
+
+    $now = Carbon::now('Asia/Manila');
+    $today = $now->toDateString();
+
+    // All approved bookings. Attendance confirmation is derived separately and
+    // never changes booking approval fields.
+    $allConfirmed = Appointment::with($relations)
         ->where('status', 'confirmed')
-        ->whereDate('appointment_date', '>=', today())
         ->orderBy('appointment_date')
         ->orderBy('start_time')
         ->get();
 
-    $pastUnresolvedAppointments = Appointment::with([
-        'customer',
-        'services',
-        'payments',
-        'staff',
-        'assignedStaff',
-        'room',
-        'packageSelections',
-    ])
-        ->where('status', 'confirmed')
-        ->get()
-        ->filter(function ($appointment) {
-            $endDateTime = Carbon::parse($appointment->appointment_date->format('Y-m-d') . ' ' . $appointment->end_time);
-            return $endDateTime->isPast();
+    $attendanceStates = app(AttendanceConfirmationService::class)->statesFor($allConfirmed);
+
+    // Tab C: approved bookings awaiting a future date.
+    $confirmedUpcoming = $allConfirmed
+        ->filter(fn ($appointment) => $appointment->appointment_date->toDateString() > $today)
+        ->values();
+
+    // Tab D: consolidated unresolved follow-ups. Either at least 15 minutes
+    // past the scheduled start, or past the scheduled end. Terminal statuses
+    // never enter this collection because only confirmed rows are loaded, and
+    // attendance-confirmed rows are excluded from follow-up.
+    $pastUnresolvedAppointments = $allConfirmed
+        ->filter(function ($appointment) use ($now, $attendanceStates) {
+            if ($attendanceStates[$appointment->id]['confirmed'] ?? false) {
+                return false;
+            }
+
+            $start = Carbon::parse(
+                $appointment->appointment_date->format('Y-m-d') . ' ' . $appointment->start_time,
+                'Asia/Manila'
+            );
+            $end = Carbon::parse(
+                $appointment->appointment_date->format('Y-m-d') . ' ' . $appointment->end_time,
+                'Asia/Manila'
+            );
+
+            return $now->gte($end) || $now->gte($start->copy()->addMinutes(15));
         })
         ->sortBy(function ($appointment) {
-            return Carbon::parse($appointment->appointment_date->format('Y-m-d') . ' ' . $appointment->end_time);
+            return Carbon::parse(
+                $appointment->appointment_date->format('Y-m-d') . ' ' . $appointment->start_time,
+                'Asia/Manila'
+            );
+        })
+        ->values();
+
+    // Tab B: today's sessions that are still current (not yet 15 minutes past
+    // start), so the same appointment never appears in two tabs.
+    $appointments = $allConfirmed
+        ->filter(function ($appointment) use ($today, $pastUnresolvedAppointments) {
+            return $appointment->appointment_date->toDateString() === $today
+                && !$pastUnresolvedAppointments->contains('id', $appointment->id);
         })
         ->values();
 
@@ -851,10 +980,13 @@ public function active()
 
     return view('receptionist.active', compact(
         'appointments',
+        'confirmedUpcoming',
         'pastUnresolvedAppointments',
         'allStaff',
         'catalogServices',
-        'allRooms'
+        'allRooms',
+        'attendanceStates',
+        'now'
     ));
 }
 
