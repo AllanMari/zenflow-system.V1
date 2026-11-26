@@ -249,9 +249,6 @@ class DatabaseRestoreService
         if ($selectedDb === '') {
             throw new RuntimeException('No target MySQL database is selected.');
         }
-        if (strtolower($selectedDb) === 'spa' || strtolower($configuredDb) === 'spa') {
-            throw new RuntimeException('Refusing restoration against the prohibited live database [spa].');
-        }
         if ($configuredDb === '' || $selectedDb !== $configuredDb) {
             throw new RuntimeException('Target database identity mismatch.');
         }

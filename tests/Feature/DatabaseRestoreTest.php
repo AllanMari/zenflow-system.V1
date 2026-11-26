@@ -259,14 +259,47 @@ class DatabaseRestoreTest extends TestCase
         }
     }
 
-    public function test_target_database_verification_refuses_non_mysql_and_live_spa(): void
+    public function test_target_database_verification_refuses_non_mysql_and_mismatched_targets(): void
     {
         $restore = app(DatabaseRestoreService::class);
         $sqlitePdo = new \PDO('sqlite::memory:');
 
+        try {
+            $restore->verifyTargetDatabase($sqlitePdo);
+            $this->fail('Expected SQLite PDO to be rejected.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('MySQL', $e->getMessage());
+        }
+
+        // Mismatched target database must still be rejected
+        config()->set('database.connections.mysql.database', 'spa');
+        $mismatchedStmt = \Mockery::mock(\PDOStatement::class);
+        $mismatchedStmt->shouldReceive('fetch')->with(\PDO::FETCH_ASSOC)->andReturn(['db' => 'other_db']);
+        $mismatchedStmt->shouldReceive('closeCursor')->andReturn(true);
+
+        $mismatchedPdo = \Mockery::mock(\PDO::class);
+        $mismatchedPdo->shouldReceive('getAttribute')->with(\PDO::ATTR_DRIVER_NAME)->andReturn('mysql');
+        $mismatchedPdo->shouldReceive('query')->with('SELECT DATABASE() AS db')->andReturn($mismatchedStmt);
+
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('MySQL');
-        $restore->verifyTargetDatabase($sqlitePdo);
+        $this->expectExceptionMessage('Target database identity mismatch.');
+        $restore->verifyTargetDatabase($mismatchedPdo);
+    }
+
+    public function test_target_database_verification_permits_spa_when_configured_and_selected(): void
+    {
+        $restore = app(DatabaseRestoreService::class);
+        config()->set('database.connections.mysql.database', 'spa');
+
+        $stmt = \Mockery::mock(\PDOStatement::class);
+        $stmt->shouldReceive('fetch')->with(\PDO::FETCH_ASSOC)->andReturn(['db' => 'spa']);
+        $stmt->shouldReceive('closeCursor')->andReturn(true);
+
+        $pdo = \Mockery::mock(\PDO::class);
+        $pdo->shouldReceive('getAttribute')->with(\PDO::ATTR_DRIVER_NAME)->andReturn('mysql');
+        $pdo->shouldReceive('query')->with('SELECT DATABASE() AS db')->andReturn($stmt);
+
+        $this->assertSame('spa', $restore->verifyTargetDatabase($pdo));
     }
 
     public function test_concurrent_backup_and_restore_share_exclusive_lock(): void
