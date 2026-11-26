@@ -122,6 +122,7 @@ class PendingPreferredTherapistHoldTest extends TestCase
             'guest_first_name' => 'Guest One',
             'guest_phone' => '09170001111',
             'preferred_staff_ids' => [$this->therapistA->id],
+            'privacy_consented' => '1',
         ], $overrides);
     }
 

@@ -113,6 +113,7 @@ class MenuDataAndPackageChoicesTest extends TestCase
             'end_time' => '15:00',
             'guest_first_name' => 'Juan',
             'guest_phone' => '09123456789',
+            'privacy_consented' => '1',
         ]);
 
         $bookingRes->assertStatus(422);
@@ -279,6 +280,7 @@ class MenuDataAndPackageChoicesTest extends TestCase
             'end_time' => '15:00',
             'guest_first_name' => 'Maria',
             'guest_phone' => '09123456789',
+            'privacy_consented' => '1',
         ]);
 
         $failRes->assertStatus(422);
@@ -297,6 +299,7 @@ class MenuDataAndPackageChoicesTest extends TestCase
             'end_time' => '15:00',
             'guest_first_name' => 'Maria',
             'guest_phone' => '09123456789',
+            'privacy_consented' => '1',
         ]);
 
         $invalidRes->assertStatus(422);
@@ -312,6 +315,7 @@ class MenuDataAndPackageChoicesTest extends TestCase
             'end_time' => '15:00',
             'guest_first_name' => 'Maria',
             'guest_phone' => '09123456789',
+            'privacy_consented' => '1',
         ]);
 
         $successRes->assertStatus(200);

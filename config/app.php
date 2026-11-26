@@ -15,6 +15,8 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    'privacy_policy_version' => '2026-11-26',
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

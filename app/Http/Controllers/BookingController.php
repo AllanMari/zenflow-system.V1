@@ -1600,6 +1600,8 @@ class BookingController extends Controller
 
     public function store(Request $request)
     {
+        $isGuestBooking = !auth()->check();
+
         $request->validate([
             'customer_id' => 'nullable|exists:customers,id',
             'services' => 'required|array|min:1',
@@ -1634,6 +1636,11 @@ class BookingController extends Controller
                 'nullable|boolean',
             'source' =>
                 'nullable|in:public,receptionist',
+            'privacy_consented' =>
+                $isGuestBooking ? ['required', 'accepted'] : ['nullable'],
+        ], [
+            'privacy_consented.required' => 'You must agree to the Privacy Policy before submitting your booking.',
+            'privacy_consented.accepted' => 'You must agree to the Privacy Policy before submitting your booking.',
         ]);
 
         $user = auth()->user();
@@ -2078,6 +2085,7 @@ class BookingController extends Controller
             $status,
             $confirmedAt,
             $user,
+            $isGuestBooking,
             $requestedRoomId,
             $isReceptionist,
             $assignedStaffId,
@@ -2137,6 +2145,8 @@ class BookingController extends Controller
                 'total_price' => $totalPrice,
                 'created_by' => $user?->id,
                 'confirmed_at' => $confirmedAt,
+                'privacy_consented_at' => $isGuestBooking ? now() : null,
+                'privacy_policy_version' => $isGuestBooking ? config('app.privacy_policy_version', '2026-11-26') : null,
                 'notes' =>
                     $request->notes ?? null,
                 'treatment_notes' =>

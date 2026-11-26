@@ -14,7 +14,7 @@
         <a href="{{ route('landing') }}" class="text-teal-600 font-semibold text-sm hover:underline mb-8 inline-block">&larr; Back to Home</a>
         
         <h1 class="text-3xl font-bold mb-2">Privacy Policy</h1>
-        <p class="text-sm text-gray-500 mb-10">Last updated: {{ now()->format('F d, Y') }}</p>
+        <p class="text-sm text-gray-500 mb-10">Version {{ config('app.privacy_policy_version', '2026-11-26') }}</p>
 
         <div class="space-y-8">
             <section>

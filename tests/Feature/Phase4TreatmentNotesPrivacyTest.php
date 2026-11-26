@@ -80,6 +80,7 @@ class Phase4TreatmentNotesPrivacyTest extends TestCase
             'guest_phone' => '09181112233',
             'treatment_notes' => 'Client has lower back sensitivity, avoid deep pressure on lumbar.',
             'notes' => 'Customer requested quiet room near entrance.',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 
@@ -108,6 +109,7 @@ class Phase4TreatmentNotesPrivacyTest extends TestCase
             'guest_first_name' => 'Bob Marley',
             'guest_phone' => '09182223344',
             'medical_notes' => 'Allergic to eucalyptus and peppermint oils.',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 
@@ -177,6 +179,7 @@ class Phase4TreatmentNotesPrivacyTest extends TestCase
             'guest_first_name' => 'David Guest',
             'guest_phone' => '09184445566',
             'treatment_notes' => 'Temporary neck stiffness',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 

@@ -235,6 +235,7 @@ class PreferredTherapistBookingTest extends TestCase
             'guest_first_name' => 'Guest One',
             'guest_phone' => '09171234567',
             'preferred_staff_ids' => [$this->therapistAvailable->id, $this->therapistOccupied->id],
+            'privacy_consented' => '1',
         ])->assertSessionHas('error');
 
         // Duplicate IDs rejected even when required_count is 2
@@ -245,6 +246,7 @@ class PreferredTherapistBookingTest extends TestCase
             'guest_first_name' => 'Guest Two',
             'guest_phone' => '09171234568',
             'preferred_staff_ids' => [$this->therapistAvailable->id, $this->therapistAvailable->id],
+            'privacy_consented' => '1',
         ])->assertSessionHas('error');
     }
 
@@ -259,6 +261,7 @@ class PreferredTherapistBookingTest extends TestCase
             'guest_first_name' => 'Guest Client',
             'guest_phone' => '09178887777',
             'preferred_staff_ids' => [$this->therapistAvailable->id],
+            'privacy_consented' => '1',
         ])->assertRedirect();
 
         $guestAppt = Appointment::where('guest_first_name', 'Guest Client')->firstOrFail();
@@ -295,6 +298,7 @@ class PreferredTherapistBookingTest extends TestCase
             'guest_first_name' => 'Bad Pref',
             'guest_phone' => '09179998888',
             'preferred_staff_ids' => [$this->therapistOnLeave->id],
+            'privacy_consented' => '1',
         ])->assertSessionHas('error');
         $this->assertNull(Appointment::where('guest_first_name', 'Bad Pref')->first());
     }

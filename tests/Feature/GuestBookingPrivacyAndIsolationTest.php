@@ -99,6 +99,7 @@ class GuestBookingPrivacyAndIsolationTest extends TestCase
             'guest_first_name' => 'Guest Visitor',
             'guest_phone' => $sharedPhone,
             'treatment_notes' => 'Temporary shoulder knot',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 
@@ -155,6 +156,7 @@ class GuestBookingPrivacyAndIsolationTest extends TestCase
             'start_time' => '10:00',
             'guest_first_name' => 'Alice Family',
             'guest_phone' => $sharedPhone,
+            'privacy_consented' => '1',
             'source' => 'public',
         ])->assertSessionHasNoErrors();
 
@@ -165,6 +167,7 @@ class GuestBookingPrivacyAndIsolationTest extends TestCase
             'start_time' => '14:00',
             'guest_first_name' => 'Bob Family',
             'guest_phone' => $sharedPhone,
+            'privacy_consented' => '1',
             'source' => 'public',
         ])->assertSessionHasNoErrors();
 

@@ -65,6 +65,7 @@ class GuestBookingNameRegressionTest extends TestCase
             'start_time' => '10:00',
             'guest_first_name' => 'Jane Doe',
             'guest_phone' => '09123456789',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 
@@ -107,6 +108,7 @@ class GuestBookingNameRegressionTest extends TestCase
             'start_time' => '10:00',
             'guest_first_name' => 'Ana Marie De la Cruz',
             'guest_phone' => '09123456789',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 
@@ -141,7 +143,8 @@ class GuestBookingNameRegressionTest extends TestCase
                 'start_time' => sprintf('%02d:00', 8 + $idx * 2),
                 'guest_first_name' => $name,
                 'guest_phone' => $phone,
-                'source' => 'public',
+                'privacy_consented' => '1',
+            'source' => 'public',
             ]);
 
             $response->assertSessionHasNoErrors();
@@ -167,6 +170,7 @@ class GuestBookingNameRegressionTest extends TestCase
             'start_time' => '10:00',
             'guest_first_name' => $exact100Name,
             'guest_phone' => '09777777777',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 
@@ -194,6 +198,7 @@ class GuestBookingNameRegressionTest extends TestCase
             'start_time' => '10:00',
             'guest_first_name' => $overlengthName,
             'guest_phone' => '09777777778',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 
@@ -213,6 +218,7 @@ class GuestBookingNameRegressionTest extends TestCase
             'start_time' => '10:00',
             'guest_first_name' => $input,
             'guest_phone' => '09888888888',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 
@@ -235,6 +241,7 @@ class GuestBookingNameRegressionTest extends TestCase
             'start_time' => '10:00',
             'guest_first_name' => 'New Guest',
             'guest_phone' => '09987654321',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 
@@ -290,6 +297,7 @@ class GuestBookingNameRegressionTest extends TestCase
 
         $response = $this->postJson(route('booking.store'), [
             'source' => 'receptionist',
+            'privacy_consented' => '1',
             'services' => [$service->id],
             'appointment_date' => $tomorrow->toDateString(),
             'start_time' => '11:00',
@@ -582,6 +590,7 @@ class GuestBookingNameRegressionTest extends TestCase
             'guest_first_name' => 'Guest Visitor',
             'guest_phone' => '09175556677',
             'medical_notes' => 'Temporary sore shoulder',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 

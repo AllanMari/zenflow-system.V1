@@ -431,6 +431,7 @@ class Phase3BReceptionistIntegrationTest extends TestCase
         // Public booking submission attempting to pass staff_id and assisting_staff_ids
         $response = $this->post(route('booking.store'), [
             'source' => 'public',
+            'privacy_consented' => '1',
             'guest_first_name' => 'Online Customer',
             'guest_phone' => '09123456789',
             'appointment_date' => $date,

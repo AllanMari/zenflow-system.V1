@@ -140,6 +140,7 @@ class BusinessHolidayMultiDayAndRedesignTest extends TestCase
                     'guest_last_name' => 'Tester',
                     'guest_phone' => '09123456789',
                     'guest_email' => 'range@example.com',
+                    'privacy_consented' => '1',
                 ]);
 
                 $response->assertSessionHas('error');
@@ -445,6 +446,7 @@ class BusinessHolidayMultiDayAndRedesignTest extends TestCase
             'start_time' => '10:00',
             'guest_first_name' => 'Event',
             'guest_phone' => '09123456789',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 

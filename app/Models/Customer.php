@@ -22,6 +22,7 @@ class Customer extends Model
 
     protected $casts = [
         'customer_type' => 'string',
+        'medical_notes' => 'encrypted',
     ];
 
     /**

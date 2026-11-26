@@ -1417,6 +1417,34 @@
                                     </div>
                                 </div>
 
+                                @guest
+                                <!-- Guest Privacy Consent -->
+                                <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+                                    <label for="privacy_consented" class="flex cursor-pointer items-start gap-3">
+                                        <input
+                                            type="checkbox"
+                                            id="privacy_consented"
+                                            name="privacy_consented"
+                                            value="1"
+                                            x-model="privacyConsented"
+                                            required
+                                            class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-zen-600 focus:ring-2 focus:ring-zen-500 dark:border-slate-600"
+                                        >
+                                        <span class="text-xs leading-5 text-slate-600 dark:text-slate-300">
+                                            I have read and agree to the
+                                            <a
+                                                href="{{ route('privacy') }}"
+                                                target="_blank"
+                                                rel="noopener"
+                                                class="font-semibold text-zen-700 underline underline-offset-4 hover:text-zen-800 dark:text-teal-400"
+                                            >Privacy Policy</a>
+                                            (Version {{ config('app.privacy_policy_version', '2026-11-26') }}) for processing my booking and optional health notes.
+                                            <span class="text-red-500">*</span>
+                                        </span>
+                                    </label>
+                                </div>
+                                @endguest
+
 
                                 <!-- Confirmation notice -->
 
@@ -2427,6 +2455,14 @@
             :value="medicalNotes"
         >
 
+        @guest
+        <input
+            type="hidden"
+            name="privacy_consented"
+            :value="privacyConsented ? '1' : '0'"
+        >
+        @endguest
+
         <template x-for="serviceId in selectedServices" :key="serviceId">
             <input
                 type="hidden"
@@ -2535,6 +2571,10 @@
                 phone: window.bookingDefaults?.phone || '',
 
                 medicalNotes: window.bookingDefaults?.medicalNotes || '',
+
+                isGuestBooking: @json(!auth()->check()),
+
+                privacyConsented: false,
 
                 calendar: null,
 
@@ -3546,7 +3586,8 @@
                             this.appointmentDate &&
                             this.selectedTime &&
                             this.guestName.trim().length > 0 &&
-                            this.phoneValid
+                            this.phoneValid &&
+                            (!this.isGuestBooking || this.privacyConsented)
                         );
                     }
 
@@ -3570,7 +3611,8 @@
                     if (this.step === 3) {
                         return (
                             this.guestName.trim().length > 0 &&
-                            this.phoneValid
+                            this.phoneValid &&
+                            (!this.isGuestBooking || this.privacyConsented)
                         );
                     }
 
@@ -3657,7 +3699,8 @@
                         targetStep === 4 &&
                         !(
                             this.guestName.trim() &&
-                            this.phoneValid
+                            this.phoneValid &&
+                            (!this.isGuestBooking || this.privacyConsented)
                         )
                     ) {
                         return;
@@ -3753,6 +3796,17 @@
                             this.showMessage(
                                 'Invalid mobile number',
                                 'Please enter a valid Philippine mobile number.',
+                                'info'
+                            );
+
+                            return;
+                        }
+
+                        if (this.isGuestBooking && !this.privacyConsented) {
+
+                            this.showMessage(
+                                'Privacy consent required',
+                                'Please agree to the Privacy Policy before continuing.',
                                 'info'
                             );
 

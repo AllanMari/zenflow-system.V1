@@ -69,6 +69,7 @@ class BookingConfirmationPrivacyTest extends TestCase
             'start_time' => '10:00',
             'guest_first_name' => 'Alice Guest',
             'guest_phone' => '09123456789',
+            'privacy_consented' => '1',
             'source' => 'public',
         ]);
 

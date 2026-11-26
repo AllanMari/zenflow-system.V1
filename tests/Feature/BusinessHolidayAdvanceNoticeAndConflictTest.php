@@ -84,6 +84,7 @@ class BusinessHolidayAdvanceNoticeAndConflictTest extends TestCase
                 'guest_last_name' => 'Tester',
                 'guest_phone' => '09123456789',
                 'guest_email' => 'direct@example.com',
+                'privacy_consented' => '1',
             ]);
 
             $response->assertSessionHas('error');
@@ -138,6 +139,7 @@ class BusinessHolidayAdvanceNoticeAndConflictTest extends TestCase
                 'guest_last_name' => 'Tester',
                 'guest_phone' => '09123456788',
                 'guest_email' => 'boundary@example.com',
+                'privacy_consented' => '1',
             ]);
 
             $response->assertSessionHas('error');

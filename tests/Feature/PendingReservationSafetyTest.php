@@ -70,6 +70,7 @@ class PendingReservationSafetyTest extends TestCase
             'start_time' => $time,
             'guest_first_name' => 'Reservation',
             'guest_phone' => $phone,
+            'privacy_consented' => '1',
             'source' => 'public',
         ];
     }

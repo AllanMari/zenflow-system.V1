@@ -8,6 +8,7 @@ use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureSessionValid;
 use App\Http\Middleware\EnsureCanManageSchedules;
+use App\Http\Middleware\EnsureNotRestoring;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -27,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Append to web middleware group — runs on EVERY web request
         $middleware->web(append: [
+            EnsureNotRestoring::class,
             EnsureUserIsActive::class,
             EnsureSessionValid::class,
         ]);

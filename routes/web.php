@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\Admin\DatabaseBackupController;
 use App\Http\Controllers\ReceptionistController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\CustomerController;
@@ -468,6 +469,18 @@ Route::middleware(['auth', 'role:receptionist'])->group(function () {
         ServicePopularityController::class,
         'xlsx'
     ])->name('receptionist.service-popularity.xlsx');
+});
+
+// ─── Database Backup & Restore (Admin only) ───
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
+    Route::get('/database-backup', [DatabaseBackupController::class, 'index'])->name('admin.database-backup.index');
+    Route::post('/database-backup', [DatabaseBackupController::class, 'create'])->name('admin.database-backup.create');
+    Route::get('/database-backup/{backupId}/download', [DatabaseBackupController::class, 'download'])
+        ->where('backupId', '[A-Za-z0-9_-]+')
+        ->name('admin.database-backup.download');
+    Route::post('/database-backup/{backupId}/restore', [DatabaseBackupController::class, 'restore'])
+        ->where('backupId', '[A-Za-z0-9_-]+')
+        ->name('admin.database-backup.restore');
 });
 
 // ─── Data Import (Admin & Receptionist) ───
