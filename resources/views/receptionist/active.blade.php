@@ -437,6 +437,19 @@
     x-init="init()"
     class="space-y-5"
 >
+    {{-- Persistent attendance follow-ups — refreshed by the shared polling script --}}
+    <section id="attendanceFollowupPanel" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <i data-lucide="list-checks" class="h-4 w-4 text-teal-600 dark:text-teal-400"></i>
+                <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Attendance Follow-ups</h2>
+                <span id="attendanceFollowupCount" class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">0</span>
+            </div>
+            <span class="text-[11px] text-slate-400 dark:text-slate-500">Outstanding only · updates automatically</span>
+        </div>
+        <div id="attendanceFollowupList" class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3"></div>
+    </section>
+
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div class="flex flex-wrap items-center gap-2">
 

@@ -356,6 +356,23 @@
             </div>
         </section>
 
+        {{-- Persistent late-arrival policy — visible throughout the wizard --}}
+        <section class="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm dark:border-amber-800/70 dark:bg-amber-950/40 sm:p-5">
+            <div class="flex items-start gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-200 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
+                    <i data-lucide="clock-alert" class="h-5 w-5"></i>
+                </div>
+                <div class="min-w-0">
+                    <h2 class="text-sm font-extrabold tracking-tight text-amber-900 dark:text-amber-100 sm:text-base">
+                        15-Minute Late-Arrival Policy
+                    </h2>
+                    <p class="mt-1 text-xs leading-5 text-amber-900/90 dark:text-amber-200/90 sm:text-sm">
+                        Please arrive on time for your scheduled appointment. Customers who have not checked in within 15 minutes after their scheduled appointment time may have their appointment cancelled in accordance with Spa Alexandria's late-arrival policy.
+                    </p>
+                </div>
+            </div>
+        </section>
+
         @if(!empty($activeNotice))
             <div class="mb-8 rounded-2xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 p-4 text-amber-900 dark:text-amber-200 flex items-start gap-3 shadow-sm">
                 <div class="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5">
@@ -1936,14 +1953,6 @@
                                 <i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-500"></i>
                                 <span class="text-xs leading-5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                     A receptionist may contact you using the mobile number provided.
-                                </span>
-                            </li>
-
-                            <li class="flex gap-2.5">
-                                <i data-lucide="clock-alert" class="mt-0.5 h-4 w-4 shrink-0 text-amber-500"></i>
-                                <span class="text-xs leading-5 text-slate-600 dark:text-slate-300">
-                                    <span class="font-bold text-slate-800 dark:text-slate-100">15-Minute Late-Arrival Policy</span>
-                                    <span class="mt-0.5 block">Please arrive on time for your scheduled appointment. Customers who have not checked in within 15 minutes after their scheduled appointment time may have their appointment cancelled in accordance with Spa Alexandria's late-arrival policy.</span>
                                 </span>
                             </li>
 

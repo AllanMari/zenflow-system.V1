@@ -118,16 +118,67 @@ $navItems[] = [
 (function () {
     const FEED_URL = @js(route('api.notifications.attendance-feed'));
     const POLL_MS = 10000;
-    const STORAGE_KEY = 'zenflow.attendance.seen';
+    const STORAGE_KEY = 'zenflow.attendance.state';
+    const LEGACY_KEY = 'zenflow.attendance.seen';
+    const panelList = document.getElementById('attendanceFollowupList');
+    const panelCount = document.getElementById('attendanceFollowupCount');
 
-    let seen = new Set();
-    try { seen = new Set(JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]')); }
-    catch (e) { seen = new Set(); }
-    let primed = false;
+    function cleanIds(value) {
+        if (!Array.isArray(value)) return [];
+        return Array.from(new Set(value.filter(function (id) { return typeof id === 'string' && id.length > 0; })));
+    }
 
-    function persistSeen() {
-        try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(seen).slice(-200))); }
-        catch (e) { /* storage unavailable: in-memory dedupe still works */ }
+    function legacyShownIds() {
+        try {
+            const raw = sessionStorage.getItem(LEGACY_KEY);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            // The legacy key stored a plain JSON array of notification ids.
+            return Array.isArray(parsed) ? cleanIds(parsed) : [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function readState() {
+        let shown = [];
+        let queued = [];
+
+        try {
+            const raw = sessionStorage.getItem(STORAGE_KEY);
+            if (raw) {
+                const data = JSON.parse(raw) || {};
+                shown = cleanIds(data.shown);
+                queued = cleanIds(data.queued);
+            }
+        } catch (error) {
+            shown = [];
+            queued = [];
+        }
+
+        // Import ids that were already displayed by the previous implementation
+        // so they are not popped again after this change.
+        const legacy = legacyShownIds();
+        if (legacy.length) {
+            shown = Array.from(new Set(shown.concat(legacy)));
+        }
+
+        return { shown: shown, queued: queued };
+    }
+
+    const initial = readState();
+    const shown = new Set(initial.shown);
+    const queuedIds = new Set(initial.queued);
+    let queue = [];
+    let active = false;
+
+    function persist() {
+        try {
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+                shown: Array.from(shown).slice(-300),
+                queued: Array.from(queuedIds).slice(-100),
+            }));
+        } catch (error) { /* in-memory dedupe still works */ }
     }
 
     function escapeHtml(value) {
@@ -136,9 +187,35 @@ $navItems[] = [
         return node.innerHTML;
     }
 
-    function showToast(item) {
-        if (typeof Swal === 'undefined') return;
+    function stagePriority(item) {
+        const stage = item && item.stage;
+        if (stage === 15 || stage === '15' || stage === '15 minutes') return 3;
+        if (stage === 30 || stage === '30' || stage === '30 minutes') return 2;
+        if (stage === 60 || stage === '60' || stage === '60 minutes') return 1;
+        return 0;
+    }
 
+    function sortQueue() {
+        queue.sort(function (a, b) {
+            return stagePriority(b) - stagePriority(a)
+                || String(a.appointment_time || '99:99').localeCompare(String(b.appointment_time || '99:99'))
+                || String(a.id).localeCompare(String(b.id));
+        });
+    }
+
+    function showNext() {
+        if (active || !queue.length || typeof Swal === 'undefined') return;
+        if (typeof Swal.isVisible === 'function' && Swal.isVisible()) {
+            setTimeout(showNext, 1500);
+            return;
+        }
+
+        sortQueue();
+        const item = queue.shift();
+        queuedIds.delete(item.id);
+        persist();
+
+        active = true;
         Swal.fire({
             toast: true,
             position: 'top-end',
@@ -155,7 +232,55 @@ $navItems[] = [
             color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
             customClass: { popup: 'rounded-xl', confirmButton: 'rounded-lg px-3 py-1.5 text-xs', cancelButton: 'rounded-lg px-3 py-1.5 text-xs' }
         }).then(function (result) {
-            if (result.isConfirmed && item.action_url) window.location.href = item.action_url;
+            active = false;
+            if (result.isConfirmed && item.action_url) {
+                window.location.href = item.action_url;
+                return;
+            }
+            setTimeout(showNext, 250);
+        });
+
+        // Mark as displayed only once the popup has actually been presented.
+        shown.add(item.id);
+        persist();
+    }
+
+    function renderFollowupList(followups) {
+        if (!panelList) return;
+        panelList.innerHTML = '';
+        if (panelCount) panelCount.textContent = String(followups.length);
+
+        if (!followups.length) {
+            const empty = document.createElement('p');
+            empty.className = 'text-xs text-slate-400 dark:text-slate-500';
+            empty.textContent = 'No outstanding attendance follow-ups.';
+            panelList.appendChild(empty);
+            return;
+        }
+
+        followups.forEach(function (item) {
+            const card = document.createElement('a');
+            card.href = item.action_url || '#';
+            card.className = 'flex flex-col gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60';
+
+            const heading = document.createElement('p');
+            heading.className = 'text-xs font-bold text-slate-800 dark:text-slate-100';
+            heading.textContent = item.customer + ' · ' + (item.date_label || item.appointment_date || '') + ' · ' + item.time;
+
+            const meta = document.createElement('p');
+            meta.className = 'text-[11px] text-slate-500 dark:text-slate-400';
+            meta.textContent = (item.stage || 'No reminder sent')
+                + ' · ' + (item.attendance_label || 'Awaiting confirmation')
+                + (item.needs_call ? ' · Call customer' : '');
+
+            const ref = document.createElement('p');
+            ref.className = 'text-[10px] font-mono text-slate-400';
+            ref.textContent = 'Appointment #' + item.appointment_id + ' · Open';
+
+            card.appendChild(heading);
+            card.appendChild(meta);
+            card.appendChild(ref);
+            panelList.appendChild(card);
         });
     }
 
@@ -168,21 +293,30 @@ $navItems[] = [
             const data = await response.json();
 
             if (typeof updateBadge === 'function') updateBadge(data.unread_count || 0);
+            renderFollowupList(Array.isArray(data.followups) ? data.followups : []);
 
-            const incoming = (Array.isArray(data.notifications) ? data.notifications : []).filter(function (n) { return n && n.id; });
-            if (!primed) {
-                incoming.forEach(function (n) { seen.add(n.id); });
-                primed = true;
-                persistSeen();
-            } else {
-                incoming.forEach(function (n) {
-                    if (!seen.has(n.id)) {
-                        seen.add(n.id);
-                        showToast(n);
-                    }
-                });
-                persistSeen();
-            }
+            const incoming = (Array.isArray(data.notifications) ? data.notifications : [])
+                .filter(function (n) { return n && n.id; });
+            const eligibleIds = new Set(incoming.map(function (n) { return String(n.id); }));
+
+            // The unread feed is authoritative: drop queued items that were read,
+            // resolved, or otherwise became ineligible since the last poll.
+            queue = queue.filter(function (n) { return eligibleIds.has(String(n.id)) && !shown.has(String(n.id)); });
+            Array.from(queuedIds).forEach(function (id) {
+                if (!eligibleIds.has(id) || shown.has(id)) queuedIds.delete(id);
+            });
+
+            incoming.forEach(function (item) {
+                const id = String(item.id);
+                if (shown.has(id)) return;
+                if (queue.some(function (queued) { return String(queued.id) === id; })) return;
+                queue.push(item);
+                queuedIds.add(id);
+            });
+
+            persist();
+            sortQueue();
+            showNext();
         } catch (error) {
             console.warn('Attendance feed unavailable:', error);
         }

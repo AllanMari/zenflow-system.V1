@@ -301,6 +301,8 @@ class AttendanceReminderService
             [
                 'stage' => $stage,
                 'appointment_id' => $appointment->getKey(),
+                'appointment_date' => $appointment->appointment_date->format('Y-m-d'),
+                'appointment_time' => substr((string) $appointment->start_time, 0, 5),
             ]
         );
 
@@ -364,7 +366,12 @@ class AttendanceReminderService
                     'appointment_id' => $appointment->getKey(),
                     'customer' => $appointment->client_name ?: 'Customer',
                     'time' => $start->format('g:i A'),
+                    'appointment_date' => $start->toDateString(),
+                    'date_label' => $start->format('M j, Y'),
                     'stage' => $latestStage ? $this->stageLabel($latestStage) : 'No reminder sent',
+                    'stage_priority' => match ($latestStage) {
+                        15 => 3, 30 => 2, 60 => 1, default => 0,
+                    },
                     'attendance_state' => $state['state'] ?? 'awaiting',
                     'attendance_label' => match ($state['state'] ?? 'awaiting') {
                         'no_answer' => 'No answer',
@@ -378,6 +385,10 @@ class AttendanceReminderService
                     'action_url' => $this->relativeUrl(route('receptionist.active')) . '#appointment-' . $appointment->getKey(),
                 ];
             })
+            ->sortBy([
+                ['stage_priority', 'desc'],
+                ['appointment_time', 'asc'],
+            ])
             ->values()
             ->all();
     }

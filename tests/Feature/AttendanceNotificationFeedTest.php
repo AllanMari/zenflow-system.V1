@@ -124,21 +124,24 @@ class AttendanceNotificationFeedTest extends TestCase
             ->assertJsonPath('unread_count', 1);
     }
 
-    public function test_receptionist_pages_use_floating_toast_without_action_needed_panel(): void
+    public function test_receptionist_pages_use_queued_floating_toasts_and_persistent_followups(): void
     {
         $content = $this->actingAs($this->receptionist)
             ->get(route('receptionist.active'))
             ->assertOk()
             ->getContent();
 
-        $this->assertStringNotContainsString('id="attendanceActionPanel"', $content);
-        $this->assertStringNotContainsString('Action Needed — Attendance Follow-ups', $content);
+        $this->assertStringContainsString('id="attendanceFollowupPanel"', $content);
+        $this->assertStringContainsString('id="attendanceFollowupList"', $content);
+        $this->assertStringContainsString('Attendance Follow-ups', $content);
+        $this->assertStringContainsString('showNext', $content);
+        $this->assertStringContainsString('stagePriority', $content);
+        $this->assertStringContainsString('zenflow.attendance.state', $content);
+        $this->assertStringContainsString('Swal.isVisible', $content);
         $this->assertStringNotContainsString('renderFollowUps', $content);
-        $this->assertStringContainsString('showToast', $content);
         $this->assertStringContainsString('POLL_MS = 10000', $content);
         $this->assertStringContainsString('setInterval', $content);
         $this->assertStringContainsString('visibilitychange', $content);
-        $this->assertStringContainsString('zenflow.attendance.seen', $content);
         $this->assertStringContainsString('attendance-feed', $content);
     }
 }

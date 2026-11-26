@@ -113,17 +113,17 @@ class NotificationController extends Controller
         $user = Auth::user();
 
         $notifications = $user->unreadNotifications()
+            ->where('data->type', 'attendance')
             ->latest()
-            ->limit(20)
             ->get()
-            ->filter(fn ($notification) => ($notification->data['type'] ?? '') === 'attendance')
-            ->values()
             ->map(fn ($notification) => [
                 'id' => $notification->id,
                 'title' => $notification->data['title'] ?? 'Attendance reminder',
                 'message' => $notification->data['message'] ?? '',
                 'stage' => $notification->data['stage'] ?? null,
                 'appointment_id' => $notification->data['appointment_id'] ?? null,
+                'appointment_date' => $notification->data['appointment_date'] ?? null,
+                'appointment_time' => $notification->data['appointment_time'] ?? null,
                 'action_url' => $notification->data['action_url'] ?? null,
                 'action_text' => $notification->data['action_text'] ?? 'Open Appointment',
                 'time' => $notification->created_at->diffForHumans(),
@@ -157,6 +157,8 @@ class NotificationController extends Controller
                 'message' => $notification->data['message'] ?? '',
                 'stage' => $notification->data['stage'] ?? null,
                 'appointment_id' => $notification->data['appointment_id'] ?? null,
+                'appointment_date' => $notification->data['appointment_date'] ?? null,
+                'appointment_time' => $notification->data['appointment_time'] ?? null,
                 'action_url' => $notification->data['action_url'] ?? null,
                 'action_text' => $notification->data['action_text'] ?? 'Open Appointment',
                 'time' => $notification->created_at->diffForHumans(),

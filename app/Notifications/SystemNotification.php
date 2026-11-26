@@ -29,6 +29,8 @@ class SystemNotification extends Notification
             'action_text' => $this->payload['action_text'] ?? 'View',
             'stage'       => $this->payload['stage']       ?? null,
             'appointment_id' => $this->payload['appointment_id'] ?? null,
+            'appointment_date' => $this->payload['appointment_date'] ?? null,
+            'appointment_time' => $this->payload['appointment_time'] ?? null,
         ];
     }
 }
