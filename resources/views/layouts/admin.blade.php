@@ -147,7 +147,7 @@
             ],
             [
                 'r' => 'admin.appointment-invoice',
-                'l' => 'Appointment Invoice',
+                'l' => 'Invoice Management',
                 'p' => 'admin.appointment-invoice*',
                 'i' => 'M9 12h6m-6 4h6m-6-8h6M5.25 3.75h13.5A2.25 2.25 0 0121 6v12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18V6a2.25 2.25 0 012.25-2.25z',
             ],

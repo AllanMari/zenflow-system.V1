@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Appointment;
 use App\Models\Service;
 use App\Services\ReportPdfService;
 use App\Support\Pdf\PdfLayoutResolver;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AppointmentInvoiceController extends Controller
 {
@@ -146,7 +148,91 @@ class AppointmentInvoiceController extends Controller
             'packageSelections.choiceGroup',
             'packageSelections.selectedService',
             'payments',
+            'birInvoiceRecorder',
         ]);
+    }
+
+    /**
+     * Record or correct the BIR invoice number for a completed appointment.
+     */
+    public function updateBirInvoice(Request $request, Appointment $appointment)
+    {
+        $user = auth()->user();
+        abort_unless(
+            $user && ($user->roles->contains('name', 'admin') || $user->roles->contains('name', 'receptionist')),
+            403,
+            'Unauthorized to record BIR invoice numbers.'
+        );
+
+        abort_unless(
+            $appointment->status === 'completed',
+            404,
+            'BIR invoice number can only be recorded for completed appointments.'
+        );
+
+        $request->validate([
+            'bir_invoice_number' => 'required|string|max:50',
+            'confirm_overwrite' => 'nullable|boolean',
+        ], [
+            'bir_invoice_number.required' => 'Please enter the official BIR invoice serial number.',
+            'bir_invoice_number.max' => 'BIR invoice number must not exceed 50 characters.',
+        ]);
+
+        $birInvoiceNumber = trim((string) $request->input('bir_invoice_number'));
+        if ($birInvoiceNumber === '') {
+            return back()
+                ->withInput()
+                ->withErrors(['bir_invoice_number' => 'Please enter the official BIR invoice serial number.']);
+        }
+
+        return DB::transaction(function () use ($request, $appointment, $birInvoiceNumber, $user) {
+            $lockedAppt = Appointment::lockForUpdate()->findOrFail($appointment->id);
+
+            $previousNumber = $lockedAppt->bir_invoice_number;
+
+            if ($previousNumber !== null && $previousNumber !== $birInvoiceNumber && !$request->boolean('confirm_overwrite')) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['bir_invoice_number' => 'A BIR invoice number (' . $previousNumber . ') is already recorded. Check "Confirm overwrite" to update it.']);
+            }
+
+            if ($previousNumber === $birInvoiceNumber) {
+                return back()->with('info', 'BIR invoice number is unchanged.');
+            }
+
+            $duplicateExists = Appointment::where('bir_invoice_number', $birInvoiceNumber)
+                ->where('id', '!=', $lockedAppt->id)
+                ->exists();
+
+            if ($duplicateExists) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['bir_invoice_number' => 'This BIR invoice number is already assigned to another appointment.']);
+            }
+
+            $lockedAppt->update([
+                'bir_invoice_number' => $birInvoiceNumber,
+                'bir_invoice_recorded_by' => $user->id,
+                'bir_invoice_recorded_at' => now(),
+            ]);
+
+            ActivityLog::create([
+                'user_id' => $user->id,
+                'action' => $previousNumber === null ? 'bir_invoice_recorded' : 'bir_invoice_updated',
+                'entity_type' => Appointment::class,
+                'entity_id' => $lockedAppt->id,
+                'details' => json_encode([
+                    'internal_reference' => '#SPA-' . $lockedAppt->id,
+                    'previous_bir_invoice_number' => $previousNumber,
+                    'bir_invoice_number' => $birInvoiceNumber,
+                    'recorded_during' => 'post_completion',
+                ], JSON_UNESCAPED_UNICODE),
+            ]);
+
+            return back()->with('success', $previousNumber === null
+                ? 'BIR invoice number recorded.'
+                : 'BIR invoice number updated.');
+        });
     }
 
     /**
@@ -295,7 +381,8 @@ class AppointmentInvoiceController extends Controller
             'paymentMethods' => $paymentMethods,
 
             'referenceNumber' => '#SPA-' . $appointment->id,
-            'reportTitle' => 'APPOINTMENT INVOICE',
+            'birInvoiceNumber' => $appointment->bir_invoice_number,
+            'reportTitle' => 'APPOINTMENT AND PAYMENT SUMMARY',
             'dateRange' => null,
             'preparedBy' => auth()->user()?->full_name ?? auth()->user()?->name ?? 'System Administrator',
 
@@ -308,6 +395,6 @@ class AppointmentInvoiceController extends Controller
      */
     protected function invoiceFilename(Appointment $appointment): string
     {
-        return 'appointment-invoice-' . $appointment->id . '.pdf';
+        return 'appointment-payment-summary-' . $appointment->id . '.pdf';
     }
 }

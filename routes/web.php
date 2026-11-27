@@ -148,6 +148,11 @@ Route::middleware(['auth', 'role:receptionist'])->prefix('receptionist')->group(
         [AppointmentInvoiceController::class, 'download']
     )->name('receptionist.invoice.download');
 
+    Route::post(
+        '/appointments/{appointment}/bir-invoice',
+        [AppointmentInvoiceController::class, 'updateBirInvoice']
+    )->name('receptionist.invoice.bir-invoice');
+
     // Customer Management
     Route::get('/customers', [CustomerManagementController::class, 'index'])->name('receptionist.customers.index');
     Route::get('/customers/{customer}', [CustomerManagementController::class, 'show'])->name('receptionist.customers.show');
@@ -334,6 +339,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
         '/appointments/{appointment}/invoice/download',
         [AppointmentInvoiceController::class, 'download']
     )->name('admin.invoice.download');
+
+    Route::post(
+        '/appointments/{appointment}/bir-invoice',
+        [AppointmentInvoiceController::class, 'updateBirInvoice']
+    )->name('admin.invoice.bir-invoice');
 
     Route::post(
         '/pdf-defaults/{reportKey}',

@@ -423,6 +423,7 @@
             <thead>
                 <tr>
                     <th class="tx-num">#</th>
+                    <th class="tx-ref">REF / BIR INVOICE</th>
                     <th class="tx-name">CLIENT NAME</th>
                     <th class="tx-room">ROOM</th>
                     <th class="tx-time">TIME START</th>
@@ -444,6 +445,11 @@
                     <tr class="tx-row" data-status="{{ $row['filterKey'] }}">
                         <td class="tx-num">
                             {{ $row['rowNum'] }}
+                        </td>
+
+                        <td class="tx-ref">
+                            <div class="font-semibold text-gray-900 dark:text-white">{{ $row['internalRef'] ?? '—' }}</div>
+                            <div class="text-[9px] text-gray-500 dark:text-gray-400">BIR: {{ !empty($row['birInvoiceNumber']) ? $row['birInvoiceNumber'] : 'Not Recorded' }}</div>
                         </td>
 
                         <td class="tx-name">
@@ -577,7 +583,7 @@
             <tfoot>
                 <tr class="tx-total-row">
                     <td
-                        colspan="8"
+                        colspan="9"
                         style="text-align:right; padding:6px 8px;"
                     >
                         TOTAL

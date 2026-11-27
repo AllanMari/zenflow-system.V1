@@ -1104,6 +1104,33 @@
 
                     </div>
 
+                    <div>
+
+                        <label for="complete_bir_invoice_number" class="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            BIR Invoice Number (Optional)
+                        </label>
+
+                        <input
+                            id="complete_bir_invoice_number"
+                            type="text"
+                            name="bir_invoice_number"
+                            maxlength="50"
+                            value="{{ old('bir_invoice_number') }}"
+                            placeholder="Enter official invoice serial number"
+                            autocomplete="off"
+                            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
+
+                        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                            Enter the serial number from the actual invoice issued by Spa Alexandria. You may also record it after payment completion.
+                        </p>
+
+                        @error('bir_invoice_number')
+                            <p class="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">{{ $message }}</p>
+                        @enderror
+
+                    </div>
+
                 </div>
 
                 <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-800">

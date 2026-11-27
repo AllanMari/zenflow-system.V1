@@ -660,16 +660,27 @@ class ReceptionistController extends Controller
             'payment_type' => 'required|in:full,completion',
             'discount_type' => 'nullable|in:senior_citizen,pwd',
             'discount_verified' => $request->filled('discount_type') ? 'required|accepted' : 'nullable',
+            'bir_invoice_number' => 'nullable|string|max:50',
         ], [
             'discount_verified.required' => 'Please confirm customer eligibility before applying the discount.',
             'discount_verified.accepted' => 'Please confirm customer eligibility before applying the discount.',
+            'bir_invoice_number.max' => 'BIR invoice number must not exceed 50 characters.',
         ]);
+
+        $rawBirInvoice = trim((string) $request->input('bir_invoice_number', ''));
+        $birInvoiceNumber = $rawBirInvoice !== '' ? $rawBirInvoice : null;
+
+        if ($birInvoiceNumber !== null && Appointment::where('bir_invoice_number', $birInvoiceNumber)->exists()) {
+            return back()
+                ->withInput()
+                ->withErrors(['bir_invoice_number' => 'This BIR invoice number is already assigned to another appointment.']);
+        }
 
         if ($appointment->status === 'completed') {
             return redirect()->route('receptionist.active')->with('info', 'This appointment has already been completed.');
         }
 
-        return DB::transaction(function () use ($request, $appointment) {
+        return DB::transaction(function () use ($request, $appointment, $birInvoiceNumber) {
             $lockedAppt = Appointment::lockForUpdate()->with('services')->findOrFail($appointment->id);
 
             if ($lockedAppt->status === 'completed') {
@@ -731,7 +742,24 @@ class ReceptionistController extends Controller
                 'discount_amount' => $discountAmount,
                 'discount_applied_by' => $discountType ? auth()->id() : null,
                 'discount_applied_at' => $discountType ? now() : null,
+                'bir_invoice_number' => $birInvoiceNumber ?? $lockedAppt->bir_invoice_number,
+                'bir_invoice_recorded_by' => $birInvoiceNumber !== null ? auth()->id() : $lockedAppt->bir_invoice_recorded_by,
+                'bir_invoice_recorded_at' => $birInvoiceNumber !== null ? now() : $lockedAppt->bir_invoice_recorded_at,
             ]);
+
+            if ($birInvoiceNumber !== null) {
+                ActivityLog::create([
+                    'user_id' => auth()->id(),
+                    'action' => 'bir_invoice_recorded',
+                    'entity_type' => Appointment::class,
+                    'entity_id' => $lockedAppt->id,
+                    'details' => json_encode([
+                        'internal_reference' => '#SPA-' . $lockedAppt->id,
+                        'bir_invoice_number' => $birInvoiceNumber,
+                        'recorded_during' => 'completion',
+                    ], JSON_UNESCAPED_UNICODE),
+                ]);
+            }
 
             $this->clearScheduleCache();
             $this->notifyCustomerCompletion($lockedAppt);

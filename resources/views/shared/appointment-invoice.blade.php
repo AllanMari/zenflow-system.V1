@@ -7,8 +7,8 @@
 @section(
     'title',
     empty($appointment)
-        ? 'Appointment Invoices'
-        : 'Appointment Invoice'
+        ? 'Invoice Management'
+        : 'Appointment and Payment Summary'
 )
 
 @section('content')
@@ -31,6 +31,10 @@
     $downloadRoute = $isAdmin
         ? 'admin.invoice.download'
         : 'receptionist.invoice.download';
+
+    $birUpdateRoute = $isAdmin
+        ? 'admin.invoice.bir-invoice'
+        : 'receptionist.invoice.bir-invoice';
 @endphp
 
 
@@ -71,14 +75,14 @@
                            font-bold tracking-tight
                            text-gray-900 dark:text-white"
                 >
-                    Invoices
+                    Invoice Management
                 </h1>
 
                 <p
                     class="mt-1 text-sm
                            text-gray-500 dark:text-gray-400"
                 >
-                    Completed appointments and their individual invoices.
+                    Completed appointments and their individual payment summaries.
                 </p>
 
             </div>
@@ -216,7 +220,7 @@
                             class="text-sm font-bold
                                    text-gray-900 dark:text-white"
                         >
-                            Completed Appointment Invoices
+                            Completed Appointment &amp; Payment Summaries
                         </h2>
 
                         <p
@@ -225,7 +229,7 @@
                                    dark:text-gray-400
                                    mt-0.5"
                         >
-                            Each appointment has its own invoice.
+                            Each completed appointment has its own payment summary.
                         </p>
 
                     </div>
@@ -415,7 +419,16 @@
                                                            dark:text-gray-500
                                                            mt-0.5"
                                                 >
-                                                    Appointment #{{ $invoiceAppointment->id }}
+                                                    Internal Ref &bull; Appointment #{{ $invoiceAppointment->id }}
+                                                </div>
+
+                                                <div
+                                                    class="text-[11px]
+                                                           text-gray-600
+                                                           dark:text-gray-300
+                                                           mt-0.5"
+                                                >
+                                                    BIR Invoice: <span class="font-semibold">{{ $invoiceAppointment->bir_invoice_number ?: 'Not Recorded' }}</span>
                                                 </div>
 
                                             </div>
@@ -564,7 +577,7 @@
                                                     $invoiceViewRoute,
                                                     $invoiceAppointment
                                                 ) }}"
-                                                title="View Invoice"
+                                                title="View Summary"
                                                 class="inline-flex
                                                        items-center
                                                        justify-center
@@ -592,7 +605,7 @@
                                                     $previewRoute,
                                                     $invoiceAppointment
                                                 ) }}"
-                                                onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'appointment_invoice', streamUrl: @js(route($previewRoute, $invoiceAppointment)), downloadUrl: @js(route($downloadRoute, $invoiceAppointment)), downloadFilename: @js('appointment-invoice-SPA-' . $invoiceAppointment->id . '.pdf') }); }"
+                                                onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'appointment_invoice', streamUrl: @js(route($previewRoute, $invoiceAppointment)), downloadUrl: @js(route($downloadRoute, $invoiceAppointment)), downloadFilename: @js('appointment-payment-summary-SPA-' . $invoiceAppointment->id . '.pdf') }); }"
                                                 title="Preview PDF"
                                                 class="inline-flex
                                                        items-center
@@ -694,7 +707,7 @@
                                text-gray-500
                                dark:text-gray-400"
                     >
-                        Completed appointment invoices will appear here.
+                        Completed appointment and payment summaries will appear here.
                     </p>
 
                 </div>
@@ -774,7 +787,7 @@
                         class="w-3.5 h-3.5"
                     ></i>
 
-                    Back to Appointment Invoices
+                    Back to Invoice Management
                 </a>
 
                 <h1
@@ -783,7 +796,7 @@
                            text-gray-900
                            dark:text-white"
                 >
-                    Appointment Invoice
+                    Appointment and Payment Summary
                 </h1>
 
                 <p
@@ -805,7 +818,7 @@
                         $previewRoute,
                         $appointment
                     ) }}"
-                    onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'appointment_invoice', streamUrl: @js(route($previewRoute, $appointment)), downloadUrl: @js(route($downloadRoute, $appointment)), downloadFilename: @js('appointment-invoice-SPA-' . $appointment->id . '.pdf') }); }"
+                    onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'appointment_invoice', streamUrl: @js(route($previewRoute, $appointment)), downloadUrl: @js(route($downloadRoute, $appointment)), downloadFilename: @js('appointment-payment-summary-SPA-' . $appointment->id . '.pdf') }); }"
                     class="inline-flex
                            items-center gap-2
                            px-3.5 py-2.5
@@ -927,7 +940,7 @@
                                    tracking-wider
                                    text-gray-400"
                         >
-                            Appointment Reference
+                            Internal Transaction Reference
                         </div>
 
                         <div
@@ -939,6 +952,60 @@
                         >
                             {{ $referenceNumber }}
                         </div>
+
+                        <div
+                            class="text-[10px]
+                                   font-bold
+                                   uppercase
+                                   tracking-wider
+                                   text-gray-400
+                                   mt-3"
+                        >
+                            BIR Invoice Number
+                        </div>
+
+                        <div
+                            class="text-sm
+                                   font-bold
+                                   {{ !empty($birInvoiceNumber) ? 'text-teal-700 dark:text-teal-400' : 'text-amber-600 dark:text-amber-400' }}
+                                   mt-0.5"
+                        >
+                            {{ !empty($birInvoiceNumber) ? $birInvoiceNumber : 'Not Recorded' }}
+                        </div>
+
+                        <form
+                            method="POST"
+                            action="{{ route($birUpdateRoute, $appointment) }}"
+                            class="mt-3 sm:ml-auto max-w-xs space-y-2 text-left"
+                        >
+                            @csrf
+                            <div class="flex items-center gap-1.5">
+                                <input
+                                    type="text"
+                                    name="bir_invoice_number"
+                                    maxlength="50"
+                                    value="{{ old('bir_invoice_number', $birInvoiceNumber ?? '') }}"
+                                    placeholder="Enter official invoice serial number"
+                                    required
+                                    class="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 py-1.5 text-xs text-gray-900 dark:text-white focus:border-brand-500 focus:ring-brand-500"
+                                >
+                                <button
+                                    type="submit"
+                                    class="shrink-0 rounded-lg bg-brand-600 hover:bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white transition"
+                                >
+                                    {{ !empty($birInvoiceNumber) ? 'Update' : 'Save' }}
+                                </button>
+                            </div>
+                            @if(!empty($birInvoiceNumber))
+                                <label class="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 cursor-pointer">
+                                    <input type="checkbox" name="confirm_overwrite" value="1" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                                    <span>Confirm overwrite of existing serial number</span>
+                                </label>
+                            @endif
+                            @error('bir_invoice_number')
+                                <p class="text-[11px] font-medium text-rose-600 dark:text-rose-400">{{ $message }}</p>
+                            @enderror
+                        </form>
 
                     </div>
 

@@ -33,6 +33,9 @@ class Appointment extends Model
         'confirmed_by',
         'privacy_consented_at',
         'privacy_policy_version',
+        'bir_invoice_number',
+        'bir_invoice_recorded_by',
+        'bir_invoice_recorded_at',
         'cancellation_reason',
         'no_show_reason',
         'refunded_by',
@@ -68,6 +71,8 @@ class Appointment extends Model
         'confirmed_at' => 'datetime',
         'confirmed_by' => 'integer',
         'privacy_consented_at' => 'datetime',
+        'bir_invoice_recorded_by' => 'integer',
+        'bir_invoice_recorded_at' => 'datetime',
         'treatment_notes' => 'encrypted',
         'refunded_by' => 'integer',
         'refund_approved_at' => 'datetime',
@@ -81,6 +86,11 @@ class Appointment extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function birInvoiceRecorder()
+    {
+        return $this->belongsTo(User::class, 'bir_invoice_recorded_by');
     }
 
     /**

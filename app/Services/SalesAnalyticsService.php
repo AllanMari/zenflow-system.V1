@@ -2970,6 +2970,12 @@ private function getNoShowData(
                 'rowNum' =>
                     $rowNum++,
 
+                'internalRef' =>
+                    '#SPA-' . $appt->id,
+
+                'birInvoiceNumber' =>
+                    $appt->bir_invoice_number,
+
                 'customerName' =>
                     $appt->client_name ?: 'Walk-in',
 
