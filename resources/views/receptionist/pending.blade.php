@@ -463,6 +463,8 @@
 
                         @php
                             $requiredStaffCount = max(1, (int) $appointment->services->max('therapists_required'));
+                            $availableStaffCount = $apptStaffMap->where('available', true)->count();
+                            $hasSufficientStaff = $availableStaffCount >= $requiredStaffCount;
                         @endphp
 
                         {{-- Staff Grid --}}
@@ -493,11 +495,28 @@
                                             </svg>
                                             No availability
                                         </span>
+                                    @elseif(!$hasSufficientStaff)
+                                        <span class="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                            </svg>
+                                            Insufficient Staff ({{ $availableStaffCount }}/{{ $requiredStaffCount }} available)
+                                        </span>
                                     @endif
                                 </div>
                             </div>
 
                             @if($hasAvailableStaff)
+                                @if(!$hasSufficientStaff)
+                                    <div class="mb-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 flex items-start gap-2">
+                                        <svg class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <p class="text-xs font-medium text-amber-800 dark:text-amber-200">
+                                            <strong>Insufficient Staff Available:</strong> This booking requires {{ $requiredStaffCount }} therapists, but only {{ $availableStaffCount }} {{ $availableStaffCount === 1 ? 'therapist is' : 'therapists are' }} available for this time slot. Consider rescheduling or adjusting schedules.
+                                        </p>
+                                    </div>
+                                @endif
                                 <div id="staff-grid-{{ $appointment->id }}" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                                     @foreach($allStaff as $staff)
                                         @php

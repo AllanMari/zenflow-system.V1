@@ -520,10 +520,20 @@ trait ScheduleTrait
         $endTime,
         $excludeAppointmentId = null
     ): Collection {
-        $carbonDate = Carbon::parse($date);
+        $tz = config('app.timezone', 'Asia/Manila');
+        $carbonDate = Carbon::parse($date, $tz);
         $dateStr = $carbonDate->toDateString();
         $dayOfWeek = $carbonDate->dayOfWeek;
-        $isToday = $dateStr === now()->toDateString();
+        $isToday = $dateStr === now($tz)->toDateString();
+
+        $occupancy = app(AppointmentOccupancyService::class);
+        $normStart = $this->extractTime($startTime) ?? substr((string) $startTime, 0, 5);
+        $normEnd = $this->extractTime($endTime) ?? substr((string) $endTime, 0, 5);
+        $reqStart = Carbon::parse("{$dateStr} {$normStart}", $tz);
+        $reqEnd = Carbon::parse("{$dateStr} {$normEnd}", $tz);
+        if ($reqEnd->lessThanOrEqualTo($reqStart)) {
+            $reqEnd->addDay();
+        }
 
         // A version prefix lets clearScheduleCache() invalidate all cached
         // availability results without flushing unrelated cache entries.
@@ -531,7 +541,7 @@ trait ScheduleTrait
         $cacheKey =
             'avail:v' . $version . ':'
             . md5(
-                "{$dateStr}|{$startTime}|{$endTime}|"
+                "{$dateStr}|{$reqStart->format('H:i:s')}|{$reqEnd->format('H:i:s')}|"
                 . ($excludeAppointmentId ?? '0')
             );
 
@@ -544,6 +554,9 @@ trait ScheduleTrait
                 $isToday,
                 $startTime,
                 $endTime,
+                $reqStart,
+                $reqEnd,
+                $occupancy,
                 $excludeAppointmentId
             ) {
                 $allStaff = User::whereHas(
@@ -603,7 +616,7 @@ trait ScheduleTrait
                 }
 
                 $conflicts = $staffIds->filter(
-                    fn ($staffId) => app(AppointmentOccupancyService::class)->hasStaffConflict(
+                    fn ($staffId) => $occupancy->hasStaffConflict(
                         (int) $staffId,
                         $dateStr,
                         $startTime,
@@ -615,9 +628,10 @@ trait ScheduleTrait
                 return $allStaff
                     ->map(
                         function ($staff) use (
+                            $dateStr,
                             $dayOfWeek,
-                            $startTime,
-                            $endTime,
+                            $reqStart,
+                            $reqEnd,
                             $exceptions,
                             $attendanceBlockers,
                             $isToday,
@@ -694,6 +708,10 @@ trait ScheduleTrait
                              * Custom hours are an override.
                              * If one exists, use it instead of the
                              * recurring schedule for availability.
+                             * Compare actual appointment start/end Carbon
+                             * instances (the 5-minute preparation buffer
+                             * applies only to appointment occupancy conflicts,
+                             * not to the therapist's shift-end boundary).
                              */
                             if (
                                 $exception
@@ -709,11 +727,17 @@ trait ScheduleTrait
                                         $exception->end_time
                                     );
 
+                                $exStartDt = $exStart ? Carbon::parse("{$dateStr} {$exStart}", $reqStart->getTimezone()) : null;
+                                $exEndDt = $exEnd ? Carbon::parse("{$dateStr} {$exEnd}", $reqStart->getTimezone()) : null;
+                                if ($exStartDt && $exEndDt && $exEndDt->lessThanOrEqualTo($exStartDt)) {
+                                    $exEndDt->addDay();
+                                }
+
                                 if (
-                                    !$exStart
-                                    || !$exEnd
-                                    || $startTime < $exStart
-                                    || $endTime > $exEnd
+                                    !$exStartDt
+                                    || !$exEndDt
+                                    || $reqStart->lt($exStartDt)
+                                    || $reqEnd->gt($exEndDt)
                                 ) {
                                     return [
                                         'user' => $staff,
@@ -730,26 +754,34 @@ trait ScheduleTrait
                                             "{$exStart}-{$exEnd}",
                                     ];
                                 }
-                            } elseif (
-                                !$schStart
-                                || !$schEnd
-                                || $startTime < $schStart
-                                || $endTime > $schEnd
-                            ) {
-                                return [
-                                    'user' => $staff,
-                                    'available' => false,
-                                    'status' => 'outside_hours',
+                            } else {
+                                $schStartDt = $schStart ? Carbon::parse("{$dateStr} {$schStart}", $reqStart->getTimezone()) : null;
+                                $schEndDt = $schEnd ? Carbon::parse("{$dateStr} {$schEnd}", $reqStart->getTimezone()) : null;
+                                if ($schStartDt && $schEndDt && $schEndDt->lessThanOrEqualTo($schStartDt)) {
+                                    $schEndDt->addDay();
+                                }
 
-                                    'status_label' =>
-                                        'Outside Hours',
+                                if (
+                                    !$schStartDt
+                                    || !$schEndDt
+                                    || $reqStart->lt($schStartDt)
+                                    || $reqEnd->gt($schEndDt)
+                                ) {
+                                    return [
+                                        'user' => $staff,
+                                        'available' => false,
+                                        'status' => 'outside_hours',
 
-                                    'reason' =>
-                                        "Schedule: {$schStart}-{$schEnd}",
+                                        'status_label' =>
+                                            'Outside Hours',
 
-                                    'hours' =>
-                                        "{$schStart}-{$schEnd}",
-                                ];
+                                        'reason' =>
+                                            "Schedule: {$schStart}-{$schEnd}",
+
+                                        'hours' =>
+                                            "{$schStart}-{$schEnd}",
+                                    ];
+                                }
                             }
 
                             if (
