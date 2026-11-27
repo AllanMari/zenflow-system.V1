@@ -94,10 +94,11 @@ class TherapistAssignmentService
             ];
         }
 
-        $carbonDate = Carbon::parse($date);
+        $tz = 'Asia/Manila';
+        $carbonDate = Carbon::parse($date, $tz);
         $dateStr = $carbonDate->toDateString();
         $dayOfWeek = $carbonDate->dayOfWeek;
-        $isToday = $dateStr === Carbon::today('Asia/Manila')->toDateString();
+        $isToday = $dateStr === Carbon::today($tz)->toDateString();
 
         $startStr = substr($startTime, 0, 5);
         $endStr = substr($endTime, 0, 5);
@@ -106,12 +107,15 @@ class TherapistAssignmentService
         $startSeconds = strlen($startTime) === 5 ? $startTime . ':00' : $startTime;
         $endSeconds = strlen($endTime) === 5 ? $endTime . ':00' : $endTime;
 
-        // The therapist stays occupied for the whole preparation interval after
-        // treatment. Shift checks must therefore include that interval; the
-        // stored end time itself is never changed.
-        $resourceEndStr = Carbon::parse($dateStr . ' ' . $endSeconds)
-            ->addMinutes(AppointmentOccupancyService::PREPARATION_MINUTES)
-            ->format('H:i');
+        // Compare actual appointment start/end Carbon instances against the
+        // therapist's shift window. The 5-minute preparation buffer applies
+        // to appointment occupancy conflicts (step 6), not to extending the
+        // therapist's required shift end boundary.
+        $reqStart = Carbon::parse("{$dateStr} {$startStr}", $tz);
+        $reqEnd = Carbon::parse("{$dateStr} {$endStr}", $tz);
+        if ($reqEnd->lessThanOrEqualTo($reqStart)) {
+            $reqEnd->addDay();
+        }
 
         // 3. Check individual ScheduleException for this date
         $exception = $user->scheduleExceptions()
@@ -129,10 +133,25 @@ class TherapistAssignmentService
 
         // 4. Custom hours exception override (applies even if no recurring WorkSchedule exists)
         if ($exception && $exception->type === 'custom_hours') {
-            $exStart = substr($exception->start_time, 0, 5);
-            $exEnd = substr($exception->end_time, 0, 5);
+            $exStart = substr((string) $exception->start_time, 0, 5);
+            $exEnd = substr((string) $exception->end_time, 0, 5);
 
-            if ($startStr < $exStart || $resourceEndStr > $exEnd) {
+            $exStartDt = $exStart ? Carbon::parse("{$dateStr} {$exStart}", $tz) : null;
+            $exEndDt = $exEnd ? Carbon::parse("{$dateStr} {$exEnd}", $tz) : null;
+
+            if (!$exStartDt || !$exEndDt || $exEndDt->equalTo($exStartDt)) {
+                return [
+                    'available' => false,
+                    'status' => 'outside_hours',
+                    'reason' => "Therapist {$user->full_name} has invalid or unscheduled custom hours ({$exStart}-{$exEnd}) on this date.",
+                ];
+            }
+
+            if ($exEndDt->lessThan($exStartDt)) {
+                $exEndDt->addDay();
+            }
+
+            if ($reqStart->lt($exStartDt) || $reqEnd->gt($exEndDt)) {
                 return [
                     'available' => false,
                     'status' => 'outside_hours',
@@ -151,14 +170,29 @@ class TherapistAssignmentService
                 ];
             }
 
-            $schStart = substr($schedule->start_time, 0, 5);
-            $schEnd = substr($schedule->end_time, 0, 5);
+            $schStart = substr((string) $schedule->start_time, 0, 5);
+            $schEnd = substr((string) $schedule->end_time, 0, 5);
 
-            if ($startStr < $schStart || $resourceEndStr > $schEnd) {
+            $schStartDt = $schStart ? Carbon::parse("{$dateStr} {$schStart}", $tz) : null;
+            $schEndDt = $schEnd ? Carbon::parse("{$dateStr} {$schEnd}", $tz) : null;
+
+            if (!$schStartDt || !$schEndDt || $schEndDt->equalTo($schStartDt)) {
                 return [
                     'available' => false,
                     'status' => 'outside_hours',
-                    'reason' => "Appointment time ({$startStr}-{$resourceEndStr}, including preparation) falls outside {$user->full_name}'s scheduled shift ({$schStart}-{$schEnd}).",
+                    'reason' => "Therapist {$user->full_name} has no valid scheduled hours ({$schStart}-{$schEnd}) on this date.",
+                ];
+            }
+
+            if ($schEndDt->lessThan($schStartDt)) {
+                $schEndDt->addDay();
+            }
+
+            if ($reqStart->lt($schStartDt) || $reqEnd->gt($schEndDt)) {
+                return [
+                    'available' => false,
+                    'status' => 'outside_hours',
+                    'reason' => "Appointment time ({$startStr}-{$endStr}) falls outside {$user->full_name}'s scheduled shift ({$schStart}-{$schEnd}).",
                 ];
             }
         }

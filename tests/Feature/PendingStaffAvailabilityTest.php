@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Appointment;
+use App\Models\BusinessException;
 use App\Models\Customer;
 use App\Models\Role;
 use App\Models\ScheduleException;
@@ -222,5 +223,170 @@ class PendingStaffAvailabilityTest extends TestCase
         $avail = $res->viewData('staffAvailability')[$appt->id];
         $this->assertTrue($avail[$staff1->id]['available']);
         $this->assertFalse($avail[$staff2->id]['available']);
+    }
+
+    public function test_weekly_day_off_and_missing_schedule_overridden_by_custom_hours_in_both_interfaces(): void
+    {
+        $future = Carbon::now('Asia/Manila')->addDays(2);
+        $staffRole = Role::firstOrCreate(['name' => 'staff']);
+
+        // Staff A: recurring WorkSchedule is marked is_day_off = true, overridden by custom_hours
+        $staffDayOff = User::factory()->create(['is_active' => true]);
+        $staffDayOff->roles()->attach($staffRole);
+        WorkSchedule::create([
+            'user_id' => $staffDayOff->id,
+            'day_of_week' => $future->dayOfWeek,
+            'start_time' => '09:00:00',
+            'end_time' => '18:00:00',
+            'is_day_off' => true,
+        ]);
+        ScheduleException::create([
+            'user_id' => $staffDayOff->id,
+            'exception_date' => $future->toDateString(),
+            'type' => 'custom_hours',
+            'start_time' => '10:00:00',
+            'end_time' => '16:00:00',
+        ]);
+
+        // Staff B: no WorkSchedule row at all, overridden by custom_hours
+        $staffMissing = User::factory()->create(['is_active' => true]);
+        $staffMissing->roles()->attach($staffRole);
+        ScheduleException::create([
+            'user_id' => $staffMissing->id,
+            'exception_date' => $future->toDateString(),
+            'type' => 'custom_hours',
+            'start_time' => '10:00:00',
+            'end_time' => '16:00:00',
+        ]);
+
+        $appt = $this->makePendingAppointment($future, '15:00:00', '16:00:00');
+        $serviceId = $appt->services->first()->id;
+
+        // 1. Booking Wizard API
+        $wizardRes = $this->getJson(route('api.booking.preferred-therapists', [
+            'date' => $future->toDateString(),
+            'start_time' => '15:00',
+            'services' => [$serviceId],
+        ]));
+        $wizardRes->assertOk();
+        $wizardMap = collect($wizardRes->json('therapists'))->keyBy('id');
+        $this->assertSame('available', $wizardMap[$staffDayOff->id]['status']);
+        $this->assertSame('available', $wizardMap[$staffMissing->id]['status']);
+
+        // 2. Receptionist Pending Bookings
+        $pendingRes = $this->actingAs($this->receptionist)->get(route('receptionist.pending'));
+        $pendingRes->assertOk();
+        $avail = $pendingRes->viewData('staffAvailability')[$appt->id];
+        $this->assertTrue($avail[$staffDayOff->id]['available']);
+        $this->assertSame('10:00-16:00', $avail[$staffDayOff->id]['hours']);
+        $this->assertTrue($avail[$staffMissing->id]['available']);
+        $this->assertSame('10:00-16:00', $avail[$staffMissing->id]['hours']);
+    }
+
+    public function test_explicit_date_specific_day_off_still_blocks_both_interfaces(): void
+    {
+        $future = Carbon::now('Asia/Manila')->addDays(2);
+        $staff = $this->makeStaff($future->dayOfWeek, '09:00:00', '18:00:00');
+
+        ScheduleException::create([
+            'user_id' => $staff->id,
+            'exception_date' => $future->toDateString(),
+            'type' => 'day_off',
+            'reason' => 'Approved day off',
+        ]);
+
+        $appt = $this->makePendingAppointment($future, '10:00:00', '11:00:00');
+        $serviceId = $appt->services->first()->id;
+
+        $wizardMap = collect($this->getJson(route('api.booking.preferred-therapists', [
+            'date' => $future->toDateString(),
+            'start_time' => '10:00',
+            'services' => [$serviceId],
+        ]))->json('therapists'))->keyBy('id');
+        $this->assertSame('day_off', $wizardMap[$staff->id]['status']);
+
+        $pendingRes = $this->actingAs($this->receptionist)->get(route('receptionist.pending'));
+        $avail = $pendingRes->viewData('staffAvailability')[$appt->id];
+        $this->assertFalse($avail[$staff->id]['available']);
+        $this->assertSame('blocked', $avail[$staff->id]['status']);
+    }
+
+    public function test_zero_length_schedule_is_unavailable_in_both_interfaces(): void
+    {
+        $future = Carbon::now('Asia/Manila')->addDays(2);
+        $staff = $this->makeStaff($future->dayOfWeek, '00:00:00', '00:00:00');
+        $appt = $this->makePendingAppointment($future, '10:00:00', '11:00:00');
+        $serviceId = $appt->services->first()->id;
+
+        $wizardMap = collect($this->getJson(route('api.booking.preferred-therapists', [
+            'date' => $future->toDateString(),
+            'start_time' => '10:00',
+            'services' => [$serviceId],
+        ]))->json('therapists'))->keyBy('id');
+        $this->assertNotSame('available', $wizardMap[$staff->id]['status']);
+
+        $pendingRes = $this->actingAs($this->receptionist)->get(route('receptionist.pending'));
+        $avail = $pendingRes->viewData('staffAvailability')[$appt->id];
+        $this->assertFalse($avail[$staff->id]['available']);
+        $this->assertSame('Outside Hours', $avail[$staff->id]['status_label']);
+    }
+
+    public function test_legitimate_overnight_shift_and_exact_shift_end_are_available_in_both_interfaces(): void
+    {
+        $future = Carbon::now('Asia/Manila')->addDays(2);
+        $overnightStaff = $this->makeStaff($future->dayOfWeek, '22:00:00', '06:00:00');
+        $dayStaff = $this->makeStaff($future->dayOfWeek, '09:00:00', '20:00:00');
+
+        // Overnight appointment 23:00 - 00:00 (within 22:00-06:00)
+        $overnightAppt = $this->makePendingAppointment($future, '23:00:00', '00:00:00');
+        $serviceId = $overnightAppt->services->first()->id;
+
+        $wizardOvernight = collect($this->getJson(route('api.booking.preferred-therapists', [
+            'date' => $future->toDateString(),
+            'start_time' => '23:00',
+            'services' => [$serviceId],
+        ]))->json('therapists'))->keyBy('id');
+        $this->assertSame('available', $wizardOvernight[$overnightStaff->id]['status']);
+
+        // Exact shift-end appointment 19:00 - 20:00 (dayStaff shift ends at 20:00)
+        $exactEndAppt = $this->makePendingAppointment($future, '19:00:00', '20:00:00');
+        $wizardExact = collect($this->getJson(route('api.booking.preferred-therapists', [
+            'date' => $future->toDateString(),
+            'start_time' => '19:00',
+            'services' => [$serviceId],
+        ]))->json('therapists'))->keyBy('id');
+        $this->assertSame('available', $wizardExact[$dayStaff->id]['status']);
+
+        $pendingRes = $this->actingAs($this->receptionist)->get(route('receptionist.pending'));
+        $pendingAvail = $pendingRes->viewData('staffAvailability');
+        $this->assertTrue($pendingAvail[$overnightAppt->id][$overnightStaff->id]['available']);
+        $this->assertTrue($pendingAvail[$exactEndAppt->id][$dayStaff->id]['available']);
+    }
+
+    public function test_business_closure_marks_staff_unavailable_in_both_interfaces(): void
+    {
+        $future = Carbon::now('Asia/Manila')->addDays(2);
+        $staff = $this->makeStaff($future->dayOfWeek, '09:00:00', '18:00:00');
+        BusinessException::create([
+            'date' => $future->toDateString(),
+            'title' => 'Company Holiday',
+            'type' => 'holiday',
+            'is_closed' => true,
+        ]);
+
+        $appt = $this->makePendingAppointment($future, '10:00:00', '11:00:00');
+        $serviceId = $appt->services->first()->id;
+
+        $wizardMap = collect($this->getJson(route('api.booking.preferred-therapists', [
+            'date' => $future->toDateString(),
+            'start_time' => '10:00',
+            'services' => [$serviceId],
+        ]))->json('therapists'))->keyBy('id');
+        $this->assertSame('not_scheduled', $wizardMap[$staff->id]['status']);
+
+        $pendingRes = $this->actingAs($this->receptionist)->get(route('receptionist.pending'));
+        $avail = $pendingRes->viewData('staffAvailability')[$appt->id];
+        $this->assertFalse($avail[$staff->id]['available']);
+        $this->assertSame('Spa Closed', $avail[$staff->id]['status_label']);
     }
 }

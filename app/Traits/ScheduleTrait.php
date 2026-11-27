@@ -578,6 +578,19 @@ trait ScheduleTrait
                     return collect();
                 }
 
+                $bizWindow = \App\Services\BusinessScheduleService::getOperatingWindow($dateStr);
+                if (!($bizWindow['is_open'] ?? true)) {
+                    $closedReason = $bizWindow['reason'] ?? 'Spa Closed';
+                    return $allStaff->map(fn ($staff) => [
+                        'user' => $staff,
+                        'available' => false,
+                        'status' => 'blocked',
+                        'status_label' => 'Spa Closed',
+                        'reason' => $closedReason,
+                        'hours' => null,
+                    ])->values();
+                }
+
                 $staffIds = $allStaff->pluck('id');
 
                 $exceptions = ScheduleException::whereIn(
@@ -676,42 +689,15 @@ trait ScheduleTrait
                                 ];
                             }
 
-                            $schedule =
-                                $staff->workSchedules
-                                    ->first();
-
-                            if (
-                                !$schedule
-                                || $schedule->is_day_off
-                            ) {
-                                return [
-                                    'user' => $staff,
-                                    'available' => false,
-                                    'status' => 'off',
-                                    'status_label' => 'Day Off',
-                                    'reason' => null,
-                                    'hours' => null,
-                                ];
-                            }
-
-                            $schStart =
-                                $this->extractTime(
-                                    $schedule->start_time
-                                );
-
-                            $schEnd =
-                                $this->extractTime(
-                                    $schedule->end_time
-                                );
-
                             /*
-                             * Custom hours are an override.
-                             * If one exists, use it instead of the
-                             * recurring schedule for availability.
-                             * Compare actual appointment start/end Carbon
-                             * instances (the 5-minute preparation buffer
-                             * applies only to appointment occupancy conflicts,
-                             * not to the therapist's shift-end boundary).
+                             * Custom hours are an override and must be evaluated
+                             * before the recurring WorkSchedule (applies even when
+                             * the recurring schedule is marked is_day_off or missing).
+                             * Compare actual appointment start/end Carbon instances
+                             * (the 5-minute preparation buffer applies only to
+                             * occupancy conflicts, not to the shift-end boundary).
+                             * Zero-length schedules (start === end, e.g. 00:00-00:00)
+                             * are invalid/unscheduled, never 24-hour shifts.
                              */
                             if (
                                 $exception
@@ -729,59 +715,99 @@ trait ScheduleTrait
 
                                 $exStartDt = $exStart ? Carbon::parse("{$dateStr} {$exStart}", $reqStart->getTimezone()) : null;
                                 $exEndDt = $exEnd ? Carbon::parse("{$dateStr} {$exEnd}", $reqStart->getTimezone()) : null;
-                                if ($exStartDt && $exEndDt && $exEndDt->lessThanOrEqualTo($exStartDt)) {
+
+                                if (!$exStartDt || !$exEndDt || $exEndDt->equalTo($exStartDt)) {
+                                    return [
+                                        'user' => $staff,
+                                        'available' => false,
+                                        'status' => 'custom_hours',
+                                        'status_label' => 'Custom Hours',
+                                        'reason' => ($exStart && $exEnd) ? "Custom: {$exStart}-{$exEnd}" : null,
+                                        'hours' => ($exStart && $exEnd) ? "{$exStart}-{$exEnd}" : null,
+                                    ];
+                                }
+
+                                if ($exEndDt->lessThan($exStartDt)) {
                                     $exEndDt->addDay();
                                 }
 
                                 if (
-                                    !$exStartDt
-                                    || !$exEndDt
-                                    || $reqStart->lt($exStartDt)
+                                    $reqStart->lt($exStartDt)
                                     || $reqEnd->gt($exEndDt)
                                 ) {
                                     return [
                                         'user' => $staff,
                                         'available' => false,
                                         'status' => 'custom_hours',
-
-                                        'status_label' =>
-                                            'Custom Hours',
-
-                                        'reason' =>
-                                            "Custom: {$exStart}-{$exEnd}",
-
-                                        'hours' =>
-                                            "{$exStart}-{$exEnd}",
+                                        'status_label' => 'Custom Hours',
+                                        'reason' => "Custom: {$exStart}-{$exEnd}",
+                                        'hours' => "{$exStart}-{$exEnd}",
                                     ];
                                 }
+
+                                $effectiveHours = "{$exStart}-{$exEnd}";
                             } else {
+                                $schedule =
+                                    $staff->workSchedules
+                                        ->first();
+
+                                if (
+                                    !$schedule
+                                    || $schedule->is_day_off
+                                ) {
+                                    return [
+                                        'user' => $staff,
+                                        'available' => false,
+                                        'status' => 'off',
+                                        'status_label' => 'Day Off',
+                                        'reason' => null,
+                                        'hours' => null,
+                                    ];
+                                }
+
+                                $schStart =
+                                    $this->extractTime(
+                                        $schedule->start_time
+                                    );
+
+                                $schEnd =
+                                    $this->extractTime(
+                                        $schedule->end_time
+                                    );
+
                                 $schStartDt = $schStart ? Carbon::parse("{$dateStr} {$schStart}", $reqStart->getTimezone()) : null;
                                 $schEndDt = $schEnd ? Carbon::parse("{$dateStr} {$schEnd}", $reqStart->getTimezone()) : null;
-                                if ($schStartDt && $schEndDt && $schEndDt->lessThanOrEqualTo($schStartDt)) {
+
+                                if (!$schStartDt || !$schEndDt || $schEndDt->equalTo($schStartDt)) {
+                                    return [
+                                        'user' => $staff,
+                                        'available' => false,
+                                        'status' => 'outside_hours',
+                                        'status_label' => 'Outside Hours',
+                                        'reason' => ($schStart && $schEnd) ? "Schedule: {$schStart}-{$schEnd}" : null,
+                                        'hours' => ($schStart && $schEnd) ? "{$schStart}-{$schEnd}" : null,
+                                    ];
+                                }
+
+                                if ($schEndDt->lessThan($schStartDt)) {
                                     $schEndDt->addDay();
                                 }
 
                                 if (
-                                    !$schStartDt
-                                    || !$schEndDt
-                                    || $reqStart->lt($schStartDt)
+                                    $reqStart->lt($schStartDt)
                                     || $reqEnd->gt($schEndDt)
                                 ) {
                                     return [
                                         'user' => $staff,
                                         'available' => false,
                                         'status' => 'outside_hours',
-
-                                        'status_label' =>
-                                            'Outside Hours',
-
-                                        'reason' =>
-                                            "Schedule: {$schStart}-{$schEnd}",
-
-                                        'hours' =>
-                                            "{$schStart}-{$schEnd}",
+                                        'status_label' => 'Outside Hours',
+                                        'reason' => "Schedule: {$schStart}-{$schEnd}",
+                                        'hours' => "{$schStart}-{$schEnd}",
                                     ];
                                 }
+
+                                $effectiveHours = "{$schStart}-{$schEnd}";
                             }
 
                             if (
@@ -794,23 +820,9 @@ trait ScheduleTrait
                                     'user' => $staff,
                                     'available' => false,
                                     'status' => 'attendance',
-
-                                    'status_label' =>
-                                        'Absent/Leave',
-
+                                    'status_label' => 'Absent/Leave',
                                     'reason' => null,
-
-                                    'hours' =>
-                                        $exception
-                                        && $exception->type === 'custom_hours'
-                                            ? $this->extractTime(
-                                                $exception->start_time
-                                            )
-                                            . '-'
-                                            . $this->extractTime(
-                                                $exception->end_time
-                                            )
-                                            : "{$schStart}-{$schEnd}",
+                                    'hours' => $effectiveHours,
                                 ];
                             }
 
@@ -825,18 +837,7 @@ trait ScheduleTrait
                                     'status' => 'conflict',
                                     'status_label' => 'Double Booked',
                                     'reason' => null,
-
-                                    'hours' =>
-                                        $exception
-                                        && $exception->type === 'custom_hours'
-                                            ? $this->extractTime(
-                                                $exception->start_time
-                                            )
-                                            . '-'
-                                            . $this->extractTime(
-                                                $exception->end_time
-                                            )
-                                            : "{$schStart}-{$schEnd}",
+                                    'hours' => $effectiveHours,
                                 ];
                             }
 
@@ -846,18 +847,7 @@ trait ScheduleTrait
                                 'status' => 'available',
                                 'status_label' => 'Available',
                                 'reason' => null,
-
-                                'hours' =>
-                                    $exception
-                                    && $exception->type === 'custom_hours'
-                                        ? $this->extractTime(
-                                            $exception->start_time
-                                        )
-                                        . '-'
-                                        . $this->extractTime(
-                                            $exception->end_time
-                                        )
-                                        : "{$schStart}-{$schEnd}",
+                                'hours' => $effectiveHours,
                             ];
                         }
                     )
