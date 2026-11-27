@@ -14,6 +14,7 @@ class User extends Authenticatable
         'username',
         'first_name',
         'last_name',
+        'gender',
         'password',
         'can_manage_schedules',
         'can_edit_landing',

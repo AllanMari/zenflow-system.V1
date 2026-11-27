@@ -186,6 +186,8 @@ public function index(Request $request)
 
     public function store(Request $request)
     {
+        $isStaff = $request->input('role') === 'staff';
+
         $validated = $request->validate([
             'username' => ['required', 'string', 'max:255', 'unique:users,username', 'regex:/^\S+$/u'],
             'first_name' => 'required|string|max:255',
@@ -195,11 +197,15 @@ public function index(Request $request)
                 \Illuminate\Validation\Rules\Password::min(8)->mixedCase()->numbers()->symbols(),
             ],
             'role' => 'required|in:admin,receptionist,staff,customer',
+            // Gender is required for staff, not applicable for other roles.
+            'gender' => $isStaff ? 'required|in:male,female' : 'nullable',
         ], [
             'username.regex' => 'The username must not contain spaces.',
             'password.mixed' => 'The password must contain both uppercase and lowercase letters.',
             'password.numbers' => 'The password must contain at least one number.',
             'password.symbols' => 'The password must contain at least one symbol (e.g. !@#$%).',
+            'gender.required' => 'Gender is required for therapist/staff accounts.',
+            'gender.in' => 'Gender must be Male or Female.',
         ]);
 
         $role = Role::where('name', $validated['role'])->first();
@@ -210,12 +216,19 @@ public function index(Request $request)
 
         try {
             $user = DB::transaction(function () use ($validated, $role) {
-                $user = User::create([
-                    'username' => $validated['username'],
+                $createData = [
+                    'username'   => $validated['username'],
                     'first_name' => $validated['first_name'],
-                    'last_name' => $validated['last_name'],
-                    'password' => Hash::make($validated['password']),
-                ]);
+                    'last_name'  => $validated['last_name'],
+                    'password'   => Hash::make($validated['password']),
+                ];
+
+                // Gender is stored only for staff accounts.
+                if ($role->name === 'staff') {
+                    $createData['gender'] = $validated['gender'];
+                }
+
+                $user = User::create($createData);
                 $user->roles()->attach($role->id);
 
                 if ($role->name === 'customer') {
@@ -260,10 +273,12 @@ public function index(Request $request)
                 'unique:users,username,' . $user->id,
                 'regex:/^\S+$/u',
             ],
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'role' => 'required|in:admin,receptionist,staff,customer',
+            'first_name'     => 'required|string|max:255',
+            'last_name'      => 'required|string|max:255',
+            'role'           => 'required|in:admin,receptionist,staff,customer',
             'admin_password' => 'required|string',
+            // Gender: optional on edit — omitting keeps existing value unchanged.
+            'gender'         => 'nullable|in:male,female',
         ];
 
         // Only require a new password when one was entered.
@@ -280,8 +295,9 @@ public function index(Request $request)
 
         try {
             $validated = $request->validate($rules, [
-                'username.regex' => 'The username must not contain spaces.',
+                'username.regex'     => 'The username must not contain spaces.',
                 'password.confirmed' => 'The new password and confirmation password do not match.',
+                'gender.in'          => 'Gender must be Male or Female.',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()->back()
@@ -312,6 +328,19 @@ public function index(Request $request)
                     $updateData['password_changed_at'] = now();
 
                     $user->increment('session_version');
+                }
+
+                /*
+                 * Gender — staff accounts only.
+                 * Only overwrite when a valid value is explicitly submitted.
+                 * Omitting the field (empty string or absent) leaves any
+                 * previously recorded gender unchanged.
+                 */
+                if ($role->name === 'staff') {
+                    $submitted = $request->input('gender');
+                    if (in_array($submitted, ['male', 'female'], true)) {
+                        $updateData['gender'] = $submitted;
+                    }
                 }
 
                 $user->update($updateData);

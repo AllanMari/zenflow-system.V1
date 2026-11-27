@@ -210,6 +210,20 @@ $roleStyles = [
                                         No role
                                     </span>
                                 @endforelse
+
+                                {{-- Gender badge for staff only --}}
+                                @if($primaryRole === 'staff' && $user->gender)
+                                    <span class="inline-flex rounded-lg px-2 py-1 text-[10px] font-semibold capitalize
+                                        {{ $user->gender === 'male'
+                                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+                                            : 'bg-pink-50 text-pink-700 dark:bg-pink-900/20 dark:text-pink-300' }}">
+                                        {{ ucfirst($user->gender) }}
+                                    </span>
+                                @elseif($primaryRole === 'staff')
+                                    <span class="inline-flex rounded-lg px-2 py-1 text-[10px] font-semibold bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                        Not Set
+                                    </span>
+                                @endif
                             </div>
                         </td>
 
@@ -244,7 +258,8 @@ $roleStyles = [
                                         @json($user->username),
                                         @json($user->first_name),
                                         @json($user->last_name),
-                                        @json($primaryRole)
+                                        @json($primaryRole),
+                                        @json($user->gender)
                                     )'
                                     class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-blue-900/20 dark:hover:text-blue-300"
                                 >
@@ -390,6 +405,20 @@ $roleStyles = [
                                     No role
                                 </span>
                             @endforelse
+
+                            {{-- Gender badge for staff only --}}
+                            @if($primaryRole === 'staff' && $user->gender)
+                                <span class="inline-flex rounded-lg px-2 py-1 text-[10px] font-semibold capitalize
+                                    {{ $user->gender === 'male'
+                                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+                                        : 'bg-pink-50 text-pink-700 dark:bg-pink-900/20 dark:text-pink-300' }}">
+                                    {{ ucfirst($user->gender) }}
+                                </span>
+                            @elseif($primaryRole === 'staff')
+                                <span class="inline-flex rounded-lg px-2 py-1 text-[10px] font-semibold bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                    Not Set
+                                </span>
+                            @endif
                         </div>
 
                         <span class="shrink-0 text-[10px] text-gray-400 dark:text-gray-500">
@@ -410,7 +439,8 @@ $roleStyles = [
                         @json($user->username),
                         @json($user->first_name),
                         @json($user->last_name),
-                        @json($primaryRole)
+                        @json($primaryRole),
+                        @json($user->gender)
                     )'
                     class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                 >
@@ -765,6 +795,38 @@ CREATE MODAL
                     @enderror
 
                 </div>
+
+                {{-- Gender (staff only) --}}
+                <div class="sm:col-span-2" id="createGenderWrapper" style="display:none">
+
+                    <label
+                        for="createGender"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Gender <span class="text-red-500">*</span>
+                    </label>
+
+                    <select
+                        name="gender"
+                        id="createGender"
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+                        <option value="">Select Gender</option>
+                        <option value="male" {{ old('gender') === 'male' ? 'selected' : '' }}>Male</option>
+                        <option value="female" {{ old('gender') === 'female' ? 'selected' : '' }}>Female</option>
+                    </select>
+
+                    <p class="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                        Required for Therapist/Staff accounts. Not recorded for other roles.
+                    </p>
+
+                    @error('gender')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
             </div>
         </div>
 
@@ -1055,6 +1117,38 @@ EDIT MODAL
 
                 </div>
 
+                {{-- Gender (staff only) --}}
+                <div class="sm:col-span-2" id="editGenderWrapper" style="display:none">
+
+                    <label
+                        for="editGender"
+                        class="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                    >
+                        Gender
+                    </label>
+
+                    <select
+                        name="gender"
+                        id="editGender"
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+                        <option value="">— Unchanged —</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                    </select>
+
+                    <p class="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                        Leave as "Unchanged" to keep the current gender. Only applies to Staff accounts.
+                    </p>
+
+                    @error('gender')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                </div>
+
                 {{-- Authorization --}}
                 <div class="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/40 dark:bg-red-900/10">
 
@@ -1324,13 +1418,14 @@ SHARED CONFIRMATION MODAL
 
 
 
-    function openEditModal(id, username, firstName, lastName, role) {
+    function openEditModal(id, username, firstName, lastName, role, gender) {
         setUserAction('editForm', id);
 
         const usernameInput = document.getElementById('editUsername');
         const firstNameInput = document.getElementById('editFirstName');
         const lastNameInput = document.getElementById('editLastName');
         const roleInput = document.getElementById('editRole');
+        const genderInput = document.getElementById('editGender');
         const passwordInput = document.getElementById('editPassword');
         const passwordConfirmInput = document.getElementById('editPasswordConfirm');
         const adminPasswordInput = document.getElementById('editAdminPassword');
@@ -1351,6 +1446,11 @@ SHARED CONFIRMATION MODAL
             roleInput.value = role || '';
         }
 
+        if (genderInput) {
+            // Default to empty ("Unchanged") — only set when a known value is passed
+            genderInput.value = (gender === 'male' || gender === 'female') ? gender : '';
+        }
+
         if (passwordInput) {
             passwordInput.value = '';
             passwordInput.type = 'password';
@@ -1366,7 +1466,22 @@ SHARED CONFIRMATION MODAL
             adminPasswordInput.type = 'password';
         }
 
+        // Show/hide gender field based on role
+        toggleEditGenderField(role);
+        if (roleInput) {
+            roleInput.addEventListener('change', function () {
+                toggleEditGenderField(this.value);
+            });
+        }
+
         openModal('editModal', 'editUsername');
+    }
+
+    function toggleEditGenderField(role) {
+        const wrapper = document.getElementById('editGenderWrapper');
+        if (wrapper) {
+            wrapper.style.display = (role === 'staff') ? '' : 'none';
+        }
     }
 
     function openConfirmModal(type, userId, username) {
@@ -1572,6 +1687,31 @@ SHARED CONFIRMATION MODAL
         });
     });
 
+    function toggleCreateGenderField(role) {
+        const wrapper = document.getElementById('createGenderWrapper');
+        const select = document.getElementById('createGender');
+        const isStaff = role === 'staff';
+        if (wrapper) {
+            wrapper.style.display = isStaff ? '' : 'none';
+        }
+        if (select) {
+            select.required = isStaff;
+            if (!isStaff) {
+                select.value = '';
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const createRole = document.getElementById('createRole');
+        if (createRole) {
+            toggleCreateGenderField(createRole.value);
+            createRole.addEventListener('change', function () {
+                toggleCreateGenderField(this.value);
+            });
+        }
+    });
+
     @if(old('form_context') === 'create')
         openModal('createModal', 'createUsername');
     @endif
@@ -1587,7 +1727,8 @@ SHARED CONFIRMATION MODAL
                 @json($editUser->username),
                 @json($editUser->first_name),
                 @json($editUser->last_name),
-                @json($editUser->roles->first()->name ?? '')
+                @json(old('role', $editUser->roles->first()->name ?? '')),
+                @json(old('gender', $editUser->gender))
             );
         @endif
     @elseif(session('edit_user_id'))
@@ -1601,7 +1742,8 @@ SHARED CONFIRMATION MODAL
                 @json($editUser->username),
                 @json($editUser->first_name),
                 @json($editUser->last_name),
-                @json($editUser->roles->first()->name ?? '')
+                @json($editUser->roles->first()->name ?? ''),
+                @json($editUser->gender)
             );
         @endif
     @endif

@@ -1145,36 +1145,46 @@
 
                                                     <div x-show="loadingPreferredTherapists" class="px-2.5 py-2 text-xs text-slate-400">Checking availability…</div>
 
-                                                    <template x-for="t in preferredTherapists" :key="t.id">
-                                                        <label
-                                                            class="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors"
-                                                            :class="t.status === 'available'
-                                                                ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                                                                : 'cursor-not-allowed opacity-60'"
-                                                        >
-                                                            <span class="flex items-center gap-2 min-w-0">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    :value="t.id"
-                                                                    :checked="selectedPreferredStaffIds.includes(t.id)"
-                                                                    :disabled="t.status !== 'available' || (!selectedPreferredStaffIds.includes(t.id) && selectedPreferredStaffIds.length >= requiredTherapistCount)"
-                                                                    @change="togglePreferredTherapist(t)"
-                                                                    class="rounded border-slate-300 text-zen-600 focus:ring-zen-500"
-                                                                >
-                                                                <span class="truncate font-medium text-slate-700 dark:text-slate-200" x-text="t.first_name"></span>
-                                                            </span>
-                                                            <span
-                                                                class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
-                                                                :class="{
-                                                                    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300': t.status === 'available',
-                                                                    'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300': t.status === 'not_scheduled' || t.status === 'day_off',
-                                                                    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300': t.status === 'on_leave',
-                                                                    'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300': t.status === 'occupied'
-                                                                }"
-                                                                x-text="t.label"
-                                                            ></span>
-                                                        </label>
-                                                    </template>
+                                                    <div x-show="!loadingPreferredTherapists" class="space-y-2 pt-1">
+                                                        <template x-for="group in preferredTherapistGroups" :key="group.key">
+                                                            <div class="space-y-1">
+                                                                <p class="px-2.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500" x-text="group.label"></p>
+                                                                <template x-if="group.items.length === 0">
+                                                                    <p class="px-2.5 py-1 text-xs italic text-slate-400 dark:text-slate-500">None available in this category</p>
+                                                                </template>
+                                                                <template x-for="t in group.items" :key="t.id">
+                                                                    <label
+                                                                        class="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors"
+                                                                        :class="t.status === 'available'
+                                                                            ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                                                            : 'cursor-not-allowed opacity-60'"
+                                                                    >
+                                                                        <span class="flex items-center gap-2 min-w-0">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                :value="t.id"
+                                                                                :checked="selectedPreferredStaffIds.includes(t.id)"
+                                                                                :disabled="t.status !== 'available' || (!selectedPreferredStaffIds.includes(t.id) && selectedPreferredStaffIds.length >= requiredTherapistCount)"
+                                                                                @change="togglePreferredTherapist(t)"
+                                                                                class="rounded border-slate-300 text-zen-600 focus:ring-zen-500"
+                                                                            >
+                                                                            <span class="truncate font-medium text-slate-700 dark:text-slate-200" x-text="t.first_name"></span>
+                                                                        </span>
+                                                                        <span
+                                                                            class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                                                            :class="{
+                                                                                'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300': t.status === 'available',
+                                                                                'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300': t.status === 'not_scheduled' || t.status === 'day_off',
+                                                                                'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300': t.status === 'on_leave',
+                                                                                'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300': t.status === 'occupied'
+                                                                            }"
+                                                                            x-text="t.label"
+                                                                        ></span>
+                                                                    </label>
+                                                                </template>
+                                                            </div>
+                                                        </template>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -3431,6 +3441,23 @@
                     }
                     const maxReq = Math.max(...this.selectedServiceObjects.map(s => Number(s.therapists_required || 1)));
                     return Math.max(1, maxReq);
+                },
+
+                get preferredTherapistGroups() {
+                    const male = this.preferredTherapists.filter(t => t.gender === 'male');
+                    const female = this.preferredTherapists.filter(t => t.gender === 'female');
+                    const unspecified = this.preferredTherapists.filter(t => !t.gender);
+
+                    const groups = [
+                        { key: 'male', label: 'Male Therapists', items: male },
+                        { key: 'female', label: 'Female Therapists', items: female },
+                    ];
+
+                    if (unspecified.length > 0) {
+                        groups.push({ key: 'unspecified', label: 'Not Specified', items: unspecified });
+                    }
+
+                    return groups;
                 },
 
                 get preferredTherapistSummary() {

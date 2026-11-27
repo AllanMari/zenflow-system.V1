@@ -208,9 +208,9 @@ class TherapistAssignmentService
 
     /**
      * Customer-safe therapist availability list for a selected date, start time, and duration.
-     * Exposes only id, first_name, sanitized status, and generic label.
+     * Exposes only id, first_name, gender, sanitized status, and generic label.
      *
-     * @return array<int, array{id: int, first_name: string, status: string, label: string}>
+     * @return array<int, array{id: int, first_name: string, gender: string|null, status: string, label: string}>
      */
     public static function customerAvailability(
         string $date,
@@ -230,12 +230,13 @@ class TherapistAssignmentService
         $staffMembers = User::whereHas('roles', fn ($q) => $q->where('name', 'staff'))
             ->where('is_active', true)
             ->orderBy('first_name')
-            ->get(['id', 'first_name', 'is_active']);
+            ->get(['id', 'first_name', 'is_active', 'gender']);
 
         if (!$isBizOpen) {
             return $staffMembers->map(fn (User $u) => [
                 'id' => (int) $u->id,
                 'first_name' => (string) $u->first_name,
+                'gender' => $u->gender ? (string) $u->gender : null,
                 'status' => 'not_scheduled',
                 'label' => 'Not Scheduled',
             ])->values()->all();
@@ -245,11 +246,13 @@ class TherapistAssignmentService
 
         return $staffMembers->map(function (User $u) use ($dateStr, $startStr, $endStr, $dayOfWeek) {
             $check = self::checkTherapistAvailability($u, $dateStr, $startStr, $endStr);
+            $gender = $u->gender ? (string) $u->gender : null;
 
             if ($check['available']) {
                 return [
                     'id' => (int) $u->id,
                     'first_name' => (string) $u->first_name,
+                    'gender' => $gender,
                     'status' => 'available',
                     'label' => 'Available',
                 ];
@@ -297,6 +300,7 @@ class TherapistAssignmentService
             return [
                 'id' => (int) $u->id,
                 'first_name' => (string) $u->first_name,
+                'gender' => $gender,
                 'status' => $status,
                 'label' => $label,
             ];
