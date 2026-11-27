@@ -66,6 +66,25 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
+            {{-- Preview PDF --}}
+            <a href="{{ route('staff.commissions.pdf', array_merge(request()->query(), ['action' => 'stream'])) }}"
+               onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'staff_commissions', streamUrl: @js(route('staff.commissions.pdf', array_merge(request()->query(), ['action' => 'stream']))), downloadUrl: @js(route('staff.commissions.pdf', array_merge(request()->query(), ['action' => 'download']))), downloadFilename: 'staff-commissions.pdf' }); }"
+               class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-teal-600 hover:bg-teal-700 text-white shadow-sm transition">
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                </svg>
+                Preview PDF
+            </a>
+
+            {{-- Download PDF --}}
+            <a href="{{ route('staff.commissions.pdf', array_merge(request()->query(), ['action' => 'download'])) }}"
+               class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 shadow-sm transition">
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                </svg>
+                Download PDF
+            </a>
+
             {{-- Export CSV --}}
             <a href="{{ route('staff.commissions.csv', request()->query()) }}"
                class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition">
@@ -334,6 +353,7 @@
     </div>
 
 </div>
+<x-pdf-preview-modal report-key="staff_commissions" />
 @endsection
 
 @push('scripts')

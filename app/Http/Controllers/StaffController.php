@@ -8,6 +8,8 @@ use App\Models\ScheduleException;
 use App\Models\ShiftTemplate;
 use App\Models\WorkSchedule;
 use App\Services\CsvExportService;
+use App\Services\ReportPdfService;
+use App\Support\Pdf\PdfLayoutResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -600,7 +602,148 @@ class StaffController extends Controller
      */
     public function myCommissions(Request $request)
     {
-        $userId = Auth::id();
+        $user = Auth::user();
+        $report = $this->buildCommissionReportData($request, $user);
+        $rows = $report['rows'];
+
+        $perPage = 15;
+        $currentPage = (int) $request->input('page', 1);
+        $pagedRows = new \Illuminate\Pagination\LengthAwarePaginator(
+            array_slice($rows, ($currentPage - 1) * $perPage, $perPage),
+            count($rows),
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return view('staff.commissions', [
+            'rows' => $pagedRows,
+            'allRows' => $rows,
+            'summary' => $report['summary'],
+            'startDate' => $report['startDate'],
+            'endDate' => $report['endDate'],
+            'rangePreset' => $report['rangePreset'],
+            'dateFrom' => $report['startDate']->toDateString(),
+            'dateTo' => $report['endDate']->toDateString(),
+        ]);
+    }
+
+    /**
+     * Export staff's own commission statement to a clean CSV spreadsheet.
+     */
+    public function exportCommissionCsv(Request $request, CsvExportService $csvService)
+    {
+        $user = Auth::user();
+        $report = $this->buildCommissionReportData($request, $user);
+        $startDate = $report['startDate'];
+        $endDate = $report['endDate'];
+        $summary = $report['summary'];
+
+        $csvRows = [];
+        foreach ($report['rows'] as $row) {
+            $csvRows[] = [
+                '#' . ($row['ref'] ?? $row['id']),
+                $row['date'],
+                $row['time'],
+                $row['service_name'],
+                $row['client_name'],
+                $row['room_name'],
+                $row['assignment_type'],
+                number_format($row['net_amount'], 2, '.', ''),
+                number_format($row['total_pool_commission'], 2, '.', ''),
+                $row['share_percent'] . '%',
+                number_format($row['my_commission'], 2, '.', ''),
+            ];
+        }
+
+        $meta = [
+            ['ZENFLOW SPA', 'THERAPIST COMMISSION STATEMENT'],
+            ['STAFF MEMBER', $user->full_name ?? $user->name],
+            ['PERIOD', $startDate->format('M j, Y') . ' — ' . $endDate->format('M j, Y')],
+            ['TOTAL SESSIONS', count($csvRows)],
+            ['TOTAL NET REVENUE', 'PHP ' . number_format($summary['total_net'], 2)],
+            ['TOTAL COMMISSION (30% SHARE)', 'PHP ' . number_format($summary['total_commission'], 2)],
+            ['GENERATED AT', now('Asia/Manila')->format('F j, Y g:i A')],
+        ];
+
+        $headers = [
+            'Reference #',
+            'Date',
+            'Time',
+            'Service / Package',
+            'Client',
+            'Room',
+            'Team / Assignment',
+            'Net Amount (PHP)',
+            'Total 30% Pool (PHP)',
+            'Your Share %',
+            'Your Commission (PHP)',
+        ];
+
+        $filename = 'commissions-' . strtolower(preg_replace('/[^a-zA-Z0-9_-]/', '', $user->username ?: 'staff')) . '-' . now()->format('Ymd') . '.csv';
+
+        return $csvService->stream($filename, $headers, $csvRows, $meta);
+    }
+
+    /**
+     * Export staff's own commission statement as a formatted PDF using shared PDF infrastructure.
+     */
+    public function exportCommissionPdf(Request $request, ReportPdfService $pdfService)
+    {
+        $user = Auth::user();
+        $report = $this->buildCommissionReportData($request, $user);
+        $startDate = $report['startDate'];
+        $endDate = $report['endDate'];
+
+        $filterLabel = match ($report['rangePreset']) {
+            'today' => 'Today',
+            'this_week' => 'This Week',
+            'this_year' => 'This Year',
+            'custom' => 'Custom Range',
+            default => 'This Month',
+        };
+
+        $staffName = $user->full_name ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: $user->username;
+
+        $pdfData = [
+            'rows' => $report['rows'],
+            'summary' => $report['summary'],
+            'staffName' => $staffName,
+            'filterLabel' => $filterLabel,
+            'reportTitle' => 'THERAPIST COMMISSION STATEMENT',
+            'referenceNumber' => 'COM-' . $user->id . '-' . now('Asia/Manila')->format('YmdHis'),
+            'dateRange' => $startDate->format('M j, Y') . ' — ' . $endDate->format('M j, Y'),
+            'generatedAt' => now('Asia/Manila')->format('F j, Y g:i A'),
+            'preparedBy' => $staffName,
+        ];
+
+        $layout = app(PdfLayoutResolver::class)->resolveFromRequest('staff_commissions', $request);
+        $filename = 'commissions-' . strtolower(preg_replace('/[^a-zA-Z0-9_-]/', '', $user->username ?: 'staff')) . '-' . now('Asia/Manila')->format('Ymd') . '.pdf';
+
+        $action = $request->get('action', 'download');
+
+        return $action === 'stream'
+            ? $pdfService->streamPdf(
+                'reports.staff_commissions_pdf',
+                $pdfData,
+                $filename,
+                $layout->orientation,
+                $layout
+            )
+            : $pdfService->generatePdf(
+                'reports.staff_commissions_pdf',
+                $pdfData,
+                $filename,
+                $layout->orientation,
+                $layout
+            );
+    }
+
+    /**
+     * Shared query and commission calculation for the Staff Commission page, CSV, and PDF exports.
+     */
+    private function buildCommissionReportData(Request $request, \App\Models\User $user): array
+    {
         $dateFilter = $this->resolveCommissionDateFilter($request);
         $startDate = $dateFilter['startDate'];
         $endDate = $dateFilter['endDate'];
@@ -615,7 +758,7 @@ class StaffController extends Controller
             'payments',
             'packageSelections',
         ])
-            ->forStaff($userId)
+            ->forStaff($user->id)
             ->where('status', 'completed')
             ->whereDate('appointment_date', '>=', $startDate->toDateString())
             ->whereDate('appointment_date', '<=', $endDate->toDateString())
@@ -630,7 +773,7 @@ class StaffController extends Controller
         $multiCount = 0;
 
         foreach ($appointments as $appt) {
-            $row = $this->calculateTherapistCommissionRow($appt, $userId);
+            $row = $this->calculateTherapistCommissionRow($appt, $user->id);
             if ($row) {
                 $rows[] = $row;
                 $totalCommissionCents += $row['my_commission_cents'];
@@ -652,108 +795,13 @@ class StaffController extends Controller
             'avg_commission' => count($rows) > 0 ? round(($totalCommissionCents / 100) / count($rows), 2) : 0,
         ];
 
-        $perPage = 15;
-        $currentPage = (int) $request->input('page', 1);
-        $pagedRows = new \Illuminate\Pagination\LengthAwarePaginator(
-            array_slice($rows, ($currentPage - 1) * $perPage, $perPage),
-            count($rows),
-            $perPage,
-            $currentPage,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
-        return view('staff.commissions', [
-            'rows' => $pagedRows,
-            'allRows' => $rows,
+        return [
+            'rows' => $rows,
             'summary' => $summary,
             'startDate' => $startDate,
             'endDate' => $endDate,
             'rangePreset' => $rangePreset,
-            'dateFrom' => $startDate->toDateString(),
-            'dateTo' => $endDate->toDateString(),
-        ]);
-    }
-
-    /**
-     * Export staff's own commission statement to a clean CSV spreadsheet.
-     */
-    public function exportCommissionCsv(Request $request, CsvExportService $csvService)
-    {
-        $user = Auth::user();
-        $dateFilter = $this->resolveCommissionDateFilter($request);
-        $startDate = $dateFilter['startDate'];
-        $endDate = $dateFilter['endDate'];
-
-        $appointments = Appointment::with([
-            'customer',
-            'services',
-            'room',
-            'assignedStaff',
-            'staff',
-            'payments',
-            'packageSelections',
-        ])
-            ->forStaff($user->id)
-            ->where('status', 'completed')
-            ->whereDate('appointment_date', '>=', $startDate->toDateString())
-            ->whereDate('appointment_date', '<=', $endDate->toDateString())
-            ->orderBy('appointment_date', 'desc')
-            ->orderBy('start_time', 'desc')
-            ->get();
-
-        $rows = [];
-        $totalCommission = 0;
-        $totalNet = 0;
-
-        foreach ($appointments as $appt) {
-            $row = $this->calculateTherapistCommissionRow($appt, $user->id);
-            if ($row) {
-                $totalCommission += $row['my_commission'];
-                $totalNet += $row['net_amount'];
-
-                $rows[] = [
-                    '#' . ($row['ref'] ?? $appt->id),
-                    $row['date'],
-                    $row['time'],
-                    $row['service_name'],
-                    $row['client_name'],
-                    $row['room_name'],
-                    $row['assignment_type'],
-                    number_format($row['net_amount'], 2, '.', ''),
-                    number_format($row['total_pool_commission'], 2, '.', ''),
-                    $row['share_percent'] . '%',
-                    number_format($row['my_commission'], 2, '.', ''),
-                ];
-            }
-        }
-
-        $meta = [
-            ['ZENFLOW SPA', 'THERAPIST COMMISSION STATEMENT'],
-            ['STAFF MEMBER', $user->full_name ?? $user->name],
-            ['PERIOD', $startDate->format('M j, Y') . ' — ' . $endDate->format('M j, Y')],
-            ['TOTAL SESSIONS', count($rows)],
-            ['TOTAL NET REVENUE', 'PHP ' . number_format($totalNet, 2)],
-            ['TOTAL COMMISSION (30% SHARE)', 'PHP ' . number_format($totalCommission, 2)],
-            ['GENERATED AT', now('Asia/Manila')->format('F j, Y g:i A')],
         ];
-
-        $headers = [
-            'Reference #',
-            'Date',
-            'Time',
-            'Service / Package',
-            'Client',
-            'Room',
-            'Team / Assignment',
-            'Net Amount (PHP)',
-            'Total 30% Pool (PHP)',
-            'Your Share %',
-            'Your Commission (PHP)',
-        ];
-
-        $filename = 'commissions-' . strtolower(preg_replace('/[^a-zA-Z0-9_-]/', '', $user->username ?: 'staff')) . '-' . now()->format('Ymd') . '.csv';
-
-        return $csvService->stream($filename, $headers, $rows, $meta);
     }
 
     /**

@@ -357,5 +357,10 @@ return [
             'default_preset' => 'wide_report',
             'allowed_presets' => ['wide_report', 'standard_report', 'custom'],
         ],
+        'staff_commissions' => [
+            'label' => 'Staff Commission Statement',
+            'default_preset' => 'wide_report',
+            'allowed_presets' => ['wide_report', 'standard_report', 'custom'],
+        ],
     ],
 ];

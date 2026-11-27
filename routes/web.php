@@ -73,6 +73,7 @@ Route::middleware(['auth', 'role:staff'])->prefix('staff')->name('staff.')->grou
     Route::post('/schedule/update', [StaffController::class, 'updateMySchedule'])->name('schedule.update');
     Route::get('/commissions', [StaffController::class, 'myCommissions'])->name('commissions');
     Route::get('/commissions/export-csv', [StaffController::class, 'exportCommissionCsv'])->name('commissions.csv');
+    Route::get('/commissions/export-pdf', [StaffController::class, 'exportCommissionPdf'])->name('commissions.pdf');
 });
 
 // ==================== RECEPTIONIST ====================

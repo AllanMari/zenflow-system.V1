@@ -379,4 +379,129 @@ class StaffCommissionTest extends TestCase
         $resCustom->assertSee('Session Past Month');
         $resCustom->assertDontSee('Session Today');
     }
+
+    public function test_staff_can_export_commission_pdf_stream_and_download(): void
+    {
+        $today = Carbon::today('Asia/Manila')->toDateString();
+
+        $appt = Appointment::create([
+            'customer_id' => $this->customer->id,
+            'appointment_date' => $today,
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+            'status' => 'completed',
+            'total_price' => 1000.00,
+        ]);
+        $appt->services()->attach($this->serviceSingle->id, ['price_at_booking' => 1000.00]);
+        $appt->syncStaff($this->staffA->id, []);
+
+        $streamRes = $this->actingAs($this->staffA)->get(route('staff.commissions.pdf', [
+            'action' => 'stream',
+            'pdf_paper' => 'letter',
+            'pdf_orientation' => 'portrait',
+            'pdf_fit_to_page' => '1',
+        ]));
+        $streamRes->assertOk();
+        $this->assertStringContainsString('application/pdf', (string) $streamRes->headers->get('Content-Type'));
+        $this->assertStringStartsWith('%PDF-', (string) $streamRes->getContent());
+
+        $downloadRes = $this->actingAs($this->staffA)->get(route('staff.commissions.pdf', [
+            'action' => 'download',
+        ]));
+        $downloadRes->assertOk();
+        $this->assertStringContainsString('attachment;', (string) $downloadRes->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('%PDF-', (string) $downloadRes->getContent());
+    }
+
+    public function test_non_staff_cannot_export_staff_commission_pdf(): void
+    {
+        $recepRole = Role::firstOrCreate(['name' => 'receptionist']);
+        $receptionist = User::factory()->create(['is_active' => true]);
+        $receptionist->roles()->attach($recepRole);
+
+        $custRole = Role::firstOrCreate(['name' => 'customer']);
+        $customerUser = User::factory()->create(['is_active' => true]);
+        $customerUser->roles()->attach($custRole);
+
+        $this->get(route('staff.commissions.pdf'))->assertRedirect(route('login'));
+        $this->actingAs($this->admin)->get(route('staff.commissions.pdf'))->assertForbidden();
+        $this->actingAs($receptionist)->get(route('staff.commissions.pdf'))->assertForbidden();
+        $this->actingAs($customerUser)->get(route('staff.commissions.pdf'))->assertForbidden();
+    }
+
+    public function test_commission_pdf_view_respects_filters_totals_and_staff_isolation(): void
+    {
+        $today = Carbon::today('Asia/Manila')->toDateString();
+        $pastDate = Carbon::today('Asia/Manila')->subMonths(2)->toDateString();
+
+        // Staff A today session (solo 1000 -> 300 commission)
+        $apptA = Appointment::create([
+            'customer_id' => $this->customer->id,
+            'appointment_date' => $today,
+            'start_time' => '09:00:00',
+            'end_time' => '10:00:00',
+            'status' => 'completed',
+            'total_price' => 1000.00,
+            'guest_first_name' => 'Client Alpha',
+        ]);
+        $apptA->services()->attach($this->serviceSingle->id, ['price_at_booking' => 1000.00]);
+        $apptA->syncStaff($this->staffA->id, []);
+
+        // Staff A older session (excluded by today filter)
+        $apptAOld = Appointment::create([
+            'customer_id' => $this->customer->id,
+            'appointment_date' => $pastDate,
+            'start_time' => '11:00:00',
+            'end_time' => '12:00:00',
+            'status' => 'completed',
+            'total_price' => 1500.00,
+            'guest_first_name' => 'Client Old',
+        ]);
+        $apptAOld->services()->attach($this->serviceSingle->id, ['price_at_booking' => 1500.00]);
+        $apptAOld->syncStaff($this->staffA->id, []);
+
+        // Staff B session (must NEVER appear in Staff A's PDF)
+        $apptB = Appointment::create([
+            'customer_id' => $this->customer->id,
+            'appointment_date' => $today,
+            'start_time' => '14:00:00',
+            'end_time' => '15:00:00',
+            'status' => 'completed',
+            'total_price' => 2000.00,
+            'guest_first_name' => 'Secret Client Beta',
+        ]);
+        $apptB->services()->attach($this->serviceSingle->id, ['price_at_booking' => 2000.00]);
+        $apptB->syncStaff($this->staffB->id, []);
+
+        // Spy on ReportPdfService::generatePdf to inspect exact view & $pdfData passed
+        $captured = null;
+        $mock = \Mockery::mock(\App\Services\ReportPdfService::class)->makePartial();
+        $mock->shouldReceive('generatePdf')
+            ->once()
+            ->andReturnUsing(function (string $view, array $data) use (&$captured) {
+                $captured = compact('view', 'data');
+                return response('%PDF-MOCK', 200, ['Content-Type' => 'application/pdf']);
+            });
+        $this->app->instance(\App\Services\ReportPdfService::class, $mock);
+
+        $this->actingAs($this->staffA)
+            ->get(route('staff.commissions.pdf', ['range' => 'today']))
+            ->assertOk();
+
+        $this->assertNotNull($captured);
+        $this->assertSame('reports.staff_commissions_pdf', $captured['view']);
+        $this->assertSame('Today', $captured['data']['filterLabel']);
+        $this->assertCount(1, $captured['data']['rows']);
+        $this->assertSame(1000.0, (float) $captured['data']['summary']['total_net']);
+        $this->assertSame(300.0, (float) $captured['data']['summary']['total_commission']);
+
+        $rendered = view($captured['view'], $captured['data'])->render();
+        $this->assertStringContainsString('THERAPIST COMMISSION STATEMENT', $rendered);
+        $this->assertStringContainsString('Client Alpha', $rendered);
+        $this->assertStringContainsString('PHP 1,000.00', $rendered);
+        $this->assertStringContainsString('30.0%', $rendered);
+        $this->assertStringContainsString('PHP 300.00', $rendered);
+        $this->assertStringNotContainsString('Client Old', $rendered);
+        $this->assertStringNotContainsString('Secret Client Beta', $rendered);
+    }
 }
