@@ -411,6 +411,13 @@
                             </option>
 
                             <option
+                                value="quarterly"
+                                {{ ($period ?? '') === 'quarterly' ? 'selected' : '' }}
+                            >
+                                Quarterly
+                            </option>
+
+                            <option
                                 value="yearly"
                                 {{ ($period ?? '') === 'yearly' ? 'selected' : '' }}
                             >
@@ -1886,6 +1893,66 @@
 
             });
 
+        }
+
+
+
+        /* =========================================================
+           BIR INVOICE SEARCH
+        ========================================================== */
+
+        function searchBirInvoice(e) {
+            e.preventDefault();
+            const input = document.getElementById('birSearchInput');
+            if (!input) return;
+            const url = new URL(window.location.href);
+            const val = input.value.trim();
+            if (val) {
+                url.searchParams.set('bir_search', val);
+            } else {
+                url.searchParams.delete('bir_search');
+            }
+            url.searchParams.delete('page');
+            const endpoint = '{{ route($routeName . ".tx-log") }}';
+            const container = document.getElementById('transactionLog');
+            if (!container) {
+                window.location.href = url.toString();
+                return;
+            }
+            container.style.opacity = '0.45';
+            fetch(`${endpoint}?${url.searchParams.toString()}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' }
+            })
+            .then(r => r.ok ? r.text() : Promise.reject())
+            .then(html => {
+                container.innerHTML = html;
+                container.style.opacity = '1';
+                window.history.replaceState({}, '', url.toString());
+            })
+            .catch(() => { window.location.href = url.toString(); });
+        }
+
+        function clearBirSearch() {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('bir_search');
+            url.searchParams.delete('page');
+            const endpoint = '{{ route($routeName . ".tx-log") }}';
+            const container = document.getElementById('transactionLog');
+            if (!container) {
+                window.location.href = url.toString();
+                return;
+            }
+            container.style.opacity = '0.45';
+            fetch(`${endpoint}?${url.searchParams.toString()}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' }
+            })
+            .then(r => r.ok ? r.text() : Promise.reject())
+            .then(html => {
+                container.innerHTML = html;
+                container.style.opacity = '1';
+                window.history.replaceState({}, '', url.toString());
+            })
+            .catch(() => { window.location.href = url.toString(); });
         }
 
 

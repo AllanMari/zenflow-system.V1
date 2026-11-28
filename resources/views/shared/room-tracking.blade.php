@@ -135,6 +135,10 @@
 
 
 @push('styles')
+<link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css"
+>
 <style>
     [x-cloak] {
         display: none !important;
@@ -207,9 +211,29 @@
     }
 
     .flatpickr-day.selected,
-    .flatpickr-day.selected:hover {
-        background: #0f766e !important;
-        border-color: #0f766e !important;
+    .flatpickr-day.startRange,
+    .flatpickr-day.endRange,
+    .flatpickr-day.selected:hover,
+    .flatpickr-day.startRange:hover,
+    .flatpickr-day.endRange:hover {
+        background: #0d9488 !important;
+        border-color: #0d9488 !important;
+        color: #ffffff !important;
+    }
+
+    .flatpickr-day.inRange {
+        background: #ccfbf1 !important;
+        border-color: #ccfbf1 !important;
+        color: #0f766e !important;
+        box-shadow: -5px 0 0 #ccfbf1, 5px 0 0 #ccfbf1 !important;
+    }
+
+    .dark .flatpickr-day.inRange,
+    .dark .flatpickr-day.inRange:hover {
+        background: rgb(20 184 166 / .2) !important;
+        border-color: transparent !important;
+        color: #5eead4 !important;
+        box-shadow: -5px 0 0 rgb(20 184 166 / .2), 5px 0 0 rgb(20 184 166 / .2) !important;
     }
 
     .flatpickr-day.today {
@@ -244,11 +268,11 @@
         background: #1e293b !important;
     }
 
-    .dark .flatpickr-day {
+    .dark .flatpickr-day:not(.selected):not(.startRange):not(.endRange):not(.inRange) {
         color: #cbd5e1 !important;
     }
 
-    .dark .flatpickr-day:hover {
+    .dark .flatpickr-day:not(.selected):not(.startRange):not(.endRange):not(.inRange):hover {
         background: #334155 !important;
         border-color: #334155 !important;
     }
@@ -265,11 +289,6 @@
         }
     }
 </style>
-
-<link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css"
->
 @endpush
 
 
@@ -2283,6 +2302,184 @@
 
     </section>
 
+    {{-- =========================================================
+         ADMIN: ROOM & RESOURCE UTILIZATION
+    ========================================================== --}}
+    @if ($isAdmin && isset($utilization))
+        @php
+            $uSummary = $utilization['summary'];
+            $uBottlenecks = $utilization['bottlenecks'];
+            $uPeriod = $utilization['period'];
+            $isCustomPeriod = $uPeriod === 'custom';
+            $uRangeValue = $utilization['startDate']->format('Y-m-d') . ' to ' . $utilization['endDate']->format('Y-m-d');
+        @endphp
+
+        <section
+            class="
+                room-tracking-card mb-5 overflow-hidden
+                rounded-3xl border
+                border-gray-200/80 bg-white p-5 sm:p-6 space-y-5
+                dark:border-gray-800/70
+                dark:bg-[#111827]
+            "
+        >
+            <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                <div>
+                    <h2 class="text-base font-extrabold text-gray-900 dark:text-white">
+                        Room &amp; Resource Utilization
+                    </h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {{ $utilization['periodLabel'] }} ({{ $utilization['dateRangeDisplay'] }}) &middot; {{ $uSummary['open_days_count'] }} open operating {{ $uSummary['open_days_count'] === 1 ? 'day' : 'days' }}
+                    </p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <form method="GET" action="{{ route('admin.room-tracking') }}" class="flex flex-wrap items-center gap-2">
+                        @if(request()->filled('date'))
+                            <input type="hidden" name="date" value="{{ request('date') }}">
+                        @endif
+                        <select id="room-utilization-period" name="period"
+                                class="h-10 w-full cursor-pointer rounded-xl border border-gray-200 bg-gray-50 pl-3.5 pr-8 text-xs font-semibold text-gray-700 outline-none transition hover:border-gray-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-200 sm:w-40">
+                            <option value="daily" @selected($uPeriod === 'daily')>Daily</option>
+                            <option value="weekly" @selected($uPeriod === 'weekly')>This Week</option>
+                            <option value="monthly" @selected($uPeriod === 'monthly')>This Month</option>
+                            <option value="yearly" @selected($uPeriod === 'yearly')>This Year</option>
+                            <option value="custom" @selected($uPeriod === 'custom')>Custom Range</option>
+                        </select>
+
+                        <div id="room-utilization-range-wrap" class="relative w-full sm:w-auto {{ $isCustomPeriod ? '' : 'hidden' }}">
+                            <i data-lucide="calendar" class="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-gray-400"></i>
+
+                            <input
+                                id="room-utilization-date-range"
+                                type="text"
+                                value="{{ $uRangeValue }}"
+                                placeholder="Select date range"
+                                autocomplete="off"
+                                readonly
+                                class="h-10 w-full cursor-pointer rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-8 text-xs font-semibold text-gray-700 outline-none transition hover:border-gray-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-200 sm:w-64"
+                            >
+                        </div>
+
+                        <input type="hidden" name="start_date" id="room-utilization-start-date" value="{{ $utilization['startDate']->format('Y-m-d') }}" {{ $isCustomPeriod ? '' : 'disabled' }}>
+                        <input type="hidden" name="end_date" id="room-utilization-end-date" value="{{ $utilization['endDate']->format('Y-m-d') }}" {{ $isCustomPeriod ? '' : 'disabled' }}>
+
+                        <button type="submit" class="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 text-xs font-bold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                            <i data-lucide="filter" class="h-4 w-4"></i>
+                            Apply
+                        </button>
+                    </form>
+
+                    <div class="flex flex-wrap items-center gap-1.5 border-l border-gray-200 dark:border-gray-700 pl-2">
+                        <a href="{{ route('admin.rooms.report-pdf', array_merge(request()->query(), ['action' => 'stream'])) }}"
+                           onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'room_report', streamUrl: @js(route('admin.rooms.report-pdf', array_merge(request()->query(), ['action' => 'stream']))), downloadUrl: @js(route('admin.rooms.report-pdf', array_merge(request()->query(), ['action' => 'download']))), downloadFilename: 'room-utilization-report.pdf' }); }"
+                           class="bg-white text-teal-600 hover:bg-teal-50 dark:bg-gray-800 dark:text-teal-300 px-3 py-2 rounded-xl font-semibold text-xs shadow-sm transition border border-teal-200 dark:border-gray-700">
+                            Preview PDF
+                        </a>
+
+                        <a href="{{ route('admin.rooms.report-pdf', array_merge(request()->query(), ['action' => 'download'])) }}"
+                           class="bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 px-3 py-2 rounded-xl font-semibold text-xs shadow-sm transition border border-gray-200 dark:border-gray-700">
+                            Download PDF
+                        </a>
+
+                        <a href="{{ route('admin.rooms.report-csv', request()->query()) }}"
+                           class="bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 px-3 py-2 rounded-xl font-semibold text-xs shadow-sm transition border border-gray-200 dark:border-gray-700">
+                            Export CSV
+                        </a>
+
+                        <a href="{{ route('admin.rooms.report-xlsx', request()->query()) }}"
+                           class="bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 px-3 py-2 rounded-xl font-semibold text-xs shadow-sm transition border border-gray-200 dark:border-gray-700">
+                            Export XLSX
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Metrics (Dashboard-style KPI Cards) -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-900/40 border border-gray-200/80 dark:border-gray-800">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Completed Occupancy</p>
+                    <p class="text-lg font-extrabold text-gray-900 dark:text-white mt-1">{{ $uSummary['completed_formatted'] }}</p>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ $uSummary['completed_count'] }} completed</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-900/40 border border-gray-200/80 dark:border-gray-800">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Scheduled Occupancy</p>
+                    <p class="text-lg font-extrabold text-teal-700 dark:text-teal-400 mt-1">{{ $uSummary['scheduled_formatted'] }}</p>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ $uSummary['confirmed_count'] }} conf / {{ $uSummary['pending_count'] }} pend</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-900/40 border border-gray-200/80 dark:border-gray-800">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">5-Min Prep Buffer</p>
+                    <p class="text-lg font-extrabold text-gray-900 dark:text-white mt-1">{{ $uSummary['buffer_minutes'] }}m</p>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ $uSummary['buffer_gaps_count'] }} scheduled buffers</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-900/40 border border-gray-200/80 dark:border-gray-800">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Overall Utilization</p>
+                    <p class="text-lg font-extrabold text-gray-900 dark:text-white mt-1">{{ $uSummary['overall_utilization'] !== null ? number_format((float) $uSummary['overall_utilization'], 1) . '%' : 'N/A' }}</p>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">Cap: {{ $uSummary['available_formatted'] }}</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-900/40 border border-gray-200/80 dark:border-gray-800 col-span-2 sm:col-span-1">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Peak Demand</p>
+                    <p class="text-sm font-extrabold text-gray-900 dark:text-white mt-1">{{ $uBottlenecks['peak_day'] ?? '—' }}</p>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ $uBottlenecks['peak_hour'] ? 'Peak slot: ' . $uBottlenecks['peak_hour'] : 'No bookings in period' }}</p>
+                </div>
+            </div>
+
+            <!-- Room-by-Room Breakdown -->
+            <div class="overflow-x-auto border border-gray-200/80 dark:border-gray-800 rounded-2xl">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
+                    <thead class="bg-gray-50 dark:bg-gray-900/60 text-gray-600 dark:text-gray-300 uppercase text-[10px] font-bold">
+                        <tr>
+                            <th class="px-3.5 py-2.5 text-left">Room</th>
+                            <th class="px-3.5 py-2.5 text-left">Status</th>
+                            <th class="px-3.5 py-2.5 text-center">Completed / Reserved</th>
+                            <th class="px-3.5 py-2.5 text-center">Cancelled / NS</th>
+                            <th class="px-3.5 py-2.5 text-right">Completed Occ.</th>
+                            <th class="px-3.5 py-2.5 text-right">Scheduled Occ.</th>
+                            <th class="px-3.5 py-2.5 text-right">Prep Buffer</th>
+                            <th class="px-3.5 py-2.5 text-right">Available Cap.</th>
+                            <th class="px-3.5 py-2.5 text-right">Util %</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        @forelse($utilization['roomRows'] as $uRow)
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                                <td class="px-3.5 py-2.5 font-semibold text-gray-900 dark:text-white">
+                                    {{ $uRow['name'] }}
+                                    <div class="text-[10px] font-normal text-gray-500 dark:text-gray-400">{{ $uRow['categories'] }}</div>
+                                </td>
+                                <td class="px-3.5 py-2.5 text-gray-700 dark:text-gray-300">
+                                    {{ !$uRow['is_active'] ? 'Inactive' : ucfirst($uRow['status']) }}
+                                </td>
+                                <td class="px-3.5 py-2.5 text-center text-gray-700 dark:text-gray-300">
+                                    {{ $uRow['completed_count'] }} / {{ $uRow['confirmed_count'] + $uRow['pending_count'] }}
+                                </td>
+                                <td class="px-3.5 py-2.5 text-center text-gray-500 dark:text-gray-400">
+                                    {{ $uRow['cancelled_no_show_count'] }}
+                                </td>
+                                <td class="px-3.5 py-2.5 text-right text-gray-700 dark:text-gray-300">{{ $uRow['completed_formatted'] }}</td>
+                                <td class="px-3.5 py-2.5 text-right font-semibold text-teal-700 dark:text-teal-400">{{ $uRow['scheduled_formatted'] }}</td>
+                                <td class="px-3.5 py-2.5 text-right text-gray-600 dark:text-gray-400">{{ $uRow['buffer_minutes'] }}m ({{ $uRow['buffer_gaps_count'] }})</td>
+                                <td class="px-3.5 py-2.5 text-right text-gray-600 dark:text-gray-400">{{ $uRow['available_formatted'] }}</td>
+                                <td class="px-3.5 py-2.5 text-right font-bold text-gray-900 dark:text-white">
+                                    {{ $uRow['utilization_percent'] !== null ? number_format((float) $uRow['utilization_percent'], 1) . '%' : 'N/A' }}
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="9" class="px-3.5 py-6 text-center text-gray-500 dark:text-gray-400">No rooms configured.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                <strong>Note:</strong> Scheduled occupancy uses appointment start/end times (cancelled, no-show, and expired pending excluded; overlapping intervals merged).
+                The 5-minute preparation buffer is shown separately as scheduled turnaround allowance, not measured cleaning time.
+                Available capacity reflects business operating hours and current active/maintenance room status (historical maintenance windows are not logged).
+            </p>
+        </section>
+    @endif
 
     {{-- =========================================================
          ADMIN: ROOM TRACKING ACCESS
@@ -3142,6 +3339,10 @@
 
 </div>
 
+@if ($isAdmin)
+    <x-pdf-preview-modal report-key="room_report" />
+@endif
+
 @endsection
 
 
@@ -3609,6 +3810,71 @@
 
                 window.lucide.createIcons();
 
+            }
+
+            const uPeriodSelect = document.getElementById('room-utilization-period');
+            const uRangeWrap = document.getElementById('room-utilization-range-wrap');
+            const uDateRangeInput = document.getElementById('room-utilization-date-range');
+            const uStartDateInput = document.getElementById('room-utilization-start-date');
+            const uEndDateInput = document.getElementById('room-utilization-end-date');
+
+            const syncUtilRangeVisibility = function () {
+                const show = uPeriodSelect && uPeriodSelect.value === 'custom';
+                if (uRangeWrap) {
+                    uRangeWrap.classList.toggle('hidden', !show);
+                }
+                if (uStartDateInput) {
+                    uStartDateInput.disabled = !show;
+                }
+                if (uEndDateInput) {
+                    uEndDateInput.disabled = !show;
+                }
+            };
+
+            if (uPeriodSelect) {
+                uPeriodSelect.addEventListener('change', function () {
+                    syncUtilRangeVisibility();
+                    if (this.value !== 'custom' && this.form) {
+                        this.form.submit();
+                    }
+                });
+            }
+
+            syncUtilRangeVisibility();
+
+            function formatUtilFlatpickrDate(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            if (uDateRangeInput && window.flatpickr) {
+                flatpickr(uDateRangeInput, {
+                    mode: 'range',
+                    dateFormat: 'Y-m-d',
+                    altInput: true,
+                    altFormat: 'F j, Y',
+                    allowInput: false,
+                    conjunction: ' to ',
+                    defaultDate: [
+                        uStartDateInput?.value || null,
+                        uEndDateInput?.value || null
+                    ],
+                    onChange: function (selectedDates) {
+                        if (!uStartDateInput || !uEndDateInput) {
+                            return;
+                        }
+                        if (selectedDates.length === 1) {
+                            const single = formatUtilFlatpickrDate(selectedDates[0]);
+                            uStartDateInput.value = single;
+                            uEndDateInput.value = single;
+                        } else if (selectedDates.length >= 2) {
+                            uStartDateInput.value = formatUtilFlatpickrDate(selectedDates[0]);
+                            uEndDateInput.value = formatUtilFlatpickrDate(selectedDates[1]);
+                        }
+                    }
+                });
             }
 
         }

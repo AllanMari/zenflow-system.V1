@@ -16,6 +16,7 @@ class CustomerManagementController extends Controller
     {
         $search = trim((string) $request->get('search', ''));
         $type = (string) $request->get('type', 'all');
+        $accountType = (string) $request->get('account_type', 'all');
 
         $query = Customer::query()
             ->withCount([
@@ -44,6 +45,12 @@ class CustomerManagementController extends Controller
             $query->where('customer_type', $type);
         }
 
+        if ($accountType === 'registered') {
+            $query->whereNotNull('user_id');
+        } elseif ($accountType === 'guest') {
+            $query->whereNull('user_id');
+        }
+
         $customers = $query->orderBy('first_name')
             ->orderBy('last_name')
             ->paginate(15)
@@ -51,6 +58,8 @@ class CustomerManagementController extends Controller
 
         // KPIs
         $totalCustomers = Customer::count();
+        $registeredCustomersCount = Customer::whereNotNull('user_id')->count();
+        $guestCustomersCount = Customer::whereNull('user_id')->count();
         $vipCustomers = Customer::where('customer_type', 'vip')->count();
         $regularCustomers = Customer::where('customer_type', 'regular')->count();
         $activeCustomers = Customer::has('appointments')->count();
@@ -61,12 +70,15 @@ class CustomerManagementController extends Controller
         return view('shared.customers', compact(
             'customers',
             'totalCustomers',
+            'registeredCustomersCount',
+            'guestCustomersCount',
             'vipCustomers',
             'regularCustomers',
             'activeCustomers',
             'completedVisits',
             'search',
             'type',
+            'accountType',
             'routeNamePrefix'
         ));
     }
@@ -125,6 +137,8 @@ class CustomerManagementController extends Controller
             'email'                => $customer->email ?: '',
             'phone_number'         => $customer->phone_number ?: '',
             'customer_type'        => $customer->customer_type ?: 'regular',
+            'is_registered'        => !is_null($customer->user_id),
+            'account_type_label'   => !is_null($customer->user_id) ? 'Registered Customer' : 'Guest Customer',
             'medical_notes'        => $customer->medical_notes ?: '',
             'total_appointments'   => $customer->appointments()->count(),
             'completed_visits'     => $completedCount,

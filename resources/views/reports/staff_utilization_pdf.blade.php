@@ -196,7 +196,13 @@
     $totalCompleted = (int) ($summaryData['completed'] ?? 0);
     $totalServiceHours = (float) ($summaryData['service_hours'] ?? 0);
     $totalClockedHours = (float) ($summaryData['clocked_hours'] ?? 0);
+    $totalScheduledHours = (float) ($summaryData['scheduled_hours'] ?? 0);
     $overallUtilization = (float) ($summaryData['overall_utilization'] ?? 0);
+    $overallSchedUtil = (float) ($summaryData['overall_scheduled_utilization'] ?? 0);
+    $totalLate = (int) ($summaryData['late_count'] ?? 0);
+    $totalAbsent = (int) ($summaryData['absent_count'] ?? 0);
+    $totalLeave = (int) ($summaryData['leave_count'] ?? 0);
+    $totalEarlyOut = (int) ($summaryData['early_departure_count'] ?? 0);
     $totalRevenue = (float) ($summaryData['revenue'] ?? 0);
     $overallRevPerHour = (float) ($summaryData['revenue_per_hour'] ?? 0);
 
@@ -223,23 +229,27 @@
     <thead>
         <tr>
             <th>Active Staff</th>
-            <th>Appointments</th>
-            <th>Completed</th>
-            <th>Service Hours</th>
-            <th>Clocked Hours</th>
-            <th>Overall Utilization</th>
+            <th>Appts / Done</th>
+            <th>Scheduled Hrs</th>
+            <th>Clocked Hrs</th>
+            <th>Service Hrs</th>
+            <th>Util (vs Clocked)</th>
+            <th>Util (vs Sched)</th>
+            <th>Late / Abs / Lv / Early</th>
             <th>Revenue</th>
-            <th>Revenue / Hour</th>
+            <th>Rev / Hr</th>
         </tr>
     </thead>
     <tbody>
         <tr>
             <td>{{ number_format($staffCount) }}</td>
-            <td>{{ number_format($totalAppts) }}</td>
-            <td>{{ number_format($totalCompleted) }}</td>
-            <td>{{ number_format($totalServiceHours, 2) }}h</td>
+            <td>{{ number_format($totalAppts) }} / {{ number_format($totalCompleted) }}</td>
+            <td>{{ number_format($totalScheduledHours, 2) }}h</td>
             <td>{{ number_format($totalClockedHours, 2) }}h</td>
+            <td>{{ number_format($totalServiceHours, 2) }}h</td>
             <td>{{ number_format($overallUtilization, 1) }}%</td>
+            <td>{{ number_format($overallSchedUtil, 1) }}%</td>
+            <td>{{ $totalLate }} / {{ $totalAbsent }} / {{ $totalLeave }} / {{ $totalEarlyOut }}</td>
             <td>&#8369;{{ number_format($totalRevenue, 2) }}</td>
             <td>&#8369;{{ number_format($overallRevPerHour, 2) }}</td>
         </tr>
@@ -251,15 +261,17 @@
     <table class="report-table pdf-scalable-table">
         <thead>
             <tr>
-                <th style="width: 6%;" class="text-center">Rank</th>
-                <th style="width: 22%;">Staff Name</th>
-                <th style="width: 10%;" class="text-right">Appts</th>
-                <th style="width: 10%;" class="text-right">Completed</th>
-                <th style="width: 11%;" class="text-right">Service Hrs</th>
-                <th style="width: 11%;" class="text-right">Clocked Hrs</th>
-                <th style="width: 10%;" class="text-right">Utilization</th>
-                <th style="width: 11%;" class="text-right">Revenue</th>
-                <th style="width: 9%;" class="text-right">Rev / Hr</th>
+                <th style="width: 5%;" class="text-center">Rank</th>
+                <th style="width: 19%;">Staff Name</th>
+                <th style="width: 8%;" class="text-right">Appts / Done</th>
+                <th style="width: 9%;" class="text-right">Sched Hrs</th>
+                <th style="width: 9%;" class="text-right">Clock Hrs</th>
+                <th style="width: 9%;" class="text-right">Serv Hrs</th>
+                <th style="width: 9%;" class="text-right">Util (Clock)</th>
+                <th style="width: 9%;" class="text-right">Util (Sched)</th>
+                <th style="width: 9%;" class="text-center">L/A/Lv/E</th>
+                <th style="width: 8%;" class="text-right">Revenue</th>
+                <th style="width: 6%;" class="text-right">Rev/Hr</th>
             </tr>
         </thead>
         <tbody>
@@ -269,20 +281,28 @@
                     $nameVal = data_get($row, 'name', 'N/A');
                     $apptsVal = (int) data_get($row, 'appointments', 0);
                     $completedVal = (int) data_get($row, 'completed', 0);
+                    $schedHrsVal = (float) data_get($row, 'scheduled_hours', 0);
                     $serviceHrsVal = (float) data_get($row, 'service_hours', 0);
                     $clockedHrsVal = (float) data_get($row, 'clocked_hours', 0);
                     $utilVal = (float) data_get($row, 'utilization', 0);
+                    $schedUtilVal = (float) data_get($row, 'scheduled_utilization', 0);
+                    $lateVal = (int) data_get($row, 'late_count', 0);
+                    $absentVal = (int) data_get($row, 'absent_count', 0);
+                    $leaveVal = (int) data_get($row, 'leave_count', 0);
+                    $earlyVal = (int) data_get($row, 'early_departure_count', 0);
                     $revVal = (float) data_get($row, 'revenue', 0);
                     $revHrVal = (float) data_get($row, 'revenue_per_hour', 0);
                 @endphp
                 <tr>
                     <td class="text-center">{{ $rankVal }}</td>
                     <td class="bold">{{ $nameVal }}</td>
-                    <td class="text-right">{{ number_format($apptsVal) }}</td>
-                    <td class="text-right">{{ number_format($completedVal) }}</td>
-                    <td class="text-right">{{ number_format($serviceHrsVal, 2) }}</td>
+                    <td class="text-right">{{ number_format($apptsVal) }} / {{ number_format($completedVal) }}</td>
+                    <td class="text-right">{{ number_format($schedHrsVal, 2) }}</td>
                     <td class="text-right">{{ number_format($clockedHrsVal, 2) }}</td>
+                    <td class="text-right">{{ number_format($serviceHrsVal, 2) }}</td>
                     <td class="text-right bold">{{ number_format($utilVal, 1) }}%</td>
+                    <td class="text-right">{{ number_format($schedUtilVal, 1) }}%</td>
+                    <td class="text-center">{{ $lateVal }}/{{ $absentVal }}/{{ $leaveVal }}/{{ $earlyVal }}</td>
                     <td class="text-right">&#8369;{{ number_format($revVal, 2) }}</td>
                     <td class="text-right">&#8369;{{ number_format($revHrVal, 2) }}</td>
                 </tr>
@@ -291,16 +311,21 @@
         <tfoot>
             <tr>
                 <td colspan="2">Total / Overall ({{ $staffRows->count() }} staff)</td>
-                <td class="text-right">{{ number_format($totalAppts) }}</td>
-                <td class="text-right">{{ number_format($totalCompleted) }}</td>
-                <td class="text-right">{{ number_format($totalServiceHours, 2) }}</td>
+                <td class="text-right">{{ number_format($totalAppts) }} / {{ number_format($totalCompleted) }}</td>
+                <td class="text-right">{{ number_format($totalScheduledHours, 2) }}</td>
                 <td class="text-right">{{ number_format($totalClockedHours, 2) }}</td>
+                <td class="text-right">{{ number_format($totalServiceHours, 2) }}</td>
                 <td class="text-right">{{ number_format($overallUtilization, 1) }}%</td>
+                <td class="text-right">{{ number_format($overallSchedUtil, 1) }}%</td>
+                <td class="text-center">{{ $totalLate }}/{{ $totalAbsent }}/{{ $totalLeave }}/{{ $totalEarlyOut }}</td>
                 <td class="text-right">&#8369;{{ number_format($totalRevenue, 2) }}</td>
                 <td class="text-right">&#8369;{{ number_format($overallRevPerHour, 2) }}</td>
             </tr>
         </tfoot>
     </table>
+    <p style="font-size: 7pt; color: #4b5563; margin: 2mm 0 0;">
+        Util (Clock) = Service Hours &divide; Clocked Hours. Util (Sched) = Service Hours &divide; Scheduled Shift Hours (WorkSchedule + ScheduleExceptions). L/A/Lv/E = Late / Absent / Leave / Early Departure counts.
+    </p>
 @else
     <div class="empty-state">No staff utilization data recorded for this period.</div>
 @endif

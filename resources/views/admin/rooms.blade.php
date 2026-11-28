@@ -1,14 +1,14 @@
-@extends('layouts.admin')
+﻿@extends('layouts.admin')
 
 @section('title', 'Rooms')
 
 @section('content')
 <div class="max-w-7xl mx-auto">
     
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <div>
             <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Rooms</h1>
-            <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">Manage treatment rooms and categories</p>
+            <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">Manage treatment rooms, categories, and utilization</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <button onclick="openRoomModal()" 
@@ -16,15 +16,9 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Add Room
             </button>
-
-            <a href="{{ route('admin.rooms.report-pdf', ['action' => 'stream']) }}"
-               onclick="if (window.zenflowPdfPreview) { event.preventDefault(); window.zenflowPdfPreview.open({ reportKey: 'room_report', streamUrl: @js(route('admin.rooms.report-pdf', ['action' => 'stream'])), downloadUrl: @js(route('admin.rooms.report-pdf', ['action' => 'download'])), downloadFilename: 'room-inventory-status-report.pdf' }); }"
-               class="bg-white text-teal-600 hover:bg-teal-50 dark:bg-gray-800 dark:text-teal-300 px-5 py-2.5 rounded-lg font-semibold text-sm shadow-sm transition flex items-center gap-2 border border-teal-200 dark:border-neutral-700">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Generate Report
-            </a>
         </div>
     </div>
+
 
     <!-- Rooms Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -288,5 +282,4 @@
             });
         }
 </script>
-<x-pdf-preview-modal report-key="room_report" />
 @endsection

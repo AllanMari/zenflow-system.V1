@@ -237,6 +237,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::put('/rooms/{room}', [AdminController::class, 'roomsUpdate'])->name('admin.rooms.update');
     Route::delete('/rooms/{room}', [AdminController::class, 'roomsDestroy'])->name('admin.rooms.destroy');
     Route::get('/rooms/report-pdf', [AdminController::class, 'roomReportPdf'])->name('admin.rooms.report-pdf');
+    Route::get('/rooms/report-csv', [AdminController::class, 'roomReportCsv'])->name('admin.rooms.report-csv');
+    Route::get('/rooms/report-xlsx', [AdminController::class, 'roomReportXlsx'])->name('admin.rooms.report-xlsx');
 
     // Room Categories
     Route::get('/room-categories', [AdminController::class, 'roomCategoriesIndex'])->name('admin.room-categories.index');

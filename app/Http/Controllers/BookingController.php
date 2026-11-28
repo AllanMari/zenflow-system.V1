@@ -595,6 +595,7 @@ class BookingController extends Controller
             'like',
             '%' . $request->phone . '%'
         )
+            ->orderByRaw('CASE WHEN user_id IS NOT NULL THEN 0 ELSE 1 END')
             ->limit(5)
             ->get([
                 'id',
@@ -2154,8 +2155,12 @@ class BookingController extends Controller
                     ?? $request->medical_notes
                     ?? null,
                 'ip_address' => $request->ip(),
-                'guest_first_name' => $request->guest_first_name ? trim($request->guest_first_name) : null,
-                'guest_phone' => $request->guest_phone ?? null,
+                // Only store guest name/phone when this is an actual guest booking.
+                // Registered customers are identified by their customer_id; setting
+                // guest_first_name on their appointments would cause Appointment::getClientNameAttribute()
+                // to return the guest name instead of the linked Customer account name.
+                'guest_first_name' => (!$customer || $customer->isGuest()) ? ($request->guest_first_name ? trim($request->guest_first_name) : null) : null,
+                'guest_phone' => (!$customer || $customer->isGuest()) ? ($request->guest_phone ?? null) : null,
             ]);
 
             if ($isReceptionist && $assignedStaffId) {

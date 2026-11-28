@@ -334,9 +334,12 @@
                                 <th class="border-b border-gray-200 px-4 py-3 text-left dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Staff</span></th>
                                 <th class="border-b border-gray-200 px-4 py-3 text-center dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Appointments</span></th>
                                 <th class="border-b border-gray-200 px-4 py-3 text-center dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Completed</span></th>
+                                <th class="border-b border-gray-200 px-4 py-3 text-right dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Scheduled Hrs</span></th>
                                 <th class="border-b border-gray-200 px-4 py-3 text-right dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Service Hours</span></th>
                                 <th class="border-b border-gray-200 px-4 py-3 text-right dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Clocked Hours</span></th>
-                                <th class="border-b border-gray-200 px-4 py-3 text-center dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Utilization</span></th>
+                                <th class="border-b border-gray-200 px-4 py-3 text-center dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Util (Clock)</span></th>
+                                <th class="border-b border-gray-200 px-4 py-3 text-center dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Util (Sched)</span></th>
+                                <th class="border-b border-gray-200 px-4 py-3 text-center dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400" title="Late / Absent / Leave / Early Departure">L/A/Lv/E</span></th>
                                 <th class="border-b border-gray-200 px-4 py-3 text-right dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Revenue</span></th>
                                 <th class="border-b border-gray-200 px-4 py-3 text-right dark:border-gray-800"><span class="text-[9px] font-bold uppercase tracking-wider text-gray-400">Revenue / Hour</span></th>
                             </tr>
@@ -347,9 +350,15 @@
                                     $efficiencyRank = (int) ($staffMember['rank'] ?? $loop->iteration);
                                     $efficiencyName = $staffMember['name'] ?? 'Unknown Staff';
                                     $efficiencyAppointments = (int) ($staffMember['appointments'] ?? 0);
+                                    $scheduledHours = (float) ($staffMember['scheduled_hours'] ?? 0);
                                     $serviceHours = (float) ($staffMember['service_hours'] ?? 0);
                                     $clockedHours = (float) ($staffMember['clocked_hours'] ?? 0);
                                     $utilization = max(0, (float) ($staffMember['utilization'] ?? 0));
+                                    $scheduledUtilization = max(0, (float) ($staffMember['scheduled_utilization'] ?? 0));
+                                    $lateCount = (int) ($staffMember['late_count'] ?? 0);
+                                    $absentCount = (int) ($staffMember['absent_count'] ?? 0);
+                                    $leaveCount = (int) ($staffMember['leave_count'] ?? 0);
+                                    $earlyCount = (int) ($staffMember['early_departure_count'] ?? 0);
                                     $revenue = (float) ($staffMember['revenue'] ?? 0);
                                     $revenuePerHour = (float) ($staffMember['revenue_per_hour'] ?? 0);
                                     $hasAttendance = !empty($staffMember['has_attendance']);
@@ -367,9 +376,12 @@
                                     </td>
                                     <td class="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{{ $efficiencyAppointments }}</td>
                                     <td class="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{{ $staffMember['completed'] ?? 0 }}</td>
+                                    <td class="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-300">{{ $formatHours($scheduledHours) }}</td>
                                     <td class="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-300">{{ $formatHours($serviceHours) }}</td>
                                     <td class="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-300">{{ $formatHours($clockedHours) }}</td>
                                     <td class="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{{ $formatPercent($utilization) }}</td>
+                                    <td class="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{{ $formatPercent($scheduledUtilization) }}</td>
+                                    <td class="px-4 py-3 text-center text-xs text-gray-500 dark:text-gray-400 tabular-nums">{{ $lateCount }}/{{ $absentCount }}/{{ $leaveCount }}/{{ $earlyCount }}</td>
                                     <td class="px-4 py-3 text-right text-sm font-bold text-gray-900 dark:text-white">{{ $formatMoney($revenue) }}</td>
                                     <td class="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-300">{{ $formatMoney($revenuePerHour) }}</td>
                                 </tr>

@@ -1,13 +1,19 @@
 @php
-    $logoFile = public_path('uploads/branding/spa-alexandria-logo.png');
+    $logoPng = public_path('uploads/branding/spa-alexandria-logo.png');
+    $logoJpg = public_path('uploads/branding/spa-alexandria-logo.jpg');
     $logoBase64 = null;
-    // DomPDF's CPDF adapter requires the PHP GD extension (imagecreatefrompng) to embed PNGs into PDF files.
-    // When GD is enabled (standard on Hostinger PHP), embed the logo as Base64.
-    // If GD is not loaded (e.g. minimal local CLI), cleanly fall back to typography so report generation never crashes.
-    if (extension_loaded('gd') && file_exists($logoFile) && filesize($logoFile) > 0) {
-        $logoData = @file_get_contents($logoFile);
+    // DomPDF's CPDF adapter requires PHP GD (imagecreatefrompng) for RGBA PNGs,
+    // whereas JPEGs are embedded natively in pure PHP via addJpegFromFile().
+    // Use the original PNG when GD is loaded; otherwise fall back to the white-backed JPEG.
+    if (extension_loaded('gd') && file_exists($logoPng) && filesize($logoPng) > 0) {
+        $logoData = @file_get_contents($logoPng);
         if ($logoData !== false) {
             $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
+        }
+    } elseif (file_exists($logoJpg) && filesize($logoJpg) > 0) {
+        $logoData = @file_get_contents($logoJpg);
+        if ($logoData !== false) {
+            $logoBase64 = 'data:image/jpeg;base64,' . base64_encode($logoData);
         }
     }
     $hasPdfLayout = isset($pdfLayout)

@@ -316,6 +316,7 @@
             <th>Pending</th>
             <th>Cancelled</th>
             <th>No-Show</th>
+            <th>Rescheduled</th>
         </tr>
     </thead>
     <tbody>
@@ -326,6 +327,7 @@
             <td>{{ number_format($pending) }}</td>
             <td>{{ number_format($cancelled) }}</td>
             <td>{{ number_format($noShow) }}</td>
+            <td>{{ number_format($rescheduled ?? 0) }}</td>
         </tr>
     </tbody>
 </table>
@@ -439,8 +441,14 @@
                     </td>
                     <td>
                         <div class="bold">{{ $refText }}</div>
+                        @if(!empty($appointment->bir_invoice_number))
+                            <div class="muted">BIR: {{ $appointment->bir_invoice_number }}</div>
+                        @endif
+                        @if(!empty($appointment->rescheduled_at))
+                            <div class="muted">Rescheduled</div>
+                        @endif
                         @if(!empty($appointment->notes))
-                            <div class="muted">{{ \Illuminate\Support\Str::limit($appointment->notes, 60) }}</div>
+                            <div class="muted">{{ \Illuminate\Support\Str::limit($appointment->notes, 50) }}</div>
                         @endif
                     </td>
                 </tr>

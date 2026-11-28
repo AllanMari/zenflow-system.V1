@@ -37,21 +37,23 @@ class SalesReportController extends Controller
         $data['routeName'] = (Auth::check() && Auth::user()->isReceptionist()) ? 'receptionist.sales' : 'admin.sales';
 
         $data['reportTitle'] = match ($data['period']) {
-            'daily'   => 'SUMMARY OF DAILY SALES REPORT',
-            'weekly'  => 'SUMMARY OF WEEKLY SALES REPORT',
-            'monthly' => 'SUMMARY OF MONTHLY SALES REPORT',
-            'yearly'  => 'SUMMARY OF YEARLY SALES REPORT',
-            'custom'  => 'SUMMARY OF CUSTOM SALES REPORT',
-            default   => 'SUMMARY OF SALES REPORT',
+            'daily'     => 'SUMMARY OF DAILY SALES REPORT',
+            'weekly'    => 'SUMMARY OF WEEKLY SALES REPORT',
+            'monthly'   => 'SUMMARY OF MONTHLY SALES REPORT',
+            'quarterly' => 'SUMMARY OF QUARTERLY SALES REPORT',
+            'yearly'    => 'SUMMARY OF YEARLY SALES REPORT',
+            'custom'    => 'SUMMARY OF CUSTOM SALES REPORT',
+            default     => 'SUMMARY OF SALES REPORT',
         };
         $data['dateLabel'] = $data['period'] === 'daily' ? 'DATE:' : 'PERIOD:';
         $data['dateDisplay'] = match ($data['period']) {
-            'daily'   => $data['startDate']->format('n/j/Y'),
-            'weekly'  => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
-            'monthly' => $data['startDate']->format('F Y'),
-            'yearly'  => $data['startDate']->format('Y'),
-            'custom'  => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
-            default   => $data['startDate']->format('n/j/Y') . ' — ' . $data['endDate']->format('n/j/Y'),
+            'daily'     => $data['startDate']->format('n/j/Y'),
+            'weekly'    => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
+            'monthly'   => $data['startDate']->format('F Y'),
+            'quarterly' => $data['startDate']->format('M Y') . ' — ' . $data['endDate']->format('M Y'),
+            'yearly'    => $data['startDate']->format('Y'),
+            'custom'    => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
+            default     => $data['startDate']->format('n/j/Y') . ' — ' . $data['endDate']->format('n/j/Y'),
         };
 
         return view('shared.sales', $data);
@@ -62,10 +64,11 @@ class SalesReportController extends Controller
         $data = $this->analyticsService->getDashboardData($request);
 
         return view('shared._transaction_log_table', [
-            'txLogData'      => $data['txLogData'],
-            'currentStatus'  => $data['currentStatus'],
-            'currency'       => '₱',
-            'serviceCodeMap' => $data['serviceCodeMap'],
+            'txLogData'       => $data['txLogData'],
+            'currentStatus'   => $data['currentStatus'],
+            'currentBirSearch'=> $data['currentBirSearch'] ?? '',
+            'currency'        => '₱',
+            'serviceCodeMap'  => $data['serviceCodeMap'],
         ]);
     }
 
@@ -94,21 +97,23 @@ class SalesReportController extends Controller
 
         // Dynamic title and label based on user's active view filter
         $reportTitle = match ($period) {
-            'daily'   => 'SUMMARY OF DAILY SALES REPORT',
-            'weekly'  => 'SUMMARY OF WEEKLY SALES REPORT',
-            'monthly' => 'SUMMARY OF MONTHLY SALES REPORT',
-            'yearly'  => 'SUMMARY OF YEARLY SALES REPORT',
-            'custom'  => 'SUMMARY OF CUSTOM SALES REPORT',
-            default   => 'SUMMARY OF SALES REPORT',
+            'daily'     => 'SUMMARY OF DAILY SALES REPORT',
+            'weekly'    => 'SUMMARY OF WEEKLY SALES REPORT',
+            'monthly'   => 'SUMMARY OF MONTHLY SALES REPORT',
+            'quarterly' => 'SUMMARY OF QUARTERLY SALES REPORT',
+            'yearly'    => 'SUMMARY OF YEARLY SALES REPORT',
+            'custom'    => 'SUMMARY OF CUSTOM SALES REPORT',
+            default     => 'SUMMARY OF SALES REPORT',
         };
 
         $dateDisplay = match ($period) {
-            'daily'   => $data['startDate']->format('n/j/Y'),
-            'weekly'  => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
-            'monthly' => $data['startDate']->format('F Y'),
-            'yearly'  => $data['startDate']->format('Y'),
-            'custom'  => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
-            default   => $data['startDate']->format('n/j/Y') . ' — ' . $data['endDate']->format('n/j/Y'),
+            'daily'     => $data['startDate']->format('n/j/Y'),
+            'weekly'    => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
+            'monthly'   => $data['startDate']->format('F Y'),
+            'quarterly' => $data['startDate']->format('M Y') . ' — ' . $data['endDate']->format('M Y'),
+            'yearly'    => $data['startDate']->format('Y'),
+            'custom'    => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
+            default     => $data['startDate']->format('n/j/Y') . ' — ' . $data['endDate']->format('n/j/Y'),
         };
 
         $filename = strtolower(str_replace(' ', '-', $period)) . '-sales-report.pdf';
@@ -139,6 +144,36 @@ class SalesReportController extends Controller
     public function businessReportPdf(Request $request, ReportPdfService $pdfService)
     {
         $data = $this->analyticsService->getDashboardData($request);
+
+        // Build heatmap summary for PDF (top 5 demand slots per day-of-week)
+        $heatmap = $this->analyticsService->getAppointmentActivityHeatmap(
+            $data['startDate'],
+            $data['endDate']
+        );
+
+        // Flatten demand cells into sorted top-slot list for PDF table
+        $heatmapDays  = $heatmap['days']  ?? [];
+        $heatmapHours = $heatmap['hours'] ?? [];
+        $demandCells  = $heatmap['demand']['cells'] ?? [];
+        $demandMax    = (int) ($heatmap['demand']['max'] ?? 0);
+        $demandTotal  = (int) ($heatmap['demand']['total'] ?? 0);
+
+        // Build a flat list of [day, hour, count] sorted desc, top 10
+        $flatDemand = [];
+        foreach ($demandCells as $dayIdx => $hours) {
+            foreach ($hours as $hourIdx => $count) {
+                if ($count > 0) {
+                    $flatDemand[] = [
+                        'day'   => $heatmapDays[$dayIdx]  ?? "Day $dayIdx",
+                        'hour'  => $heatmapHours[$hourIdx] ?? "$hourIdx:00",
+                        'count' => $count,
+                    ];
+                }
+            }
+        }
+        usort($flatDemand, fn ($a, $b) => $b['count'] <=> $a['count']);
+        $heatmapTopSlots = array_slice($flatDemand, 0, 10);
+
         $filename = 'business-report.pdf';
 
         $pdfData = [
@@ -163,7 +198,14 @@ class SalesReportController extends Controller
             'staffPerformance'      => $data['staffPerformance'] ?? [],
             'methodBreakdown'       => $data['methodBreakdown'],
             'therapistRetentionData'=> $data['therapistRetentionData'] ?? [],
+            'customerRetention'     => $data['customerRetention'] ?? [],
             'peakBusinessHours'     => $data['peakBusinessHours'] ?? [],
+            'heatmapTopSlots'       => $heatmapTopSlots,
+            'heatmapDemandMax'      => $demandMax,
+            'heatmapDemandTotal'    => $demandTotal,
+            'heatmapDays'           => $heatmapDays,
+            'heatmapHours'          => $heatmapHours,
+            'heatmapMatrix'         => $demandCells,
             'preparedBy'            => Auth::user()->full_name ?? Auth::user()->name,
             'checkedBy'             => $request->input('checked_by'),
             'generatedAt'           => now()->format('F d, Y g:i A'),
@@ -184,21 +226,23 @@ class SalesReportController extends Controller
         $period = $data['period'];
 
         $reportTitle = match ($period) {
-            'daily'   => 'SUMMARY OF DAILY SALES REPORT',
-            'weekly'  => 'SUMMARY OF WEEKLY SALES REPORT',
-            'monthly' => 'SUMMARY OF MONTHLY SALES REPORT',
-            'yearly'  => 'SUMMARY OF YEARLY SALES REPORT',
-            'custom'  => 'SUMMARY OF CUSTOM SALES REPORT',
-            default   => 'SUMMARY OF SALES REPORT',
+            'daily'     => 'SUMMARY OF DAILY SALES REPORT',
+            'weekly'    => 'SUMMARY OF WEEKLY SALES REPORT',
+            'monthly'   => 'SUMMARY OF MONTHLY SALES REPORT',
+            'quarterly' => 'SUMMARY OF QUARTERLY SALES REPORT',
+            'yearly'    => 'SUMMARY OF YEARLY SALES REPORT',
+            'custom'    => 'SUMMARY OF CUSTOM SALES REPORT',
+            default     => 'SUMMARY OF SALES REPORT',
         };
 
         $dateDisplay = match ($period) {
-            'daily'   => $data['startDate']->format('M d, Y'),
-            'weekly'  => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
-            'monthly' => $data['startDate']->format('F Y'),
-            'yearly'  => $data['startDate']->format('Y'),
-            'custom'  => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
-            default   => $data['startDate']->format('M d, Y') . ' — ' . $data['endDate']->format('M d, Y'),
+            'daily'     => $data['startDate']->format('M d, Y'),
+            'weekly'    => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
+            'monthly'   => $data['startDate']->format('F Y'),
+            'quarterly' => $data['startDate']->format('M Y') . ' — ' . $data['endDate']->format('M Y'),
+            'yearly'    => $data['startDate']->format('Y'),
+            'custom'    => $data['startDate']->format('M j') . ' — ' . $data['endDate']->format('M j, Y'),
+            default     => $data['startDate']->format('M d, Y') . ' — ' . $data['endDate']->format('M d, Y'),
         };
 
         $referenceNumber = 'SAL-' . strtoupper($period) . '-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -5));

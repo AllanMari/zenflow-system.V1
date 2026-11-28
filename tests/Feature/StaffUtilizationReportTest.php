@@ -10,6 +10,7 @@ use App\Models\Role;
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\User;
+use App\Models\WorkSchedule;
 use App\Services\SalesAnalyticsService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -285,6 +286,43 @@ class StaffUtilizationReportTest extends TestCase
 
         $this->assertEquals(1500.0, (float) $primaryRevenue);
         $this->assertEquals(1500.0, (float) $assistingRevenue);
+    }
+
+    public function test_staff_utilization_computes_scheduled_shift_hours_and_attendance_exceptions()
+    {
+        $today = Carbon::today();
+        WorkSchedule::create([
+            'user_id' => $this->therapist->id,
+            'day_of_week' => $today->dayOfWeek,
+            'start_time' => '10:00',
+            'end_time' => '18:00',
+            'is_day_off' => false,
+        ]);
+
+        // 2 hours served, 6 hours clocked (late + early departure vs 10:00-18:00 = 8h scheduled)
+        $appointment = $this->createCompletedAppointment($this->therapist, '12:00:00', '14:00:00', 1000);
+        $this->createCompletedPayment($appointment, 1000);
+        Attendance::create([
+            'user_id' => $this->therapist->id,
+            'date' => $today->toDateString(),
+            'status' => 'late',
+            'check_in' => '10:30:00',
+            'check_out' => '16:30:00',
+        ]);
+
+        $data = $this->staffUtilizationData();
+        $record = collect($data['staff'])->firstWhere('id', $this->therapist->id);
+
+        $this->assertNotNull($record);
+        $this->assertEquals(8.0, (float) $record['scheduled_hours']);
+        $this->assertEquals(6.0, (float) $record['clocked_hours']);
+        $this->assertEquals(2.0, (float) $record['service_hours']);
+        $this->assertEquals(25.0, (float) $record['scheduled_utilization']);
+        $this->assertEquals(33.3, (float) $record['utilization']);
+        $this->assertEquals(1, (int) $record['late_count']);
+        $this->assertEquals(1, (int) $record['early_departure_count']);
+        $this->assertEquals(8.0, (float) $data['summary']['scheduled_hours']);
+        $this->assertEquals(25.0, (float) $data['summary']['overall_scheduled_utilization']);
     }
 
     // =========================================================================

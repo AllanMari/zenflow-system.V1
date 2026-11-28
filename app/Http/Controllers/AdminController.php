@@ -1256,11 +1256,14 @@ public function index(Request $request)
 
     /* ─── ROOMS ─── */
 
-    public function roomsIndex()
+    public function roomsIndex(Request $request)
     {
-        $rooms = Room::with(['category', 'roomCategories'])->orderBy('name')->get();
+        $rooms = Room::with(['category', 'roomCategories'])
+            ->orderBy('name')
+            ->get();
         $categories = ServiceCategory::where('is_active', true)->orderBy('name')->get();
         $roomCategories = RoomCategory::orderBy('name')->get();
+
         return view('admin.rooms', compact('rooms', 'categories', 'roomCategories'));
     }
 
@@ -1328,28 +1331,20 @@ public function index(Request $request)
     ) {
         abort_unless(auth()->user()->isAdmin(), 403);
 
-        $rooms = Room::with(['category', 'roomCategories'])
-            ->orderBy('name')
-            ->get();
-
-        $summary = [
-            'total_rooms' => $rooms->count(),
-            'active_rooms' => $rooms->where('is_active', true)->count(),
-            'available_rooms' => $rooms->where('status', 'available')->count(),
-            'occupied_rooms' => $rooms->where('status', 'occupied')->count(),
-            'maintenance_rooms' => $rooms->where('status', 'maintenance')->count(),
-            'inactive_rooms' => $rooms->where('is_active', false)->count(),
-        ];
+        $utilization = app(\App\Services\RoomUtilizationService::class)->buildReport($request);
 
         $pdfData = [
-            'reportTitle' => 'ROOM INVENTORY AND STATUS REPORT',
+            'reportTitle' => 'TREATMENT ROOM & RESOURCE UTILIZATION REPORT',
             'referenceNumber' => 'RM-' . now()->format('YmdHis'),
-            'dateRange' => 'Current Inventory Snapshot',
+            'dateRange' => $utilization['dateRangeDisplay'],
+            'periodLabel' => $utilization['periodLabel'],
             'generatedAt' => now('Asia/Manila')->format('F j, Y g:i A'),
             'preparedBy' => auth()->user()->full_name ?? auth()->user()->name,
             'checkedBy' => $request->input('checked_by'),
-            'rooms' => $rooms,
-            'summary' => $summary,
+            'rooms' => $utilization['rooms'],
+            'roomRows' => $utilization['roomRows'],
+            'summary' => $utilization['summary'],
+            'bottlenecks' => $utilization['bottlenecks'],
         ];
 
         $layout = app(PdfLayoutResolver::class)->resolveFromRequest('room_report', $request);
@@ -1360,17 +1355,99 @@ public function index(Request $request)
             ? $pdfService->streamPdf(
                 'reports.room_report_pdf',
                 $pdfData,
-                'room-inventory-status-report.pdf',
+                'room-utilization-report.pdf',
                 $layout->orientation,
                 $layout
             )
             : $pdfService->generatePdf(
                 'reports.room_report_pdf',
                 $pdfData,
-                'room-inventory-status-report.pdf',
+                'room-utilization-report.pdf',
                 $layout->orientation,
                 $layout
             );
+    }
+
+    public function roomReportCsv(Request $request, CsvExportService $csvService)
+    {
+        abort_unless(auth()->user()->isAdmin(), 403);
+
+        $utilization = app(\App\Services\RoomUtilizationService::class)->buildReport($request);
+        $summary = $utilization['summary'];
+        $bottlenecks = $utilization['bottlenecks'];
+
+        $meta = [
+            ['ZENFLOW SPA', 'TREATMENT ROOM & RESOURCE UTILIZATION REPORT'],
+            ['PERIOD', $utilization['periodLabel'] . ' (' . $utilization['dateRangeDisplay'] . ')'],
+            ['OPEN OPERATING DAYS', $summary['open_days_count']],
+            ['GENERATED AT', now('Asia/Manila')->format('F j, Y g:i A')],
+            ['PREPARED BY', auth()->user()->full_name ?? auth()->user()->name ?? 'Administrator'],
+            ['TOTAL ROOMS', $summary['total_rooms']],
+            ['OPERATIONAL ROOMS', $summary['operational_rooms']],
+            ['TOTAL COMPLETED OCCUPANCY', $summary['completed_formatted'] . ' (' . $summary['completed_minutes'] . ' min)'],
+            ['TOTAL SCHEDULED OCCUPANCY', $summary['scheduled_formatted'] . ' (' . $summary['scheduled_occupancy_minutes'] . ' min)'],
+            ['SCHEDULED 5-MIN PREP BUFFER', $summary['buffer_minutes'] . ' min (' . $summary['buffer_gaps_count'] . ' buffers; not measured cleaning time)'],
+            ['OVERALL UTILIZATION %', $summary['overall_utilization'] !== null ? number_format((float) $summary['overall_utilization'], 1) . '%' : 'N/A'],
+            ['HIGHEST SCHEDULED ROOM', $bottlenecks['highest_room'] ? ($bottlenecks['highest_room']['name'] . ' (' . $bottlenecks['highest_room']['scheduled_formatted'] . ')') : 'N/A'],
+            ['LOWEST SCHEDULED ROOM', $bottlenecks['lowest_room'] ? ($bottlenecks['lowest_room']['name'] . ' (' . $bottlenecks['lowest_room']['scheduled_formatted'] . ')') : 'N/A'],
+            ['PEAK DEMAND DAY', $bottlenecks['peak_day'] ? ($bottlenecks['peak_day'] . ' (' . $bottlenecks['peak_day_count'] . ' appts)') : 'N/A'],
+            ['PEAK HOUR SLOT', $bottlenecks['peak_hour'] ? ($bottlenecks['peak_hour'] . ' (' . $bottlenecks['peak_hour_count'] . ' appts)') : 'N/A'],
+        ];
+
+        $headers = [
+            'Room Name',
+            'Categories',
+            'Current Status',
+            'Completed Sessions',
+            'Confirmed Reservations',
+            'Pending Reservations',
+            'Cancelled / No-Show',
+            'Completed Occupancy',
+            'Completed Minutes',
+            'Scheduled Occupancy',
+            'Scheduled Minutes',
+            'Prep Buffer Gaps',
+            'Prep Buffer Minutes (5m/appt)',
+            'Available Room Capacity',
+            'Available Minutes',
+            'Scheduled Utilization %',
+        ];
+
+        $rows = $utilization['roomRows']->map(function (array $row) {
+            return [
+                $row['name'],
+                $row['categories'],
+                !$row['is_active'] ? 'Inactive' : ucfirst($row['status']),
+                $row['completed_count'],
+                $row['confirmed_count'],
+                $row['pending_count'],
+                $row['cancelled_no_show_count'],
+                $row['completed_formatted'],
+                $row['completed_minutes'],
+                $row['scheduled_formatted'],
+                $row['scheduled_occupancy_minutes'],
+                $row['buffer_gaps_count'],
+                $row['buffer_minutes'],
+                $row['available_formatted'],
+                $row['available_minutes'],
+                $row['utilization_percent'] !== null ? number_format((float) $row['utilization_percent'], 1) . '%' : 'N/A',
+            ];
+        })->all();
+
+        $format = strtolower((string) $request->query('format', 'csv'));
+        if ($format === 'xlsx') {
+            $xlsxService = app(\App\Services\XlsxSpreadsheetService::class);
+            $binary = $xlsxService->generateReport('Room Utilization Report', $headers, $rows, $meta);
+            return $xlsxService->downloadResponse('room-utilization-report-' . now()->format('Y-m-d') . '.xlsx', $binary);
+        }
+
+        return $csvService->stream('room-utilization-report-' . now()->format('Y-m-d') . '.csv', $headers, $rows, $meta);
+    }
+
+    public function roomReportXlsx(Request $request, CsvExportService $csvService)
+    {
+        $request->merge(['format' => 'xlsx']);
+        return $this->roomReportCsv($request, $csvService);
     }
 
     /* ─── ROOM CATEGORIES ─── */
@@ -1894,6 +1971,10 @@ public function appointmentReportPdf(
     |--------------------------------------------------------------------------
     */
 
+    $rescheduled = $appointments
+        ->filter(fn ($a) => !is_null($a->rescheduled_at))
+        ->count();
+
     $pdfData = [
         'appointments' => $appointments,
 
@@ -1909,6 +1990,7 @@ public function appointmentReportPdf(
         'pending' => $pending,
         'cancelled' => $cancelled,
         'noShow' => $noShow,
+        'rescheduled' => $rescheduled,
 
         'recordedValue' => $recordedValue,
         'paidValue' => $paidValue,
@@ -2070,6 +2152,7 @@ public function appointmentReportCsv(
 
     $headers = [
         'Reference No',
+        'BIR Invoice No',
         'Date',
         'Time',
         'Customer Name',
@@ -2079,6 +2162,7 @@ public function appointmentReportCsv(
         'Assigned Staff',
         'Room',
         'Status',
+        'Rescheduled',
         'Total Amount (PHP)',
         'Paid Amount (PHP)',
         'Outstanding Balance (PHP)',
@@ -2126,6 +2210,7 @@ public function appointmentReportCsv(
 
         $rows[] = [
             '#' . ($apt->reference_number ?? $apt->id),
+            $apt->bir_invoice_number ?? '',
             $apt->appointment_date ? Carbon::parse($apt->appointment_date)->format('Y-m-d') : 'N/A',
             $apt->start_time ? Carbon::parse($apt->start_time)->format('g:i A') : 'N/A',
             $customerName,
@@ -2135,6 +2220,7 @@ public function appointmentReportCsv(
             $staffName,
             $roomName,
             $formattedStatus,
+            $apt->rescheduled_at ? 'Yes (' . Carbon::parse($apt->rescheduled_at)->format('Y-m-d') . ')' : 'No',
             number_format($total, 2, '.', ''),
             number_format($paid, 2, '.', ''),
             number_format($balance, 2, '.', ''),
@@ -2199,9 +2285,14 @@ public function appointmentReportCsv(
         ->orderBy('name')
         ->get();
 
+        $utilization = auth()->user()->roles->contains('name', 'admin')
+            ? app(\App\Services\RoomUtilizationService::class)->buildReport($request)
+            : null;
+
         return view('shared.room-tracking', compact(
             'rooms',
-            'trackingDate'
+            'trackingDate',
+            'utilization'
         ));
     }
 

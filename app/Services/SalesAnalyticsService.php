@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Appointment;
+use App\Models\Customer;
 use App\Models\Payment;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -89,9 +90,10 @@ class SalesAnalyticsService
 
     public function getDashboardData(Request $request): array
     {
-        $period = $request->get('period', 'daily');
-        $today  = Carbon::today();
-        $status = $request->get('status', 'completed');
+        $period    = $request->get('period', 'daily');
+        $today     = Carbon::today();
+        $status    = $request->get('status', 'completed');
+        $birSearch = trim((string) $request->get('bir_search', ''));
 
         [$startDate, $endDate, $label] = $this->resolveDateRange(
             $period,
@@ -145,13 +147,15 @@ class SalesAnalyticsService
         $paginatedAppointments = $this->getFilteredAppointments(
             $startDate,
             $endDate,
-            $status
+            $status,
+            $birSearch
         );
 
         $allFilteredAppointments = $this->getAllFilteredAppointmentModels(
             $startDate,
             $endDate,
-            $status
+            $status,
+            $birSearch
         );
 
         $allPayments = (clone $baseQuery)
@@ -562,6 +566,7 @@ class SalesAnalyticsService
             'printServiceSummary'    => $printServiceSummary,
             'txLogData'              => $txLogData,
             'currentStatus'          => $status,
+            'currentBirSearch'       => $birSearch,
 
             'suggestions'            => $suggestions,
 
@@ -617,8 +622,10 @@ class SalesAnalyticsService
 
         $totalServiceMinutes = collect($staff)->sum('service_minutes');
         $totalClockedMinutes = collect($staff)->sum('clocked_minutes');
+        $totalScheduledMinutes = collect($staff)->sum('scheduled_minutes');
         $totalServiceHours = collect($staff)->sum('service_hours');
         $totalClockedHours = collect($staff)->sum('clocked_hours');
+        $totalScheduledHours = collect($staff)->sum('scheduled_hours');
         $totalRevenue = collect($staff)->sum('revenue');
 
         $summary = [
@@ -627,11 +634,23 @@ class SalesAnalyticsService
             'completed' => collect($staff)->sum('completed'),
             'service_minutes' => $totalServiceMinutes,
             'clocked_minutes' => $totalClockedMinutes,
+            'scheduled_minutes' => $totalScheduledMinutes,
             'service_hours' => $totalServiceHours,
             'clocked_hours' => $totalClockedHours,
+            'scheduled_hours' => $totalScheduledHours,
             'overall_utilization' => $totalClockedMinutes > 0
                 ? round(($totalServiceMinutes / $totalClockedMinutes) * 100, 1)
                 : 0,
+            'overall_scheduled_utilization' => $totalScheduledMinutes > 0
+                ? round(($totalServiceMinutes / $totalScheduledMinutes) * 100, 1)
+                : 0,
+            'overall_clocked_vs_scheduled' => $totalScheduledMinutes > 0
+                ? round(($totalClockedMinutes / $totalScheduledMinutes) * 100, 1)
+                : 0,
+            'late_count' => collect($staff)->sum('late_count'),
+            'absent_count' => collect($staff)->sum('absent_count'),
+            'leave_count' => collect($staff)->sum('leave_count'),
+            'early_departure_count' => collect($staff)->sum('early_departure_count'),
             'revenue' => $totalRevenue,
             'revenue_per_hour' => $totalClockedHours > 0
                 ? round($totalRevenue / $totalClockedHours, 2)
@@ -941,6 +960,12 @@ class SalesAnalyticsService
                 'This Month'
             ],
 
+            'quarterly' => [
+                $today->copy()->startOfQuarter(),
+                $today->copy()->endOfQuarter(),
+                'This Quarter'
+            ],
+
             'yearly' => [
                 $today->copy()->startOfYear(),
                 $today->copy()->endOfYear(),
@@ -1176,10 +1201,12 @@ class SalesAnalyticsService
     private function getFilteredAppointments(
         Carbon $startDate,
         Carbon $endDate,
-        string $currentStatus
+        string $currentStatus,
+        string $birSearch = ''
     ) {
         $query = $this->buildAppointmentBaseQuery($startDate, $endDate);
         $query = $this->applyAppointmentStatusFilter($query, $currentStatus);
+        $query = $this->applyBirSearchFilter($query, $birSearch);
 
         return $query
             ->orderByDesc('appointment_date')
@@ -1195,15 +1222,29 @@ class SalesAnalyticsService
     private function getAllFilteredAppointmentModels(
         Carbon $startDate,
         Carbon $endDate,
-        string $currentStatus
+        string $currentStatus,
+        string $birSearch = ''
     ): Collection {
         $query = $this->buildAppointmentBaseQuery($startDate, $endDate);
         $query = $this->applyAppointmentStatusFilter($query, $currentStatus);
+        $query = $this->applyBirSearchFilter($query, $birSearch);
 
         return $query
             ->orderByDesc('appointment_date')
             ->orderByDesc('start_time')
             ->get();
+    }
+
+    /**
+     * Apply an optional BIR invoice number search filter.
+     */
+    private function applyBirSearchFilter($query, string $birSearch)
+    {
+        if ($birSearch !== '') {
+            $query->where('bir_invoice_number', 'like', "%{$birSearch}%");
+        }
+
+        return $query;
     }
 
     /*
@@ -1581,8 +1622,16 @@ class SalesAnalyticsService
                         'completed' => 0,
                         'service_minutes' => 0,
                         'clocked_minutes' => 0,
+                        'scheduled_minutes' => 0,
                         'clocked_hours' => 0,
+                        'scheduled_hours' => 0,
                         'utilization' => 0,
+                        'scheduled_utilization' => 0,
+                        'clocked_vs_scheduled' => 0,
+                        'late_count' => 0,
+                        'absent_count' => 0,
+                        'leave_count' => 0,
+                        'early_departure_count' => 0,
                         'revenue' => 0,
                         'revenue_per_hour' => 0,
                     ];
@@ -1679,8 +1728,16 @@ class SalesAnalyticsService
                     'completed' => 0,
                     'service_minutes' => 0,
                     'clocked_minutes' => 0,
+                    'scheduled_minutes' => 0,
                     'clocked_hours' => 0,
+                    'scheduled_hours' => 0,
                     'utilization' => 0,
+                    'scheduled_utilization' => 0,
+                    'clocked_vs_scheduled' => 0,
+                    'late_count' => 0,
+                    'absent_count' => 0,
+                    'leave_count' => 0,
+                    'early_departure_count' => 0,
                     'revenue' => 0,
                     'revenue_per_hour' => 0,
                 ];
@@ -1697,10 +1754,114 @@ class SalesAnalyticsService
                 $checkIn->diffInMinutes($checkOut);
         }
 
+        $staffIds = array_keys($staff);
+        if (!empty($staffIds)) {
+            $workSchedulesByStaff = WorkSchedule::query()
+                ->whereIn('user_id', $staffIds)
+                ->get()
+                ->groupBy('user_id');
+
+            $exceptionsByStaff = ScheduleException::query()
+                ->whereIn('user_id', $staffIds)
+                ->whereBetween('exception_date', [$startDate, $endDate])
+                ->get()
+                ->groupBy('user_id');
+
+            $allAttendancesByStaff = Attendance::query()
+                ->whereIn('user_id', $staffIds)
+                ->whereBetween('date', [$startDate, $endDate])
+                ->get()
+                ->groupBy('user_id');
+
+            $leaveExceptionTypes = ['sick_leave', 'urgent_leave'];
+            $nonWorkingExceptionTypes = ['day_off', 'holiday'];
+
+            foreach ($staff as $staffId => &$record) {
+                $userSchedules = $workSchedulesByStaff->get($staffId, collect());
+                $userExceptions = $exceptionsByStaff->get($staffId, collect());
+                $userAttendances = $allAttendancesByStaff->get($staffId, collect());
+
+                $scheduledMinutes = 0;
+                $leaveCount = 0;
+                $lateCount = $userAttendances->where('status', 'late')->count();
+                $absentCount = $userAttendances->where('status', 'absent')->count();
+                $onLeaveAttCount = $userAttendances->where('status', 'on_leave')->count();
+                $earlyDepartureCount = 0;
+
+                $cursor = $startDate->copy()->startOfDay();
+                $rangeEnd = $endDate->copy()->startOfDay();
+
+                while ($cursor->lte($rangeEnd)) {
+                    $dateStr = $cursor->toDateString();
+                    $dayOfWeek = $cursor->dayOfWeek;
+
+                    $exc = $userExceptions->first(
+                        fn ($e) => $e->exception_date && $e->exception_date->toDateString() === $dateStr
+                    );
+
+                    $shiftStart = null;
+                    $shiftEnd = null;
+
+                    if ($exc) {
+                        if (in_array($exc->type, $leaveExceptionTypes, true)) {
+                            $leaveCount++;
+                        } elseif (!in_array($exc->type, $nonWorkingExceptionTypes, true)
+                            && $exc->type === 'custom_hours'
+                            && $exc->start_time
+                            && $exc->end_time
+                        ) {
+                            $shiftStart = $exc->start_time;
+                            $shiftEnd = $exc->end_time;
+                        }
+                    } else {
+                        $sched = $userSchedules->firstWhere('day_of_week', $dayOfWeek);
+                        if ($sched && !$sched->is_day_off && $sched->start_time && $sched->end_time) {
+                            $shiftStart = $sched->start_time;
+                            $shiftEnd = $sched->end_time;
+                        }
+                    }
+
+                    if ($shiftStart && $shiftEnd) {
+                        $sStart = Carbon::parse($dateStr . ' ' . $shiftStart);
+                        $sEnd = Carbon::parse($dateStr . ' ' . $shiftEnd);
+                        if ($sEnd->lessThanOrEqualTo($sStart)) {
+                            $sEnd->addDay();
+                        }
+                        $scheduledMinutes += $sStart->diffInMinutes($sEnd);
+
+                        $att = $userAttendances->first(
+                            fn ($a) => $a->date && Carbon::parse($a->date)->toDateString() === $dateStr
+                        );
+                        if ($att && $att->check_out && in_array($att->status, ['present', 'late'], true)) {
+                            $actualOut = Carbon::parse($dateStr . ' ' . Carbon::parse($att->check_out)->format('H:i:s'));
+                            if ($actualOut->lt($sEnd)) {
+                                $earlyDepartureCount++;
+                            }
+                        }
+                    }
+
+                    $cursor->addDay();
+                }
+
+                $record['scheduled_minutes'] = $scheduledMinutes;
+                $record['late_count'] = $lateCount;
+                $record['absent_count'] = $absentCount;
+                $record['leave_count'] = max($leaveCount, $onLeaveAttCount);
+                $record['early_departure_count'] = $earlyDepartureCount;
+            }
+            unset($record);
+        }
+
         foreach ($staff as &$record) {
             $record['clocked_hours'] =
                 round(
                     $record['clocked_minutes'] / 60,
+                    2
+                );
+
+            $record['scheduled_hours'] =
+                round(
+                    $record['scheduled_minutes'] / 60,
                     2
                 );
 
@@ -1710,6 +1871,28 @@ class SalesAnalyticsService
                         (
                             $record['service_minutes']
                             / $record['clocked_minutes']
+                        ) * 100,
+                        1
+                    )
+                    : 0;
+
+            $record['scheduled_utilization'] =
+                $record['scheduled_minutes'] > 0
+                    ? round(
+                        (
+                            $record['service_minutes']
+                            / $record['scheduled_minutes']
+                        ) * 100,
+                        1
+                    )
+                    : 0;
+
+            $record['clocked_vs_scheduled'] =
+                $record['scheduled_minutes'] > 0
+                    ? round(
+                        (
+                            $record['clocked_minutes']
+                            / $record['scheduled_minutes']
                         ) * 100,
                         1
                     )
@@ -1854,11 +2037,35 @@ class SalesAnalyticsService
         Carbon $startDate
     ): array {
         $therapistData = [];
+        $byNamePhone = $this->buildCustomerLookupIndex();
 
         // 1. Group completed appointments by therapist
         $therapistGroups = $appointments
             ->where('status', 'completed')
             ->groupBy('user_id');
+
+        if ($therapistGroups->isEmpty()) {
+            return [];
+        }
+
+        // Preload prior completed appointments for the therapists in this period
+        $therapistIds = $therapistGroups->keys()->filter()->values()->all();
+        $priorByTherapist = [];
+        if (!empty($therapistIds)) {
+            $priorAppts = Appointment::query()
+                ->select(['id', 'customer_id', 'user_id', 'guest_first_name', 'guest_phone', 'appointment_date'])
+                ->whereIn('user_id', $therapistIds)
+                ->where('status', 'completed')
+                ->whereDate('appointment_date', '<', $startDate->toDateString())
+                ->get();
+
+            foreach ($priorAppts as $priorAppt) {
+                $identity = $this->resolveRetentionIdentity($priorAppt, $byNamePhone);
+                if ($identity['key'] !== null) {
+                    $priorByTherapist[$priorAppt->user_id][$identity['key']] = true;
+                }
+            }
+        }
 
         foreach ($therapistGroups as $therapistId => $apptGroup) {
             if (!$therapistId) {
@@ -1871,34 +2078,36 @@ class SalesAnalyticsService
             // 2. Count Total Bookings
             $totalAppts = $apptGroup->count();
 
-            // 3. Count Unique Clients in period
-            $customerIds = $apptGroup
-                ->pluck('customer_id')
-                ->filter()
-                ->unique()
-                ->values();
+            // 3. Resolve identifiable clients in period (registered + identifiable guests)
+            $clientKeys = [];
+            $apptKeys = [];
+            foreach ($apptGroup as $appt) {
+                $identity = $this->resolveRetentionIdentity($appt, $byNamePhone);
+                if ($identity['key'] !== null) {
+                    $clientKeys[$identity['key']] = true;
+                    $apptKeys[] = $identity['key'];
+                }
+            }
 
-            $uniqueClients = $customerIds->count();
+            $uniqueClients = count($clientKeys);
 
             if ($uniqueClients === 0) {
                 continue;
             }
 
             // 4. Repeat Clients: prior completed visits with this therapist before the reporting period start date
-            $priorCustomerIds = Appointment::query()
-                ->where('user_id', $therapistId)
-                ->whereIn('customer_id', $customerIds)
-                ->where('status', 'completed')
-                ->whereDate('appointment_date', '<', $startDate->toDateString())
-                ->distinct()
-                ->pluck('customer_id')
-                ->toArray();
+            $priorKeysForTherapist = $priorByTherapist[$therapistId] ?? [];
+            $repeatClientKeys = array_intersect_key($clientKeys, $priorKeysForTherapist);
 
-            $repeatCustomerIds = array_values(array_unique($priorCustomerIds));
-            $repeatClientsCount = count($repeatCustomerIds);
+            $repeatClientsCount = count($repeatClientKeys);
             $newClientsCount = max(0, $uniqueClients - $repeatClientsCount);
 
-            $repeatAppts = $apptGroup->whereIn('customer_id', $repeatCustomerIds)->count();
+            $repeatAppts = 0;
+            foreach ($apptKeys as $k) {
+                if (isset($repeatClientKeys[$k])) {
+                    $repeatAppts++;
+                }
+            }
 
             // 5. Calculate Retention Rate (unique prior-period returning clients / total unique clients served)
             $retentionRate = $uniqueClients > 0
@@ -1906,14 +2115,14 @@ class SalesAnalyticsService
                 : 0;
 
             $therapistData[] = (object) [
-                'therapist_id'       => $therapistId,
-                'therapist_name'     => $therapistName,
-                'total_appointments' => $totalAppts,
-                'unique_clients'     => $uniqueClients,
-                'repeat_clients'     => $repeatClientsCount,
-                'new_clients'        => $newClientsCount,
-                'repeat_appointments'=> $repeatAppts,
-                'retention_rate'     => $retentionRate,
+                'therapist_id'        => $therapistId,
+                'therapist_name'      => $therapistName,
+                'total_appointments'  => $totalAppts,
+                'unique_clients'      => $uniqueClients,
+                'repeat_clients'      => $repeatClientsCount,
+                'new_clients'         => $newClientsCount,
+                'repeat_appointments' => $repeatAppts,
+                'retention_rate'      => $retentionRate,
             ];
         }
 
@@ -2054,61 +2263,249 @@ class SalesAnalyticsService
     }
 
     private function buildCustomerRetention(
-    Collection $appointments,
-    Carbon $startDate
+        Collection $appointments,
+        Carbon $startDate
     ): array {
         $completedAppointments = $appointments->filter(
             fn ($appointment) => $appointment->status === 'completed'
         );
 
-        $customerIds = $completedAppointments
-            ->pluck('customer_id')
-            ->filter()
-            ->unique()
-            ->values();
-
-        $customersServed = $customerIds->count();
-
-        if ($customersServed === 0) {
+        if ($completedAppointments->isEmpty()) {
             return [
-                'customers_served'    => 0,
-                'returning_customers' => 0,
-                'new_customers'       => 0,
-                'retention_rate'      => 0,
+                'customers_served'            => 0,
+                'registered_customers'        => 0,
+                'guest_customers'             => 0,
+                'unidentified_guest_bookings' => 0,
+                'returning_customers'         => 0,
+                'new_customers'               => 0,
+                'repeat_visits'               => 0,
+                'retention_rate'              => 0,
             ];
         }
 
-        $returningCustomerIds = Appointment::query()
-            ->whereIn('customer_id', $customerIds)
+        $byNamePhone = $this->buildCustomerLookupIndex();
+
+        $identities = [];
+        $unidentifiedGuestBookings = 0;
+
+        foreach ($completedAppointments as $appointment) {
+            $identity = $this->resolveRetentionIdentity($appointment, $byNamePhone);
+
+            if ($identity['key'] === null) {
+                $unidentifiedGuestBookings++;
+                continue;
+            }
+
+            $key = $identity['key'];
+            if (!isset($identities[$key])) {
+                $identities[$key] = [
+                    'type'             => $identity['type'],
+                    'in_period_visits' => 0,
+                ];
+            }
+            $identities[$key]['in_period_visits']++;
+        }
+
+        $customersServed = count($identities);
+
+        if ($customersServed === 0) {
+            return [
+                'customers_served'            => 0,
+                'registered_customers'        => 0,
+                'guest_customers'             => 0,
+                'unidentified_guest_bookings' => $unidentifiedGuestBookings,
+                'returning_customers'         => 0,
+                'new_customers'               => 0,
+                'repeat_visits'               => 0,
+                'retention_rate'              => 0,
+            ];
+        }
+
+        // Load prior completed visits before the reporting period start date
+        $priorCounts = [];
+        $priorCompleted = Appointment::query()
+            ->select(['id', 'customer_id', 'guest_first_name', 'guest_phone', 'appointment_date'])
             ->where('status', 'completed')
-            ->whereDate(
-                'appointment_date',
-                '<',
-                $startDate->toDateString()
-            )
-            ->distinct()
-            ->pluck('customer_id');
+            ->whereDate('appointment_date', '<', $startDate->toDateString())
+            ->get();
 
-        $returningCustomers = $returningCustomerIds->count();
+        foreach ($priorCompleted as $priorAppt) {
+            $identity = $this->resolveRetentionIdentity($priorAppt, $byNamePhone);
+            $key = $identity['key'];
+            if ($key !== null && isset($identities[$key])) {
+                $priorCounts[$key] = ($priorCounts[$key] ?? 0) + 1;
+            }
+        }
 
-        $newCustomers = max(
-            0,
-            $customersServed - $returningCustomers
-        );
+        $registeredCustomers = 0;
+        $guestCustomers = 0;
+        $returningCustomers = 0;
+        $newCustomers = 0;
+        $repeatVisits = 0;
+
+        foreach ($identities as $key => $info) {
+            if ($info['type'] === 'registered') {
+                $registeredCustomers++;
+            } else {
+                $guestCustomers++;
+            }
+
+            $prior = $priorCounts[$key] ?? 0;
+            $inPeriod = $info['in_period_visits'];
+            $totalVisits = $prior + $inPeriod;
+
+            if ($totalVisits >= 2) {
+                $returningCustomers++;
+                $repeatVisits += ($prior >= 1 ? $inPeriod : ($inPeriod - 1));
+            } else {
+                $newCustomers++;
+            }
+        }
 
         $retentionRate = $customersServed > 0
-            ? round(
-                ($returningCustomers / $customersServed) * 100,
-                1
-            )
+            ? round(($returningCustomers / $customersServed) * 100, 1)
             : 0;
 
         return [
-            'customers_served'    => $customersServed,
-            'returning_customers' => $returningCustomers,
-            'new_customers'       => $newCustomers,
-            'retention_rate'      => $retentionRate,
+            'customers_served'            => $customersServed,
+            'registered_customers'        => $registeredCustomers,
+            'guest_customers'             => $guestCustomers,
+            'unidentified_guest_bookings' => $unidentifiedGuestBookings,
+            'returning_customers'         => $returningCustomers,
+            'new_customers'               => $newCustomers,
+            'repeat_visits'               => $repeatVisits,
+            'retention_rate'              => $retentionRate,
         ];
+    }
+
+    /**
+     * Build a lookup map of normalized phone => [customer_id, ...]
+     * for registered customer accounts (user_id IS NOT NULL).
+     *
+     * @return array<string, array<int, int>>
+     */
+    private function buildCustomerLookupIndex(): array
+    {
+        $index = [];
+        $customers = Customer::query()
+            ->whereNotNull('user_id')
+            ->select(['id', 'phone_number'])
+            ->get();
+
+        foreach ($customers as $customer) {
+            $normPhone = $this->normalizeRetentionPhone($customer->phone_number);
+            if ($normPhone === '') {
+                continue;
+            }
+
+            $index[$normPhone][] = (int) $customer->id;
+        }
+
+        return $index;
+    }
+
+    /**
+     * Resolve an appointment to a stable customer identity key using
+     * normalized phone number for guest bookings (or registered customer ID
+     * when linked to a registered account).
+     *
+     * @param array<string, array<int, int>> $registeredByPhone
+     * @return array{type: string, key: ?string, customer_id: ?int}
+     */
+    private function resolveRetentionIdentity(Appointment $appointment, array $registeredByPhone): array
+    {
+        // Guest bookings (identified by guest_first_name or guest_phone) are grouped
+        // by normalized phone number so shared/placeholder customer_id rows never
+        // misclassify guests or merge different phone numbers.
+        if ($appointment->guest_first_name !== null || $appointment->guest_phone !== null) {
+            $normPhone = $this->normalizeRetentionPhone($appointment->guest_phone);
+
+            if ($normPhone === '') {
+                return [
+                    'type'        => 'unidentified',
+                    'key'         => null,
+                    'customer_id' => null,
+                ];
+            }
+
+            $matchedIds = $registeredByPhone[$normPhone] ?? [];
+            if (count($matchedIds) === 1) {
+                return [
+                    'type'        => 'registered',
+                    'key'         => 'reg:' . $matchedIds[0],
+                    'customer_id' => $matchedIds[0],
+                ];
+            }
+
+            return [
+                'type'        => 'guest',
+                'key'         => 'guest_phone:' . $normPhone,
+                'customer_id' => null,
+            ];
+        }
+
+        if (!empty($appointment->customer_id)) {
+            return [
+                'type'        => 'registered',
+                'key'         => 'reg:' . (int) $appointment->customer_id,
+                'customer_id' => (int) $appointment->customer_id,
+            ];
+        }
+
+        return [
+            'type'        => 'unidentified',
+            'key'         => null,
+            'customer_id' => null,
+        ];
+    }
+
+    private function normalizeRetentionName(?string $raw): string
+    {
+        if ($raw === null) {
+            return '';
+        }
+
+        $clean = preg_replace('/\s+/u', ' ', trim($raw)) ?? '';
+        $lower = mb_strtolower($clean, 'UTF-8');
+
+        if (in_array($lower, ['', 'walk-in', 'walkin', 'guest', 'n/a', 'na', 'none', '-', 'unknown'], true)) {
+            return '';
+        }
+
+        return $lower;
+    }
+
+    private function normalizeRetentionPhone(?string $raw): string
+    {
+        if ($raw === null) {
+            return '';
+        }
+
+        $digits = preg_replace('/\D+/', '', $raw) ?? '';
+        if ($digits === '') {
+            return '';
+        }
+
+        // Normalize Philippine mobile numbers (+639xxxxxxxxx / 0639xxxxxxxxx / 9xxxxxxxxx -> 09xxxxxxxxx)
+        if (strlen($digits) === 12 && str_starts_with($digits, '639')) {
+            $digits = '0' . substr($digits, 2);
+        } elseif (strlen($digits) === 13 && str_starts_with($digits, '0639')) {
+            $digits = '0' . substr($digits, 3);
+        } elseif (strlen($digits) === 10 && str_starts_with($digits, '9')) {
+            $digits = '0' . $digits;
+        }
+
+        $len = strlen($digits);
+        if ($len < 7 || $len > 15) {
+            return '';
+        }
+
+        // Reject trivial placeholder sequences such as 00000000000 or 1111111
+        if (preg_match('/^(\d)\1+$/', $digits) === 1) {
+            return '';
+        }
+
+        return $digits;
     }
     /*
     |--------------------------------------------------------------------------
@@ -3034,6 +3431,12 @@ private function getNoShowData(
                 'discountType' => $appt->discount_type,
                 'discountLabel' => $appt->discount_label,
                 'shortDiscountBadge' => $appt->short_discount_badge,
+                'discountAppliedByName' => $appt->discountAppliedBy
+                    ? ($appt->discountAppliedBy->full_name ?? $appt->discountAppliedBy->name)
+                    : null,
+                'discountAppliedAt' => $appt->discount_applied_at
+                    ? Carbon::parse($appt->discount_applied_at)->timezone('Asia/Manila')->format('M d, Y g:i A')
+                    : null,
                 'netAmount' =>
                     number_format(
                         $net,

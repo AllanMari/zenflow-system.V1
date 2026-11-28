@@ -527,6 +527,192 @@
     <div class="empty-state">No payment method breakdown recorded for this period.</div>
 @endif
 
+{{-- ============================================================
+     Appointment Activity Heatmap: Top Demand Slots
+     ============================================================ --}}
+@php
+    $heatSlots    = collect($heatmapTopSlots ?? []);
+    $heatMaxCount = (int) ($heatmapDemandMax  ?? 0);
+    $heatTotal    = (int) ($heatmapDemandTotal ?? 0);
+    $heatDays     = is_array($heatmapDays ?? null) ? $heatmapDays : [];
+    $heatHours    = is_array($heatmapHours ?? null) ? $heatmapHours : [];
+    $heatMatrix   = is_array($heatmapMatrix ?? null) ? $heatmapMatrix : [];
+@endphp
+<div class="section-title">Appointment Demand Heatmap — Day &times; Hour Matrix &amp; Top Peak Slots</div>
+@if(!empty($heatMatrix) && !empty($heatDays) && $heatTotal > 0)
+    <table class="data-table" style="width: 100%; table-layout: fixed; margin-bottom: 4mm; page-break-inside: avoid;">
+        <thead>
+            <tr>
+                <th style="width: 9%; font-size: 6.2pt; padding: 2px 3px;">Day \ Hr</th>
+                @foreach($heatHours as $hIdx => $hLabel)
+                    <th style="text-align: center; font-size: 5.8pt; padding: 2px 1px;">{{ substr((string) $hLabel, 0, 2) }}</th>
+                @endforeach
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($heatDays as $dIdx => $dName)
+                <tr>
+                    <td class="bold" style="font-size: 6.5pt; padding: 2px 3px; background: #f3f4f6;">{{ substr((string) $dName, 0, 3) }}</td>
+                    @foreach($heatHours as $hIdx => $hLabel)
+                        @php
+                            $cnt = (int) ($heatMatrix[$dIdx][$hIdx] ?? 0);
+                            $ratio = $heatMaxCount > 0 ? ($cnt / $heatMaxCount) : 0;
+                            if ($cnt === 0) {
+                                $bg = '#f9fafb';
+                                $fg = '#9ca3af';
+                                $fw = 'normal';
+                            } elseif ($cnt === $heatMaxCount) {
+                                $bg = '#0d9488';
+                                $fg = '#ffffff';
+                                $fw = 'bold';
+                            } elseif ($ratio > 0.75) {
+                                $bg = '#14b8a6';
+                                $fg = '#ffffff';
+                                $fw = 'bold';
+                            } elseif ($ratio > 0.50) {
+                                $bg = '#5eead4';
+                                $fg = '#134e4a';
+                                $fw = 'normal';
+                            } elseif ($ratio > 0.25) {
+                                $bg = '#99f6e4';
+                                $fg = '#0f766e';
+                                $fw = 'normal';
+                            } else {
+                                $bg = '#ccfbf1';
+                                $fg = '#0f766e';
+                                $fw = 'normal';
+                            }
+                        @endphp
+                        <td style="text-align: center; font-size: 5.8pt; padding: 2px 1px; background-color: {{ $bg }}; color: {{ $fg }}; font-weight: {{ $fw }};">{{ $cnt > 0 ? $cnt : '' }}</td>
+                    @endforeach
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+    <p style="font-size: 6.8pt; color: #4b5563; margin: 0 0 3mm 0;">
+        <strong>Intensity Legend:</strong>
+        <span style="display:inline-block;padding:1px 4px;background:#f9fafb;border:1px solid #d1d5db;color:#6b7280;">0</span>
+        <span style="display:inline-block;padding:1px 4px;background:#ccfbf1;border:1px solid #d1d5db;color:#0f766e;">Low</span>
+        <span style="display:inline-block;padding:1px 4px;background:#99f6e4;border:1px solid #d1d5db;color:#0f766e;">Mod</span>
+        <span style="display:inline-block;padding:1px 4px;background:#5eead4;border:1px solid #d1d5db;color:#134e4a;">Med-High</span>
+        <span style="display:inline-block;padding:1px 4px;background:#14b8a6;border:1px solid #d1d5db;color:#ffffff;">High</span>
+        <span style="display:inline-block;padding:1px 4px;background:#0d9488;border:1px solid #d1d5db;color:#ffffff;font-weight:bold;">Peak ({{ number_format($heatMaxCount) }})</span>
+        &nbsp;&bull;&nbsp; Hours in 24h format (Asia/Manila).
+    </p>
+@endif
+@if($heatSlots->isNotEmpty())
+    <table class="data-table pdf-scalable-table">
+        <thead>
+            <tr>
+                <th style="width: 25%;">Day of Week</th>
+                <th style="width: 25%;">Hour Window</th>
+                <th style="width: 25%;" class="text-right">Appointments</th>
+                <th style="width: 25%;" class="text-right">% of Period Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($heatSlots as $slot)
+                @php
+                    $slotShare = $heatTotal > 0 ? round(($slot['count'] / $heatTotal) * 100, 1) : 0;
+                    $isPeak    = $heatMaxCount > 0 && $slot['count'] === $heatMaxCount;
+                @endphp
+                <tr class="{{ $isPeak ? 'peak-row' : '' }}">
+                    <td class="bold">{{ $slot['day'] }}</td>
+                    <td>{{ $slot['hour'] }}</td>
+                    <td class="text-right">{{ number_format($slot['count']) }}</td>
+                    <td class="text-right">{{ number_format($slotShare, 1) }}%</td>
+                </tr>
+            @endforeach
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="2">Period Total (all scheduled slots)</td>
+                <td class="text-right">{{ number_format($heatTotal) }}</td>
+                <td class="text-right">100.0%</td>
+            </tr>
+        </tfoot>
+    </table>
+    <p style="font-size:7pt;color:#6b7280;margin:2mm 0;">
+        Heatmap counts completed, confirmed, and valid pending appointments by their scheduled day and start hour.
+        Cancelled and expired pending appointments are excluded.
+    </p>
+@else
+    <div class="empty-state">No demand heatmap data available for this period.</div>
+@endif
+
+{{-- ============================================================
+     Customer Retention Summary
+     ============================================================ --}}
+@php
+    $custRet = $customerRetention ?? [];
+    $crServed       = (int) ($custRet['customers_served']            ?? 0);
+    $crRegistered   = (int) ($custRet['registered_customers']        ?? 0);
+    $crGuests       = (int) ($custRet['guest_customers']             ?? 0);
+    $crUnidentified = (int) ($custRet['unidentified_guest_bookings'] ?? 0);
+    $crReturning    = (int) ($custRet['returning_customers']         ?? 0);
+    $crNew          = (int) ($custRet['new_customers']               ?? 0);
+    $crRepeatVisits = (int) ($custRet['repeat_visits']               ?? 0);
+    $crRate         = (float) ($custRet['retention_rate']            ?? 0);
+    $crNewRate      = $crServed > 0 ? round(($crNew / $crServed) * 100, 1) : 0.0;
+@endphp
+<div class="section-title">Customer Retention Summary</div>
+@if($crServed > 0 || $crUnidentified > 0)
+    <table class="data-table pdf-scalable-table">
+        <thead>
+            <tr>
+                <th style="width: 48%;">Metric</th>
+                <th style="width: 26%;" class="text-right">Count</th>
+                <th style="width: 26%;" class="text-right">Rate</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="bold">Total Distinct Identifiable Customers Served</td>
+                <td class="text-right bold">{{ number_format($crServed) }}</td>
+                <td class="text-right">—</td>
+            </tr>
+            <tr>
+                <td>&nbsp;&nbsp;&bull; Registered Customers</td>
+                <td class="text-right">{{ number_format($crRegistered) }}</td>
+                <td class="text-right">{{ $crServed > 0 ? number_format(($crRegistered / $crServed) * 100, 1) : '0.0' }}%</td>
+            </tr>
+            <tr>
+                <td>&nbsp;&nbsp;&bull; Identified Guest Customers</td>
+                <td class="text-right">{{ number_format($crGuests) }}</td>
+                <td class="text-right">{{ $crServed > 0 ? number_format(($crGuests / $crServed) * 100, 1) : '0.0' }}%</td>
+            </tr>
+            <tr>
+                <td>Returning Customers (2+ qualifying completed visits)</td>
+                <td class="text-right">{{ number_format($crReturning) }}</td>
+                <td class="text-right bold">{{ number_format($crRate, 1) }}%</td>
+            </tr>
+            <tr>
+                <td>New / First-Time Customers</td>
+                <td class="text-right">{{ number_format($crNew) }}</td>
+                <td class="text-right">{{ number_format($crNewRate, 1) }}%</td>
+            </tr>
+            <tr>
+                <td>Repeat Visits in Period</td>
+                <td class="text-right">{{ number_format($crRepeatVisits) }}</td>
+                <td class="text-right">—</td>
+            </tr>
+            @if($crUnidentified > 0)
+                <tr>
+                    <td>Unidentified Guest Bookings (excluded from rates)</td>
+                    <td class="text-right">{{ number_format($crUnidentified) }}</td>
+                    <td class="text-right">—</td>
+                </tr>
+            @endif
+        </tbody>
+    </table>
+    <p style="font-size:7pt;color:#6b7280;margin:2mm 0;">
+        Retention rate = returning identifiable customers &divide; total distinct identifiable customers served in period.
+        Customer retention is calculated using normalized phone numbers as the primary customer identifier because Spa Alexandria treats phone numbers as unique. Registered customers are identified by their customer records. Guest bookings are grouped by normalized phone number. Guest bookings with missing or unusable phone numbers are reported separately.
+    </p>
+@else
+    <div class="empty-state">No customer retention data available for this period.</div>
+@endif
+
 <table class="signature-table">
     <tr>
         <td>

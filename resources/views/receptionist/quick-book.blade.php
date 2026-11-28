@@ -238,7 +238,14 @@
                                                     x-show="item.is_registered"
                                                     class="rounded-full bg-brand-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-700 dark:bg-brand-900/30 dark:text-brand-300"
                                                 >
-                                                    Registered
+                                                    Registered Customer
+                                                </span>
+
+                                                <span
+                                                    x-show="!item.is_registered"
+                                                    class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                                                >
+                                                    Guest Customer
                                                 </span>
                                             </div>
 
@@ -272,12 +279,12 @@
                                 x-model="customer.name"
                                 @input="handleNameInput()"
                                 maxlength="100"
-                                :readonly="customer.id"
+                                :readonly="customer.id && customer.is_registered"
                                 placeholder="Customer name"
                                 class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 read-only:cursor-default read-only:bg-gray-50 dark:border-gray-700 dark:bg-gray-800/70 dark:text-white dark:placeholder:text-gray-500 dark:read-only:bg-gray-800"
                             >
 
-                            <template x-if="customer.id && customer.real_name && customer.real_name !== customer.name">
+                            <template x-if="customer.id && customer.is_registered && customer.real_name && customer.real_name !== customer.name">
                                 <p class="mt-1.5 text-xs text-gray-400">
                                     Registered name:
                                     <span class="font-medium text-gray-500 dark:text-gray-300" x-text="customer.real_name"></span>
@@ -295,20 +302,20 @@
 
                             <div class="flex h-[50px] items-center rounded-xl border border-gray-200 bg-gray-50 px-4 dark:border-gray-700 dark:bg-gray-800/50">
 
-                                <template x-if="customer.id">
+                                <template x-if="customer.id && customer.is_registered">
                                     <div class="flex items-center gap-2">
                                         <span class="h-2 w-2 rounded-full bg-brand-500"></span>
                                         <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                                            Registered customer
+                                            Registered Customer
                                         </span>
                                     </div>
                                 </template>
 
-                                <template x-if="!customer.id">
+                                <template x-if="!customer.id || !customer.is_registered">
                                     <div class="flex items-center gap-2">
-                                        <span class="h-2 w-2 rounded-full bg-gray-400"></span>
+                                        <span class="h-2 w-2 rounded-full bg-amber-500"></span>
                                         <span class="text-sm font-semibold text-gray-600 dark:text-gray-300">
-                                            Guest / walk-in
+                                            Guest Customer
                                         </span>
                                     </div>
                                 </template>
@@ -1224,10 +1231,18 @@
 
                         <div class="flex items-center justify-between gap-3">
                             <span class="text-xs text-gray-400">Customer</span>
-                            <span
-                                class="max-w-[200px] break-words text-right text-xs font-bold text-gray-700 dark:text-gray-200"
-                                x-text="customer.name || '—'"
-                            ></span>
+                            <div class="flex flex-wrap items-center justify-end gap-1.5 max-w-[220px] text-right">
+                                <span
+                                    class="break-words text-xs font-bold text-gray-700 dark:text-gray-200"
+                                    x-text="customer.name || '—'"
+                                ></span>
+                                <template x-if="customer.id && customer.is_registered">
+                                    <span class="inline-flex items-center rounded-full bg-brand-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">Registered</span>
+                                </template>
+                                <template x-if="(customer.id && !customer.is_registered) || (!customer.id && customer.name)">
+                                    <span class="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Guest</span>
+                                </template>
+                            </div>
                         </div>
 
                         <div class="flex items-center justify-between gap-3">
@@ -1464,7 +1479,15 @@
 
                     <div class="flex items-center justify-between gap-3">
                         <span class="text-xs text-gray-400">Customer</span>
-                        <span class="text-xs font-bold text-gray-700 dark:text-gray-200" x-text="customer.name"></span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs font-bold text-gray-700 dark:text-gray-200" x-text="customer.name"></span>
+                            <template x-if="customer.id && customer.is_registered">
+                                <span class="inline-flex items-center rounded-full bg-brand-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">Registered</span>
+                            </template>
+                            <template x-if="(customer.id && !customer.is_registered) || (!customer.id && customer.name)">
+                                <span class="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Guest</span>
+                            </template>
+                        </div>
                     </div>
 
                     <div class="mt-2 flex items-center justify-between gap-3">

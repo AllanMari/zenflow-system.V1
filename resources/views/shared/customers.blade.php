@@ -105,7 +105,9 @@
                 </span>
             </div>
             <p class="mt-2 text-2xl font-black text-gray-900 dark:text-white">{{ number_format($totalCustomers) }}</p>
-            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">Registered client profiles</p>
+            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                Registered: {{ number_format($registeredCustomersCount ?? 0) }} &middot; Guest: {{ number_format($guestCustomersCount ?? 0) }}
+            </p>
         </div>
 
         {{-- Active Clients --}}
@@ -134,10 +136,40 @@
     </div>
 
     {{-- =========================================================
+         ACCOUNT TYPE TABS
+    ========================================================== --}}
+    <div class="flex flex-wrap items-center gap-1 p-1 rounded-2xl bg-gray-100 dark:bg-slate-800/60 w-fit">
+        <a href="{{ route($routeNamePrefix . '.index', array_filter(['search' => $search ?: null, 'type' => ($type ?? 'all') !== 'all' ? ($type ?? null) : null, 'account_type' => 'all'])) }}"
+           class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition {{ ($accountType ?? 'all') === 'all' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200' }}">
+            All Clients
+            <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded-full bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 text-[10px] font-black px-1">{{ number_format($totalCustomers) }}</span>
+        </a>
+        <a href="{{ route($routeNamePrefix . '.index', array_filter(['search' => $search ?: null, 'type' => ($type ?? 'all') !== 'all' ? ($type ?? null) : null, 'account_type' => 'registered'])) }}"
+           class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition {{ ($accountType ?? 'all') === 'registered' ? 'bg-teal-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200' }}">
+            Registered
+            <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded-full {{ ($accountType ?? 'all') === 'registered' ? 'bg-teal-700 text-white' : 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300' }} text-[10px] font-black px-1">{{ number_format($registeredCustomersCount ?? 0) }}</span>
+        </a>
+        <a href="{{ route($routeNamePrefix . '.index', array_filter(['search' => $search ?: null, 'type' => ($type ?? 'all') !== 'all' ? ($type ?? null) : null, 'account_type' => 'guest'])) }}"
+           class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition {{ ($accountType ?? 'all') === 'guest' ? 'bg-amber-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200' }}">
+            Guest Customers
+            <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded-full {{ ($accountType ?? 'all') === 'guest' ? 'bg-amber-600 text-white' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' }} text-[10px] font-black px-1">{{ number_format($guestCustomersCount ?? 0) }}</span>
+        </a>
+    </div>
+    @if(($accountType ?? 'all') === 'guest')
+    <div class="flex items-start gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-3 text-xs text-amber-800 dark:text-amber-300">
+        <svg class="w-4 h-4 shrink-0 mt-0.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>These customers have booked without creating a registered account. Identity is based on phone number. Guest records are never automatically merged with registered accounts.</span>
+    </div>
+    @endif
+
+    {{-- =========================================================
          SEARCH & FILTER BAR
     ========================================================== --}}
     <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
         <form method="GET" action="{{ route($routeNamePrefix . '.index') }}" class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {{-- hidden account_type so search preserves the active tab --}}
+            <input type="hidden" name="account_type" value="{{ $accountType ?? 'all' }}">
+
             {{-- Search Bar --}}
             <div class="relative flex-1">
                 <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -197,10 +229,19 @@
                                         {{ strtoupper(substr($client->first_name ?: ($client->nickname ?: 'C'), 0, 1)) }}
                                     </div>
                                     <div>
-                                        <div class="flex items-center gap-1.5">
+                                        <div class="flex items-center gap-1.5 flex-wrap">
                                             <span class="font-bold text-gray-900 dark:text-white text-sm">
                                                 {{ $client->first_name }} {{ $client->last_name }}
                                             </span>
+                                            @if(!is_null($client->user_id))
+                                                <span class="inline-flex items-center rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+                                                    Registered
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                                    Guest
+                                                </span>
+                                            @endif
                                             @if($client->nickname)
                                                 <span class="text-xs text-gray-400 dark:text-gray-500">
                                                     ("{{ $client->nickname }}")
@@ -309,6 +350,12 @@
                             @endif
                         </div>
                     </div>
+                    {{-- Account type badge (mobile) --}}
+                    @if(!is_null($client->user_id))
+                        <span class="inline-flex items-center rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 shrink-0">Registered</span>
+                    @else
+                        <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 shrink-0">Guest</span>
+                    @endif
                 </div>
 
                 <div class="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-gray-50 dark:border-slate-800/60">

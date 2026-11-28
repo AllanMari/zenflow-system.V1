@@ -384,10 +384,26 @@
         Transaction Log
     </h3>
 
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-3">
         <span class="text-xs text-gray-500 dark:text-gray-400">
             {{ $totalFiltered }} unique transactions
         </span>
+
+        {{-- BIR Invoice Search --}}
+        <form onsubmit="searchBirInvoice(event)" class="flex items-center gap-1">
+            <input
+                id="birSearchInput"
+                type="text"
+                name="bir_search"
+                value="{{ $currentBirSearch ?? '' }}"
+                placeholder="BIR invoice #…"
+                class="border rounded p-1.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-xs w-32"
+            >
+            <button type="submit" class="border rounded px-2 py-1.5 text-xs bg-brand-500 text-white hover:bg-brand-600 dark:bg-brand-600">Search</button>
+            @if(!empty($currentBirSearch ?? ''))
+                <button type="button" onclick="clearBirSearch()" class="border rounded px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">✕</button>
+            @endif
+        </form>
 
         <select
             id="statusFilter"
@@ -516,9 +532,22 @@
                             style="text-align:left; font-size:9px;"
                         >
                             @if($row['discountAmount'] && $row['discountPercent'])
-                                <span class="tx-discount-badge">
+                                <span
+                                    class="tx-discount-badge"
+                                    @if(!empty($row['discountAppliedByName']) || !empty($row['discountAppliedAt']))
+                                        title="Applied by {{ $row['discountAppliedByName'] ?? 'Staff' }}{{ !empty($row['discountAppliedAt']) ? ' on ' . $row['discountAppliedAt'] : '' }}"
+                                    @endif
+                                >
                                     {{ $row['shortDiscountBadge'] ?? ($row['discountPercent'] . '%') }}
                                 </span>
+                                @if(!empty($row['discountAppliedByName']))
+                                    <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">
+                                        By {{ $row['discountAppliedByName'] }}
+                                        @if(!empty($row['discountAppliedAt']))
+                                            &middot; {{ $row['discountAppliedAt'] }}
+                                        @endif
+                                    </div>
+                                @endif
                             @else
                                 —
                             @endif

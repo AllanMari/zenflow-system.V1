@@ -755,15 +755,18 @@
         */
 
         .empty-state {
-            width: 100%;
+            box-sizing: border-box;
+            width: auto;
+            display: block;
 
-            padding: 9mm 10mm;
+            padding: 8mm 10mm;
 
-            border: 1.7px solid #111111;
+            border: 1px solid #d1d5db;
 
             text-align: center;
 
             font-size: 7px;
+            color: #4b5563;
         }
 
 
